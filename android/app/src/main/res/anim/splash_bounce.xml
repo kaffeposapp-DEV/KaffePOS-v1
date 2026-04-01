@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:fillAfter="true">
+
+    <!-- Fade in -->
+    <alpha
+        android:fromAlpha="0.0"
+        android:toAlpha="1.0"
+        android:duration="300"
+        android:startOffset="0"/>
+
+    <!-- Drop from top -->
+    <translate
+        android:fromYDelta="-60%p"
+        android:toYDelta="0"
+        android:duration="500"
+        android:startOffset="0"
+        android:interpolator="@android:anim/decelerate_interpolator"/>
+
+    <!-- Bounce scale: hit, compress, bounce up, settle -->
+    <scale
+        android:fromXScale="1.0"
+        android:toXScale="1.15"
+        android:fromYScale="1.0"
+        android:toYScale="0.85"
+        android:pivotX="50%"
+        android:pivotY="100%"
+        android:duration="120"
+        android:startOffset="500"
+        android:interpolator="@android:anim/decelerate_interpolator"/>
+
+    <scale
+        android:fromXScale="1.15"
+        android:toXScale="0.95"
+        android:fromYScale="0.85"
+        android:toYScale="1.1"
+        android:pivotX="50%"
+        android:pivotY="100%"
+        android:duration="150"
+        android:startOffset="620"
+        android:interpolator="@android:anim/decelerate_interpolator"/>
+
+    <scale
+        android:fromXScale="0.95"
+        android:toXScale="1.02"
+        android:fromYScale="1.1"
+        android:toYScale="0.97"
+        android:pivotX="50%"
+        android:pivotY="100%"
+        android:duration="100"
+        android:startOffset="770"
+        android:interpolator="@android:anim/decelerate_interpolator"/>
+
+    <scale
+        android:fromXScale="1.02"
+        android:toXScale="1.0"
+        android:fromYScale="0.97"
+        android:toYScale="1.0"
+        android:pivotX="50%"
+        android:pivotY="100%"
+        android:duration="100"
+        android:startOffset="870"
+        android:interpolator="@android:anim/decelerate_interpolator"/>
+
+</set>

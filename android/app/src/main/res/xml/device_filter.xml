@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Common thermal printer vendors -->
+    <usb-device vendor-id="0x0416"/>  <!-- Winbond / Generic -->
+    <usb-device vendor-id="0x067B"/>  <!-- Prolific Technology -->
+    <usb-device vendor-id="0x04B8"/>  <!-- Epson -->
+    <usb-device vendor-id="0x0519"/>  <!-- Star Micronics -->
+    <usb-device vendor-id="0x1CB0"/>  <!-- Approx -->
+    <usb-device vendor-id="0x0FE6"/>  <!-- ITE Tech -->
+    <usb-device vendor-id="0x154F"/>  <!-- CUSTOM Engineering -->
+    <usb-device vendor-id="0x20D1"/>  <!-- Bixolon -->
+    <usb-device vendor-id="0x0525"/>  <!-- Netchip -->
+    <!-- Printer class = 7 -->
+    <usb-device class="7"/>
+</resources>

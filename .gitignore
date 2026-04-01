@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Android build
+android/app/build/
+android/.gradle/
+android/local.properties
+*.keystore
+!*.keystore.example
+
+# iOS
+ios/App/Pods/
+ios/App/App/public/
+
+# Editor
+.DS_Store
+.vscode/
+*.swp
+*.swo
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env.save
+*.save

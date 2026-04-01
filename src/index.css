@@ -1,0 +1,181 @@
+/* src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Android/iOS Global Fixes ────────────────────────────────────── */
+@layer base {
+  html {
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    /* Prevent rubber-band scrolling on iOS */
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  #root {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Allow scrolling inside specific containers */
+  .scroll-y {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* Inputs: prevent autozoom on Android (font-size must be >= 16px) */
+  input, textarea, select {
+    font-size: 16px !important;
+    user-select: text;
+    -webkit-user-select: text;
+    touch-action: manipulation;
+  }
+
+  /* Buttons: no tap highlight */
+  button, a, [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    cursor: pointer;
+  }
+
+  /* Active state for mobile */
+  button:active {
+    transform: scale(0.97);
+    transition: transform 0.1s;
+  }
+}
+
+/* ── Animations ──────────────────────────────────────────────────── */
+@layer utilities {
+  .animate-in {
+    animation: fadeIn 0.2s ease both;
+  }
+
+  .slide-up {
+    animation: slideUp 0.25s ease both;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.97); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20%     { transform: translateX(-8px); }
+    40%     { transform: translateX(8px); }
+    60%     { transform: translateX(-5px); }
+    80%     { transform: translateX(5px); }
+  }
+
+  .shake {
+    animation: shake 0.4s ease;
+  }
+}
+
+/* ── Modal Overlay ───────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 0 env(safe-area-inset-bottom, 0px);
+}
+
+.modal-content {
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 20px 20px 0 0;
+  animation: slideUp 0.25s ease both;
+}
+
+/* Center modal variant */
+.modal-center .modal-content {
+  border-radius: 20px;
+  margin: 16px;
+  max-height: 85vh;
+}
+
+/* ── Bottom Nav ──────────────────────────────────────────────────── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(60px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: white;
+  border-top: 1px solid #f1f5f9;
+  z-index: 40;
+}
+
+/* ── Loading Spinner ─────────────────────────────────────────────── */
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Scrollbar (hide on mobile, thin on desktop) ─────────────────── */
+@media (min-width: 768px) {
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 2px; }
+}
+
+@media (max-width: 767px) {
+  ::-webkit-scrollbar { display: none; }
+  * { scrollbar-width: none; }
+}
+
+/* ── Tablet / Large Screen Improvements ─────────────────────────── */
+/* Nav bar buttons di tablet lebih besar dan mudah ditap */
+@media (min-width: 600px) {
+  .bottom-nav {
+    height: calc(68px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Peningkatan performa scroll di Android */
+[class*="overflow-y-auto"] {
+  will-change: transform;
+}
+
+/* Pastikan font-family konsisten di Android */
+html, body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+

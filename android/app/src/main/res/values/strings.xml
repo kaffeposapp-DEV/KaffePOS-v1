@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">KaffePOS</string>
+    <string name="title_activity_main">KaffePOS</string>
+    <string name="package_name">com.kaffepos.app</string>
+    <string name="custom_url_scheme">com.kaffepos.app</string>
+    <!-- Google Sign-In: Web Client ID (untuk signInWithIdToken ke Supabase) -->
+    <string name="server_client_id">772175003609-pmecpcf33sr7kk8l270f0mh534pceh20.apps.googleusercontent.com</string>
+    <!-- Google Sign-In: Android Client ID (didaftarkan dengan SHA-1 debug key) -->
+    <string name="android_client_id">772175003609-cdbe7lane11bg2m7ob57dlm0cd0f1co3.apps.googleusercontent.com</string>
+</resources>
