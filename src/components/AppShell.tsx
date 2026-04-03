@@ -131,65 +131,69 @@ export default function AppShell() {
     initDone.current = true;
 
     const init = async () => {
-      /** 
-       * FAST PATH: storeId sudah ada di cache → langsung loadAll (yang sudah
-       * ada optimistic dari localStorage juga) → ui muncul tanpa tunggu network 
-       */
       const cachedId = getCachedStoreId();
+      const uid = user?.id || profile?.id;
 
       if (cachedId) {
-        // Tampilkan app seketika dengan cached data
         if (isMounted.current) setReady(true);
-        // Sync fresh data di background
         loadAll(cachedId).catch(() => {});
-        // Verifikasi di background bahwa store masih milik user ini
-        supabase.from('stores').select('id').eq('id', cachedId).eq('owner_id', uid)
-          .maybeSingle().then(({ data }) => {
-            if (!data) {
-              // Cache salah (misal ganti akun) → reset & re-init
-              localStorage.removeItem(LS_STORE_ID);
-              initDone.current = false;
-              if (isMounted.current) setReady(false);
-              init(); // re-run
-            }
-          });
+        
+        // Background verify
+        try {
+          const { data, error } = await supabase.from('stores')
+            .select('id').eq('id', cachedId).eq('owner_id', uid).maybeSingle();
+          if (error || !data) {
+             console.warn('[AppShell] Cache mismatch or RLS error:', error);
+             // Don't reset if it's just a network error
+             if (error && !error.message.includes('fetch')) {
+                localStorage.removeItem(LS_STORE_ID);
+                initDone.current = false;
+                if (isMounted.current) setReady(false);
+                setTimeout(init, 500);
+             }
+          }
+        } catch {}
         return;
       }
 
-      /**
-       * SLOW PATH (pertama kali / cache kosong): query store lalu cache
-       */
       setMessage('Menyiapkan toko...');
-
       try {
-        let { data: store } = await supabase
+        const { data: store, error: fetchError } = await supabase
           .from('stores').select('id').eq('owner_id', uid).maybeSingle();
 
-        if (!store) {
+        if (fetchError) {
+           console.error('[AppShell] fetchStore error:', fetchError);
+           throw new Error(`Gagal memuat data toko: ${fetchError.message}`);
+        }
+
+        let activeStore = store;
+
+        if (!activeStore) {
           setMessage('Membuat toko baru...');
-          const { data: ns, error } = await supabase.from('stores').insert({
+          const { data: ns, error: insError } = await supabase.from('stores').insert({
             owner_id:   uid,
             store_name: `Kedai ${profile?.username || user?.email?.split('@')[0] || 'Kopi'}`,
           }).select('id').single();
-          if (error) throw error;
-          store = ns;
+          
+          if (insError) {
+             console.error('[AppShell] createStore error:', insError);
+             throw new Error(`Gagal membuat toko baru: ${insError.message}`);
+          }
+          activeStore = ns;
         }
 
-        if (!store?.id) throw new Error('Gagal mendapatkan store');
+        if (!activeStore?.id) throw new Error('ID toko tidak ditemukan');
 
-        // Cache untuk launch selanjutnya
-        setCachedStoreId(store.id);
-
-        // Show app immediately (loadAll sudah punya localStorage fallback)
+        setCachedStoreId(activeStore.id);
         if (isMounted.current) setReady(true);
-        // Load fresh data di background
-        loadAll(store.id).catch(() => {});
+        loadAll(activeStore.id).catch(() => {});
 
       } catch (e: any) {
-        console.error('[AppShell] init:', e);
+        console.error('[AppShell] init failed:', e);
         if (isMounted.current) {
-          showToast('Gagal memuat. Cek koneksi internet.', 'error');
-          setReady(true); // tetap tampilkan app meski error
+          showToast(e.message || 'Gagal memuat. Cek koneksi.', 'error');
+          // Jika gagal total, tampilkan UI kosong agar tidak stuck di spinner
+          setReady(true);
         }
       }
     };

@@ -8,8 +8,8 @@
 //   - Preferences disimpan di app-private SharedPreferences (persistent)
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL      = 'https://edaurchznalqpaguxcyy.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkYXVyY2h6bmFscXBhZ3V4Y3l5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzOTAzMzUsImV4cCI6MjA4Nzk2NjMzNX0.DVAYYwPJlf9uuWCcRhiG3fuPazeOBY1wF2_T6kvxfKE';
+export const SUPABASE_URL      = (import.meta.env.VITE_SUPABASE_URL      || 'https://edaurchznalqpaguxcyy.supabase.co').replace(/\/$/, '');
+export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkYXVyY2h6bmFscXBhZ3V4Y3l5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzOTAzMzUsImV4cCI6MjA4Nzk2NjMzNX0.DVAYYwPJlf9uuWCcRhiG3fuPazeOBY1wF2_T6kvxfKE';
 
 // ── Custom fetch: timeout 15s + retry 3x dengan backoff ──────────
 const customFetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {

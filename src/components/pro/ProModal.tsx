@@ -7,7 +7,7 @@ import {
   ChevronRight, ArrowLeft, Loader2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { supabase, SUPABASE_ANON_KEY } from '@/lib/supabase';
 
 // ── Konfigurasi Midtrans ─────────────────────────────────────────
 // Ganti dengan Client Key kamu dari Midtrans Dashboard
@@ -103,6 +103,7 @@ export default function ProModal({ onClose, toast }: Props) {
       headers: {
         'Content-Type':  'application/json',
         'Authorization': `Bearer ${session?.access_token ?? ''}`,
+        'apikey':        SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({
         order_id:     ordId,

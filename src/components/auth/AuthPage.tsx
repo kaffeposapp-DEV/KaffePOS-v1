@@ -2,10 +2,11 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  Eye, EyeOff, Coffee, Mail, Lock, User,
+  Eye, EyeOff, Mail, Lock, User,
   ChevronRight, AlertCircle, CheckCircle,
   ArrowLeft, WifiOff, RefreshCw, X,
 } from 'lucide-react';
+import logo from '@/assets/logo-kaffepos.png';
 
 type Mode = 'login' | 'register' | 'forgot';
 
@@ -26,51 +27,92 @@ export default function AuthPage() {
   const [mode,       setMode]       = useState<Mode>('login');
   const [email,      setEmail]      = useState('');
   const [pass,       setPass]       = useState('');
-  const [uname,      setUname]      = useState('');
+  const [uname,      setUname]      = useState(''); // uname maps to "Nama Toko / Bisnis"
   const [show,       setShow]       = useState(false);
   const [busy,       setBusy]       = useState(false);
   const [resending,  setResending]  = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [gBusy,      setGBusy]      = useState(false);
-  const [gCancel,    setGCancel]    = useState(false); // tombol batal muncul setelah 8 detik
+  const [gCancel,    setGCancel]    = useState(false); 
   const [err,        setErr]        = useState('');
   const [ok,         setOk]         = useState('');
-  const [registered, setRegistered] = useState(false);
-  const [showRescue, setShowRescue] = useState(false);
+  const [registered, setRegistered] = useState(false);  // Real-time Validation Errors
+  const [formErrors, setFormErrors] = useState<{ email?: string; pass?: string; uname?: string }>({});
 
   const gCancelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(true);
+  const emailRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     mounted.current = true;
+    // Restore registration state if any
+    const wasRegistered = localStorage.getItem('kaffepos_registered_email');
+    if (wasRegistered) {
+      setEmail(wasRegistered);
+      setRegistered(true);
+    }
     return () => {
       mounted.current = false;
       if (gCancelTimer.current) clearTimeout(gCancelTimer.current);
     };
   }, []);
 
-  // FIX UTAMA: Reset gBusy saat user berhasil login
-  // onAuthStateChange di AuthContext update isAuthenticated → trigger ini
+  // Autofocus email field on mode switch
+  useEffect(() => {
+    if (mode && !registered) {
+      setTimeout(() => emailRef.current?.focus(), 100);
+    }
+  }, [mode, registered]);
+
+  // Real-time validation effect
+  useEffect(() => {
+    if (mode === 'register') {
+      const errors: { email?: string; pass?: string; uname?: string } = {};
+      if (email && !/\S+@\S+\.\S+/.test(email.trim())) errors.email = 'Format email tidak valid';
+      if (pass && pass.length < 8) errors.pass = 'Password minimal 8 karakter';
+      setFormErrors(errors);
+    } else {
+      setFormErrors({});
+    }
+  }, [email, pass, mode]);
+
   useEffect(() => {
     if (isAuthenticated && gBusy) {
       setGBusy(false);
       setGCancel(false);
       if (gCancelTimer.current) clearTimeout(gCancelTimer.current);
     }
+    if (isAuthenticated) {
+      localStorage.removeItem('kaffepos_registered_email');
+      sessionStorage.removeItem('kaffepos_registered_email');
+    }
   }, [isAuthenticated, gBusy]);
 
   const switchMode = (m: Mode) => {
-    setMode(m); setErr(''); setOk(''); setPass(''); setRegistered(false);
+    setMode(m); setErr(''); setOk(''); setPass(''); setRegistered(false); setFormErrors({});
+    localStorage.removeItem('kaffepos_registered_email');
+    setTimeout(() => emailRef.current?.focus(), 50);
   };
 
-  const submit = useCallback(async () => {
-    setErr(''); setOk('');
+  const isInvalid = mode === 'register' && (
+    !email.trim() || 
+    !/\S+@\S+\.\S+/.test(email.trim()) || 
+    !pass || 
+    pass.length < 8 || 
+    !uname.trim()
+  );
 
-    if (!email.trim())                       { setErr('Email tidak boleh kosong'); return; }
-    if (!/\S+@\S+\.\S+/.test(email.trim())) { setErr('Format email tidak valid'); return; }
+  const submit = useCallback(async () => {
+    setErr(''); setOk(''); setFormErrors({});
+    const trimmedEmail = email.trim().toLowerCase();
+
+    if (!trimmedEmail)                       { setErr('Email tidak boleh kosong'); return; }
+    if (!/\S+@\S+\.\S+/.test(trimmedEmail)) { setErr('Format email tidak valid'); return; }
+    
     if (mode !== 'forgot') {
       if (!pass)                             { setErr('Password tidak boleh kosong'); return; }
       if (mode === 'register') {
-        if (!uname.trim())                   { setErr('Username tidak boleh kosong'); return; }
+        if (!uname.trim())                   { setErr('Nama Toko tidak boleh kosong'); return; }
         if (pass.length < 8)                 { setErr('Password minimal 8 karakter'); return; }
       }
     }
@@ -78,19 +120,35 @@ export default function AuthPage() {
     setBusy(true);
     try {
       if (mode === 'login') {
-        const { error } = await signIn(email.trim(), pass);
-        if (error) { setErr(error); setBusy(false); return; }
-        // onAuthStateChange SIGNED_IN akan handle navigate — setBusy akan hilang saat komponen unmount
+        const resp = await signIn(trimmedEmail, pass);
+        if (resp.error) {
+          const wasReg = localStorage.getItem('kaffepos_registered_email') === trimmedEmail;
+          const isCredError = resp.error.toLowerCase().includes('password salah') || resp.error.toLowerCase().includes('credentials');
+          
+          if (isCredError) {
+            // Jika ada info pendaftaran sebelumnya, beri peringatan keras tentang konfirmasi
+            if (wasReg) {
+              setErr('email_not_confirmed'); 
+            } else {
+              setErr('Email atau password salah. Jika Anda baru mendaftar, pastikan sudah klik link di Gmail (cek folder Spam).');
+            }
+          } else {
+            setErr(resp.error);
+          }
+          setBusy(false);
+          return;
+        }
       } else if (mode === 'register') {
-        const result = await signUp(email.trim(), pass, uname.trim());
+        const result = await signUp(trimmedEmail, pass, uname.trim());
         setBusy(false);
         if (result.error) { setErr(result.error); return; }
         setRegistered(true);
+        localStorage.setItem('kaffepos_registered_email', trimmedEmail);
         setOk(result.needsVerification
           ? 'Akun berhasil dibuat! Cek Gmail kamu untuk link verifikasi.'
           : 'Akun berhasil dibuat! Silakan login sekarang.');
       } else {
-        const { error } = await resetPassword(email.trim());
+        const { error } = await resetPassword(trimmedEmail);
         setBusy(false);
         if (error) setErr(error);
         else setOk('Link reset password dikirim ke Gmail kamu. Cek inbox dan folder Spam.');
@@ -136,15 +194,61 @@ export default function AuthPage() {
         className="min-h-screen bg-white flex flex-col"
         style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
       >
-        <div className="flex-1 flex flex-col justify-center px-6 max-w-sm mx-auto w-full py-8">
+      <div className="flex-1 flex flex-col justify-center px-6 max-w-sm mx-auto w-full py-8 md:py-12">
+          {/* Error Display inside Registered View */}
+          {err && (
+            <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-2xl p-4 mb-6 relative overflow-hidden">
+              <AlertCircle size={18} className="text-red-500 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm text-red-700 font-bold leading-relaxed">{err}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    id="btn-resend-alert"
+                    onClick={async () => {
+                      setResending(true);
+                      const { error } = await resendVerification(email.trim());
+                      if (error) {
+                        setErr(error.includes('429') || error.toLowerCase().includes('rate') ? 'Tunggu 1 menit sebelum mengirim ulang email konfirmasi.' : error);
+                        setOk('');
+                      } else {
+                        setErr('');
+                        setOk('Email konfirmasi baru telah dikirim. Cek inbox/spam.');
+                      }
+                      setResending(false);
+                    }}
+                    disabled={resending}
+                    className="flex items-center gap-2 px-3 py-2 bg-white border border-red-200 rounded-lg text-xs font-black uppercase tracking-wider text-red-600 active:scale-95 disabled:opacity-50"
+                  >
+                    <RefreshCw size={12} className={resending ? 'animate-spin' : ''} />
+                    {resending ? 'Mengirim...' : 'Kirim Ulang'}
+                  </button>
+                  <button
+                    onClick={() => window.open('https://wa.me/628123456789', '_blank')}
+                    className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-black uppercase tracking-wider text-slate-500 active:scale-95"
+                  >
+                    Hubungi Support
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Success/Status Display */}
+          {ok && (
+            <div className="flex items-start gap-2.5 bg-green-50 border border-green-200 rounded-2xl px-4 py-4 mb-6 shadow-sm">
+              <CheckCircle size={18} className="text-green-500 shrink-0 mt-0.5" />
+              <p className="text-sm text-green-700 font-bold leading-relaxed">{ok}</p>
+            </div>
+          )}
+
           {/* Header Konfirmasi — Premium Look */}
           <div className="text-center mb-8">
             <div className="w-20 h-20 bg-orange-100 rounded-3xl flex items-center justify-center mx-auto mb-6 rotate-3">
               <Mail size={44} className="text-orange-600" />
             </div>
-            <h2 className="text-3xl font-black text-slate-900 mb-2 font-poppins">Langkah Terakhir!</h2>
+            <h2 className="text-3xl font-black text-slate-900 mb-2 font-poppins" id="title-confirm-email">Konfirmasi Email</h2>
             <p className="text-slate-500 text-sm leading-relaxed px-2">
-              Kami telah mengirimkan instruksi aktivasi akun ke email Anda. Silakan ikuti petunjuk di bawah ini.
+              Kami telah mengirimkan instruksi aktivasi akun ke email Anda. Silakan ikuti petunjuk di bawah ini untuk mengaktifkan KaffePOS.
             </p>
           </div>
 
@@ -182,18 +286,92 @@ export default function AuthPage() {
           {/* Action Button */}
           <div className="space-y-3">
             <button
-              onClick={() => switchMode('login')}
-              className="w-full py-4 bg-orange-500 text-white font-black text-base rounded-2xl active:scale-95 flex items-center justify-center gap-3 shadow-lg shadow-orange-200 transition-all hover:bg-orange-600"
+              id="btn-confirm-login"
+              onClick={async () => {
+                setErr(''); setOk(''); setConfirming(true);
+                try {
+                  // Coba login untuk memverifikasi status konfirmasi
+                  const { error } = await signIn(email.trim(), pass);
+                  if (error) {
+                    if (error === 'email_not_confirmed') {
+                      setErr('Konfirmasi belum berhasil! Cek folder Spam atau tunggu beberapa saat. Pastikan Anda sudah mengklik link terbaru.');
+                    } else if (error.includes('Email atau password salah')) {
+                       // Hint khusus agar user tidak bingung antara password salah vs belum konfirmasi
+                       setErr('Login gagal. Pastikan email sudah dikonfirmasi. Jika sudah, mungkin password Anda salah.');
+                    } else {
+                      setErr(error);
+                    }
+                  } else {
+                    // Berhasil login! AuthContext akan mengubah isAuthenticated
+                    // dan mengarahkan ke Dashboard.
+                  }
+                } catch (e: any) {
+                  setErr('Gagal memeriksa status: ' + (e.message || 'Terjadi kesalahan.'));
+                } finally {
+                  setConfirming(false);
+                }
+              }}
+              disabled={confirming}
+              className="w-full py-4 bg-orange-500 text-white font-black text-base rounded-2xl active:scale-95 disabled:opacity-60 flex items-center justify-center gap-3 shadow-lg shadow-orange-200 transition-all hover:bg-orange-600"
             >
-              Sudah Konfirmasi? Masuk
-              <ChevronRight size={18} />
+              {confirming ? (
+                <RefreshCw size={20} className="animate-spin" />
+              ) : (
+                <>
+                  Sudah Konfirmasi? Masuk
+                  <ChevronRight size={18} />
+                </>
+              )}
             </button>
             
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mt-4">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3" id="confirmation-panel-label">BANTUAN LOGIN & AKTIVASI</p>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  id="btn-resend-email"
+                  onClick={async () => {
+                    setResending(true);
+                    setErr('');
+                    const { error } = await resendVerification(email.trim());
+                    setResending(false);
+                    if (error) {
+                      setErr(error.includes('429') || error.toLowerCase().includes('rate') ? 'Tunggu 1 menit (Rate Limit) sebelum mencoba kirim ulang lagi.' : error);
+                    } else {
+                      setOk('Email konfirmasi baru telah dikirim. Tunggu 1-2 menit dan cek Inbox/Spam.');
+                    }
+                  }}
+                  disabled={resending}
+                  className="w-full py-2.5 bg-white border border-slate-200 text-slate-600 font-bold text-xs rounded-xl active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <RefreshCw size={14} className={resending ? 'animate-spin' : ''} />
+                  Kirim Ulang (Resend Email)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!window.confirm('Gunakan fitur ini hanya jika Anda benar-benar tidak bisa mengakses email untuk verifikasi (Emergency Access). Lanjutkan?')) return;
+                    setConfirming(true);
+                    const { error } = await emergencyConfirm(email.trim());
+                    setConfirming(false);
+                    if (error) setErr(`Emergency failed: ${error}`);
+                    else setOk('Aktivasi Darurat Berhasil! Silakan klik "Sudah Konfirmasi? Masuk" di atas.');
+                  }}
+                  disabled={confirming}
+                  className="w-full py-2.5 bg-orange-50 border border-orange-200 text-orange-600 font-bold text-xs rounded-xl active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <AlertCircle size={14} />
+                  Aktivasi Tanpa Buka Email (Testing)
+                </button>
+              </div>
+            </div>
+
             <button
               onClick={() => setRegistered(false)}
-              className="w-full py-3 bg-white border border-slate-100 text-slate-400 font-bold text-sm rounded-xl active:scale-95 flex items-center justify-center gap-2"
+              className="w-full py-3 text-slate-400 font-bold text-sm active:scale-95 flex items-center justify-center gap-2"
             >
-              <ArrowLeft size={14} /> Kembali
+              <ArrowLeft size={14} /> Kembali ke Form
             </button>
           </div>
 
@@ -214,8 +392,12 @@ export default function AuthPage() {
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-orange-200">
-            <Coffee size={30} className="text-white" />
+          <div className="w-16 h-16 mx-auto mb-3 relative group">
+            <img 
+              src={logo} 
+              alt="KaffePOS Logo" 
+              className="w-full h-full object-contain rounded-2xl shadow-lg shadow-orange-200 transition-transform group-hover:scale-105"
+            />
           </div>
           <h1 className="text-2xl font-black text-slate-900">KaffePOS</h1>
           <p className="text-slate-400 text-sm mt-1">Atur Kafemu Tanpa Ampas ☕</p>
@@ -258,14 +440,77 @@ export default function AuthPage() {
               ? <WifiOff size={15} className="text-blue-500 shrink-0 mt-0.5" />
               : <AlertCircle size={15} className="text-red-500 shrink-0 mt-0.5" />}
             <div className="flex-1">
-              <p className={`text-sm ${isNetworkErr ? 'text-blue-700' : 'text-red-600'}`}>{err}</p>
+              <p className={`text-sm ${isNetworkErr ? 'text-blue-700' : 'text-red-600'}`}>
+                {err === 'email_not_confirmed' 
+                  ? 'Email belum dikonfirmasi. Cek Gmail kamu (termasuk folder Spam).' 
+                  : err}
+              </p>
               {isNetworkErr && (
-                <button onClick={submit}
+                <button type="button" onClick={submit}
                   className="flex items-center gap-1 text-xs text-blue-600 font-bold mt-1.5">
                   <RefreshCw size={11} /> Coba lagi
                 </button>
               )}
+              {err === 'email_not_confirmed' && (
+                <div className="flex flex-col gap-2 mt-2">
+                  <button 
+                    type="button" 
+                    id="btn-resend-login"
+                    disabled={resending}
+                    onClick={async () => {
+                      setResending(true);
+                      const { error } = await resendVerification(email.trim());
+                      setResending(false);
+                      if (error) setErr(error.includes('429') || error.toLowerCase().includes('rate') ? 'Tunggu 1 menit sebelum mengirim ulang.' : error);
+                      else {
+                        setErr('');
+                        setOk('Email konfirmasi telah dikirim ulang. Silakan cek inbox/spam.');
+                      }
+                    }}
+                    className="flex items-center justify-center gap-1.5 py-2.5 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm active:scale-95 disabled:opacity-50"
+                  >
+                    <RefreshCw size={12} className={resending ? 'animate-spin' : ''} />
+                    {resending ? 'Mengirim...' : 'Kirim Ulang Email Konfirmasi'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!window.confirm('Aktivasi Darurat: Gunakan hanya untuk testing jika Anda tidak bisa akses email. Lanjutkan?')) return;
+                      setBusy(true); // Ganti busy agar terlihat loading
+                      const { error } = await emergencyConfirm(email.trim());
+                      setBusy(false);
+                      if (error) setErr(`Gagal aktivasi: ${error}`);
+                      else {
+                        setErr('');
+                        setOk('Aktivasi Berhasil! Silakan klik Masuk ke KaffePOS lagi.');
+                      }
+                    }}
+                    disabled={busy}
+                    className="flex items-center justify-center gap-1.5 py-2.5 bg-white border border-red-200 text-red-600 rounded-xl text-xs font-black uppercase tracking-wider active:scale-95"
+                  >
+                    <AlertCircle size={12} />
+                    Aktivasi Jalur Cepat (Tes)
+                  </button>
+                </div>
+              )}
+              {(err.includes('terkunci') || err.toLowerCase().includes('lockout')) && (
+                <div className="mt-2.5 p-2 bg-red-100/50 rounded-lg border border-red-200">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-red-700 mb-1">🛡️ Langkah Keamanan</p>
+                  <p className="text-[10px] text-red-600 leading-tight">
+                    Sistem mendeteksi terlalu banyak percobaan. Kami mengunci akses sementara untuk melindungi akun Anda.
+                  </p>
+                </div>
+              )}
             </div>
+          </div>
+        )}
+
+        {/* Success general */}
+        {ok && mode !== 'forgot' && (
+          <div className="flex items-start gap-2.5 bg-green-50 border border-green-200 rounded-xl px-3.5 py-3 mb-4">
+            <CheckCircle size={15} className="text-green-500 shrink-0 mt-0.5" />
+            <p className="text-green-700 text-sm font-medium leading-relaxed">{ok}</p>
           </div>
         )}
 
@@ -287,21 +532,31 @@ export default function AuthPage() {
                   name="username"
                   autoComplete="username"
                   value={uname} onChange={e => setUname(e.target.value)}
-                  placeholder="Username (nama tampilan)"
-                  className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:outline-none focus:border-orange-400 focus:bg-white transition-all"
-                  style={{ fontSize: 16 }} autoCapitalize="none" />
+                  placeholder="Nama Toko / Bisnis"
+                  className={`w-full bg-slate-50 border-2 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:outline-none focus:bg-white transition-all
+                    ${uname.trim() === '' && uname !== '' ? 'border-red-400' : 'border-slate-200 focus:border-orange-400'}`}
+                  style={{ fontSize: 16 }} autoCapitalize="words" />
+                {uname.trim() === '' && uname !== '' && mode === 'register' && (
+                  <p className="text-[10px] text-red-500 font-bold mt-1 ml-4 uppercase tracking-wider">Nama Toko tidak boleh kosong</p>
+                )}
               </div>
             )}
 
             <div className="relative">
               <Mail size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
+                ref={emailRef}
                 type="email" name="email"
+                id="field-email"
                 autoComplete={mode === 'register' ? 'email' : 'username'}
                 value={email} onChange={e => setEmail(e.target.value)}
                 placeholder="Email"
-                className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:outline-none focus:border-orange-400 focus:bg-white transition-all"
+                className={`w-full bg-slate-50 border-2 rounded-2xl pl-11 pr-4 py-3.5 text-sm focus:outline-none focus:bg-white transition-all
+                  ${formErrors.email ? 'border-red-400' : 'border-slate-200 focus:border-orange-400'}`}
                 style={{ fontSize: 16 }} autoCapitalize="none" inputMode="email" />
+              {formErrors.email && (
+                <p className="text-[10px] text-red-500 font-bold mt-1 ml-4 uppercase tracking-wider">{formErrors.email}</p>
+              )}
             </div>
 
             {mode !== 'forgot' && (
@@ -313,13 +568,17 @@ export default function AuthPage() {
                   autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
                   value={pass}
                   onChange={e => setPass(e.target.value)}
-                  placeholder="Password (min 8 karakter)"
-                  className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl pl-11 pr-12 py-3.5 text-sm focus:outline-none focus:border-orange-400 focus:bg-white transition-all"
+                  placeholder={mode === 'register' ? "Password (min 8 karakter)" : "Password"}
+                  className={`w-full bg-slate-50 border-2 rounded-2xl pl-11 pr-12 py-3.5 text-sm focus:outline-none focus:bg-white transition-all
+                    ${formErrors.pass ? 'border-red-400' : 'border-slate-200 focus:border-orange-400'}`}
                   style={{ fontSize: 16 }} />
                 <button type="button" onClick={() => setShow(s => !s)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 p-0.5">
                   {show ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
+                {formErrors.pass && (
+                  <p className="text-[10px] text-red-500 font-bold mt-1 ml-4 uppercase tracking-wider">{formErrors.pass}</p>
+                )}
               </div>
             )}
           </div>
@@ -332,8 +591,9 @@ export default function AuthPage() {
           )}
 
           {/* Submit Button */}
-          <button type="submit" disabled={busy}
-            className="mt-5 w-full py-4 bg-orange-500 text-white font-black text-base rounded-2xl active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2 shadow-lg shadow-orange-200">
+          <button type="submit" disabled={busy || (mode === 'register' && isInvalid)}
+            id="btn-auth-submit"
+            className="mt-5 w-full py-4 bg-orange-500 text-white font-black text-base rounded-2xl active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none flex items-center justify-center gap-2 shadow-lg shadow-orange-200">
             {busy
               ? <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -348,6 +608,29 @@ export default function AuthPage() {
             }
           </button>
         </form>
+
+        {/* Support Link untuk login panel */}
+        {mode === 'login' && (
+          <div className="mt-6 flex flex-col items-center gap-3">
+             <button
+                type="button"
+                onClick={() => {
+                   const wasReg = localStorage.getItem('kaffepos_registered_email');
+                   if (wasReg) {
+                      setEmail(wasReg);
+                      setRegistered(true);
+                   } else {
+                      // Jika tidak ada di storage, coba ingatkan user
+                      setErr('Belum ada pendaftaran yang tercatat. Jika Anda sudah daftar tapi belum konfirmasi, cek Gmail Anda.');
+                   }
+                }}
+                className="text-xs text-slate-400 font-bold flex items-center gap-1 hover:text-orange-500 transition-colors"
+                id="link-check-confirmation"
+             >
+                Sudah Konfirmasi? Masuk
+             </button>
+          </div>
+        )}
 
         {/* Info hint daftar */}
         {mode === 'register' && (

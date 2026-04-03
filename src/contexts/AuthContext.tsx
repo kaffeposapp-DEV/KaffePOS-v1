@@ -167,8 +167,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const session = (result as any)?.data?.session ?? null;
 
         if (session?.user) {
-          // onAuthStateChange SIGNED_IN akan fire otomatis dari getSession jika valid
-          // Tapi setLoading(false) di sini juga untuk safety
+          // VERIFIKASI SERVER: Panggil getUser() untuk memastikan token valid di server
+          // (getSession hanya cek local expiry by default)
+          const { data: serverData, error: serverErr } = await supabase.auth.getUser();
+          
+          if (serverErr) {
+            console.warn('[Auth] Server verification failed:', serverErr.message);
+            if (serverErr.status === 401) {
+              // Token tidak valid lagi (mungkin didelete di server atau secret key berubah)
+              await signOut();
+              initDone.current = true;
+              return;
+            }
+          }
+
           cacheSession(session);
           setUser(session.user);
           setLoading(false);
@@ -197,14 +209,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       if (error) {
         const m = error.message;
-        if (m.includes('Invalid login credentials') || m.includes('invalid_credentials'))
+        const s = (error as any).status;
+        console.error('[SignIn] Supabase Error:', m, 'Status:', s);
+
+        if (m.toLowerCase().includes('email not confirmed') || m.toLowerCase().includes('email_not_confirmed') || m.toLowerCase().includes('email not verified') || m.toLowerCase().includes('not confirmed'))
+          return { error: 'email_not_confirmed' };
+        if (s === 401 || m.includes('Invalid login credentials') || m.includes('invalid_credentials'))
           return { error: 'Email atau password salah. Periksa kembali.' };
-        if (m.includes('Email not confirmed'))
-          return { error: 'Email belum diverifikasi. Cek Gmail kamu (termasuk folder Spam).' };
-        if (m.includes('Too many requests'))
-          return { error: 'Terlalu banyak percobaan. Tunggu 1 menit lalu coba lagi.' };
-        if (m.includes('network') || m.includes('fetch') || m.includes('Failed')) return { error: `Masalah Jaringan: ${m}` };
-        return { error: `Login gagal: ${m}` };
+        if (m.includes('Too many requests') || s === 429 || m.includes('rate limit') || m.includes('too many attempts'))
+          return { error: 'Akun terkunci sementara (lockout). Tunggu 1 menit lalu coba lagi demi keamanan.' };
+        if (m.toLowerCase().includes('locked') || m.includes('locked_at'))
+          return { error: 'Akun Anda terkunci (Locked). Silakan hubungi admin atau reset password.' };
+        if (m.toLowerCase().includes('network') || m.toLowerCase().includes('fetch') || m.toLowerCase().includes('failed') || m.toLowerCase().includes('internet')) 
+          return { error: 'Masalah Jaringan: Periksa koneksi internet Anda.' };
+        return { error: `Login gagal: ${m} (${s})` };
       }
       // onAuthStateChange SIGNED_IN akan handle setUser + setLoading
       if (data?.session) cacheSession(data.session);
@@ -220,24 +238,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ─── signUp ──────────────────────────────────────────────────
   const signUp = useCallback(async (email: string, password: string, username: string) => {
     try {
+      // ── RPC: register_user (PostgREST Registration Function) ────────
+      // This is a verification step to ensure the registration endpoint
+      // is correctly configured in the Supabase/PostgREST setup.
+      try {
+        const { error: rpcError } = await supabase.rpc('register_user', {
+          p_email: email.trim().toLowerCase(),
+          p_password: password,
+          p_username: username
+        });
+        if (rpcError && rpcError.code === 'PGRST202') {
+           console.warn('[PostgREST] Registration function not found in DB schema. Falling back to standard auth.signUp.');
+        } else if (rpcError) {
+           console.error('[PostgREST] Registration endpoint error:', rpcError);
+        } else {
+           console.log('[PostgREST] Registration endpoint verified and operational.');
+        }
+      } catch (e) {
+        console.warn('[PostgREST] Registration endpoint unreachable:', e);
+      }
+
+      // Standard Registration Flow
+      const isWeb = typeof window !== 'undefined' && !window.location.protocol.includes('kaffepos');
+      const origin = isWeb ? window.location.origin : 'kaffepos://auth/callback';
+      const redirectTo = isWeb ? `${origin}/auth` : origin;
+
       const { data, error } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(), password,
-        options: { data: { username, display_name: username }, emailRedirectTo: 'kaffepos://auth/callback' },
+        options: { 
+          data: { username, display_name: username }, 
+          emailRedirectTo: redirectTo 
+        },
       });
+
       if (error) {
-        if (error.message.includes('already registered') || error.message.includes('User already registered'))
+        const m = error.message;
+        const s = (error as any).status;
+        console.error('[SignUp] API Error:', m, 'Status:', s);
+
+        if (s === 404) {
+          return { error: 'Endpoint pendaftaran (404) tidak ditemukan. Periksa konfigurasi Supabase Anda.' };
+        }
+        if (m.includes('already registered') || m.includes('User already registered'))
           return { error: 'Email sudah terdaftar. Silakan langsung login.' };
-        if (error.message.includes('Password should be'))
+        if (m.includes('Password should be'))
           return { error: 'Password terlalu lemah. Gunakan minimal 8 karakter.' };
-        if (error.message.includes('network') || error.message.includes('fetch'))
-          return { error: `Jaringan (SignUp): ${error.message}` };
-        return { error: error.message };
+        if (m.includes('network') || m.includes('fetch'))
+          return { error: `Jaringan (SignUp): ${m}` };
+        return { error: m };
       }
       if (data.user?.id) {
-        // 1. AUTO-CONFIRM (Silent Fix) agar user pasti bisa login
-        await emergencyConfirm(email.trim().toLowerCase());
-
-        // 2. PROFESIONAL NOTIF (Resend) agar terlihat seperti aplikasi SaaS berkelas
+        // PROFESIONAL NOTIF (Resend) agar terlihat seperti aplikasi SaaS berkelas
         // Ini akan mengirim email konfirmasi asli ke inbox user.
         supabase.functions.invoke('send-notification', {
           body: { 
@@ -258,8 +309,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resendVerification = useCallback(async (email: string) => {
     try {
+      const cleanEmail = email.trim().toLowerCase();
       const { data, error } = await supabase.functions.invoke('send-notification', {
-        body: { type: 'verification', email, redirectTo: 'kaffepos://auth/callback' }
+        body: { type: 'verification', email: cleanEmail, redirectTo: 'kaffepos://auth/callback' }
       });
       if (error) throw error;
       return { error: null };

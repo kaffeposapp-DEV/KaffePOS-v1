@@ -2,10 +2,8 @@
 // Panggil AI via Supabase Edge Function (API key aman di server, tidak expose di APK)
 // SECURITY: JANGAN pakai VITE_GEMINI_API_KEY — akan ter-bundle di APK dan bisa dicuri!
 
-import { supabase } from '@/lib/supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 
-const SUPABASE_URL      = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/ai-insight`;
 
 // ── Tipe data untuk konteks analisis ─────────────────────────────
