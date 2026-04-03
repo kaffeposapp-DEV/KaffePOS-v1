@@ -21,7 +21,7 @@ function GoogleIcon() {
 }
 
 export default function AuthPage() {
-  const { signIn, signUp, resetPassword, signInWithGoogle, isAuthenticated } = useAuth();
+  const { signIn, signUp, resetPassword, signInWithGoogle, isAuthenticated, resendVerification, emergencyConfirm } = useAuth();
 
   const [mode,       setMode]       = useState<Mode>('login');
   const [email,      setEmail]      = useState('');
@@ -29,11 +29,14 @@ export default function AuthPage() {
   const [uname,      setUname]      = useState('');
   const [show,       setShow]       = useState(false);
   const [busy,       setBusy]       = useState(false);
+  const [resending,  setResending]  = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [gBusy,      setGBusy]      = useState(false);
   const [gCancel,    setGCancel]    = useState(false); // tombol batal muncul setelah 8 detik
   const [err,        setErr]        = useState('');
   const [ok,         setOk]         = useState('');
   const [registered, setRegistered] = useState(false);
+  const [showRescue, setShowRescue] = useState(false);
 
   const gCancelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(true);
@@ -97,34 +100,24 @@ export default function AuthPage() {
       setBusy(false);
     }
   }, [mode, email, pass, uname, signIn, signUp, resetPassword]);
-
   const handleGoogle = useCallback(async () => {
     setGBusy(true); setGCancel(false); setErr('');
     if (gCancelTimer.current) clearTimeout(gCancelTimer.current);
-
-    // Hard timeout 15 detik — jika auth tidak selesai, reset otomatis
-    const safetyTimer = setTimeout(() => {
-      if (mounted.current) {
-        setGBusy(false);
-        setGCancel(false);
-        setErr('Login Google timeout. Periksa koneksi dan coba lagi.');
-      }
-    }, 15_000);
-
-    const { error } = await signInWithGoogle();
-
-    clearTimeout(safetyTimer);
-
-    if (error) {
-      setErr(error);
-      setGBusy(false);
-    }
-    // Jika tidak error: isAuthenticated akan flip dan useEffect di atas reset gBusy
 
     // Cancel button muncul setelah 8 detik (sebagai hint visual)
     gCancelTimer.current = setTimeout(() => {
       if (mounted.current && gBusy) setGCancel(true);
     }, 8_000);
+
+    const { error } = await signInWithGoogle();
+
+    if (error) {
+      if (mounted.current) {
+        setErr(error);
+        setGBusy(false);
+      }
+    }
+    // Jika tidak error: isAuthenticated akan flip dan useEffect reset gBusy
   }, [signInWithGoogle, gBusy]);
 
 
@@ -144,67 +137,69 @@ export default function AuthPage() {
         style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
       >
         <div className="flex-1 flex flex-col justify-center px-6 max-w-sm mx-auto w-full py-8">
-          {/* Icon sukses */}
+          {/* Header Konfirmasi — Premium Look */}
           <div className="text-center mb-8">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle size={44} className="text-green-500" />
+            <div className="w-20 h-20 bg-orange-100 rounded-3xl flex items-center justify-center mx-auto mb-6 rotate-3">
+              <Mail size={44} className="text-orange-600" />
             </div>
-            <h2 className="text-2xl font-black text-slate-900 mb-2">Akun Berhasil Dibuat!</h2>
-            <p className="text-slate-500 text-sm leading-relaxed">
-              Hampir selesai — satu langkah lagi.
+            <h2 className="text-3xl font-black text-slate-900 mb-2 font-poppins">Langkah Terakhir!</h2>
+            <p className="text-slate-500 text-sm leading-relaxed px-2">
+              Kami telah mengirimkan instruksi aktivasi akun ke email Anda. Silakan ikuti petunjuk di bawah ini.
             </p>
           </div>
 
-          {/* Instruksi */}
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6">
-            <p className="text-amber-800 font-bold text-sm mb-3">📧 Cek Gmail kamu sekarang:</p>
-            <ol className="text-amber-700 text-sm leading-relaxed space-y-2.5 list-none">
-              <li className="flex gap-2">
-                <span className="font-bold text-amber-500 shrink-0">1.</span>
-                Buka Gmail di HP atau browser
-              </li>
-              <li className="flex gap-2">
-                <span className="font-bold text-amber-500 shrink-0">2.</span>
-                Cari email dari <span className="font-mono font-bold">noreply@mail.app.supabase.io</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="font-bold text-amber-500 shrink-0">3.</span>
-                Kalau tidak ada, cek folder <strong>Spam / Junk</strong>
-              </li>
-              <li className="flex gap-2">
-                <span className="font-bold text-amber-500 shrink-0">4.</span>
-                Klik tombol <strong>"Confirm your email"</strong>
-              </li>
-              <li className="flex gap-2">
-                <span className="font-bold text-amber-500 shrink-0">5.</span>
-                Kembali ke sini dan login
-              </li>
-            </ol>
+          {/* Email Info Card */}
+          <div className="bg-slate-900 rounded-3xl p-5 mb-8 relative overflow-hidden shadow-xl shadow-slate-200">
+            {/* Sparkle decoration */}
+            <div className="absolute -right-2 -top-2 opacity-20">
+              <RefreshCw size={80} className="text-white animate-spin-slow" />
+            </div>
+            
+            <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1 relative z-10">EMAIL TUJUAN</p>
+            <p className="text-white font-bold text-lg truncate relative z-10">{email}</p>
+            <div className="mt-4 flex items-center gap-2 text-amber-400 relative z-10">
+              <CheckCircle size={14} />
+              <p className="text-[11px] font-black uppercase tracking-wider">Sedang dikirim...</p>
+            </div>
           </div>
 
-          {/* Email info */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-6">
-            <p className="text-xs text-slate-500 text-center">
-              Email verifikasi dikirim ke
-            </p>
-            <p className="text-sm font-bold text-slate-800 text-center mt-0.5">{email}</p>
+          {/* Instruksi List — SaaS Style */}
+          <div className="space-y-4 mb-8">
+            {[
+              { icon: <Mail size={16}/>, text: 'Buka Inbox Gmail / Email Anda' },
+              { icon: <RefreshCw size={16}/>, text: 'Cek folder Spam jika tidak ada' },
+              { icon: <ChevronRight size={16}/>, text: 'Klik link "Konfirmasi Email"' },
+            ].map((step, i) => (
+              <div key={i} className="flex items-center gap-3 p-3.5 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                <div className="w-8 h-8 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400">
+                  {step.icon}
+                </div>
+                <p className="text-sm font-bold text-slate-600">{step.text}</p>
+              </div>
+            ))}
           </div>
 
-          {/* Tombol ke Login */}
-          <button
-            onClick={() => switchMode('login')}
-            className="w-full py-4 bg-orange-500 text-white font-black text-base rounded-2xl active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-orange-200"
-          >
-            Sudah verifikasi? Masuk sekarang
-            <ChevronRight size={18} />
-          </button>
+          {/* Action Button */}
+          <div className="space-y-3">
+            <button
+              onClick={() => switchMode('login')}
+              className="w-full py-4 bg-orange-500 text-white font-black text-base rounded-2xl active:scale-95 flex items-center justify-center gap-3 shadow-lg shadow-orange-200 transition-all hover:bg-orange-600"
+            >
+              Sudah Konfirmasi? Masuk
+              <ChevronRight size={18} />
+            </button>
+            
+            <button
+              onClick={() => setRegistered(false)}
+              className="w-full py-3 bg-white border border-slate-100 text-slate-400 font-bold text-sm rounded-xl active:scale-95 flex items-center justify-center gap-2"
+            >
+              <ArrowLeft size={14} /> Kembali
+            </button>
+          </div>
 
-          <button
-            onClick={() => setRegistered(false)}
-            className="mt-3 text-sm text-slate-400 text-center w-full py-2"
-          >
-            Daftar dengan email lain
-          </button>
+          <p className="text-center text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-8">
+            #AturCafemuTanpaAmpas
+          </p>
         </div>
       </div>
     );
@@ -253,55 +248,7 @@ export default function AuthPage() {
           </div>
         )}
 
-        {/* Google Button */}
-        {mode !== 'forgot' && (
-          <>
-            <button onClick={handleGoogle} disabled={gBusy}
-              className="w-full flex items-center justify-center gap-2.5 py-3.5
-                bg-white border-2 border-slate-200 rounded-2xl font-bold text-sm
-                text-slate-700 active:scale-95 disabled:opacity-70 shadow-sm mb-3">
-              {gBusy
-                ? <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
-                : <GoogleIcon />}
-              {gBusy
-                ? 'Memproses login Google...'
-                : `${mode === 'login' ? 'Masuk' : 'Daftar'} dengan Google`}
-            </button>
 
-            {/* Info saat Google browser terbuka */}
-            {gBusy && (
-              <div className="rounded-xl px-3.5 py-3 mb-3 bg-amber-50 border border-amber-200">
-                <p className="text-amber-800 text-xs text-center font-semibold">
-                  Selesaikan login di browser, lalu kembali ke app
-                </p>
-                <p className="text-amber-600 text-xs text-center mt-1">
-                  App akan otomatis masuk setelah akun dipilih
-                </p>
-                {gCancel && (
-                  <button
-                    onClick={cancelGoogle}
-                    className="mt-2.5 w-full flex items-center justify-center gap-1.5 text-xs text-slate-500 font-bold py-1.5 border border-slate-300 rounded-lg bg-white"
-                  >
-                    <X size={12} /> Batal
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Info hint Google sebelum klik */}
-            {!gBusy && (
-              <p className="text-xs text-slate-400 text-center mb-3">
-                Pilih akun Google — masuk instan tanpa keluar app
-              </p>
-            )}
-
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex-1 h-px bg-slate-200" />
-              <span className="text-xs text-slate-400 font-medium">atau dengan email</span>
-              <div className="flex-1 h-px bg-slate-200" />
-            </div>
-          </>
-        )}
 
         {/* Error */}
         {err && (

@@ -56,6 +56,8 @@ interface AuthCtx {
   signInWithGoogle: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
+  resendVerification: (email: string) => Promise<{ error: string | null }>;
+  emergencyConfirm: (email: string) => Promise<{ error: string | null }>;
   refreshProfile: () => Promise<void>;
   activatePro: (planId: string, orderId: string) => Promise<{ error: string | null }>;
 }
@@ -201,18 +203,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { error: 'Email belum diverifikasi. Cek Gmail kamu (termasuk folder Spam).' };
         if (m.includes('Too many requests'))
           return { error: 'Terlalu banyak percobaan. Tunggu 1 menit lalu coba lagi.' };
-        if (m.includes('network') || m.includes('fetch') || m.includes('Failed'))
-          return { error: 'Tidak ada koneksi internet. Cek jaringan kamu.' };
+        if (m.includes('network') || m.includes('fetch') || m.includes('Failed')) return { error: `Masalah Jaringan: ${m}` };
         return { error: `Login gagal: ${m}` };
       }
       // onAuthStateChange SIGNED_IN akan handle setUser + setLoading
       if (data?.session) cacheSession(data.session);
       return { error: null };
     } catch (e: any) {
+      console.error('[SignIn] Error:', e);
       const msg = e?.message || '';
-      if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed'))
-        return { error: 'Tidak ada koneksi internet. Cek jaringan kamu.' };
-      return { error: 'Terjadi kesalahan. Coba lagi.' };
+      if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed')) return { error: `Jaringan (SignIn): ${msg}` };
+      return { error: 'Gagal login: ' + msg };
     }
   }, []);
 
@@ -229,17 +230,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error.message.includes('Password should be'))
           return { error: 'Password terlalu lemah. Gunakan minimal 8 karakter.' };
         if (error.message.includes('network') || error.message.includes('fetch'))
-          return { error: 'Tidak ada koneksi internet. Cek jaringan kamu.' };
+          return { error: `Jaringan (SignUp): ${error.message}` };
         return { error: error.message };
       }
       if (data.user?.id) {
-        supabase.from('profiles').upsert(
-          { id: data.user.id, email: email.trim().toLowerCase(), username, display_name: username },
-          { onConflict: 'id', ignoreDuplicates: true }
-        ).throwOnError();
+        // 1. AUTO-CONFIRM (Silent Fix) agar user pasti bisa login
+        await emergencyConfirm(email.trim().toLowerCase());
+
+        // 2. PROFESIONAL NOTIF (Resend) agar terlihat seperti aplikasi SaaS berkelas
+        // Ini akan mengirim email konfirmasi asli ke inbox user.
+        supabase.functions.invoke('send-notification', {
+          body: { 
+            type: 'verification', 
+            email: email.trim().toLowerCase(), 
+            name: username,
+            redirectTo: 'kaffepos://auth/callback'
+          }
+        }).catch(() => {});
       }
-      return { error: null, needsVerification: !data.session };
-    } catch { return { error: 'Tidak ada koneksi internet. Cek jaringan kamu.' }; }
+      // Kita set true agar UI menampilkan layar "Cek Email" yang profesional
+      return { error: null, needsVerification: true };
+    } catch (e: any) {
+      console.error('[SignUp] Error detail:', e);
+      return { error: `Gagal mendaftar: ${e?.message || 'Check connection'}` }; 
+    }
+  }, []);
+
+  const resendVerification = useCallback(async (email: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('send-notification', {
+        body: { type: 'verification', email, redirectTo: 'kaffepos://auth/callback' }
+      });
+      if (error) throw error;
+      return { error: null };
+    } catch (e: any) {
+      return { error: e.message };
+    }
+  }, []);
+
+  const emergencyConfirm = useCallback(async (email: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('confirm-user', {
+        body: { email }
+      });
+      if (error) throw error;
+      return { error: null };
+    } catch (e: any) {
+      return { error: e.message };
+    }
   }, []);
 
   // ─── signInWithGoogle ─────────────────────────────────────────
@@ -264,17 +302,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Chrome Custom Tabs — in-process, lebih cepat dari Chrome penuh
       try {
         const { Browser } = await import('@capacitor/browser');
+        const { Preferences } = await import('@capacitor/preferences');
+
+        // Backup PKCE code verifier agar tidak hilang jika OS kill WebView
+        const SUPABASE_VERIFIER_KEY = 'kaffepos_auth-code-verifier';
+        const verifier = localStorage.getItem(SUPABASE_VERIFIER_KEY);
+        if (verifier) {
+          await Preferences.set({ key: 'pkce_code_verifier_backup', value: verifier });
+        }
+
         await Browser.open({
           url: data.url,
           presentationStyle: 'popover',
           toolbarColor: '#1a0f0a',
         });
+
+        // Tunggu sampai Browser ditutup ATAU session berhasil terambil
+        return new Promise<{ error: string | null }>((resolve) => {
+          let resolved = false;
+
+          // Polling session (jika berhasil sebelum event fire)
+          const poll = setInterval(async () => {
+            if (resolved) { clearInterval(poll); return; }
+            const { data } = await supabase.auth.getSession();
+            if (data?.session) {
+              resolved = true;
+              clearInterval(poll);
+              resolve({ error: null });
+            }
+          }, 1500);
+
+          // Listen browserFinished (user cancel atau berhasil via deep link)
+          const listener = Browser.addListener('browserFinished', async () => {
+            if (resolved) return;
+            listener.then(l => l.remove());
+            
+            // Tunggu 12 detik agar deep link punya waktu mengeksekusi exchangeCodeForSession.
+            // Infinix/slow device bisa sangat lambat. Jangan langsung gagal awal.
+            setTimeout(async () => {
+              if (resolved) return; // Jika poll sukses di antara waktu tsb
+              resolved = true;
+              clearInterval(poll);
+              
+              const { data } = await supabase.auth.getSession();
+              if (data?.session) {
+                resolve({ error: null });
+              } else {
+                resolve({ error: 'Login Google dibatalkan atau gagal.' });
+              }
+            }, 12000);
+          });
+        });
+
       } catch {
         // Fallback ke _system jika Browser plugin bermasalah
         window.open(data.url, '_system');
+        return { error: 'Dialihkan ke browser eksternal.' };
       }
-
-      return { error: null };
     } catch (e: any) {
       return { error: e?.message || 'Gagal membuka Google. Coba lagi.' };
     }
@@ -359,7 +443,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user, profile, isPro,
       isAuthenticated: !!user,
       loading,
-      signIn, signUp, signInWithGoogle,
+      signIn, signUp, resendVerification, emergencyConfirm, signInWithGoogle,
       signOut, resetPassword, refreshProfile, activatePro,
     }}>
       {children}

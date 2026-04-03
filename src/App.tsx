@@ -1,5 +1,7 @@
-// src/App.tsx — KaffePOS v12 CHROME CUSTOM TABS OAUTH
-// FIX v12: Gunakan @capacitor/browser (Chrome Custom Tabs) untuk OAuth
+// src/App.tsx — KaffePOS v13 PKCE CODE VERIFIER RESTORE FIX
+// FIX v13: Restore PKCE code verifier dari Preferences sebelum exchangeCodeForSession
+// ROOT CAUSE: Android kill WebView sandboxed process saat Custom Tab aktif → localStorage hilang
+// SOLUSI: Backup code verifier ke Capacitor Preferences (persisten) sebelum Browser.open()
 //   - Browser.open() menggantikan window.open(_system)
 //   - browserFinished event sebagai signal OAuth selesai
 //   - appUrlOpen (via onNewIntent) tetap handle PKCE code exchange
@@ -166,9 +168,12 @@ export default function App() {
     return () => { handler.then(h => h.remove()); };
   }, []);
 
-  // ── Deep link: Google OAuth PKCE callback ─────────────────────
-  // FIX v9: PKCE flow mengirim ?code= (query param), BUKAN #access_token (fragment)
-  // Gunakan exchangeCodeForSession() untuk tukar code menjadi session token
+  // ── Deep link: Google OAuth PKCE callback ─────────────────────────────────
+  // v13 FIX: Restore PKCE code verifier dari Capacitor Preferences sebelum exchange
+  // Background: Saat Browser.open() → Chrome Custom Tab dibuka, Android bisa kill
+  // WebView sandboxed process (memory pressure). Ini menghapus localStorage termasuk
+  // PKCE code verifier. exchangeCodeForSession akan gagal dengan 'invalid_grant'.
+  // SOLUSI: signInWithGoogle backup code verifier ke Preferences, kita restore di sini.
   useEffect(() => {
     const handleDeepLink = async (url: string) => {
       if (!url || !url.includes('kaffepos://')) return;
@@ -180,38 +185,63 @@ export default function App() {
         const code = urlObj.searchParams.get('code');
 
         if (code) {
-          // ── PKCE flow: exchange code untuk session ──
-          console.log('[OAuth] PKCE code received, exchanging for session...');
+          // ── PKCE flow: restore code verifier, lalu exchange code ─────────
+          console.log('[OAuth v13] PKCE code received, restoring code verifier...');
+          try {
+            const { Preferences } = await import('@capacitor/preferences');
+            // Key yang Supabase gunakan: storageKey + '-code-verifier'
+            const VERIFIER_PREF_KEY = 'pkce_code_verifier_backup';
+            const SUPABASE_VERIFIER_KEY = 'kaffepos_auth-code-verifier';
+
+            // Cek apakah verifier sudah ada di localStorage
+            const existingVerifier = localStorage.getItem(SUPABASE_VERIFIER_KEY);
+            if (!existingVerifier) {
+              // Tidak ada → restore dari Preferences (backup sebelum Browser.open)
+              const { value: backedUpVerifier } = await Preferences.get({ key: VERIFIER_PREF_KEY });
+              if (backedUpVerifier) {
+                console.log('[OAuth v13] Verifier hilang dari localStorage, restore dari Preferences...');
+                localStorage.setItem(SUPABASE_VERIFIER_KEY, backedUpVerifier);
+                localStorage.setItem(`sb_${SUPABASE_VERIFIER_KEY}`, backedUpVerifier);
+              } else {
+                console.warn('[OAuth v13] Verifier tidak ada di Preferences juga — login mungkin gagal');
+              }
+            }
+          } catch (prefErr) {
+            console.warn('[OAuth v13] Preferences restore error:', prefErr);
+          }
+
+          console.log('[OAuth v13] Exchanging code for session...');
           const { data, error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) {
-            console.warn('[OAuth] exchangeCodeForSession error:', error.message);
+            console.warn('[OAuth v13] exchangeCodeForSession error:', error.message);
+            // Jika error 'invalid_grant', code sudah dipakai atau expired
+            // Coba getSession() dulu — mungkin sebelumnya sudah berhasil
+            const { data: existingSession } = await supabase.auth.getSession();
+            if (existingSession?.session?.user) {
+              console.log('[OAuth v13] Session sudah ada (sebelumnya berhasil):', existingSession.session.user.email);
+              setSplashDone(true);
+            }
           } else if (data?.session) {
-            console.log('[OAuth] Session exchanged OK — user:', data.session.user?.email);
+            console.log('[OAuth v13] Session exchanged OK —', data.session.user?.email);
             setSplashDone(true);
-            // onAuthStateChange SIGNED_IN akan otomatis update state di AuthContext
           }
           return;
         }
 
-        // ── Fallback: implicit flow (deprecated, backup only) ──
-        // Jika Google mengirim token langsung di fragment (tidak harusnya terjadi dengan PKCE)
+        // ── Fallback: implicit flow (token di fragment) ──
         const hash = url.indexOf('#');
         if (hash !== -1) {
           const params = new URLSearchParams(url.slice(hash + 1));
           const access_token  = params.get('access_token');
           const refresh_token = params.get('refresh_token');
           if (access_token && refresh_token) {
-            console.log('[OAuth] Implicit fallback: setting session from fragment...');
+            console.log('[OAuth v13] Implicit tokens in fragment, calling setSession...');
             const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-            if (error) {
-              console.warn('[OAuth] setSession (implicit fallback) error:', error.message);
-            } else {
-              setSplashDone(true);
-            }
+            if (!error) setSplashDone(true);
           }
         }
       } catch (e) {
-        console.warn('[OAuth] handleDeepLink error:', e);
+        console.warn('[OAuth v13] handleDeepLink error:', e);
       }
     };
 

@@ -51,16 +51,11 @@ public class MainActivity extends BridgeActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
 
-    // ── KRITIS: Forward deep link ke Capacitor saat app sudah running ──
-    // Ketika app sudah berjalan (singleTask) dan menerima intent baru
-    // (misal OAuth callback kaffepos://auth/callback?code=xxx),
-    // Android memanggil onNewIntent — BUKAN onCreate.
-    // Tanpa override ini, Capacitor TIDAK menerima URL dan appUrlOpen tidak pernah terpanggil.
+
     @Override
     public void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        // Forward ke Capacitor Bridge agar appUrlOpen event terpanggil di JavaScript
         if (getBridge() != null) {
             getBridge().onNewIntent(intent);
         }

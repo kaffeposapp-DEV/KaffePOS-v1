@@ -1,6 +1,6 @@
 // src/components/settings/SettingsTab.tsx — KaffePOS v5
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Key, LogOut, Printer, Image, Save, Eye, EyeOff, CheckCircle2, RotateCcw, Bluetooth, BluetoothOff, AlertCircle, Wifi, RefreshCw } from 'lucide-react';
+import { Key, LogOut, Printer, Image, Save, Eye, EyeOff, CheckCircle2, RotateCcw, Bluetooth, BluetoothOff, AlertCircle, Wifi, RefreshCw, Bell, ChevronRight } from 'lucide-react';
 import SubscriptionSection from './SubscriptionSection';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/hooks/useStore';
@@ -8,6 +8,7 @@ import { usePrinter } from '@/hooks/usePrinter';
 import { printReceiptBrowser, testPrintMP58 } from '@/utils/thermalPrinter';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/lib/supabase';
+import NotificationCenter from './NotificationCenter';
 
 const SAFE_COLS = [
   'store_name','address','whatsapp','tax_percent','receipt_header','receipt_footer',
@@ -117,6 +118,8 @@ export default function SettingsTab({ toast, isPro, profile }: any) {
   const [kasirName, setKasirName] = useState(profile?.display_name || profile?.username || '');
   const [savingKasir, setSavingKasir] = useState(false);
   const [kasirSaved, setKasirSaved]   = useState(false);
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const [notifsOpen, setNotifsOpen]   = useState(false);
   const logoRef = useRef<HTMLInputElement>(null);
   const timer   = useRef<any>(null);
 
@@ -130,6 +133,14 @@ export default function SettingsTab({ toast, isPro, profile }: any) {
 
   useEffect(() => {
     setKasirName(profile?.display_name || profile?.username || '');
+    // Fetch unread notifications
+    if (profile?.id) {
+      supabase.from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', profile.id)
+        .eq('is_read', false)
+        .then(({ count }) => { if (count !== null) setUnreadNotifs(count); });
+    }
   }, [profile]);
 
   const triggerSave = useCallback((newForm: any) => {
@@ -268,6 +279,34 @@ export default function SettingsTab({ toast, isPro, profile }: any) {
           ))}
         </div>
       </div>
+
+      {/* NOTIFIKASI SECTION (SAAS STYLE) */}
+      <div className="px-3 pt-3">
+        <button onClick={() => setNotifsOpen(true)}
+          className="w-full bg-white rounded-2xl border border-slate-100 p-4 flex items-center justify-between active:scale-[0.98] transition-all overflow-hidden relative group">
+          
+          {/* Decorative background circle */}
+          <div className="absolute -right-4 -top-4 w-24 h-24 bg-orange-50 rounded-full group-hover:scale-125 transition-transform duration-500 opacity-50" />
+          
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="w-12 h-12 bg-orange-100 rounded-2xl flex items-center justify-center">
+              <div className="relative">
+                <Bell size={24} className="text-orange-600" />
+                {unreadNotifs > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full animate-pulse" />}
+              </div>
+            </div>
+            <div className="text-left">
+              <p className="font-extrabold text-slate-800 text-sm">Notifikasi & Kabar</p>
+              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                {unreadNotifs > 0 ? `${unreadNotifs} Pesan Belum Dibaca` : 'Cek update & informasi'}
+              </p>
+            </div>
+          </div>
+          <ChevronRight size={18} className="text-slate-300 relative z-10" />
+        </button>
+      </div>
+
+      <NotificationCenter isOpen={notifsOpen} onClose={() => { setNotifsOpen(false); setUnreadNotifs(0); }} />
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
 
