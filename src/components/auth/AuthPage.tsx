@@ -7,10 +7,12 @@
 // src/components/auth/AuthPage.tsx — KaffePOS v9 GOOGLE OAUTH LOADING FIX
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { registerWithEmail, resendVerificationEmail } from '@/services/AuthService';
 import {
   Eye, EyeOff, Mail, Lock, User,
   ChevronRight, AlertCircle, CheckCircle,
   ArrowLeft, WifiOff, RefreshCw,
+  ExternalLink
 } from 'lucide-react';
 import logo from '@/assets/logo-kaffepos.png';
 
@@ -18,7 +20,7 @@ type Mode = 'login' | 'register' | 'forgot';
 
 
 export default function AuthPage() {
-  const { signIn, signUp, resetPassword, isAuthenticated, resendVerification, emergencyConfirm } = useAuth();
+  const { signIn, resetPassword, isAuthenticated, emergencyConfirm } = useAuth();
 
   const [mode,       setMode]       = useState<Mode>('login');
   const [email,      setEmail]      = useState('');
@@ -33,6 +35,7 @@ export default function AuthPage() {
   const [ok,         setOk]         = useState('');
   const [registered, setRegistered] = useState(false);  // Real-time Validation Errors
   const [formErrors, setFormErrors] = useState<{ email?: string; pass?: string; uname?: string }>({});
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const gCancelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(true);
@@ -58,6 +61,15 @@ export default function AuthPage() {
       setTimeout(() => emailRef.current?.focus(), 100);
     }
   }, [mode, registered]);
+
+  // Resend cooldown timer
+  useEffect(() => {
+    let timer: any;
+    if (resendCooldown > 0) {
+      timer = setInterval(() => setResendCooldown(c => c - 1), 1000);
+    }
+    return () => { if (timer) clearInterval(timer); };
+  }, [resendCooldown]);
 
   // Real-time validation effect
   useEffect(() => {
@@ -133,14 +145,15 @@ export default function AuthPage() {
           return;
         }
       } else if (mode === 'register') {
-        const result = await signUp(trimmedEmail, pass, uname.trim());
+        const result = await registerWithEmail(uname.trim(), trimmedEmail, pass);
         setBusy(false);
-        if (result.error) { setErr(result.error); return; }
+        if (!result.success) { 
+          setErr(result.error || 'Pendaftaran gagal'); 
+          return; 
+        }
         setRegistered(true);
         localStorage.setItem('kaffepos_registered_email', trimmedEmail);
-        setOk(result.needsVerification
-          ? 'Akun berhasil dibuat! Cek Gmail kamu untuk link verifikasi.'
-          : 'Akun berhasil dibuat! Silakan login sekarang.');
+        setOk('Akun berhasil dibuat! Cek Gmail kamu untuk link verifikasi.');
       } else {
         const { error } = await resetPassword(trimmedEmail);
         setBusy(false);
@@ -151,7 +164,7 @@ export default function AuthPage() {
       setErr(e?.message || 'Terjadi kesalahan. Coba lagi.');
       setBusy(false);
     }
-  }, [mode, email, pass, uname, signIn, signUp, resetPassword]);
+  }, [mode, email, pass, uname, signIn, resetPassword]);
 
   const isNetworkErr = err.includes('internet') || err.includes('koneksi') || err.includes('jaringan');
 
@@ -159,76 +172,62 @@ export default function AuthPage() {
   if (registered) {
     return (
       <div
-        className="min-h-screen bg-white flex flex-col"
+        className="min-h-screen bg-slate-50 flex flex-col"
         style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
       >
       <div className="flex-1 flex flex-col justify-center px-6 max-w-sm mx-auto w-full py-8 md:py-12">
-          {/* Error Display inside Registered View */}
-          {err && (
-            <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-2xl p-4 mb-6 relative overflow-hidden">
-              <AlertCircle size={18} className="text-red-500 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm text-red-700 font-bold leading-relaxed">{err}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    id="btn-resend-alert"
-                    onClick={async () => {
-                      setResending(true);
-                      const { error } = await resendVerification(email.trim());
-                      if (error) {
-                        setErr(error.includes('429') || error.toLowerCase().includes('rate') ? 'Tunggu 1 menit sebelum mengirim ulang email konfirmasi.' : error);
-                        setOk('');
-                      } else {
-                        setErr('');
-                        setOk('Email konfirmasi baru telah dikirim. Cek inbox/spam.');
-                      }
-                      setResending(false);
-                    }}
-                    disabled={resending}
-                    className="flex items-center gap-2 px-3 py-2 bg-white border border-red-200 rounded-lg text-xs font-black uppercase tracking-wider text-red-600 active:scale-95 disabled:opacity-50"
-                  >
-                    <RefreshCw size={12} className={resending ? 'animate-spin' : ''} />
-                    {resending ? 'Mengirim...' : 'Kirim Ulang'}
-                  </button>
-                  <button
-                    onClick={() => window.open('https://wa.me/628123456789', '_blank')}
-                    className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-black uppercase tracking-wider text-slate-500 active:scale-95"
-                  >
-                    Hubungi Support
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Success/Status Display */}
-          {ok && (
-            <div className="flex items-start gap-2.5 bg-green-50 border border-green-200 rounded-2xl px-4 py-4 mb-6 shadow-sm">
-              <CheckCircle size={18} className="text-green-500 shrink-0 mt-0.5" />
-              <p className="text-sm text-green-700 font-bold leading-relaxed">{ok}</p>
-            </div>
-          )}
-
           {/* Header Konfirmasi — Premium Look */}
-          <div className="text-center mb-8">
-            <div className="w-20 h-20 bg-orange-100 rounded-3xl flex items-center justify-center mx-auto mb-6 rotate-3">
-              <Mail size={44} className="text-orange-600" />
+          <div className="text-center mb-10">
+            <div className="w-24 h-24 bg-orange-100 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 relative">
+              <div className="absolute inset-0 bg-orange-200 rounded-[2.5rem] rotate-6 opacity-30 animate-pulse"></div>
+              <Mail size={56} className="text-orange-600 relative z-10" />
             </div>
-            <h2 className="text-3xl font-black text-slate-900 mb-2 font-poppins" id="title-confirm-email">Konfirmasi Email</h2>
-            <p className="text-slate-500 text-sm leading-relaxed px-2">
-              Kami telah mengirimkan instruksi aktivasi akun ke email Anda. Silakan ikuti petunjuk di bawah ini untuk mengaktifkan KaffePOS.
+            <h2 className="text-3xl font-black text-slate-900 mb-3 font-poppins" id="title-confirm-email">Cek Inbox Kamu</h2>
+            <p className="text-slate-500 text-sm leading-relaxed px-4">
+              Email verifikasi sudah meluncur ke <span className="font-bold text-slate-900">{email}</span>. Klik link di dalamnya untuk mulai jualan.
             </p>
           </div>
 
-          {/* Status Info Card */}
-          <div className="bg-slate-900 rounded-3xl p-5 mb-8 relative overflow-hidden shadow-xl shadow-slate-200">
-            <div className="absolute -right-2 -top-2 opacity-20"><RefreshCw size={80} className="text-white animate-spin-slow" /></div>
-            <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1 relative z-10">EMAIL TUJUAN</p>
-            <p className="text-white font-bold text-lg truncate relative z-10">{email}</p>
-            <div className="mt-4 flex items-center gap-2 text-amber-400 relative z-10">
-              <RefreshCw size={14} className="animate-spin" />
-              <p className="text-[11px] font-black uppercase tracking-wider">Mengecek status aktivasi secara otomatis...</p>
-            </div>
+          {/* Action Cards */}
+          <div className="space-y-4 mb-8">
+            <button
+              onClick={() => {
+                // Specific Intent for Gmail on Android, fallback to web
+                window.open('googlegmail://', '_blank');
+                setTimeout(() => {
+                  window.open('https://mail.google.com', '_blank');
+                }, 500);
+              }}
+              className="w-full group bg-white border-2 border-orange-100 p-5 rounded-3xl flex items-center gap-4 active:scale-95 transition-all shadow-sm hover:border-orange-200"
+            >
+              <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center shrink-0">
+                <Mail className="text-red-500" size={24} />
+              </div>
+              <div className="text-left flex-1">
+                <p className="text-sm font-black text-slate-900">Buka Gmail</p>
+                <p className="text-[11px] text-slate-400 font-medium italic">Klik tombol "Verifikasi" di dalamnya</p>
+              </div>
+              <ExternalLink size={18} className="text-slate-300 group-hover:text-orange-400" />
+            </button>
+
+            {/* Status Display inside Registered View */}
+            {err && (
+              <div className="bg-red-50 border border-red-100 rounded-3xl p-5 mb-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle size={20} className="text-red-500 shrink-0" />
+                  <p className="text-sm text-red-700 font-bold leading-relaxed">{err}</p>
+                </div>
+              </div>
+            )}
+
+            {ok && (
+              <div className="bg-green-50 border border-green-100 rounded-3xl p-5 mb-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle size={20} className="text-green-500 shrink-0" />
+                  <p className="text-sm text-green-700 font-bold leading-relaxed">{ok}</p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -240,114 +239,65 @@ export default function AuthPage() {
                   const { error } = await signIn(email.trim(), pass);
                   if (error) {
                     if (error === 'email_not_confirmed') {
-                      setErr('Status: Belum diaktivasi. Jika Gmail belum masuk dalam 2 menit, hubungi Support di bawah.');
+                      setErr('Status: Akun belum diaktivasi. Pastikan Anda sudah klik link di Gmail.');
                     } else setErr(error);
                   }
                 } catch (e:any) { setErr('Cek status gagal: ' + (e.message || 'Error')); }
                 finally { setConfirming(false); }
               }}
               disabled={confirming}
-              className="w-full py-4 bg-orange-500 text-white font-black text-base rounded-2xl active:scale-95 disabled:opacity-60 flex items-center justify-center gap-3 shadow-lg shadow-orange-200"
+              className="w-full py-4 bg-orange-500 text-white font-black text-base rounded-2xl active:scale-95 disabled:opacity-60 flex items-center justify-center gap-3 shadow-xl shadow-orange-100"
             >
-              {confirming ? <RefreshCw size={20} className="animate-spin" /> : <>Masuk ke Dashboard <ChevronRight size={18} /></>}
+              {confirming ? <RefreshCw size={20} className="animate-spin" /> : <>Saya Sudah Konfirmasi <ChevronRight size={18} /></>}
             </button>
-            
-            <div className="bg-white border border-slate-100 rounded-3xl p-6 mt-4 shadow-sm text-center">
-              <div className="flex items-center justify-center gap-2 mb-2 text-slate-800">
-                 <Mail size={16} className="text-orange-500" />
-                 <p className="text-sm font-black uppercase tracking-wider">Email Berita Buruk?</p>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed mb-6">
-                Gmail terkadang memblokir link verifikasi otomatis jika sistem sedang sibuk. 
-                Jika Anda tidak menemukan email di Inbox atau Spam:
-              </p>
-              
-              <div className="flex flex-col gap-3">
+
+            <div className="grid grid-cols-2 gap-3 mt-4">
                 <button
                   type="button"
                   id="btn-resend-email"
                   onClick={async () => {
+                    if (resendCooldown > 0) return;
                     setResending(true); setErr(''); setOk('');
-                    const { error } = await resendVerification(email.trim());
+                    const result = await resendVerificationEmail(email.trim());
                     setResending(false);
-                    if (error) setErr(error);
-                    else setOk('Sistem mencoba mengirim ulang via jalur cadangan. Cek Inbox/Spam dalam 1-2 menit.');
+                    if (!result.success) {
+                      setErr(result.error || 'Gagal mengirim ulang email.');
+                    } else {
+                      setOk('Email baru dikirim! Cek inbox/spam.');
+                      setResendCooldown(60);
+                    }
                   }}
-                  disabled={resending}
-                  className="w-full py-4 bg-slate-100 text-slate-900 font-bold text-xs rounded-2xl active:scale-95 flex items-center justify-center gap-2"
+                  disabled={resending || resendCooldown > 0}
+                  className="py-3.5 bg-white border-2 border-slate-100 text-slate-600 font-black text-[11px] uppercase tracking-wider rounded-2xl active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   <RefreshCw size={14} className={resending ? 'animate-spin' : ''} />
-                  KIRIM ULANG VERIFIKASI
+                  {resendCooldown > 0 ? `Kirim Ulang (${resendCooldown}s)` : 'Kirim Ulang'}
                 </button>
 
-                <div className="h-px bg-slate-100 my-2" />
-
                 <button
-                   onClick={() => window.open('https://wa.me/6285186076224?text=Halo%20Admin,%20saya%20sudah%20daftar%20KaffePOS%20dengan%20email%20' + email + '%20tapi%20belum%20terima%20link.%20Tolong%20aktivasi%20manual.', '_blank')}
-                   className="w-full py-4 bg-green-500 text-white font-black text-xs rounded-2xl active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-green-100"
+                   onClick={() => window.open('https://wa.me/6285186076224?text=Halo%20Admin,%20saya%20sudah%20daftar%20KaffePOS%20dengan%20email%20' + email + '%20tapi%20belum%20terima%20link.', '_blank')}
+                   className="py-3.5 bg-white border-2 border-green-100 text-green-600 font-black text-[11px] uppercase tracking-wider rounded-2xl active:scale-95 flex items-center justify-center gap-2"
                 >
-                   HUBUNGI ADMIN VIA WHATSAPP
+                   Bantuan Admin
                 </button>
-                
-                <button
-                   type="button"
-                   onClick={() => {
-                      if (window.confirm('Gunakan AKTIVASI DARURAT jika Anda benar-benar tidak bisa menunggu. Lanjutkan?')) {
-                         document.getElementById('emergency-panel')?.classList.remove('hidden');
-                      }
-                   }}
-                   className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-4"
-                >
-                   Opsi Lanjutan & Aktivasi Instan
-                </button>
-                
-                <div id="emergency-panel" className="hidden mt-4 p-4 bg-orange-50 border border-orange-200 rounded-2xl text-left">
-                   <p className="text-[10px] text-orange-700 font-bold mb-3 uppercase flex items-center gap-1">
-                      <AlertCircle size={10} /> Mode Darurat
-                   </p>
-                   <button
-                    type="button"
-                    onClick={async () => {
-                      setConfirming(true); setErr('');
-                      const { error } = await emergencyConfirm(email.trim());
-                      setConfirming(false);
-                      if (error) setErr(`Bypass error: ${error}`);
-                      else setOk('AKTIVASI BERHASIL! Silakan klik Masuk.');
-                    }}
-                    disabled={confirming}
-                    className="w-full py-3 bg-orange-600 text-white font-black text-[11px] rounded-xl active:scale-95"
-                  >
-                    AKTIVASI TANPA EMAIL (INSTAN)
-                  </button>
-                </div>
-              </div>
             </div>
-          </div>
 
-          {/* Hubungi Support Tip */}
-          <div className="mt-8 flex flex-col items-center gap-3">
-             <div className="text-center">
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2">Bantuan Aktivasi Cepat</p>
-                <button
-                   onClick={() => window.open('https://wa.me/6285186076224?text=Halo%20Admin,%20saya%20sudah%20daftar%20KaffePOS%20dengan%20email%20' + email + '%20tapi%20belum%20terima%20link.%20Tolong%20aktivasi%20manual.', '_blank')}
-                   className="flex items-center gap-2 px-6 py-3.5 bg-green-500 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-green-100 active:scale-95 transition-all"
-                >
-                   <AlertCircle size={16} />
-                   Hubungi Admin (WhatsApp)
-                </button>
-             </div>
-
-             <button
-              onClick={() => setRegistered(false)}
-              className="mt-6 py-2 text-slate-300 font-bold text-xs active:scale-95 flex items-center justify-center gap-2"
-             >
+            <button
+              onClick={() => {
+                setRegistered(false);
+                localStorage.removeItem('kaffepos_registered_email');
+              }}
+              className="w-full py-4 text-slate-400 font-bold text-xs active:scale-95 flex items-center justify-center gap-2"
+            >
               <ArrowLeft size={14} /> Ganti Email Pendaftaran
-             </button>
+            </button>
           </div>
 
-          <p className="text-center text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-12 mb-4">
-            #AturCafemuTanpaAmpas
-          </p>
+          <div className="mt-12 p-5 bg-white rounded-3xl border border-slate-100 italic">
+            <p className="text-[10px] text-slate-400 text-center leading-relaxed">
+              *Jika email tidak ada di Inbox, coba cek folder <strong>SPAM</strong> atau <strong>PROMOSI</strong>.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -421,26 +371,28 @@ export default function AuthPage() {
                   <RefreshCw size={11} /> Coba lagi
                 </button>
               )}
-              {err === 'email_not_confirmed' && (
+                  {err === 'email_not_confirmed' && (
                 <div className="flex flex-col gap-2 mt-2">
                   <button 
                     type="button" 
                     id="btn-resend-login"
-                    disabled={resending}
+                    disabled={resending || resendCooldown > 0}
                     onClick={async () => {
                       setResending(true);
-                      const { error } = await resendVerification(email.trim());
+                      const result = await resendVerificationEmail(email.trim());
                       setResending(false);
-                      if (error) setErr(error.includes('429') || error.toLowerCase().includes('rate') ? 'Tunggu 1 menit sebelum mengirim ulang.' : error);
-                      else {
+                      if (!result.success) {
+                        setErr(result.error || 'Gagal mengirim ulang');
+                      } else {
                         setErr('');
                         setOk('Email konfirmasi telah dikirim ulang. Silakan cek inbox/spam.');
+                        setResendCooldown(60);
                       }
                     }}
                     className="flex items-center justify-center gap-1.5 py-2.5 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm active:scale-95 disabled:opacity-50"
                   >
                     <RefreshCw size={12} className={resending ? 'animate-spin' : ''} />
-                    {resending ? 'Mengirim...' : 'Kirim Ulang Email Konfirmasi'}
+                    {resending ? 'Mengirim...' : resendCooldown > 0 ? `Tunggu ${resendCooldown}s` : 'Kirim Ulang Email Konfirmasi'}
                   </button>
 
                   <button

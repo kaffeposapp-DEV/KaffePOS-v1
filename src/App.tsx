@@ -175,25 +175,46 @@ export default function App() {
     return () => { handler.then(h => h.remove()); };
   }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
 
-  // ── Deep link: Google OAuth PKCE callback ─────────────────────────────────
+  // ── Deep link: Google OAuth PKCE callback & Email Confirmation ────────────────────────
   useEffect(() => {
     const urlListener = CapApp.addListener('appUrlOpen', async ({ url }) => {
-      if (url.includes('login-callback') || url.includes('code=')) {
+      // Handle deep links for both Google OAuth and Email confirmation
+      if (url.includes('login-callback') || 
+          url.includes('email-confirmed') ||
+          url.includes('access_token') ||
+          url.includes('type=signup') ||
+          url.includes('code=')) {
+        
         try {
-          // Standard PKCE code exchange
-          const processedUrl = url.replace('id.kaffeepos.app://', 'https://kaffepos.app/').replace('kaffepos://', 'https://kaffepos.app/');
-          const urlObj = new URL(processedUrl);
-          const code = urlObj.searchParams.get('code');
-          if (code) {
-            const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-            if (error) console.error('[OAuth] Exchange error:', error.message);
+          // Standard PKCE code exchange for Google login
+          if (url.includes('code=')) {
+            const processedUrl = url.replace('id.kaffeepos.app://', 'https://kaffepos.app/').replace('kaffepos://', 'https://kaffepos.app/');
+            const urlObj = new URL(processedUrl);
+            const code = urlObj.searchParams.get('code');
+            if (code) {
+              const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+              if (error) console.error('[OAuth] Exchange error:', error.message);
+              if (data?.session) {
+                setSplashDone(true);
+              }
+            }
+          } 
+          
+          // Handle email confirmation or session from URL
+          if (url.includes('email-confirmed') || url.includes('access_token')) {
+            const { data, error } = await (supabase.auth as any).getSessionFromUrl();
+            if (error) console.error('[DeepLink] Session from URL error:', error.message);
             if (data?.session) {
               setSplashDone(true);
             }
           }
+
         } catch (e) {
-          console.error('[OAuth] Deep link error:', e);
+          console.error('[DeepLink] Global error:', e);
         }
+        
+        // Finalize state and close browser
+        setSplashDone(true);
         await Browser.close().catch(() => {});
       }
     });
