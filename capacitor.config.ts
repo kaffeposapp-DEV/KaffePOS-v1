@@ -20,7 +20,7 @@ const config: CapacitorConfig = {
 
   plugins: {
     SplashScreen: {
-      launchShowDuration: 2000,
+      launchShowDuration: 800,
       launchAutoHide: true,
       backgroundColor: '#1a0f0a',
       showSpinner: false,
@@ -44,8 +44,7 @@ const config: CapacitorConfig = {
       serverClientId: '772175003609-pmecpcf33sr7kk8l270f0mh534pceh20.apps.googleusercontent.com',
       forceCodeForRefreshToken: false,
     },
-    CapacitorCookies: { enabled: true },
-    CapacitorHttp: { enabled: true }
+    CapacitorCookies: { enabled: true }
   },
 };
 

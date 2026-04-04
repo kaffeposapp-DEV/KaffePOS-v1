@@ -11,7 +11,8 @@
 // - Profile fetch 100% background, tidak pernah blocking
 // - Tidak ada sessionApplied guard yang bisa memblokir login
 import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { AUTH_REDIRECT_URL, PASSWORD_RESET_REDIRECT_URL, SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from '@/lib/supabase';
 import type { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import type { Profile } from '@/types';
 import { loginSchema, signUpSchema } from '@/utils/validation';
@@ -50,6 +51,78 @@ async function ensureProfileBg(uid: string, email: string, displayName?: string)
   } catch { return null; }
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+type NativeAuthPayload = {
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+  expires_at?: number;
+  token_type?: string;
+  user?: Session['user'] | null;
+  code?: string | null;
+  msg?: string | null;
+  error_code?: string | null;
+  error_description?: string | null;
+};
+
+function isNativeRuntime() {
+  return Capacitor.isNativePlatform();
+}
+
+function isNetworkLikeError(message: string) {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('fetch') ||
+    lower.includes('network') ||
+    lower.includes('internet') ||
+    lower.includes('timeout') ||
+    lower.includes('failed')
+  );
+}
+
+function normalizeAuthError(payload: NativeAuthPayload | null | undefined, fallback = 'Auth gagal.') {
+  return (
+    payload?.msg ||
+    payload?.error_description ||
+    payload?.code ||
+    payload?.error_code ||
+    fallback
+  );
+}
+
+async function nativeAuthPost(path: string, data: Record<string, unknown>, extraHeaders?: Record<string, string>) {
+  const response = await CapacitorHttp.post({
+    url: `${SUPABASE_URL}${path}`,
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...extraHeaders,
+    },
+    data,
+    connectTimeout: 12000,
+    readTimeout: 12000,
+  });
+
+  return {
+    status: response.status,
+    data: (response.data ?? null) as NativeAuthPayload | null,
+  };
+}
+
 interface AuthCtx {
   user: Session['user'] | null;
   profile: Profile | null;
@@ -86,6 +159,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch { /* ignore */ }
   }, [user?.id]);
 
+  const applyAuthenticatedSession = useCallback((session: Session | null) => {
+    if (!mounted.current) return;
+    if (!session?.user) {
+      setUser(null);
+      setProfile(null);
+      cacheSession(null);
+      setLoading(false);
+      return;
+    }
+
+    localStorage.removeItem('kaffepos_pending_verification');
+    localStorage.removeItem('kaffepos_registered_email');
+    cacheSession(session);
+    setUser(session.user);
+    setLoading(false);
+    const dn = session.user.user_metadata?.full_name || session.user.user_metadata?.name;
+    ensureProfileBg(session.user.id, session.user.email ?? '', dn).then(p => {
+      if (mounted.current && p) setProfile(p);
+    });
+  }, []);
+
   // Realtime + polling PRO status
   useEffect(() => {
     if (!user?.id) return;
@@ -107,16 +201,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signedOut.current = false;
     initDone.current  = false;
 
-    // ─── onAuthStateChange: SELALU diproses, tidak ada guard ───
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event: AuthChangeEvent, session: Session | null) => {
         if (!mounted.current) return;
-        // Log removed for production
 
         if (event === 'SIGNED_OUT') {
-          if (signedOut.current) {
-            setUser(null); setProfile(null); cacheSession(null); setLoading(false);
-          }
+          setUser(null);
+          setProfile(null);
+          cacheSession(null);
+          setLoading(false);
           return;
         }
 
@@ -125,105 +218,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user) {
-        // Log removed for production
-          cacheSession(session);
-          setUser(session.user);
-          setLoading(false);
-          // Profile background
-          const dn = session.user.user_metadata?.full_name || session.user.user_metadata?.name;
-          ensureProfileBg(session.user.id, session.user.email ?? '', dn).then(p => {
-            if (mounted.current && p) setProfile(p);
-          });
-          return;
+        if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION') {
+          applyAuthenticatedSession(session);
         }
       }
     );
 
-    // ── Polling Logika: Auto-check confirmation status ──────────
-    // Jika user sedang menunggu konfirmasi (diset via localStorage),
-    // kita coba login di background setiap 8 detik.
-    const pollInterval = setInterval(async () => {
-       const pendingEmail = localStorage.getItem('kaffepos_pending_verification');
-       const pendingPass  = localStorage.getItem('kaffepos_pending_pass');
-       if (pendingEmail && pendingPass && !user && mounted.current) {
-          // Log removed for production
-          const { data } = await supabase.auth.signInWithPassword({
-             email: pendingEmail,
-             password: pendingPass
-          });
-          if (data?.session) {
-             // Log removed for production
-             localStorage.removeItem('kaffepos_pending_verification');
-             localStorage.removeItem('kaffepos_pending_pass');
-          }
-       }
-    }, 8000);
-
-    // ─── init: fast cache path, lalu verifikasi server ─────────
     const init = async () => {
       if (!mounted.current) return;
 
-      // Fast path: cached session → tampil langsung
       const cached = getCachedSession();
       if (cached?.user && !signedOut.current) {
         setUser(cached.user);
         setLoading(false);
         fetchProfile(cached.user.id).then(p => { if (mounted.current && p) setProfile(p); });
-        // Verifikasi di background — jika expired, onAuthStateChange akan handle
-        supabase.auth.getSession().catch(() => {});
-        initDone.current = true;
-        return;
       }
 
-      // Slow path: fresh install / no cache → coba server (timeout 3s)
       try {
         const result = await Promise.race([
           supabase.auth.getSession(),
-          new Promise<{ data: { session: Session | null } } | null>((_, rej) => setTimeout(() => rej(new Error('timeout')), 3_000)),
-        ]).catch(() => null);
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), cached?.user ? 1200 : 3000)),
+        ]);
 
         if (!mounted.current) return;
-        const session = (result as { data: { session: Session | null } } | null)?.data?.session ?? null;
-
-        if (session?.user) {
-          // VERIFIKASI SERVER: Panggil getUser() untuk memastikan token valid di server
-          // (getSession hanya cek local expiry by default)
-          const { data: _serverData, error: serverErr } = await supabase.auth.getUser();
-          
-          if (serverErr) {
-            console.warn('[Auth] Server verification failed:', serverErr.message);
-            if (serverErr.status === 401) {
-              // Token tidak valid lagi (mungkin didelete di server atau secret key berubah)
-              await signOut();
-              initDone.current = true;
-              return;
-            }
-          }
-
-          cacheSession(session);
-          setUser(session.user);
-          setLoading(false);
-          const dn = session.user.user_metadata?.full_name || session.user.user_metadata?.name;
-          ensureProfileBg(session.user.id, session.user.email ?? '', dn).then(p => {
-            if (mounted.current && p) setProfile(p);
-          });
-        } else {
-          if (mounted.current) { setUser(null); setLoading(false); }
-        }
+        const session = (result as { data?: { session: Session | null } } | null)?.data?.session ?? null;
+        applyAuthenticatedSession(session);
       } catch {
-        if (mounted.current) { setUser(null); setLoading(false); }
+        if (!cached?.user && mounted.current) {
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+        }
       }
+
       initDone.current = true;
     };
 
     init();
-    return () => { 
-      mounted.current = false; 
-      subscription.unsubscribe(); 
-      clearInterval(pollInterval);
+    return () => {
+      mounted.current = false;
+      subscription.unsubscribe();
     };
-  }, [user]);
+  }, [applyAuthenticatedSession]);
 
   // ─── signIn ───────────────────────────────────────────────────
   const signIn = useCallback(async (email: string, password: string) => {
@@ -232,10 +268,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!validation.success) {
       return { error: validation.error.issues[0].message };
     }
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(), password,
+    const cleanEmail = email.trim().toLowerCase();
+
+    const applyNativeSession = async (payload: NativeAuthPayload) => {
+      if (!payload.access_token || !payload.refresh_token) {
+        return { error: normalizeAuthError(payload, 'Login gagal: session tidak lengkap.') };
+      }
+      const { data, error } = await supabase.auth.setSession({
+        access_token: payload.access_token,
+        refresh_token: payload.refresh_token,
       });
+      if (error) return { error: error.message };
+      if (data.session) applyAuthenticatedSession(data.session);
+      return { error: null };
+    };
+
+    try {
+      const { data, error } = await withTimeout(
+        supabase.auth.signInWithPassword({
+          email: cleanEmail, password,
+        }),
+        9000,
+        'Login terlalu lama. Periksa koneksi internet lalu coba lagi.'
+      );
       if (error) {
         const m = error.message;
         const s = (error as any).status;
@@ -254,15 +309,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: `Login gagal: ${m} (${s})` };
       }
       // onAuthStateChange SIGNED_IN akan handle setUser + setLoading
-      if (data?.session) cacheSession(data.session);
+      if (data?.session) applyAuthenticatedSession(data.session);
       return { error: null };
     } catch (e:any) {
       console.error('[SignIn] Error:', e);
       const msg = e?.message || '';
+      if (isNativeRuntime() && isNetworkLikeError(msg)) {
+        try {
+          console.info('[KPOS_AUTH] signIn native fallback');
+          const { status, data } = await nativeAuthPost('/auth/v1/token?grant_type=password', {
+            email: cleanEmail,
+            password,
+          });
+          if (status >= 400 || !data) {
+            const nativeError = normalizeAuthError(data, 'Login gagal.');
+            if (nativeError.toLowerCase().includes('invalid login credentials')) {
+              return { error: 'Email atau password salah. Periksa kembali.' };
+            }
+            if (nativeError.toLowerCase().includes('email not confirmed')) {
+              return { error: 'email_not_confirmed' };
+            }
+            return { error: nativeError };
+          }
+          return await applyNativeSession(data);
+        } catch (nativeError: any) {
+          console.error('[SignIn] Native fallback failed:', nativeError);
+        }
+      }
       if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed')) return { error: `Jaringan (SignIn): ${msg}` };
       return { error: 'Gagal login: ' + msg };
     }
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [applyAuthenticatedSession], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
 
   // ─── signUp ──────────────────────────────────────────────────
   const signUp = useCallback(async (email: string, password: string, username: string) => {
@@ -271,39 +348,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!validation.success) {
       return { error: validation.error.issues[0].message };
     }
-    try {
-      // ── RPC: register_user (PostgREST Registration Function) ────────
-      // This is a verification step to ensure the registration endpoint
-      // is correctly configured in the Supabase/PostgREST setup.
-      try {
-        const { error: rpcError } = await supabase.rpc('register_user', {
-          p_email: email.trim().toLowerCase(),
-          p_password: password,
-          p_username: username
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanUsername = username.trim();
+    const finalizeNativeSignup = async (payload: NativeAuthPayload | null) => {
+      const needsVerification = !payload?.access_token && !!payload?.user;
+      if (payload?.access_token && payload.refresh_token) {
+        const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+          access_token: payload.access_token,
+          refresh_token: payload.refresh_token,
         });
-        if (rpcError && rpcError.code === 'PGRST202') {
-           console.warn('[PostgREST] Registration function not found in DB schema. Falling back to standard auth.signUp.');
-        } else if (rpcError) {
-           console.error('[PostgREST] Registration endpoint error:', rpcError);
-        } else {
-           // Log removed for production
-        }
-      } catch (e) {
-        console.warn('[PostgREST] Registration endpoint unreachable:', e);
+        if (sessionError) return { error: sessionError.message };
+        if (sessionData.session) applyAuthenticatedSession(sessionData.session);
+      }
+      if (payload?.user?.id && needsVerification) {
+        localStorage.setItem('kaffepos_pending_verification', cleanEmail);
+        localStorage.setItem('kaffepos_registered_email', cleanEmail);
+      }
+      return { error: null, needsVerification };
+    };
+    try {
+      const { data: existingUsername, error: usernameCheckError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', cleanUsername)
+        .maybeSingle();
+
+      if (!usernameCheckError && existingUsername) {
+        return { error: 'Nama toko / username sudah digunakan. Pakai nama lain ya.' };
       }
 
-      // ── Supabase Auth SignUp ─────────────────────────────────────
-      const isWeb = typeof window !== 'undefined' && !window.location.protocol.includes('kaffepos');
-      const origin = isWeb ? window.location.origin : 'kaffepos://auth/callback';
-      const redirectTo = isWeb ? `${origin}/auth` : origin;
-
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(), password,
-        options: { 
-          data: { username, display_name: username }, 
-          emailRedirectTo: redirectTo 
-        },
-      });
+      const { data, error } = await withTimeout(
+        supabase.auth.signUp({
+          email: cleanEmail,
+          password,
+          options: {
+            data: { username: cleanUsername, display_name: cleanUsername },
+            emailRedirectTo: AUTH_REDIRECT_URL,
+          },
+        }),
+        9000,
+        'Pendaftaran terlalu lama. Periksa koneksi internet lalu coba lagi.'
+      );
 
       if (error) {
         const m = error.message;
@@ -315,6 +400,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         if (m.includes('already registered') || m.includes('User already registered'))
           return { error: 'Email sudah terdaftar. Silakan langsung login.' };
+        if (m.includes('profiles_username_key') || m.includes('duplicate key value violates unique constraint')) {
+          return { error: 'Nama toko / username sudah digunakan. Pakai nama lain ya.' };
+        }
         if (m.includes('Password should be'))
           return { error: 'Password terlalu lemah. Gunakan minimal 8 karakter.' };
         if (m.includes('network') || m.includes('fetch'))
@@ -327,45 +415,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Jika data.session null tapi data.user ada, artinya verifikasi diperlukan.
       const needsVerification = !data.session && !!data.user;
 
+      if (data.session) {
+        applyAuthenticatedSession(data.session);
+      }
+
       if (data.user?.id && needsVerification) {
         // Simpan sementara untuk polling di atas
-        localStorage.setItem('kaffepos_pending_verification', email.trim().toLowerCase());
-        localStorage.setItem('kaffepos_pending_pass', password);
-
-        // PROFESIONAL NOTIF (Custom Verification Email via Edge Function)
-        setTimeout(() => {
-          supabase.functions.invoke('send-notification', {
-            body: { 
-              type: 'verification', 
-              email: email.trim().toLowerCase(), 
-              name: username,
-              redirectTo: redirectTo
-            }
-          }).catch(e => console.warn('[SignUp] Manual notification invoke failed:', e));
-        }, 0);
+        localStorage.setItem('kaffepos_pending_verification', cleanEmail);
       }
 
       return { error: null, needsVerification };
     } catch (e:any) {
       console.error('[SignUp] Error detail:', e);
+      const msg = e?.message || '';
+      if (isNativeRuntime() && isNetworkLikeError(msg)) {
+        try {
+          console.info('[KPOS_AUTH] signUp native fallback');
+          const { status, data } = await nativeAuthPost(
+            '/auth/v1/signup',
+            {
+              email: cleanEmail,
+              password,
+              data: { username: cleanUsername, display_name: cleanUsername },
+            },
+            { redirect_to: AUTH_REDIRECT_URL }
+          );
+
+          if (status >= 400 || !data) {
+            const nativeError = normalizeAuthError(data, 'Pendaftaran gagal.');
+            if (nativeError.includes('already registered')) {
+              return { error: 'Email sudah terdaftar. Silakan langsung login.' };
+            }
+            if (nativeError.includes('profiles_username_key') || nativeError.includes('duplicate key value')) {
+              return { error: 'Nama toko / username sudah digunakan. Pakai nama lain ya.' };
+            }
+            return { error: nativeError };
+          }
+
+          return await finalizeNativeSignup(data);
+        } catch (nativeError: any) {
+          console.error('[SignUp] Native fallback failed:', nativeError);
+        }
+      }
       return { error: `Gagal mendaftar: ${e?.message || 'Check connection'}` }; 
     }
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [applyAuthenticatedSession], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
 
   // ── resendVerification ───────────────────────────────────────
   const resendVerification = useCallback(async (email: string) => {
     try {
       const cleanEmail = email.trim().toLowerCase();
-      const isWeb = typeof window !== 'undefined' && !window.location.protocol.includes('kaffepos');
-      const origin = isWeb ? window.location.origin : 'kaffepos://auth/callback';
-      const redirectTo = isWeb ? `${origin}/auth` : origin;
 
       // 1. Jalur Resmi Supabase (Paling Reliable)
-      const { error: resendErr } = await supabase.auth.resend({
-        type: 'signup',
-        email: cleanEmail,
-        options: { emailRedirectTo: redirectTo }
-      });
+      const { error: resendErr } = await withTimeout(
+        supabase.auth.resend({
+          type: 'signup',
+          email: cleanEmail,
+          options: { emailRedirectTo: AUTH_REDIRECT_URL }
+        }),
+        9000,
+        'Pengiriman email verifikasi terlalu lama. Coba lagi sebentar.'
+      );
 
       if (resendErr) {
         console.error('[Auth] Supabase Resend Error:', resendErr.message);
@@ -373,16 +483,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: resendErr.message };
       }
 
-      // 2. Jalur Custom Notification (Fancy HTML Email) - FIRE AND FORGET
-      setTimeout(() => {
-        supabase.functions.invoke('send-notification', {
-          body: { type: 'verification', email: cleanEmail, redirectTo }
-        }).catch(e => console.warn('[Auth] Custom notification invoke failed:', e));
-      }, 0);
-
       return { error: null };
     } catch (e:any) {
       console.error('[Auth] Resend process failed:', e);
+      if (isNativeRuntime() && isNetworkLikeError(e?.message || '')) {
+        try {
+          const { status, data } = await nativeAuthPost(
+            '/auth/v1/resend',
+            { type: 'signup', email: email.trim().toLowerCase() },
+            { redirect_to: AUTH_REDIRECT_URL }
+          );
+          if (status < 400) return { error: null };
+          return { error: normalizeAuthError(data, 'Gagal mengirim ulang email.') };
+        } catch (nativeError: any) {
+          console.error('[Auth] Native resend fallback failed:', nativeError);
+        }
+      }
       return { error: e.message || 'Gagal mengirim ulang email.' };
     }
   }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
@@ -437,8 +553,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ─── resetPassword ───────────────────────────────────────────
   const resetPassword = useCallback(async (email: string) => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        email.trim().toLowerCase(), { redirectTo: 'kaffepos://reset-password' }
+      const { error } = await withTimeout(
+        supabase.auth.resetPasswordForEmail(
+          email.trim().toLowerCase(), { redirectTo: PASSWORD_RESET_REDIRECT_URL }
+        ),
+        9000,
+        'Pengiriman email reset terlalu lama. Coba lagi sebentar.'
       );
       if (error) {
         if (error.message.includes('network') || error.message.includes('fetch'))
@@ -446,7 +566,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: `Gagal mengirim email: ${error.message}` };
       }
       return { error: null };
-    } catch { return { error: 'Tidak ada koneksi internet.' }; }
+    } catch (e:any) {
+      if (isNativeRuntime() && isNetworkLikeError(e?.message || '')) {
+        try {
+          const { status, data } = await nativeAuthPost(
+            '/auth/v1/recover',
+            { email: email.trim().toLowerCase() },
+            { redirect_to: PASSWORD_RESET_REDIRECT_URL }
+          );
+          if (status < 400) return { error: null };
+          return { error: normalizeAuthError(data, 'Gagal mengirim email reset.') };
+        } catch (nativeError) {
+          console.error('[Auth] Native recover fallback failed:', nativeError);
+        }
+      }
+      return { error: 'Tidak ada koneksi internet.' };
+    }
   }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
 
   // ─── activatePro ─────────────────────────────────────────────

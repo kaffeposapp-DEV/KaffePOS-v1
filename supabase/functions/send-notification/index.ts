@@ -20,6 +20,18 @@ interface NotifPayload {
   redirectTo?: string;
 }
 
+async function findUserByEmail(adminClient: any, email: string) {
+  let page = 1;
+  while (true) {
+    const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage: 200 });
+    if (error) throw error;
+    const user = data.users.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
+    if (user) return user;
+    if (data.users.length < 200) return null;
+    page += 1;
+  }
+}
+
 function verificationEmailHtml(name: string, link: string): string {
   return `<!DOCTYPE html>
 <html lang="id">
@@ -159,10 +171,13 @@ serve(async (req: Request) => {
     let subject = '';
 
     if (payload.type === 'verification') {
-      // 🚀 GENERATE MAGIC LINK VIA SUPABASE ADMIN
+      const existingUser = await findUserByEmail(adminClient, payload.email);
+      // Signup link requires a password. For an already-created unverified user,
+      // a magic link is the safest custom-email fallback and still proves inbox ownership.
       const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
-        type: 'signup',
+        type: existingUser ? 'magiclink' : 'signup',
         email: payload.email,
+        ...(existingUser ? {} : { password: crypto.randomUUID() + 'Aa1!' }),
         options: { redirectTo: payload.redirectTo || 'kaffepos://auth/callback' }
       });
       if (linkErr) throw new Error(`Link generation failed: ${linkErr.message}`);
@@ -181,7 +196,7 @@ serve(async (req: Request) => {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: 'KaffePOS <onboarding@resend.dev>',
+        from: 'KaffePOS <noreply@kaffepos.my.id>',
         to: [payload.email],
         subject,
         html,
@@ -191,8 +206,7 @@ serve(async (req: Request) => {
     if (!res.ok) throw new Error(`Resend API failed: ${await res.text()}`);
 
     // Log to notifications table if user exists
-    const { data: userList } = await adminClient.auth.admin.listUsers();
-    const user = userList?.users?.find((u: any) => u.email === payload.email);
+    const user = await findUserByEmail(adminClient, payload.email);
     if (user) {
       await adminClient.from('notifications').insert({
         user_id: user.id,

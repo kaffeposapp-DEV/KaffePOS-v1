@@ -13,41 +13,23 @@
 //   - localStorage di Android WebView bisa dihapus OS
 //   - Preferences disimpan di app-private SharedPreferences (persistent)
 import { createClient } from '@supabase/supabase-js';
+import { Capacitor } from '@capacitor/core';
 
 export const SUPABASE_URL      = (import.meta.env.VITE_SUPABASE_URL).replace(/\/$/, '');
 if (!SUPABASE_URL) throw new Error('Missing VITE_SUPABASE_URL in .env');
 export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 if (!SUPABASE_ANON_KEY) throw new Error('Missing VITE_SUPABASE_ANON_KEY in .env');
 
-// ── Custom fetch: timeout 15s + retry 3x dengan backoff ──────────
-const customFetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-  const MAX_RETRIES = 3;
-  const TIMEOUT_MS  = 15_000;
+export function getAuthRedirectUrl(path = '/auth/callback') {
+  if (!Capacitor.isNativePlatform()) {
+    return `${window.location.origin}${path}`;
+  }
+  const normalizedPath = path.replace(/^\//, '');
+  return `kaffepos://${normalizedPath}`;
+}
 
-  const attempt = (n: number): Promise<Response> => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
-    return fetch(input, { ...init, signal: controller.signal })
-      .then(res => { clearTimeout(timer); return res; })
-      .catch(err => {
-        clearTimeout(timer);
-        const shouldRetry =
-          err.name === 'AbortError' ||
-          err.message?.includes('Failed to fetch') ||
-          err.message?.includes('Network request failed') ||
-          err.message?.includes('net::ERR');
-        if (shouldRetry && n < MAX_RETRIES) {
-          return new Promise<Response>(res =>
-            setTimeout(() => res(attempt(n + 1)), 1000 * n)
-          );
-        }
-        throw err;
-      });
-  };
-
-  return attempt(1);
-};
+export const AUTH_REDIRECT_URL = getAuthRedirectUrl();
+export const PASSWORD_RESET_REDIRECT_URL = getAuthRedirectUrl('/reset-password');
 
 // ── Supabase client ──────────────────────────────────────────────
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -67,7 +49,6 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     reconnectAfterMs: (tries: number) => Math.min(tries * 2000, 30000),
   },
   global: {
-    fetch: customFetch,
     headers: { 'X-Client-Info': 'kaffepos-android/8.0' },
   },
 });

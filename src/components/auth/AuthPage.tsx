@@ -7,7 +7,6 @@
 // src/components/auth/AuthPage.tsx — KaffePOS v9 GOOGLE OAUTH LOADING FIX
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { registerWithEmail, resendVerificationEmail } from '@/services/AuthService';
 import {
   Eye, EyeOff, Mail, Lock, User,
   ChevronRight, AlertCircle, CheckCircle,
@@ -20,7 +19,7 @@ type Mode = 'login' | 'register' | 'forgot';
 
 
 export default function AuthPage() {
-  const { signIn, resetPassword, isAuthenticated, emergencyConfirm } = useAuth();
+  const { signIn, signUp, resetPassword, resendVerification, isAuthenticated, emergencyConfirm } = useAuth();
 
   const [mode,       setMode]       = useState<Mode>('login');
   const [email,      setEmail]      = useState('');
@@ -144,16 +143,19 @@ export default function AuthPage() {
           setBusy(false);
           return;
         }
-      } else if (mode === 'register') {
-        const result = await registerWithEmail(uname.trim(), trimmedEmail, pass);
         setBusy(false);
-        if (!result.success) { 
+      } else if (mode === 'register') {
+        const result = await signUp(trimmedEmail, pass, uname.trim());
+        setBusy(false);
+        if (result.error) {
           setErr(result.error || 'Pendaftaran gagal'); 
           return; 
         }
-        setRegistered(true);
-        localStorage.setItem('kaffepos_registered_email', trimmedEmail);
-        setOk('Akun berhasil dibuat! Cek Gmail kamu untuk link verifikasi.');
+        if (result.needsVerification) {
+          setRegistered(true);
+          localStorage.setItem('kaffepos_registered_email', trimmedEmail);
+          setOk('Akun berhasil dibuat! Cek Gmail kamu untuk link verifikasi.');
+        }
       } else {
         const { error } = await resetPassword(trimmedEmail);
         setBusy(false);
@@ -164,7 +166,7 @@ export default function AuthPage() {
       setErr(e?.message || 'Terjadi kesalahan. Coba lagi.');
       setBusy(false);
     }
-  }, [mode, email, pass, uname, signIn, resetPassword]);
+  }, [mode, email, pass, uname, signIn, signUp, resetPassword]);
 
   const isNetworkErr = err.includes('internet') || err.includes('koneksi') || err.includes('jaringan');
 
@@ -258,9 +260,9 @@ export default function AuthPage() {
                   onClick={async () => {
                     if (resendCooldown > 0) return;
                     setResending(true); setErr(''); setOk('');
-                    const result = await resendVerificationEmail(email.trim());
+                    const result = await resendVerification(email.trim());
                     setResending(false);
-                    if (!result.success) {
+                    if (result.error) {
                       setErr(result.error || 'Gagal mengirim ulang email.');
                     } else {
                       setOk('Email baru dikirim! Cek inbox/spam.');
@@ -379,9 +381,9 @@ export default function AuthPage() {
                     disabled={resending || resendCooldown > 0}
                     onClick={async () => {
                       setResending(true);
-                      const result = await resendVerificationEmail(email.trim());
+                      const result = await resendVerification(email.trim());
                       setResending(false);
-                      if (!result.success) {
+                      if (result.error) {
                         setErr(result.error || 'Gagal mengirim ulang');
                       } else {
                         setErr('');

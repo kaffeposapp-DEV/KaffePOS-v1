@@ -22,6 +22,7 @@ import { useLocation } from 'react-router-dom';
 import { useStore } from './hooks/useStore';
 import { autoConnectOnResume } from './utils/bluetoothPrinter';
 import GlobalErrorBoundary from './components/ui/GlobalErrorBoundary';
+import type { EmailOtpType } from '@supabase/supabase-js';
 
 const AuthPage = lazy(() => import('./components/auth/AuthPage'));
 const AppShell = lazy(() => import('./components/AppShell'));
@@ -77,6 +78,10 @@ function AuthLoading() {
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
+}
+
+function getParamFromDeepLink(url: URL, key: string) {
+  return url.searchParams.get(key) || new URLSearchParams(url.hash.replace(/^#/, '')).get(key);
 }
 
 // ── Offline Banner ─────────────────────────────────────────────
@@ -143,9 +148,9 @@ export default function App() {
   const backPressTime  = useRef<number>(0);
   const { loading: authLoading } = useAuth();
 
-  // Splash: max 1.5 detik (cukup untuk animasi intro, tidak bikin bosen)
+  // Splash singkat agar launch terasa responsif seperti aplikasi produksi.
   useEffect(() => {
-    const t = setTimeout(() => setSplashDone(true), 1500);
+    const t = setTimeout(() => setSplashDone(true), 700);
     return () => clearTimeout(t);
   }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
 
@@ -182,29 +187,54 @@ export default function App() {
       if (url.includes('login-callback') || 
           url.includes('email-confirmed') ||
           url.includes('access_token') ||
+          url.includes('token_hash=') ||
           url.includes('type=signup') ||
           url.includes('code=')) {
         
         try {
-          // Standard PKCE code exchange for Google login
-          if (url.includes('code=')) {
-            const processedUrl = url.replace('id.kaffeepos.app://', 'https://kaffepos.app/').replace('kaffepos://', 'https://kaffepos.app/');
-            const urlObj = new URL(processedUrl);
-            const code = urlObj.searchParams.get('code');
-            if (code) {
-              const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-              if (error) console.error('[OAuth] Exchange error:', error.message);
-              if (data?.session) {
-                setSplashDone(true);
-              }
-            }
-          } 
-          
-          // Handle email confirmation or session from URL
-          if (url.includes('email-confirmed') || url.includes('access_token')) {
-            const { data, error } = await (supabase.auth as any).getSessionFromUrl();
-            if (error) console.error('[DeepLink] Session from URL error:', error.message);
+          const processedUrl = url
+            .replace('id.kaffeepos.app://', 'https://kaffepos.app/')
+            .replace('kaffepos://', 'https://kaffepos.app/')
+            .replace('kaffepos:/', 'https://kaffepos.app/');
+          const urlObj = new URL(processedUrl);
+
+          const code = getParamFromDeepLink(urlObj, 'code');
+          if (code) {
+            const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+            if (error) console.error('[OAuth] Exchange error:', error.message);
             if (data?.session) {
+              localStorage.removeItem('kaffepos_pending_verification');
+              localStorage.removeItem('kaffepos_registered_email');
+              setSplashDone(true);
+            }
+          }
+
+          const tokenHash = getParamFromDeepLink(urlObj, 'token_hash');
+          const otpType = getParamFromDeepLink(urlObj, 'type') as EmailOtpType | null;
+          if (tokenHash && otpType) {
+            const { data, error } = await supabase.auth.verifyOtp({
+              token_hash: tokenHash,
+              type: otpType,
+            });
+            if (error) console.error('[DeepLink] verifyOtp error:', error.message);
+            if (data?.session) {
+              localStorage.removeItem('kaffepos_pending_verification');
+              localStorage.removeItem('kaffepos_registered_email');
+              setSplashDone(true);
+            }
+          }
+
+          const accessToken = getParamFromDeepLink(urlObj, 'access_token');
+          const refreshToken = getParamFromDeepLink(urlObj, 'refresh_token');
+          if (accessToken && refreshToken) {
+            const { data, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (error) console.error('[DeepLink] setSession error:', error.message);
+            if (data?.session) {
+              localStorage.removeItem('kaffepos_pending_verification');
+              localStorage.removeItem('kaffepos_registered_email');
               setSplashDone(true);
             }
           }
