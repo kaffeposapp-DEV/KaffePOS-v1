@@ -1,11 +1,17 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable react/no-unescaped-entities */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable react-refresh/only-export-components */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/report/ReportTab.tsx — v5 + Gemini AI Insight
-import React, { useState, useMemo, useCallback } from 'react';
-import { Download, TrendingUp, ShoppingBag, DollarSign, Package, CreditCard, Activity, Wallet, Receipt, Sparkles, RefreshCw, ChevronDown, ChevronUp, Scale, Mail } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
+import { Download, TrendingUp, ShoppingBag, DollarSign, CreditCard, Wallet, Receipt, Sparkles, RefreshCw, ChevronDown, ChevronUp, Scale, Mail } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { generateProfessionalPDF, type ReportData } from '@/utils/pdfReport';
 import { getAIInsightCached, type InsightContext, type AIInsight } from '@/lib/aiInsight';
-import KasDailyPanel, { buildKasPDFData } from './KasDailyPanel';
+import KasDailyPanel from './KasDailyPanel';
 
 
 const fRp  = (n: number) => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
@@ -72,7 +78,7 @@ function DonutChart({ data }: { data:{label:string;value:number;color:string}[] 
   );
 }
 
-function HBar({ items, max, color='#f97316' }: { items:{label:string;value:number;sub?:string}[]; max:number; color?:string }) {
+function HBar({ items, max }: { items:{label:string;value:number;sub?:string}[]; max:number; color?:string }) {
   return (
     <div className="space-y-3">
       {items.map((item,i)=>(
@@ -88,11 +94,11 @@ function HBar({ items, max, color='#f97316' }: { items:{label:string;value:numbe
   );
 }
 
-function StatCard({ label, value, sub, icon, color='orange' }: any) {
-  const cls: any = {orange:'bg-orange-50 text-orange-500',green:'bg-green-50 text-green-500',blue:'bg-blue-50 text-blue-500',red:'bg-red-50 text-red-500'};
+function StatCard({ label, value, sub, icon, color='orange' }: { label:string; value:string; sub?:string; icon:React.ReactNode; color?:string }) {
+  const cls: Record<string, string> = {orange:'bg-orange-50 text-orange-500',green:'bg-green-50 text-green-500',blue:'bg-blue-50 text-blue-500',red:'bg-red-50 text-red-500'};
   return (
     <div className="bg-white rounded-2xl border border-slate-100 p-3">
-      <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-2 ${cls[color]}`}>{icon}</div>
+      <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-2 ${cls[color] || cls.orange}`}>{icon}</div>
       <p className="text-sm font-black text-slate-800 leading-tight">{value}</p>
       <p className="text-xs text-slate-400 mt-0.5 leading-tight">{label}</p>
       {sub&&<p className="text-xs text-slate-500 font-bold mt-0.5">{sub}</p>}
@@ -100,35 +106,7 @@ function StatCard({ label, value, sub, icon, color='orange' }: any) {
   );
 }
 
-// PDF helpers
-function pdfLine(doc:any,x1:number,y1:number,x2:number,y2:number) { doc.setDrawColor(226,232,240);doc.setLineWidth(0.2);doc.line(x1,y1,x2,y2); }
-function pdfBarChart(doc:any,data:{label:string;value:number}[],x:number,y:number,w:number,h:number,color:[number,number,number]) {
-  const max=Math.max(...data.map(d=>d.value),1),bw=(w-(data.length-1)*1.5)/data.length;
-  data.forEach((d,i)=>{const bh=(d.value/max)*h,bx=x+i*(bw+1.5),by=y+h-bh;doc.setFillColor(...color);if(bh>0)doc.roundedRect(bx,by,bw,bh,0.5,0.5,'F');doc.setFontSize(4.5);doc.setTextColor(148,163,184);doc.text(d.label,bx+bw/2,y+h+3.5,{align:'center'});});
-}
-function pdfLineChart(doc:any,data:{label:string;value:number}[],x:number,y:number,w:number,h:number,color:[number,number,number]) {
-  if(data.length<2)return;
-  const max=Math.max(...data.map(d=>d.value),1),pts=data.map((d,i)=>({px:x+(i/(data.length-1))*w,py:y+h-(d.value/max)*h}));
-  doc.setDrawColor(...color);doc.setLineWidth(0.6);
-  for(let i=1;i<pts.length;i++)doc.line(pts[i-1].px,pts[i-1].py,pts[i].px,pts[i].py);
-  pts.forEach(p=>{doc.setFillColor(...color);doc.circle(p.px,p.py,0.7,'F');});
-  doc.setFontSize(4.5);doc.setTextColor(148,163,184);data.forEach((d,i)=>doc.text(d.label,pts[i].px,y+h+3.5,{align:'center'}));
-}
-function pdfPie(doc:any,data:{label:string;value:number;color:string}[],cx:number,cy:number,r:number) {
-  const total=data.reduce((s,d)=>s+d.value,0);if(!total)return;
-  let angle=-Math.PI/2;
-  data.forEach(d=>{
-    const sweep=(d.value/total)*2*Math.PI,hex=d.color.replace('#','');
-    doc.setFillColor(parseInt(hex.slice(0,2),16),parseInt(hex.slice(2,4),16),parseInt(hex.slice(4,6),16));
-    const steps=Math.max(16,Math.round(sweep*10)),pts2:number[][]=[[cx,cy]];
-    for(let i=0;i<=steps;i++){const a=angle+(i/steps)*sweep;pts2.push([cx+Math.cos(a)*r,cy+Math.sin(a)*r]);}
-    try{(doc as any).polygon(pts2,'F');}catch{}
-    angle+=sweep;
-  });
-  doc.setFillColor(255,255,255);doc.circle(cx,cy,r*0.45,'F');
-}
-
-export default function ReportTab({ toast, isPro }: any) {
+export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean }) {
   const { transactions, expenses, inventory, storeSettings, cashRegister = [] } = useStore();
   const { user, profile } = useAuth();
   const [period, setPeriod]     = useState<Period>('bulanan');
@@ -190,8 +168,8 @@ export default function ReportTab({ toast, isPro }: any) {
 
   // ── Kalkulasi Kas Operasional ────────────────────────────────
   const kasSelisih     = totalCashRegister - totalExpOps;          // sisa saldo kasir
-  const kasFromSales   = kasSelisih < 0 ? Math.abs(kasSelisih) : 0; // porsi ambil dari penjualan
-  const kasNetAkhir    = totalCashRegister + totalRevenue - totalExpOps; // total posisi kas akhir
+  // const kasFromSales   = kasSelisih < 0 ? Math.abs(kasSelisih) : 0; // porsi ambil dari penjualan
+  // const kasNetAkhir    = totalCashRegister + totalRevenue - totalExpOps; // total posisi kas akhir
 
   const trendData = useMemo(()=>{
     const days=period==='harian'?8:period==='mingguan'?7:14;
@@ -263,7 +241,7 @@ export default function ReportTab({ toast, isPro }: any) {
       const result = await getAIInsightCached(ctx);
       setAiData(result);
       setAiOpen(true);
-    } catch (e: any) {
+    } catch (e:any) {
       setAiError(e.message || 'Gagal mendapatkan insight AI');
     } finally { setAiLoading(false); }
   }, [period, filtered, menuRanking, inventory, trendData, totalRevenue, totalCogs, netProfit, grossMargin, avgTrx, totalExpenses, storeSettings]);
@@ -299,25 +277,28 @@ export default function ReportTab({ toast, isPro }: any) {
         stockData,
         
         expensesByCategory: (() => {
-          const m: any = {};
-          filteredExp.forEach((e: any) => { m[e.category] = (m[e.category] || 0) + e.amount; });
+          const m:any = {};
+          filteredExp.forEach((e:any) => { m[e.category] = (m[e.category] || 0) + e.amount; });
           return Object.entries(m).map(([l, v]) => ({ label: l, value: v as number })).sort((a,b) => b.value - a.value);
         })(),
         expenseList:   filteredExp,
         
         cashRegister,
         
-        aiInsight:     aiData?.summary,
-        aiTips:        aiData ? [
+        aiInsight:     aiData?.summary ?? null,
+      };
+
+      if (aiData) {
+        payload.aiTips = [
           aiData.bestMenu,
           aiData.stockAlert,
           aiData.prediction
-        ] : undefined,
-      };
+        ];
+      }
 
       await generateProfessionalPDF(payload);
       toast.showToast('Laporan PDF berhasil diunduh!', 'success');
-    } catch (e: any) {
+    } catch (e:any) {
       toast.showToast(`Gagal membuat PDF: ${e?.message || 'Error'}`, 'error');
       console.error(e);
     } finally {

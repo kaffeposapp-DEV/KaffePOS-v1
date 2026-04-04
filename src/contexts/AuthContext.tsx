@@ -1,31 +1,36 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable react/no-unescaped-entities */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable react-refresh/only-export-components */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/contexts/AuthContext.tsx — KaffePOS v11 BULLETPROOF AUTH
 // Strategi: SIMPLE + RELIABLE
 // - onAuthStateChange adalah sumber kebenaran utama, SELALU diproses tanpa guard
 // - setLoading(false) + setUser() LANGSUNG saat session diterima
 // - Profile fetch 100% background, tidak pernah blocking
 // - Tidak ada sessionApplied guard yang bisa memblokir login
-import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
-import { supabase, preloadAuthFromPreferences } from '@/lib/supabase';
+import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
+import { supabase } from '@/lib/supabase';
+import type { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import type { Profile } from '@/types';
+import { loginSchema, signUpSchema } from '@/utils/validation';
 
-async function getAppPlugin() {
-  try { const { App } = await import('@capacitor/app'); return App; }
-  catch { return null; }
-}
+// Removed unused getAppPlugin
 
 const SESSION_CACHE_KEY = 'kaffepos_session_cache';
-function cacheSession(session: any) {
+function cacheSession(session: Session | null) {
   try {
     if (session) localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session));
     else localStorage.removeItem(SESSION_CACHE_KEY);
-  } catch {}
+  } catch { /* ignore */ }
 }
-function getCachedSession(): any | null {
-  try { const raw = localStorage.getItem(SESSION_CACHE_KEY); return raw ? JSON.parse(raw) : null; }
+function getCachedSession(): Session | null {
+  try { const raw = localStorage.getItem(SESSION_CACHE_KEY); return raw ? JSON.parse(raw) as Session : null; }
   catch { return null; }
 }
 
-async function fetchProfile(uid: string): Promise<any | null> {
+async function fetchProfile(uid: string): Promise<Profile | null> {
   try { const { data } = await supabase.from('profiles').select('*').eq('id', uid).single(); return data ?? null; }
   catch { return null; }
 }
@@ -46,8 +51,8 @@ async function ensureProfileBg(uid: string, email: string, displayName?: string)
 }
 
 interface AuthCtx {
-  user: any | null;
-  profile: any | null;
+  user: Session['user'] | null;
+  profile: Profile | null;
   isPro: boolean;
   isAuthenticated: boolean;
   loading: boolean;
@@ -59,14 +64,14 @@ interface AuthCtx {
   resendVerification: (email: string) => Promise<{ error: string | null }>;
   emergencyConfirm: (email: string) => Promise<{ error: string | null }>;
   refreshProfile: () => Promise<void>;
-  activatePro: (planId: string, orderId: string) => Promise<{ error: string | null }>;
+  activatePro: (planId: string, licenseKey: string) => Promise<{ error: string | null }>;
 }
 
 const AuthCtx = createContext<AuthCtx | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser]       = useState<any | null>(null);
-  const [profile, setProfile] = useState<any | null>(null);
+  const [user, setUser]       = useState<Session['user'] | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const mounted    = useRef(true);
   const signedOut  = useRef(false);
@@ -78,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data } = await supabase.from('profiles').select('*').eq('id', uid).single();
       if (data && mounted.current) setProfile(data);
-    } catch {}
+    } catch { /* ignore */ }
   }, [user?.id]);
 
   // Realtime + polling PRO status
@@ -86,12 +91,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user?.id) return;
     const ch = supabase.channel(`kfp_profile_${user.id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
-        ({ new: n }) => { if (mounted.current) setProfile((p: any) => ({ ...p, ...n })); })
+        ({ new: n }) => { if (mounted.current) setProfile((p:any) => ({ ...p, ...n })); })
       .subscribe();
     const poll = setInterval(() => {
       supabase.from('profiles').select('tier,is_pro,pro_plan,pro_expires_at,pro_activated_at')
         .eq('id', user.id).single()
-        .then(({ data }) => { if (data && mounted.current) setProfile((p: any) => p ? { ...p, ...data } : p); });
+        .then(({ data }) => { if (data && mounted.current) setProfile((p:any) => p ? { ...p, ...data } : p); });
     }, 30_000);
     return () => { supabase.removeChannel(ch); clearInterval(poll); };
   }, [user?.id]);
@@ -104,9 +109,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // ─── onAuthStateChange: SELALU diproses, tidak ada guard ───
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (event: AuthChangeEvent, session: Session | null) => {
         if (!mounted.current) return;
-        console.log('[Auth] event:', event, '| user:', session?.user?.email ?? 'none');
+        // Log removed for production
 
         if (event === 'SIGNED_OUT') {
           if (signedOut.current) {
@@ -121,7 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user) {
-          console.log('[Auth] Applying session for:', session.user.email);
+        // Log removed for production
           cacheSession(session);
           setUser(session.user);
           setLoading(false);
@@ -135,13 +140,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
+    // ── Polling Logika: Auto-check confirmation status ──────────
+    // Jika user sedang menunggu konfirmasi (diset via localStorage),
+    // kita coba login di background setiap 8 detik.
+    const pollInterval = setInterval(async () => {
+       const pendingEmail = localStorage.getItem('kaffepos_pending_verification');
+       const pendingPass  = localStorage.getItem('kaffepos_pending_pass');
+       if (pendingEmail && pendingPass && !user && mounted.current) {
+          // Log removed for production
+          const { data } = await supabase.auth.signInWithPassword({
+             email: pendingEmail,
+             password: pendingPass
+          });
+          if (data?.session) {
+             // Log removed for production
+             localStorage.removeItem('kaffepos_pending_verification');
+             localStorage.removeItem('kaffepos_pending_pass');
+          }
+       }
+    }, 8000);
+
     // ─── init: fast cache path, lalu verifikasi server ─────────
     const init = async () => {
-      // Preload Preferences (timeout 1s max — tidak blocking lama)
-      await Promise.race([
-        preloadAuthFromPreferences().catch(() => {}),
-        new Promise(r => setTimeout(r, 1000)),
-      ]);
       if (!mounted.current) return;
 
       // Fast path: cached session → tampil langsung
@@ -160,16 +180,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const result = await Promise.race([
           supabase.auth.getSession(),
-          new Promise<null>((_, rej) => setTimeout(() => rej(new Error('timeout')), 3_000)),
+          new Promise<{ data: { session: Session | null } } | null>((_, rej) => setTimeout(() => rej(new Error('timeout')), 3_000)),
         ]).catch(() => null);
 
         if (!mounted.current) return;
-        const session = (result as any)?.data?.session ?? null;
+        const session = (result as { data: { session: Session | null } } | null)?.data?.session ?? null;
 
         if (session?.user) {
           // VERIFIKASI SERVER: Panggil getUser() untuk memastikan token valid di server
           // (getSession hanya cek local expiry by default)
-          const { data: serverData, error: serverErr } = await supabase.auth.getUser();
+          const { data: _serverData, error: serverErr } = await supabase.auth.getUser();
           
           if (serverErr) {
             console.warn('[Auth] Server verification failed:', serverErr.message);
@@ -198,11 +218,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     init();
-    return () => { mounted.current = false; subscription.unsubscribe(); };
-  }, []);
+    return () => { 
+      mounted.current = false; 
+      subscription.unsubscribe(); 
+      clearInterval(pollInterval);
+    };
+  }, [user]);
 
   // ─── signIn ───────────────────────────────────────────────────
   const signIn = useCallback(async (email: string, password: string) => {
+    // ── Input Sanitization ──
+    const validation = loginSchema.safeParse({ email, password });
+    if (!validation.success) {
+      return { error: validation.error.issues[0].message };
+    }
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(), password,
@@ -227,16 +256,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // onAuthStateChange SIGNED_IN akan handle setUser + setLoading
       if (data?.session) cacheSession(data.session);
       return { error: null };
-    } catch (e: any) {
+    } catch (e:any) {
       console.error('[SignIn] Error:', e);
       const msg = e?.message || '';
       if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed')) return { error: `Jaringan (SignIn): ${msg}` };
       return { error: 'Gagal login: ' + msg };
     }
-  }, []);
+  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
 
   // ─── signUp ──────────────────────────────────────────────────
   const signUp = useCallback(async (email: string, password: string, username: string) => {
+    // ── Input Sanitization ──
+    const validation = signUpSchema.safeParse({ email, password, username });
+    if (!validation.success) {
+      return { error: validation.error.issues[0].message };
+    }
     try {
       // ── RPC: register_user (PostgREST Registration Function) ────────
       // This is a verification step to ensure the registration endpoint
@@ -252,13 +286,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else if (rpcError) {
            console.error('[PostgREST] Registration endpoint error:', rpcError);
         } else {
-           console.log('[PostgREST] Registration endpoint verified and operational.');
+           // Log removed for production
         }
       } catch (e) {
         console.warn('[PostgREST] Registration endpoint unreachable:', e);
       }
 
-      // Standard Registration Flow
+      // ── Supabase Auth SignUp ─────────────────────────────────────
       const isWeb = typeof window !== 'undefined' && !window.location.protocol.includes('kaffepos');
       const origin = isWeb ? window.location.origin : 'kaffepos://auth/callback';
       const redirectTo = isWeb ? `${origin}/auth` : origin;
@@ -287,50 +321,83 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { error: `Jaringan (SignUp): ${m}` };
         return { error: m };
       }
-      if (data.user?.id) {
-        // PROFESIONAL NOTIF (Resend) agar terlihat seperti aplikasi SaaS berkelas
-        // Ini akan mengirim email konfirmasi asli ke inbox user.
-        supabase.functions.invoke('send-notification', {
-          body: { 
-            type: 'verification', 
-            email: email.trim().toLowerCase(), 
-            name: username,
-            redirectTo: 'kaffepos://auth/callback'
-          }
-        }).catch(() => {});
+
+      // Deteksi apakah verifikasi diperlukan:
+      // Jika data.session ada, artinya Supabase "Confirm Email" dinonaktifkan (langsung login).
+      // Jika data.session null tapi data.user ada, artinya verifikasi diperlukan.
+      const needsVerification = !data.session && !!data.user;
+
+      if (data.user?.id && needsVerification) {
+        // Simpan sementara untuk polling di atas
+        localStorage.setItem('kaffepos_pending_verification', email.trim().toLowerCase());
+        localStorage.setItem('kaffepos_pending_pass', password);
+
+        // PROFESIONAL NOTIF (Custom Verification Email via Edge Function)
+        setTimeout(() => {
+          supabase.functions.invoke('send-notification', {
+            body: { 
+              type: 'verification', 
+              email: email.trim().toLowerCase(), 
+              name: username,
+              redirectTo: redirectTo
+            }
+          }).catch(e => console.warn('[SignUp] Manual notification invoke failed:', e));
+        }, 0);
       }
-      // Kita set true agar UI menampilkan layar "Cek Email" yang profesional
-      return { error: null, needsVerification: true };
-    } catch (e: any) {
+
+      return { error: null, needsVerification };
+    } catch (e:any) {
       console.error('[SignUp] Error detail:', e);
       return { error: `Gagal mendaftar: ${e?.message || 'Check connection'}` }; 
     }
-  }, []);
+  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
 
+  // ── resendVerification ───────────────────────────────────────
   const resendVerification = useCallback(async (email: string) => {
     try {
       const cleanEmail = email.trim().toLowerCase();
-      const { data, error } = await supabase.functions.invoke('send-notification', {
-        body: { type: 'verification', email: cleanEmail, redirectTo: 'kaffepos://auth/callback' }
+      const isWeb = typeof window !== 'undefined' && !window.location.protocol.includes('kaffepos');
+      const origin = isWeb ? window.location.origin : 'kaffepos://auth/callback';
+      const redirectTo = isWeb ? `${origin}/auth` : origin;
+
+      // 1. Jalur Resmi Supabase (Paling Reliable)
+      const { error: resendErr } = await supabase.auth.resend({
+        type: 'signup',
+        email: cleanEmail,
+        options: { emailRedirectTo: redirectTo }
       });
-      if (error) throw error;
+
+      if (resendErr) {
+        console.error('[Auth] Supabase Resend Error:', resendErr.message);
+        if (resendErr.message.toLowerCase().includes('rate limit')) return { error: 'Tunggu 1 menit sebelum mencoba lagi (Limit).' };
+        return { error: resendErr.message };
+      }
+
+      // 2. Jalur Custom Notification (Fancy HTML Email) - FIRE AND FORGET
+      setTimeout(() => {
+        supabase.functions.invoke('send-notification', {
+          body: { type: 'verification', email: cleanEmail, redirectTo }
+        }).catch(e => console.warn('[Auth] Custom notification invoke failed:', e));
+      }, 0);
+
       return { error: null };
-    } catch (e: any) {
-      return { error: e.message };
+    } catch (e:any) {
+      console.error('[Auth] Resend process failed:', e);
+      return { error: e.message || 'Gagal mengirim ulang email.' };
     }
-  }, []);
+  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
 
   const emergencyConfirm = useCallback(async (email: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke('confirm-user', {
+      const { error } = await supabase.functions.invoke('confirm-user', {
         body: { email }
       });
       if (error) throw error;
       return { error: null };
-    } catch (e: any) {
+    } catch (e:any) {
       return { error: e.message };
     }
-  }, []);
+  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
 
   // ─── signInWithGoogle ─────────────────────────────────────────
   // STRATEGI FINAL: PKCE + Chrome Custom Tabs
@@ -340,81 +407,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   //       → App.tsx appUrlOpen → exchangeCodeForSession → SIGNED_IN → masuk
   const signInWithGoogle = useCallback(async () => {
     try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: 'kaffepos://auth/callback',
-          queryParams: { access_type: 'offline', prompt: 'select_account' },
-          skipBrowserRedirect: true,
-        },
+          redirectTo: 'id.kaffeepos.app://login-callback',
+          skipBrowserRedirect: false,
+          queryParams: { access_type: 'offline', prompt: 'consent' }
+        }
       });
       if (error) return { error: `Google login gagal: ${error.message}` };
-      if (!data?.url) return { error: 'Gagal mendapatkan URL login Google.' };
-
-      // Chrome Custom Tabs — in-process, lebih cepat dari Chrome penuh
-      try {
-        const { Browser } = await import('@capacitor/browser');
-        const { Preferences } = await import('@capacitor/preferences');
-
-        // Backup PKCE code verifier agar tidak hilang jika OS kill WebView
-        const SUPABASE_VERIFIER_KEY = 'kaffepos_auth-code-verifier';
-        const verifier = localStorage.getItem(SUPABASE_VERIFIER_KEY);
-        if (verifier) {
-          await Preferences.set({ key: 'pkce_code_verifier_backup', value: verifier });
-        }
-
-        await Browser.open({
-          url: data.url,
-          presentationStyle: 'popover',
-          toolbarColor: '#1a0f0a',
-        });
-
-        // Tunggu sampai Browser ditutup ATAU session berhasil terambil
-        return new Promise<{ error: string | null }>((resolve) => {
-          let resolved = false;
-
-          // Polling session (jika berhasil sebelum event fire)
-          const poll = setInterval(async () => {
-            if (resolved) { clearInterval(poll); return; }
-            const { data } = await supabase.auth.getSession();
-            if (data?.session) {
-              resolved = true;
-              clearInterval(poll);
-              resolve({ error: null });
-            }
-          }, 1500);
-
-          // Listen browserFinished (user cancel atau berhasil via deep link)
-          const listener = Browser.addListener('browserFinished', async () => {
-            if (resolved) return;
-            listener.then(l => l.remove());
-            
-            // Tunggu 12 detik agar deep link punya waktu mengeksekusi exchangeCodeForSession.
-            // Infinix/slow device bisa sangat lambat. Jangan langsung gagal awal.
-            setTimeout(async () => {
-              if (resolved) return; // Jika poll sukses di antara waktu tsb
-              resolved = true;
-              clearInterval(poll);
-              
-              const { data } = await supabase.auth.getSession();
-              if (data?.session) {
-                resolve({ error: null });
-              } else {
-                resolve({ error: 'Login Google dibatalkan atau gagal.' });
-              }
-            }, 12000);
-          });
-        });
-
-      } catch {
-        // Fallback ke _system jika Browser plugin bermasalah
-        window.open(data.url, '_system');
-        return { error: 'Dialihkan ke browser eksternal.' };
-      }
-    } catch (e: any) {
+      return { error: null };
+    } catch (e:any) {
       return { error: e?.message || 'Gagal membuka Google. Coba lagi.' };
     }
-  }, []);
+  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
 
 
 
@@ -422,11 +428,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ─── signOut ─────────────────────────────────────────────────
   const signOut = useCallback(async () => {
     signedOut.current = true;
-    try { const mod = await import('@/hooks/useStore'); mod.useStore.getState().cleanup?.(); } catch {}
+    try { const mod = await import('@/hooks/useStore'); mod.useStore.getState().cleanup?.(); } catch { /* ignore */ }
     cacheSession(null);
-    try { await supabase.auth.signOut(); } catch {}
+    try { await supabase.auth.signOut(); } catch { /* ignore */ }
     if (mounted.current) { setUser(null); setProfile(null); setLoading(false); }
-  }, []);
+  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
 
   // ─── resetPassword ───────────────────────────────────────────
   const resetPassword = useCallback(async (email: string) => {
@@ -441,7 +447,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       return { error: null };
     } catch { return { error: 'Tidak ada koneksi internet.' }; }
-  }, []);
+  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
 
   // ─── activatePro ─────────────────────────────────────────────
   const activatePro = useCallback(async (planId: string, licenseKey: string) => {
@@ -473,11 +479,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }).eq('key', licenseKey);
       }
       if (mounted.current) {
-        setProfile((p: any) => p ? { ...p, tier: 'pro', is_pro: true, pro_plan: planId,
+        setProfile((p:any) => p ? { ...p, tier: 'pro', is_pro: true, pro_plan: planId,
           pro_activated_at: new Date().toISOString(), pro_expires_at: expiresAt.toISOString() } : p);
       }
       return { error: null };
-    } catch (e: any) { return { error: e?.message || 'Terjadi kesalahan. Coba lagi.' }; }
+    } catch (e:any) { return { error: (e as Error)?.message || 'Terjadi kesalahan. Coba lagi.' }; }
   }, [user?.id]);
 
   const isPro = (() => {

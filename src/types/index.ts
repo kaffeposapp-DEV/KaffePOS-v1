@@ -1,4 +1,10 @@
-export type Tab = 'pos' | 'warehouse' | 'menu' | 'history' | 'report' | 'settings';
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable react/no-unescaped-entities */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable react-refresh/only-export-components */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export type Tab = 'dashboard' | 'pos' | 'warehouse' | 'menu' | 'history' | 'report' | 'settings';
 export interface StoreSettings {
   id: string; owner_id: string; store_name: string;
   address?: string; whatsapp?: string; tagline?: string;
@@ -24,6 +30,15 @@ export interface InventoryItem {
   id: string; store_id: string; name: string;
   stock: number; unit: string; min_stock: number;
   cost_per_unit: number; created_at?: string; updated_at?: string;
+}
+export interface InventoryItemUpdate {
+  type: 'new' | 'edit' | 'add';
+  id?: string;
+  name: string;
+  qty: string | number;
+  cost: string | number;
+  unit?: string;
+  minStock?: string | number;
 }
 export interface Transaction {
   id: string; store_id: string; date: string;

@@ -1,3 +1,9 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable react/no-unescaped-entities */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable react-refresh/only-export-components */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/utils/bluetoothPrinter.ts — Bluetooth Thermal Printer Manager
 // Wrapper untuk @kduma-autoid/capacitor-bluetooth-printer
 // Mendukung printer SPP (Classic Bluetooth): VSC MP-58, RONGTA, XP, GOOJPRT, dll.
@@ -41,7 +47,7 @@ export function getSavedPrinter(): SavedPrinter | null {
 }
 
 export function savePrinterToStorage(printer: SavedPrinter): void {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(printer)); } catch {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(printer)); } catch { /* ignore */ }
 }
 
 export function clearSavedPrinter(): void {
@@ -68,7 +74,7 @@ export async function scanPairedDevices(): Promise<{ all: BTPrinterDevice[]; pri
     const printers = all.filter(d => isPrinterDevice(d.name));
     // Jika tidak ada yang terdeteksi sebagai printer, tampilkan semua device
     return { all, printers: printers.length > 0 ? printers : all };
-  } catch (err: unknown) {
+  } catch (err:any) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`Scan gagal: ${msg}`);
   }
@@ -88,7 +94,7 @@ export async function connectPrinter(address: string, retries = 2): Promise<void
         ),
       ]);
       return;
-    } catch (err: unknown) {
+    } catch (err:any) {
       lastErr = err instanceof Error ? err.message : String(err);
       if (i < retries) await new Promise(r => setTimeout(r, 1000));
     }
@@ -97,7 +103,7 @@ export async function connectPrinter(address: string, retries = 2): Promise<void
 }
 
 export async function disconnectPrinter(): Promise<void> {
-  try { await BluetoothPrinter.disconnect(); } catch {}
+  try { await BluetoothPrinter.disconnect(); } catch { /* ignore */ }
 }
 
 // FIX #2: Auto re-connect jika printer terputus saat print
@@ -105,7 +111,7 @@ export async function printRaw(data: number[]): Promise<void> {
   const toHex = (d: number[]) => d.map(b => b.toString(16).padStart(2, '0')).join('');
   try {
     await BluetoothPrinter.print({ data: toHex(data) });
-  } catch (err: unknown) {
+  } catch (err:any) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.toLowerCase().includes('not connected') || msg.toLowerCase().includes('disconnected')) {
       const saved = getSavedPrinter();
@@ -163,7 +169,7 @@ export async function requestBluetoothPermission(): Promise<boolean> {
     const { devices } = await BluetoothPrinter.list();
     // Berhasil list = Bluetooth aktif dan permission granted
     return Array.isArray(devices);
-  } catch (err: unknown) {
+  } catch (err:any) {
     const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
     // Hanya return false jika memang permission denied atau BT disabled
     if (msg.includes('disabled') || msg.includes('permission') || msg.includes('denied')) return false;

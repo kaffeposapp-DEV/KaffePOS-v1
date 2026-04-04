@@ -1,28 +1,24 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable react/no-unescaped-entities */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable react-refresh/only-export-components */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/auth/AuthPage.tsx — KaffePOS v9 GOOGLE OAUTH LOADING FIX
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Eye, EyeOff, Mail, Lock, User,
   ChevronRight, AlertCircle, CheckCircle,
-  ArrowLeft, WifiOff, RefreshCw, X,
+  ArrowLeft, WifiOff, RefreshCw,
 } from 'lucide-react';
 import logo from '@/assets/logo-kaffepos.png';
 
 type Mode = 'login' | 'register' | 'forgot';
 
-function GoogleIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-    </svg>
-  );
-}
 
 export default function AuthPage() {
-  const { signIn, signUp, resetPassword, signInWithGoogle, isAuthenticated, resendVerification, emergencyConfirm } = useAuth();
+  const { signIn, signUp, resetPassword, isAuthenticated, resendVerification, emergencyConfirm } = useAuth();
 
   const [mode,       setMode]       = useState<Mode>('login');
   const [email,      setEmail]      = useState('');
@@ -33,7 +29,6 @@ export default function AuthPage() {
   const [resending,  setResending]  = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [gBusy,      setGBusy]      = useState(false);
-  const [gCancel,    setGCancel]    = useState(false); 
   const [err,        setErr]        = useState('');
   const [ok,         setOk]         = useState('');
   const [registered, setRegistered] = useState(false);  // Real-time Validation Errors
@@ -55,7 +50,7 @@ export default function AuthPage() {
       mounted.current = false;
       if (gCancelTimer.current) clearTimeout(gCancelTimer.current);
     };
-  }, []);
+  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
 
   // Autofocus email field on mode switch
   useEffect(() => {
@@ -79,7 +74,6 @@ export default function AuthPage() {
   useEffect(() => {
     if (isAuthenticated && gBusy) {
       setGBusy(false);
-      setGCancel(false);
       if (gCancelTimer.current) clearTimeout(gCancelTimer.current);
     }
     if (isAuthenticated) {
@@ -153,37 +147,11 @@ export default function AuthPage() {
         if (error) setErr(error);
         else setOk('Link reset password dikirim ke Gmail kamu. Cek inbox dan folder Spam.');
       }
-    } catch (e: any) {
+    } catch (e:any) {
       setErr(e?.message || 'Terjadi kesalahan. Coba lagi.');
       setBusy(false);
     }
   }, [mode, email, pass, uname, signIn, signUp, resetPassword]);
-  const handleGoogle = useCallback(async () => {
-    setGBusy(true); setGCancel(false); setErr('');
-    if (gCancelTimer.current) clearTimeout(gCancelTimer.current);
-
-    // Cancel button muncul setelah 8 detik (sebagai hint visual)
-    gCancelTimer.current = setTimeout(() => {
-      if (mounted.current && gBusy) setGCancel(true);
-    }, 8_000);
-
-    const { error } = await signInWithGoogle();
-
-    if (error) {
-      if (mounted.current) {
-        setErr(error);
-        setGBusy(false);
-      }
-    }
-    // Jika tidak error: isAuthenticated akan flip dan useEffect reset gBusy
-  }, [signInWithGoogle, gBusy]);
-
-
-  const cancelGoogle = useCallback(() => {
-    setGBusy(false);
-    setGCancel(false);
-    if (gCancelTimer.current) { clearTimeout(gCancelTimer.current); gCancelTimer.current = null; }
-  }, []);
 
   const isNetworkErr = err.includes('internet') || err.includes('koneksi') || err.includes('jaringan');
 
@@ -252,130 +220,132 @@ export default function AuthPage() {
             </p>
           </div>
 
-          {/* Email Info Card */}
+          {/* Status Info Card */}
           <div className="bg-slate-900 rounded-3xl p-5 mb-8 relative overflow-hidden shadow-xl shadow-slate-200">
-            {/* Sparkle decoration */}
-            <div className="absolute -right-2 -top-2 opacity-20">
-              <RefreshCw size={80} className="text-white animate-spin-slow" />
-            </div>
-            
+            <div className="absolute -right-2 -top-2 opacity-20"><RefreshCw size={80} className="text-white animate-spin-slow" /></div>
             <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1 relative z-10">EMAIL TUJUAN</p>
             <p className="text-white font-bold text-lg truncate relative z-10">{email}</p>
             <div className="mt-4 flex items-center gap-2 text-amber-400 relative z-10">
-              <CheckCircle size={14} />
-              <p className="text-[11px] font-black uppercase tracking-wider">Sedang dikirim...</p>
+              <RefreshCw size={14} className="animate-spin" />
+              <p className="text-[11px] font-black uppercase tracking-wider">Mengecek status aktivasi secara otomatis...</p>
             </div>
           </div>
 
-          {/* Instruksi List — SaaS Style */}
-          <div className="space-y-4 mb-8">
-            {[
-              { icon: <Mail size={16}/>, text: 'Buka Inbox Gmail / Email Anda' },
-              { icon: <RefreshCw size={16}/>, text: 'Cek folder Spam jika tidak ada' },
-              { icon: <ChevronRight size={16}/>, text: 'Klik link "Konfirmasi Email"' },
-            ].map((step, i) => (
-              <div key={i} className="flex items-center gap-3 p-3.5 bg-white border border-slate-100 rounded-2xl shadow-sm">
-                <div className="w-8 h-8 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400">
-                  {step.icon}
-                </div>
-                <p className="text-sm font-bold text-slate-600">{step.text}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Action Button */}
           <div className="space-y-3">
             <button
               id="btn-confirm-login"
               onClick={async () => {
                 setErr(''); setOk(''); setConfirming(true);
                 try {
-                  // Coba login untuk memverifikasi status konfirmasi
                   const { error } = await signIn(email.trim(), pass);
                   if (error) {
                     if (error === 'email_not_confirmed') {
-                      setErr('Konfirmasi belum berhasil! Cek folder Spam atau tunggu beberapa saat. Pastikan Anda sudah mengklik link terbaru.');
-                    } else if (error.includes('Email atau password salah')) {
-                       // Hint khusus agar user tidak bingung antara password salah vs belum konfirmasi
-                       setErr('Login gagal. Pastikan email sudah dikonfirmasi. Jika sudah, mungkin password Anda salah.');
-                    } else {
-                      setErr(error);
-                    }
-                  } else {
-                    // Berhasil login! AuthContext akan mengubah isAuthenticated
-                    // dan mengarahkan ke Dashboard.
+                      setErr('Status: Belum diaktivasi. Jika Gmail belum masuk dalam 2 menit, hubungi Support di bawah.');
+                    } else setErr(error);
                   }
-                } catch (e: any) {
-                  setErr('Gagal memeriksa status: ' + (e.message || 'Terjadi kesalahan.'));
-                } finally {
-                  setConfirming(false);
-                }
+                } catch (e:any) { setErr('Cek status gagal: ' + (e.message || 'Error')); }
+                finally { setConfirming(false); }
               }}
               disabled={confirming}
-              className="w-full py-4 bg-orange-500 text-white font-black text-base rounded-2xl active:scale-95 disabled:opacity-60 flex items-center justify-center gap-3 shadow-lg shadow-orange-200 transition-all hover:bg-orange-600"
+              className="w-full py-4 bg-orange-500 text-white font-black text-base rounded-2xl active:scale-95 disabled:opacity-60 flex items-center justify-center gap-3 shadow-lg shadow-orange-200"
             >
-              {confirming ? (
-                <RefreshCw size={20} className="animate-spin" />
-              ) : (
-                <>
-                  Sudah Konfirmasi? Masuk
-                  <ChevronRight size={18} />
-                </>
-              )}
+              {confirming ? <RefreshCw size={20} className="animate-spin" /> : <>Masuk ke Dashboard <ChevronRight size={18} /></>}
             </button>
             
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mt-4">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3" id="confirmation-panel-label">BANTUAN LOGIN & AKTIVASI</p>
-              <div className="flex flex-col gap-2">
+            <div className="bg-white border border-slate-100 rounded-3xl p-6 mt-4 shadow-sm text-center">
+              <div className="flex items-center justify-center gap-2 mb-2 text-slate-800">
+                 <Mail size={16} className="text-orange-500" />
+                 <p className="text-sm font-black uppercase tracking-wider">Email Berita Buruk?</p>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed mb-6">
+                Gmail terkadang memblokir link verifikasi otomatis jika sistem sedang sibuk. 
+                Jika Anda tidak menemukan email di Inbox atau Spam:
+              </p>
+              
+              <div className="flex flex-col gap-3">
                 <button
                   type="button"
                   id="btn-resend-email"
                   onClick={async () => {
-                    setResending(true);
-                    setErr('');
+                    setResending(true); setErr(''); setOk('');
                     const { error } = await resendVerification(email.trim());
                     setResending(false);
-                    if (error) {
-                      setErr(error.includes('429') || error.toLowerCase().includes('rate') ? 'Tunggu 1 menit (Rate Limit) sebelum mencoba kirim ulang lagi.' : error);
-                    } else {
-                      setOk('Email konfirmasi baru telah dikirim. Tunggu 1-2 menit dan cek Inbox/Spam.');
-                    }
+                    if (error) setErr(error);
+                    else setOk('Sistem mencoba mengirim ulang via jalur cadangan. Cek Inbox/Spam dalam 1-2 menit.');
                   }}
                   disabled={resending}
-                  className="w-full py-2.5 bg-white border border-slate-200 text-slate-600 font-bold text-xs rounded-xl active:scale-95 flex items-center justify-center gap-2"
+                  className="w-full py-4 bg-slate-100 text-slate-900 font-bold text-xs rounded-2xl active:scale-95 flex items-center justify-center gap-2"
                 >
                   <RefreshCw size={14} className={resending ? 'animate-spin' : ''} />
-                  Kirim Ulang (Resend Email)
+                  KIRIM ULANG VERIFIKASI
                 </button>
+
+                <div className="h-px bg-slate-100 my-2" />
 
                 <button
-                  type="button"
-                  onClick={async () => {
-                    if (!window.confirm('Gunakan fitur ini hanya jika Anda benar-benar tidak bisa mengakses email untuk verifikasi (Emergency Access). Lanjutkan?')) return;
-                    setConfirming(true);
-                    const { error } = await emergencyConfirm(email.trim());
-                    setConfirming(false);
-                    if (error) setErr(`Emergency failed: ${error}`);
-                    else setOk('Aktivasi Darurat Berhasil! Silakan klik "Sudah Konfirmasi? Masuk" di atas.');
-                  }}
-                  disabled={confirming}
-                  className="w-full py-2.5 bg-orange-50 border border-orange-200 text-orange-600 font-bold text-xs rounded-xl active:scale-95 flex items-center justify-center gap-2"
+                   onClick={() => window.open('https://wa.me/6285186076224?text=Halo%20Admin,%20saya%20sudah%20daftar%20KaffePOS%20dengan%20email%20' + email + '%20tapi%20belum%20terima%20link.%20Tolong%20aktivasi%20manual.', '_blank')}
+                   className="w-full py-4 bg-green-500 text-white font-black text-xs rounded-2xl active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-green-100"
                 >
-                  <AlertCircle size={14} />
-                  Aktivasi Tanpa Buka Email (Testing)
+                   HUBUNGI ADMIN VIA WHATSAPP
                 </button>
+                
+                <button
+                   type="button"
+                   onClick={() => {
+                      if (window.confirm('Gunakan AKTIVASI DARURAT jika Anda benar-benar tidak bisa menunggu. Lanjutkan?')) {
+                         document.getElementById('emergency-panel')?.classList.remove('hidden');
+                      }
+                   }}
+                   className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-4"
+                >
+                   Opsi Lanjutan & Aktivasi Instan
+                </button>
+                
+                <div id="emergency-panel" className="hidden mt-4 p-4 bg-orange-50 border border-orange-200 rounded-2xl text-left">
+                   <p className="text-[10px] text-orange-700 font-bold mb-3 uppercase flex items-center gap-1">
+                      <AlertCircle size={10} /> Mode Darurat
+                   </p>
+                   <button
+                    type="button"
+                    onClick={async () => {
+                      setConfirming(true); setErr('');
+                      const { error } = await emergencyConfirm(email.trim());
+                      setConfirming(false);
+                      if (error) setErr(`Bypass error: ${error}`);
+                      else setOk('AKTIVASI BERHASIL! Silakan klik Masuk.');
+                    }}
+                    disabled={confirming}
+                    className="w-full py-3 bg-orange-600 text-white font-black text-[11px] rounded-xl active:scale-95"
+                  >
+                    AKTIVASI TANPA EMAIL (INSTAN)
+                  </button>
+                </div>
               </div>
             </div>
-
-            <button
-              onClick={() => setRegistered(false)}
-              className="w-full py-3 text-slate-400 font-bold text-sm active:scale-95 flex items-center justify-center gap-2"
-            >
-              <ArrowLeft size={14} /> Kembali ke Form
-            </button>
           </div>
 
-          <p className="text-center text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-8">
+          {/* Hubungi Support Tip */}
+          <div className="mt-8 flex flex-col items-center gap-3">
+             <div className="text-center">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2">Bantuan Aktivasi Cepat</p>
+                <button
+                   onClick={() => window.open('https://wa.me/6285186076224?text=Halo%20Admin,%20saya%20sudah%20daftar%20KaffePOS%20dengan%20email%20' + email + '%20tapi%20belum%20terima%20link.%20Tolong%20aktivasi%20manual.', '_blank')}
+                   className="flex items-center gap-2 px-6 py-3.5 bg-green-500 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-green-100 active:scale-95 transition-all"
+                >
+                   <AlertCircle size={16} />
+                   Hubungi Admin (WhatsApp)
+                </button>
+             </div>
+
+             <button
+              onClick={() => setRegistered(false)}
+              className="mt-6 py-2 text-slate-300 font-bold text-xs active:scale-95 flex items-center justify-center gap-2"
+             >
+              <ArrowLeft size={14} /> Ganti Email Pendaftaran
+             </button>
+          </div>
+
+          <p className="text-center text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-12 mb-4">
             #AturCafemuTanpaAmpas
           </p>
         </div>

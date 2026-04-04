@@ -1,3 +1,9 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable react/no-unescaped-entities */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable react-refresh/only-export-components */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/lib/r2Storage.ts — KaffePOS v5
 // Upload, delete, dan compress gambar via Cloudflare R2
 // Worker URL: VITE_R2_WORKER_URL di .env

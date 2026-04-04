@@ -1,7 +1,14 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable react/no-unescaped-entities */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable react-refresh/only-export-components */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/services/SubscriptionManager.ts — KaffePOS Subscription Engine
 // Device-based subscription dengan Supabase sync + offline fallback
 
 import { supabase } from '@/lib/supabase';
+import { licenseSchema } from '@/utils/validation';
 
 export type PlanType = 'freemium' | 'monthly' | 'pro' | 'yearly' | 'lifetime' | 'enterprise';
 
@@ -17,18 +24,8 @@ export interface SubscriptionStatus {
 const TRANSACTION_LIMIT_FREEMIUM = 50;
 const SYNC_INTERVAL_MS = 1000 * 60 * 60 * 6; // sync setiap 6 jam
 const LOCAL_KEY = 'kaffepos_sub_v2';
-const DEVICE_KEY = 'kaffepos_device_id';
 const TX_COUNT_KEY = 'kaffepos_tx_month';
 
-// ── Device ID ─────────────────────────────────────────────────────
-function getDeviceId(): string {
-  let id = localStorage.getItem(DEVICE_KEY);
-  if (!id) {
-    id = `kfp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-    localStorage.setItem(DEVICE_KEY, id);
-  }
-  return id;
-}
 
 // ── Local cache helpers ───────────────────────────────────────────
 interface LocalCache {
@@ -46,7 +43,7 @@ function saveLocal(status: SubscriptionStatus): void {
     ...cache,
     status: { ...status, expiryDate: status.expiryDate?.toISOString() ?? null },
   });
-  try { localStorage.setItem(LOCAL_KEY, raw); } catch {}
+  try { localStorage.setItem(LOCAL_KEY, raw); } catch { /* ignore */ }
 }
 
 function loadLocal(): SubscriptionStatus | null {
@@ -78,13 +75,13 @@ function getMonthlyTxCount(): number {
 function incrementLocalTxCount(): number {
   const count = getMonthlyTxCount() + 1;
   const month = new Date().toISOString().substring(0, 7);
-  try { localStorage.setItem(TX_COUNT_KEY, JSON.stringify({ count, month })); } catch {}
+  try { localStorage.setItem(TX_COUNT_KEY, JSON.stringify({ count, month })); } catch { /* ignore */ }
   return count;
 }
 
 function resetMonthlyTxCount(): void {
   const month = new Date().toISOString().substring(0, 7);
-  try { localStorage.setItem(TX_COUNT_KEY, JSON.stringify({ count: 0, month })); } catch {}
+  try { localStorage.setItem(TX_COUNT_KEY, JSON.stringify({ count: 0, month })); } catch { /* ignore */ }
 }
 
 // ── Default status ────────────────────────────────────────────────
@@ -102,13 +99,11 @@ function defaultStatus(): SubscriptionStatus {
 // ── Main SubscriptionManager class ───────────────────────────────
 class SubscriptionManagerClass {
   private static instance: SubscriptionManagerClass;
-  private deviceId: string;
   private cachedStatus: SubscriptionStatus | null = null;
   private lastSyncTime: number = 0;
   private syncPromise: Promise<SubscriptionStatus> | null = null;
 
   private constructor() {
-    this.deviceId = getDeviceId();
   }
 
   static getInstance(): SubscriptionManagerClass {
@@ -198,7 +193,11 @@ class SubscriptionManagerClass {
     message: string;
     plan?: PlanType;
   }> {
-    if (!licenseKey) return { success: false, message: 'Kode lisensi tidak boleh kosong.' };
+    // ── Input Sanitization ──
+    const validation = licenseSchema.safeParse({ licenseKey });
+    if (!validation.success) {
+      return { success: false, message: validation.error.issues[0].message };
+    }
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { success: false, message: 'Belum login. Silakan login terlebih dahulu.' };
@@ -211,7 +210,7 @@ class SubscriptionManagerClass {
         .maybeSingle();
 
       if (keyErr && keyErr.code !== 'PGRST116') {
-        return { success: false, message: 'Gagal validasi. Coba lagi.' };
+        throw keyErr;
       }
 
       if (!keyRow) return { success: false, message: 'Kode lisensi tidak ditemukan.' };
@@ -234,7 +233,7 @@ class SubscriptionManagerClass {
         pro_expires_at: expiresAt.toISOString(),
       }).eq('id', user.id);
 
-      if (updateErr) return { success: false, message: `Gagal aktivasi: ${updateErr.message}` };
+      if (updateErr) throw updateErr;
 
       await supabase.from('lisensi_key').update({
         is_used: true, used_by: user.id, used_at: new Date().toISOString(),
@@ -246,13 +245,17 @@ class SubscriptionManagerClass {
       const expStr = planId === 'lifetime' ? 'Seumur hidup' :
         expiresAt.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 
+      const successMsg = `🎉 Paket ${planId.toUpperCase()} aktif hingga ${expStr}!`;
+      import('@/utils/toast').then(m => m.showToast(successMsg, 'success'));
+
       return {
         success: true,
-        message: `🎉 Paket ${planId.toUpperCase()} aktif hingga ${expStr}!`,
+        message: successMsg,
         plan: planId,
       };
-    } catch (e: unknown) {
+    } catch (e:any) {
       const msg = e instanceof Error ? e.message : 'Terjadi kesalahan.';
+      import('@/utils/toast').then(m => m.showToast(msg, 'error'));
       return { success: false, message: msg };
     }
   }

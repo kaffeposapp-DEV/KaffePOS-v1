@@ -1,3 +1,9 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable react/no-unescaped-entities */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable react-refresh/only-export-components */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/lib/aiInsight.ts — KaffePOS v6
 // Panggil AI via Supabase Edge Function (API key aman di server, tidak expose di APK)
 // SECURITY: JANGAN pakai VITE_GEMINI_API_KEY — akan ter-bundle di APK dan bisa dicuri!

@@ -44,6 +44,8 @@ const config: CapacitorConfig = {
       serverClientId: '772175003609-pmecpcf33sr7kk8l270f0mh534pceh20.apps.googleusercontent.com',
       forceCodeForRefreshToken: false,
     },
+    CapacitorCookies: { enabled: true },
+    CapacitorHttp: { enabled: true }
   },
 };
 

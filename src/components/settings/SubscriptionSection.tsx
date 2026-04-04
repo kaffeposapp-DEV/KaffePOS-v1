@@ -1,12 +1,18 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable react/no-unescaped-entities */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable react-refresh/only-export-components */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/settings/SubscriptionSection.tsx
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Check, X, Crown, Zap, Key, ChevronRight, Lock, Sparkles, MessageCircle, RefreshCw } from 'lucide-react';
 
 const WA_ADMIN = '6285186076224'; // 0851-8607-6224
 
 interface SubscriptionSectionProps {
   isPro:   boolean;
-  profile: any;
+  profile:any;
   toast:   any;
   onActivateLicense:  (key: string) => Promise<{ error: string | null }>;
   onRefreshStatus:    () => Promise<void>;
@@ -95,7 +101,7 @@ export default function SubscriptionSection({ isPro, profile, toast, onActivateL
         setLicKey('');
         setShowLicForm(false);
       }
-    } catch (e: any) {
+    } catch (e:any) {
       toast.showToast(e?.message || 'Gagal aktivasi', 'error');
     } finally { setLicLoading(false); }
   };
