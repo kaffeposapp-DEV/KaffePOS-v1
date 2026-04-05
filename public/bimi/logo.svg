@@ -5,12 +5,12 @@
   width="240" height="240">
   <title>KaffePOS</title>
   <circle cx="120" cy="120" r="120" fill="#3D1A00"/>
-  <ellipse cx="90" cy="80" rx="35" ry="22" fill="#C87A2F" transform="rotate(-30 90 80)"/>
-  <ellipse cx="150" cy="80" rx="35" ry="22" fill="#E8A84C" transform="rotate(30 150 80)"/>
-  <ellipse cx="90" cy="160" rx="35" ry="22" fill="#7B3F00" transform="rotate(30 90 160)"/>
-  <ellipse cx="150" cy="160" rx="35" ry="22" fill="#C87A2F" transform="rotate(-30 150 160)"/>
-  <ellipse cx="90" cy="80" rx="16" ry="7" fill="#fff" transform="rotate(-30 90 80)"/>
-  <ellipse cx="150" cy="80" rx="16" ry="7" fill="#fff" transform="rotate(30 150 80)"/>
-  <ellipse cx="90" cy="160" rx="16" ry="7" fill="#fff" transform="rotate(30 90 160)"/>
-  <ellipse cx="150" cy="160" rx="16" ry="7" fill="#fff" transform="rotate(-30 150 160)"/>
+  <ellipse cx="90" cy="80" rx="35" ry="22" fill="#C87A2F" transform="rotate(-30,90,80)"/>
+  <ellipse cx="150" cy="80" rx="35" ry="22" fill="#E8A84C" transform="rotate(30,150,80)"/>
+  <ellipse cx="90" cy="160" rx="35" ry="22" fill="#7B3F00" transform="rotate(30,90,160)"/>
+  <ellipse cx="150" cy="160" rx="35" ry="22" fill="#C87A2F" transform="rotate(-30,150,160)"/>
+  <ellipse cx="90" cy="80" rx="16" ry="7" fill="#ffffff" transform="rotate(-30,90,80)"/>
+  <ellipse cx="150" cy="80" rx="16" ry="7" fill="#ffffff" transform="rotate(30,150,80)"/>
+  <ellipse cx="90" cy="160" rx="16" ry="7" fill="#ffffff" transform="rotate(30,90,160)"/>
+  <ellipse cx="150" cy="160" rx="16" ry="7" fill="#ffffff" transform="rotate(-30,150,160)"/>
 </svg>
