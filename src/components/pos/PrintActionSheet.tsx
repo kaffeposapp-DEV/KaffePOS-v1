@@ -1,8 +1,8 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
+ 
+ 
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/pos/PrintActionSheet.tsx — KaffePOS v5
 // Bottom sheet pilihan cetak: Bluetooth, USB, WhatsApp (PDF)
@@ -180,7 +180,7 @@ export default function PrintActionSheet({
   // Swipe-down to close
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     startYRef.current = e.touches[0].clientY;
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [],   );
   const onTouchEnd = useCallback((e: React.TouchEvent) => {
     const dy = e.changedTouches[0].clientY - startYRef.current;
     if (dy > 60) onClose();

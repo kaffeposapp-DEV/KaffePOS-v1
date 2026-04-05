@@ -1,9 +1,9 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
+ 
+ 
+ 
+ 
 export type Tab = 'dashboard' | 'pos' | 'warehouse' | 'menu' | 'history' | 'report' | 'settings';
 export interface StoreSettings {
   id: string; owner_id: string; store_name: string;
@@ -65,11 +65,17 @@ export interface Transaction {
   void_at?: string|null; void_by?: string|null;
   created_at?: string;
 }
-export interface TransactionItem { name:string; qty:number; price:number; subtotal:number; }
+export interface TransactionItem {
+  name:string;
+  qty:number;
+  price:number;
+  subtotal:number;
+  menu_item_id?: string;
+}
 export interface Expense {
   id: string; store_id: string; date: string;
   description: string; amount: number; category: string;
-  cashier?: string; created_at?: string;
+  cashier?: string; source?: 'cashier'|'inventory'; created_at?: string;
 }
 export interface CashFlowEntry {
   id: string; store_id: string; date: string;

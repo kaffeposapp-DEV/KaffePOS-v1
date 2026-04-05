@@ -25,7 +25,6 @@ BEGIN
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
 -- Ensure RLS doesn't block RPC calls for anon users
 -- Standard Supabase setup allows RPC execution for anon users if function is in public schema.
 GRANT EXECUTE ON FUNCTION public.register_user(TEXT, TEXT, TEXT) TO anon, authenticated;

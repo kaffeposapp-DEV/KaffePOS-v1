@@ -10,11 +10,13 @@ export const registerWithEmail = async (
     if (username.length < 3) {
       return { success: false, error: 'Username minimal 3 karakter' };
     }
-    if (password.length < 8) {
-      return { success: false, error: 'Password minimal 8 karakter' };
-    }
-    if (!/\d/.test(password)) {
-      return { success: false, error: 'Password harus mengandung angka' };
+    if (
+      password.length < 10 ||
+      !/[A-Z]/.test(password) ||
+      !/[a-z]/.test(password) ||
+      !/\d/.test(password)
+    ) {
+      return { success: false, error: 'Password minimal 10 karakter dan wajib mengandung huruf besar, huruf kecil, serta angka' };
     }
 
     // Cek username sudah dipakai
@@ -55,8 +57,9 @@ export const registerWithEmail = async (
     }
 
     return { success: true };
-  } catch (err: any) {
-    return { success: false, error: `Koneksi bermasalah: ${err.message || 'Cek internet kamu.'}` };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Cek internet kamu.';
+    return { success: false, error: `Koneksi bermasalah: ${message}` };
   }
 };
 
@@ -65,17 +68,17 @@ export const resendVerificationEmail = async (
 ): Promise<{ success: boolean; error?: string }> => {
   try {
     const cleanEmail = email.trim().toLowerCase();
-    const { error } = await supabase.functions.invoke('send-notification', {
-      body: {
-        type: 'verification',
-        email: cleanEmail,
-        name: cleanEmail.split('@')[0],
-        redirectTo: AUTH_REDIRECT_URL,
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: cleanEmail,
+      options: {
+        emailRedirectTo: AUTH_REDIRECT_URL,
       },
     });
     if (error) return { success: false, error: error.message };
     return { success: true };
-  } catch (err: any) {
-    return { success: false, error: `Gagal kirim ulang: ${err.message || 'Coba lagi.'}` };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Coba lagi.';
+    return { success: false, error: `Gagal kirim ulang: ${message}` };
   }
 };

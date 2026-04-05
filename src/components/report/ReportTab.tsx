@@ -1,15 +1,15 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
+ 
+ 
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/report/ReportTab.tsx — v5 + Gemini AI Insight
 import { useState, useMemo, useCallback } from 'react';
-import { Download, TrendingUp, ShoppingBag, DollarSign, CreditCard, Wallet, Receipt, Sparkles, RefreshCw, ChevronDown, ChevronUp, Scale, Mail, Plus } from 'lucide-react';
+import { Download, TrendingUp, ShoppingBag, DollarSign, CreditCard, Wallet, Receipt, Sparkles, RefreshCw, ChevronDown, ChevronUp, Scale, Mail } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import { useAuth } from '@/contexts/AuthContext';
-import { generateProfessionalPDF, type ReportData } from '@/utils/pdfReport';
+import { generateProfessionalPDF, shareProfessionalPDF, type ReportData } from '@/utils/pdfReport';
 import { getAIInsightCached, type InsightContext, type AIInsight } from '@/lib/aiInsight';
 import KasDailyPanel from './KasDailyPanel';
 import ExpenseModal from '@/components/pos/ExpenseModal';
@@ -19,6 +19,8 @@ const fRp  = (n: number) => new Intl.NumberFormat('id-ID',{style:'currency',curr
 const fNum = (n: number) => new Intl.NumberFormat('id-ID').format(n||0);
 type Period = 'harian'|'mingguan'|'bulanan'|'semua';
 const COLORS = ['#f97316','#3b82f6','#10b981','#8b5cf6','#ef4444','#ec4899','#f59e0b','#06b6d4'];
+const getExpenseSource = (expense: { source?: string; category?: string }) =>
+  expense.source || (expense.category === 'Bahan Baku' ? 'inventory' : 'cashier');
 
 function LineChart({ data, color='#f97316' }: { data:{label:string;value:number}[]; color?:string }) {
   if (data.length<2) return <div className="h-20 flex items-center justify-center text-slate-300 text-xs">Butuh lebih banyak data</div>;
@@ -113,6 +115,7 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
   const [period, setPeriod]     = useState<Period>('bulanan');
   const [activeChart, setChart] = useState<'trend'|'menu'|'payment'|'stock'>('trend');
   const [downloading, setDl]    = useState(false);
+  const [sharingWA, setSharingWA] = useState(false);
 
   // ── AI Insight state ──────────────────────────────────────────
   const [aiData,    setAiData]    = useState<AIInsight | null>(null);
@@ -164,7 +167,10 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
     });
   },[cashRegister,period]);
 
-  const filteredExpOps = useMemo(()=>filteredExp.filter((e:any)=>e.category!=='Bahan Baku'),[filteredExp]);
+  const filteredExpOps = useMemo(
+    () => filteredExp.filter((e:any) => getExpenseSource(e) === 'cashier' && e.category !== 'Bahan Baku'),
+    [filteredExp]
+  );
   const totalCashRegister = filteredCR.reduce((s:number,c:any)=>s+c.amount,0);
   const totalExpOps       = filteredExpOps.reduce((s:number,e:any)=>s+e.amount,0);
 
@@ -248,63 +254,111 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
     } finally { setAiLoading(false); }
   }, [period, filtered, menuRanking, inventory, trendData, totalRevenue, totalCogs, netProfit, grossMargin, avgTrx, totalExpenses, storeSettings]);
 
+  const buildReportPayload = useCallback((): ReportData => {
+    const periodLabel = period === 'harian' ? 'Hari Ini' : period === 'mingguan' ? '7 Hari Terakhir' : period === 'bulanan' ? 'Bulan Ini' : 'Semua Waktu';
+    const nowStr      = new Date().toLocaleString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    const payload: ReportData = {
+      storeName:     storeSettings?.store_name || 'KaffePOS',
+      tagline:       (storeSettings as any)?.tagline,
+      address:       (storeSettings as any)?.address,
+      phone:         (storeSettings as any)?.phone,
+      logoData:      (storeSettings as any)?.logo_url || (storeSettings as any)?.logo_base64,
+      period:        period,
+      periodLabel,
+      nowStr,
+
+      totalRevenue,
+      totalCogs,
+      grossProfit,
+      totalExpenses,
+      netProfit,
+      grossMargin,
+      avgTrx,
+      txCount:       filtered.length,
+
+      trendData,
+      menuRanking,
+      paymentData,
+      stockData,
+
+      expensesByCategory: (() => {
+        const m:any = {};
+        filteredExp.forEach((e:any) => { m[e.category] = (m[e.category] || 0) + e.amount; });
+        return Object.entries(m).map(([l, v]) => ({ label: l, value: v as number })).sort((a,b) => b.value - a.value);
+      })(),
+      expenseList: filteredExp,
+      cashRegister: filteredCR,
+      aiInsight: aiData?.summary ?? null,
+    };
+
+    if (aiData) {
+      payload.aiTips = [
+        aiData.bestMenu,
+        aiData.stockAlert,
+        aiData.prediction,
+        ...(aiData.tips || []),
+      ].filter(Boolean);
+    }
+
+    return payload;
+  }, [
+    period,
+    storeSettings,
+    totalRevenue,
+    totalCogs,
+    grossProfit,
+    totalExpenses,
+    netProfit,
+    grossMargin,
+    avgTrx,
+    filtered.length,
+    trendData,
+    menuRanking,
+    paymentData,
+    stockData,
+    filteredExp,
+    filteredCR,
+    aiData,
+  ]);
+
   const handleDownload = async () => {
     setDl(true);
     try {
-      const periodLabel = period === 'harian' ? 'Hari Ini' : period === 'mingguan' ? '7 Hari Terakhir' : period === 'bulanan' ? 'Bulan Ini' : 'Semua Waktu';
-      const nowStr      = new Date().toLocaleString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-      
-      const payload: ReportData = {
-        storeName:     storeSettings?.store_name || 'KaffePOS',
-        tagline:       (storeSettings as any)?.tagline,
-        address:       (storeSettings as any)?.address,
-        phone:         (storeSettings as any)?.phone,
-        logoData:      (storeSettings as any)?.logo_url || (storeSettings as any)?.logo_base64,
-        period:        period,
-        periodLabel:   periodLabel,
-        nowStr:        nowStr,
-        
-        totalRevenue,
-        totalCogs,
-        grossProfit,
-        totalExpenses,
-        netProfit,
-        grossMargin,
-        avgTrx,
-        txCount:       filtered.length,
-        
-        trendData,
-        menuRanking,
-        paymentData,
-        stockData,
-        
-        expensesByCategory: (() => {
-          const m:any = {};
-          filteredExp.forEach((e:any) => { m[e.category] = (m[e.category] || 0) + e.amount; });
-          return Object.entries(m).map(([l, v]) => ({ label: l, value: v as number })).sort((a,b) => b.value - a.value);
-        })(),
-        expenseList:   filteredExp,
-        
-        cashRegister,
-        
-        aiInsight:     aiData?.summary ?? null,
-      };
-
-      if (aiData) {
-        payload.aiTips = [
-          aiData.bestMenu,
-          aiData.stockAlert,
-          aiData.prediction
-        ];
-      }
-
-      await generateProfessionalPDF(payload);
+      await generateProfessionalPDF(buildReportPayload());
       toast.showToast('Laporan PDF berhasil diunduh!', 'success');
     } catch (e:any) {
       toast.showToast(`Gagal membuat PDF: ${e?.message || 'Error'}`, 'error');
       console.error(e);
     } finally {
       setDl(false);
+    }
+  };
+
+  const handleShareWhatsApp = async () => {
+    setSharingWA(true);
+    try {
+      const payload = buildReportPayload();
+      const shareText = [
+        `Halo, berikut laporan ${payload.periodLabel} untuk ${payload.storeName}.`,
+        `Pendapatan: ${fRp(payload.totalRevenue)}`,
+        `Laba bersih: ${fRp(payload.netProfit)}`,
+        `Transaksi: ${fNum(payload.txCount)}`,
+        'File PDF terlampir pada pesan ini.',
+      ].join('\n');
+
+      const result = await shareProfessionalPDF(payload, shareText);
+
+      if (!result?.ok) {
+        throw new Error(result?.error || 'Gagal membuka WhatsApp/share');
+      }
+
+      toast.showToast('PDF laporan siap dikirim lewat WhatsApp.', 'success');
+    } catch (e:any) {
+      toast.showToast(`Gagal membagikan PDF: ${e?.message || 'Error'}`, 'error');
+      console.error(e);
+    } finally {
+      setSharingWA(false);
     }
   };
 
@@ -319,11 +373,21 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
           <h2 className="font-black text-slate-800 text-lg">Laporan & Analitik</h2>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowExpenseModal(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold active:scale-95 shrink-0"
+              onClick={handleShareWhatsApp}
+              disabled={sharingWA || downloading}
+              title="Kirim PDF ke WhatsApp"
+              aria-label="Kirim PDF ke WhatsApp"
+              className="flex items-center gap-1.5 px-3 py-2 bg-green-500 text-white rounded-xl text-xs font-bold active:scale-95 disabled:opacity-50 shrink-0"
             >
-              <Plus size={13} />
-              Pengeluaran
+              {sharingWA ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"/> : 'WA'}
+            </button>
+            <button
+              onClick={() => setShowExpenseModal(true)}
+              title="Catat pengeluaran"
+              aria-label="Catat pengeluaran"
+              className="flex items-center justify-center w-9 h-9 bg-white border border-slate-200 text-slate-700 rounded-xl active:scale-95 shrink-0"
+            >
+              <Receipt size={13} />
             </button>
             <button onClick={handleDownload} disabled={downloading}
               className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 text-white rounded-xl text-xs font-bold active:scale-95 disabled:opacity-50 shrink-0">
@@ -367,7 +431,9 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
                 <p className="text-sm font-black text-violet-900">AI Insight</p>
                 <p className="text-[10px] text-violet-500">
                   {aiData
-                    ? `Dianalisis oleh Gemini`
+                    ? aiData.source === 'local'
+                      ? 'Analisis pintar lokal'
+                      : 'Dianalisis oleh Gemini'
                     : isPro
                     ? 'PRO · 20× analisis per hari'
                     : 'Freemium · 1× analisis per bulan'}
@@ -481,7 +547,9 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
                   <Mail size={14}/> Kirim Copy ke Email Saya
                 </button>
                 <p className="text-[9px] text-violet-300 text-center uppercase tracking-wider mt-1">
-                  Dianalisis oleh Google Gemini · Hanya sebagai referensi
+                  {aiData.source === 'local'
+                    ? 'Analisis cadangan lokal · Hanya sebagai referensi'
+                    : 'Dianalisis oleh Google Gemini · Hanya sebagai referensi'}
                 </p>
               </div>
             </div>

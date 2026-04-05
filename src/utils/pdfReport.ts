@@ -1,751 +1,1097 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { jsPDF } from 'jspdf';
-import { downloadPDFReport } from './downloadFile';
+import { downloadPDFReport, sharePDFReport, type DownloadResult } from './downloadFile';
 
-// ── Color palette ────────────────────────────────────────────────────────────
 const C = {
-  orange:  [249, 115, 22]  as [number,number,number],
-  dark:    [15,  23,  42]  as [number,number,number],
-  slate:   [30,  41,  59]  as [number,number,number],
-  gray:    [100, 116, 139] as [number,number,number],
-  light:   [248, 250, 252] as [number,number,number],
-  green:   [22,  163, 74]  as [number,number,number],
-  red:     [220, 38,  38]  as [number,number,number],
-  blue:    [37,  99,  235] as [number,number,number],
-  purple:  [124, 58,  237] as [number,number,number],
-  amber:   [217, 119, 6]   as [number,number,number],
-  white:   [255, 255, 255] as [number,number,number],
-  border:  [226, 232, 240] as [number,number,number],
-  bgGreen: [240, 253, 244] as [number,number,number],
-  bgRed:   [254, 242, 242] as [number,number,number],
-  bgBlue:  [239, 246, 255] as [number,number,number],
-  bgOrange:[255, 247, 237] as [number,number,number],
+  orange: [249, 115, 22] as [number, number, number],
+  orangeDark: [154, 52, 18] as [number, number, number],
+  dark: [15, 23, 42] as [number, number, number],
+  slate: [30, 41, 59] as [number, number, number],
+  gray: [100, 116, 139] as [number, number, number],
+  muted: [148, 163, 184] as [number, number, number],
+  light: [248, 250, 252] as [number, number, number],
+  white: [255, 255, 255] as [number, number, number],
+  green: [22, 163, 74] as [number, number, number],
+  red: [220, 38, 38] as [number, number, number],
+  blue: [37, 99, 235] as [number, number, number],
+  amber: [217, 119, 6] as [number, number, number],
+  purple: [124, 58, 237] as [number, number, number],
+  border: [226, 232, 240] as [number, number, number],
+  bgOrange: [255, 247, 237] as [number, number, number],
+  bgBlue: [239, 246, 255] as [number, number, number],
+  bgGreen: [240, 253, 244] as [number, number, number],
+  bgRed: [254, 242, 242] as [number, number, number],
+  bgSlate: [241, 245, 249] as [number, number, number],
+  bgPurple: [245, 243, 255] as [number, number, number],
 };
 
-const fRp = (n: number) =>
-  'Rp ' + new Intl.NumberFormat('id-ID').format(Math.round(n || 0));
+const CHART_COLORS = ['#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#ec4899', '#f59e0b', '#06b6d4'];
 
-function hexToRgb(hex: string): [number,number,number] {
-  const h = hex.replace('#','');
-  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+const fRp = (n: number) => `Rp ${new Intl.NumberFormat('id-ID').format(Math.round(n || 0))}`;
+const fNum = (n: number) => new Intl.NumberFormat('id-ID').format(Math.round(n || 0));
+const pct = (value: number, total: number) => (total > 0 ? Math.round((value / total) * 100) : 0);
+const clamp = (num: number, min: number, max: number) => Math.max(min, Math.min(max, num));
+const cleanText = (value?: string | null) => (value || '').replace(/[*_#`]/g, '').trim();
+
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '');
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
 
-// ── Chart renderers (pure jsPDF canvas) ──────────────────────────────────────
+function dateLabel(value: any): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+}
 
-/** Horizontal bar chart */
+function dateShortLabel(value: any): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+}
+
 function drawHBar(
-  doc: jsPDF, data: {label:string; value:number; pct?:number}[],
-  x: number, y: number, w: number, barH: number,
-  color: [number,number,number], bgColor = C.light
+  doc: jsPDF,
+  data: { label: string; value: number; meta?: string }[],
+  x: number,
+  y: number,
+  w: number,
+  barH: number,
+  color: [number, number, number],
 ) {
-  const max = Math.max(...data.map(d => d.value), 1);
-  const gap = barH + 4;
-  data.forEach((d, i) => {
-    const by = y + i * gap;
-    const bw = (d.value / max) * (w - 32);
-    // Label
-    doc.setFontSize(5.5); doc.setFont('helvetica','normal'); doc.setTextColor(...C.gray);
-    doc.text(d.label.slice(0, 22), x, by + barH - 1);
-    // Background
-    doc.setFillColor(...bgColor);
-    doc.roundedRect(x + 32, by, w - 32, barH, 0.8, 0.8, 'F');
-    // Fill
+  const max = Math.max(...data.map((d) => d.value), 1);
+  const gap = barH + 5;
+  data.forEach((item, index) => {
+    const rowY = y + index * gap;
+    const bw = (item.value / max) * (w - 52);
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.slate);
+    doc.text(item.label.slice(0, 22), x, rowY + 2.8);
+    if (item.meta) {
+      doc.setFontSize(5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...C.gray);
+      doc.text(item.meta.slice(0, 28), x, rowY + barH);
+    }
+    doc.setFillColor(...C.bgSlate);
+    doc.roundedRect(x + 33, rowY, w - 52, barH, 0.9, 0.9, 'F');
     if (bw > 0) {
       doc.setFillColor(...color);
-      doc.roundedRect(x + 32, by, bw, barH, 0.8, 0.8, 'F');
+      doc.roundedRect(x + 33, rowY, bw, barH, 0.9, 0.9, 'F');
     }
-    // Value
-    const pctStr = d.pct !== undefined ? `${d.pct}%` : fRp(d.value);
-    doc.setFontSize(5.5); doc.setFont('helvetica','bold'); doc.setTextColor(...C.slate);
-    doc.text(pctStr, x + w, by + barH - 1, { align: 'right' });
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.slate);
+    doc.text(fNum(item.value), x + w - 1, rowY + barH - 0.3, { align: 'right' });
   });
 }
 
-/** Line chart (mini sparkline) */
 function drawLineChart(
-  doc: jsPDF, data: {label:string; value:number}[],
-  x: number, y: number, w: number, h: number,
-  color: [number,number,number]
+  doc: jsPDF,
+  data: { label: string; value: number }[],
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  color: [number, number, number],
 ) {
   if (data.length < 2) return;
-  const max = Math.max(...data.map(d => d.value), 1);
+  const max = Math.max(...data.map((d) => d.value), 1);
   const pts = data.map((d, i) => ({
     px: x + (i / (data.length - 1)) * w,
     py: y + h - (d.value / max) * h,
   }));
 
-  // Grid lines
-  doc.setDrawColor(...C.border); doc.setLineWidth(0.15);
-  [0.25, 0.5, 0.75, 1].forEach(f => {
-    doc.line(x, y + h * f, x + w, y + h * f);
-  });
+  doc.setDrawColor(...C.border);
+  doc.setLineWidth(0.15);
+  [0.25, 0.5, 0.75, 1].forEach((f) => doc.line(x, y + h * f, x + w, y + h * f));
 
-  // Area fill
-  doc.setFillColor(color[0], color[1], color[2]);
-  // Simplified area as a polygon path
   const areaPoints: number[][] = [];
-  pts.forEach(p => areaPoints.push([p.px, p.py]));
-  areaPoints.push([pts[pts.length-1].px, y + h]);
+  pts.forEach((p) => areaPoints.push([p.px, p.py]));
+  areaPoints.push([pts[pts.length - 1].px, y + h]);
   areaPoints.push([pts[0].px, y + h]);
-  try { (doc as any).polygon(areaPoints, 'F'); doc.setGState(doc.GState({ opacity: 1 })); } catch { /* ignore */ }
-
-  // Line
-  doc.setDrawColor(...color); doc.setLineWidth(0.7);
-  for (let i = 1; i < pts.length; i++) {
-    doc.line(pts[i-1].px, pts[i-1].py, pts[i].px, pts[i].py);
+  doc.setFillColor(color[0], color[1], color[2]);
+  try {
+    (doc as any).polygon(areaPoints, 'F');
+  } catch {
+    // ignore polygon availability issues
   }
 
-  // Dots
-  pts.forEach(p => {
-    doc.setFillColor(255,255,255); doc.circle(p.px, p.py, 0.9, 'F');
-    doc.setFillColor(...color); doc.circle(p.px, p.py, 0.6, 'F');
+  doc.setDrawColor(...color);
+  doc.setLineWidth(0.8);
+  for (let i = 1; i < pts.length; i += 1) {
+    doc.line(pts[i - 1].px, pts[i - 1].py, pts[i].px, pts[i].py);
+  }
+
+  pts.forEach((p) => {
+    doc.setFillColor(...C.white);
+    doc.circle(p.px, p.py, 0.9, 'F');
+    doc.setFillColor(...color);
+    doc.circle(p.px, p.py, 0.55, 'F');
   });
 
-  // X labels
-  doc.setFontSize(4.5); doc.setFont('helvetica','normal'); doc.setTextColor(...C.gray);
+  doc.setFontSize(4.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...C.gray);
   data.forEach((d, i) => {
     doc.text(d.label, pts[i].px, y + h + 3.5, { align: 'center' });
   });
-
-  // Peak annotation
-  const peakIdx = data.reduce((max, d, i, arr) => d.value > arr[max].value ? i : max, 0);
-  const peak = pts[peakIdx];
-  doc.setFontSize(4.5); doc.setFont('helvetica','bold'); doc.setTextColor(...color);
-  doc.text(fRp(data[peakIdx].value), peak.px, peak.py - 2, { align: 'center' });
 }
 
-/** Donut chart */
 function drawDonut(
-  doc: jsPDF, data: {label:string; value:number; color:string}[],
-  cx: number, cy: number, r: number
+  doc: jsPDF,
+  data: { label: string; value: number; color: string }[],
+  cx: number,
+  cy: number,
+  r: number,
+  centerLines?: [string, string],
 ) {
-  const total = data.reduce((s, d) => s + d.value, 0);
+  const total = data.reduce((sum, item) => sum + item.value, 0);
   if (!total) return;
   let angle = -Math.PI / 2;
-  data.forEach(d => {
-    const sweep = (d.value / total) * 2 * Math.PI;
-    const rgb = hexToRgb(d.color);
+  data.forEach((item) => {
+    const sweep = (item.value / total) * 2 * Math.PI;
+    const rgb = hexToRgb(item.color);
     doc.setFillColor(...rgb);
     const steps = Math.max(20, Math.round(sweep * 12));
     const pts: number[][] = [[cx, cy]];
-    for (let i = 0; i <= steps; i++) {
+    for (let i = 0; i <= steps; i += 1) {
       const a = angle + (i / steps) * sweep;
       pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
     }
-    try { (doc as any).polygon(pts, 'F'); } catch { /* ignore */ }
+    try {
+      (doc as any).polygon(pts, 'F');
+    } catch {
+      // ignore polygon availability issues
+    }
     angle += sweep;
   });
-  // Inner circle (donut hole)
-  doc.setFillColor(...C.white); doc.circle(cx, cy, r * 0.52, 'F');
-  // Center label
-  doc.setFontSize(5); doc.setFont('helvetica','normal'); doc.setTextColor(...C.gray);
-  doc.text('Total', cx, cy - 1.5, { align: 'center' });
-  doc.setFontSize(6.5); doc.setFont('helvetica','bold'); doc.setTextColor(...C.slate);
-  doc.text(new Intl.NumberFormat('id-ID').format(total), cx, cy + 3.5, { align: 'center' });
+  doc.setFillColor(...C.white);
+  doc.circle(cx, cy, r * 0.52, 'F');
+  doc.setFontSize(5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...C.gray);
+  doc.text(centerLines?.[0] || 'Total', cx, cy - 1.5, { align: 'center' });
+  doc.setFontSize(6.8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.slate);
+  doc.text(centerLines?.[1] || fNum(total), cx, cy + 3.5, { align: 'center' });
 }
 
-/** Mini vertical bar chart */
 function drawVBar(
-  doc: jsPDF, data: {label:string; value:number}[],
-  x: number, y: number, w: number, h: number,
-  colors: [number,number,number][]
+  doc: jsPDF,
+  data: { label: string; value: number }[],
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  colors: [number, number, number][],
 ) {
-  const max = Math.max(...data.map(d => d.value), 1);
+  if (!data.length) return;
+  const max = Math.max(...data.map((d) => d.value), 1);
   const bw = (w - (data.length - 1) * 2) / data.length;
-  data.forEach((d, i) => {
-    const bh = (d.value / max) * h;
+  data.forEach((item, i) => {
+    const bh = (item.value / max) * h;
     const bx = x + i * (bw + 2);
     const by = y + h - bh;
-    const col = colors[i % colors.length];
+    const color = colors[i % colors.length];
     if (bh > 0) {
-      doc.setFillColor(...col);
-      doc.roundedRect(bx, by, bw, bh, 0.5, 0.5, 'F');
+      doc.setFillColor(...color);
+      doc.roundedRect(bx, by, bw, bh, 0.7, 0.7, 'F');
     }
-    // Label
-    doc.setFontSize(4.5); doc.setFont('helvetica','normal'); doc.setTextColor(...C.gray);
-    doc.text(d.label.slice(0, 6), bx + bw / 2, y + h + 3, { align: 'center' });
+    doc.setFontSize(4.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.gray);
+    doc.text(item.label.slice(0, 7), bx + bw / 2, y + h + 3.2, { align: 'center' });
   });
 }
 
-// ── KPI Box ───────────────────────────────────────────────────────────────────
 function kpiBox(
   doc: jsPDF,
-  label: string, value: string, sub: string | null,
-  x: number, y: number, w: number, h: number,
-  bg: [number,number,number], vc: [number,number,number],
-  iconChar?: string
+  label: string,
+  value: string,
+  sub: string | null,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  bg: [number, number, number],
+  valueColor: [number, number, number],
 ) {
   doc.setFillColor(...bg);
   doc.roundedRect(x, y, w, h, 2, 2, 'F');
-  const ty = y + 6;
-  if (iconChar) {
-    doc.setFontSize(9); doc.setTextColor(...vc);
-    doc.text(iconChar, x + 3.5, ty + 1);
-    const tw = doc.getTextWidth(iconChar);
-    doc.setFontSize(5.5); doc.setFont('helvetica','normal'); doc.setTextColor(...C.gray);
-    doc.text(label, x + 3.5 + tw + 1, ty);
-  } else {
-    doc.setFontSize(6); doc.setFont('helvetica','normal'); doc.setTextColor(...C.gray);
-    doc.text(label, x + w / 2, ty, { align: 'center' });
-  }
-  doc.setFontSize(8.5); doc.setFont('helvetica','bold'); doc.setTextColor(...vc);
-  doc.text(value, x + w / 2, y + h - (sub ? 5.5 : 3.5), { align: 'center' });
+  doc.setDrawColor(...C.border);
+  doc.setLineWidth(0.18);
+  doc.roundedRect(x, y, w, h, 2, 2, 'S');
+  doc.setFontSize(5.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...C.gray);
+  doc.text(label, x + 4, y + 6);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...valueColor);
+  doc.text(value, x + 4, y + 12.5);
   if (sub) {
-    doc.setFontSize(5.5); doc.setFont('helvetica','normal'); doc.setTextColor(...C.gray);
-    doc.text(sub, x + w / 2, y + h - 1.5, { align: 'center' });
+    doc.setFontSize(5.4);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.gray);
+    doc.text(sub, x + 4, y + h - 3);
   }
 }
 
-// ── Section heading ───────────────────────────────────────────────────────────
 function sectionHead(
-  doc: jsPDF, title: string, sub: string | null,
-  x: number, y: number, w: number,
-  color: [number,number,number] = C.orange
+  doc: jsPDF,
+  title: string,
+  sub: string | null,
+  x: number,
+  y: number,
+  w: number,
 ) {
-  doc.setFillColor(...color);
-  doc.roundedRect(x, y, 3, 8, 0.5, 0.5, 'F');
-  doc.setFontSize(9.5); doc.setFont('helvetica','bold'); doc.setTextColor(...C.dark);
-  doc.text(title, x + 6, y + 6.5);
+  doc.setFillColor(...C.orange);
+  doc.roundedRect(x, y, 3, 8, 0.7, 0.7, 'F');
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.dark);
+  doc.text(title, x + 6, y + 6.2);
   if (sub) {
-    doc.setFontSize(6); doc.setFont('helvetica','normal'); doc.setTextColor(...C.gray);
-    doc.text(sub, x + 6 + doc.getTextWidth(title) + 3, y + 6.5);
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.gray);
+    doc.text(sub, x + 6 + doc.getTextWidth(title) + 3, y + 6.2);
   }
-  doc.setDrawColor(...C.border); doc.setLineWidth(0.2);
-  const tw = 6 + doc.getTextWidth(title) + (sub ? 3 + doc.getTextWidth(sub) : 0) + 4;
-  doc.line(x + tw, y + 4, x + w, y + 4);
-  return y + 14;
+  doc.setDrawColor(...C.border);
+  doc.setLineWidth(0.25);
+  const usedWidth = 6 + doc.getTextWidth(title) + (sub ? doc.getTextWidth(sub) + 3 : 0) + 6;
+  doc.line(x + usedWidth, y + 4.2, x + w, y + 4.2);
+  return y + 13;
 }
 
-// ── Legend row (for donut) ────────────────────────────────────────────────────
-function legendRow(doc: jsPDF, items: {label:string;value:number;color:string;total:number}[], x:number, y:number, colW:number) {
-  items.forEach((d, i) => {
-    const col = i % 2 === 0 ? x : x + colW + 4;
-    const row = y + Math.floor(i / 2) * 5;
-    const rgb = hexToRgb(d.color);
-    doc.setFillColor(...rgb); doc.circle(col + 1.5, row + 1.5, 1.5, 'F');
-    doc.setFontSize(5.5); doc.setFont('helvetica','normal'); doc.setTextColor(...C.gray);
-    doc.text(d.label.slice(0,18), col + 5, row + 2.5);
-    doc.setFont('helvetica','bold'); doc.setTextColor(...C.slate);
-    const pct = d.total > 0 ? Math.round(d.value / d.total * 100) : 0;
-    doc.text(`${pct}%`, col + colW - 2, row + 2.5, { align: 'right' });
+function drawLegendBlock(
+  doc: jsPDF,
+  items: { label: string; value: number; color: string; suffix?: string }[],
+  x: number,
+  y: number,
+  w: number,
+) {
+  items.forEach((item, index) => {
+    const rowY = y + index * 7;
+    const rgb = hexToRgb(item.color);
+    doc.setFillColor(...rgb);
+    doc.circle(x + 2, rowY + 1.7, 1.6, 'F');
+    doc.setFontSize(5.8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.slate);
+    doc.text(item.label.slice(0, 24), x + 6, rowY + 2.6);
+    doc.setFont('helvetica', 'bold');
+    doc.text(item.suffix || fNum(item.value), x + w, rowY + 2.6, { align: 'right' });
   });
 }
 
-// ── MAIN EXPORT ───────────────────────────────────────────────────────────────
+function drawBulletList(doc: jsPDF, items: string[], x: number, y: number, width: number, lineGap = 5.1) {
+  let cursor = y;
+  items.forEach((item) => {
+    const text = cleanText(item);
+    if (!text) return;
+    doc.setFillColor(...C.orange);
+    doc.circle(x + 1.4, cursor - 1.4, 0.7, 'F');
+    doc.setFontSize(6.2);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.slate);
+    const wrapped = doc.splitTextToSize(text, width - 6);
+    doc.text(wrapped, x + 4.5, cursor);
+    cursor += wrapped.length * 3.9 + (lineGap - 3.9);
+  });
+  return cursor;
+}
+
+function drawInfoPanel(
+  doc: jsPDF,
+  opts: {
+    title: string;
+    lines: string[];
+    x: number;
+    y: number;
+    w: number;
+    bg: [number, number, number];
+    titleColor: [number, number, number];
+  },
+) {
+  const lineHeights = opts.lines.map((line) => doc.splitTextToSize(cleanText(line), opts.w - 8).length);
+  const height = 10 + lineHeights.reduce((sum, count) => sum + count * 4.2, 0) + 4;
+  doc.setFillColor(...opts.bg);
+  doc.roundedRect(opts.x, opts.y, opts.w, height, 2, 2, 'F');
+  doc.setDrawColor(...C.border);
+  doc.setLineWidth(0.18);
+  doc.roundedRect(opts.x, opts.y, opts.w, height, 2, 2, 'S');
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...opts.titleColor);
+  doc.text(opts.title, opts.x + 4, opts.y + 6.5);
+  let cursor = opts.y + 12;
+  opts.lines.forEach((line) => {
+    const wrapped = doc.splitTextToSize(cleanText(line), opts.w - 8);
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.slate);
+    doc.text(wrapped, opts.x + 4, cursor);
+    cursor += wrapped.length * 4.2;
+  });
+  return height;
+}
+
 export interface ReportData {
-  storeName:     string;
-  tagline?:      string;
-  address?:      string;
-  phone?:        string;
-  logoData?:     string;
-  period:        string;
-  periodLabel:   string;
-  nowStr:        string;
-  // Financial
-  totalRevenue:  number;
-  totalCogs:     number;
-  grossProfit:   number;
+  storeName: string;
+  tagline?: string;
+  address?: string;
+  phone?: string;
+  logoData?: string;
+  period: string;
+  periodLabel: string;
+  nowStr: string;
+  totalRevenue: number;
+  totalCogs: number;
+  grossProfit: number;
   totalExpenses: number;
-  netProfit:     number;
-  grossMargin:   number;
-  avgTrx:        number;
-  txCount:       number;
-  // Charts
-  trendData:     {label:string; value:number}[];
-  menuRanking:   {label:string; value:number; sub:string; rev:number}[];
-  paymentData:   {label:string; value:number; color:string}[];
-  stockData:     {label:string; stock:number; unit:string; min:number; pct:number}[];
-  // Expenses
-  expensesByCategory: {label:string; value:number}[];
-  expenseList:        any[];
-  // Cash register
-  cashRegister:   any[];
-  // AI Insight
-  aiInsight?:     string | null;
-  aiTips?:        string[];
+  netProfit: number;
+  grossMargin: number;
+  avgTrx: number;
+  txCount: number;
+  trendData: { label: string; value: number }[];
+  menuRanking: { label: string; value: number; sub: string; rev: number }[];
+  paymentData: { label: string; value: number; color: string }[];
+  stockData: { label: string; stock: number; unit: string; min: number; pct: number }[];
+  expensesByCategory: { label: string; value: number }[];
+  expenseList: any[];
+  cashRegister: any[];
+  aiInsight?: string | null;
+  aiTips?: string[];
 }
 
 export async function generateProfessionalPDF(data: ReportData): Promise<void> {
-  const { jsPDF } = await import('jspdf');
-  const autoTable  = (await import('jspdf-autotable')).default;
+  await buildProfessionalPDF(data, 'download');
+}
 
-  const doc  = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const W    = doc.internal.pageSize.getWidth();  // 210
-  const PH   = doc.internal.pageSize.getHeight(); // 297
-  const ML   = 14, MR = 14;
-  const CW   = W - ML - MR;
+export async function shareProfessionalPDF(data: ReportData, text?: string): Promise<DownloadResult> {
+  return buildProfessionalPDF(data, 'share', text);
+}
+
+async function buildProfessionalPDF(
+  data: ReportData,
+  mode: 'download' | 'share',
+  shareText?: string,
+): Promise<any> {
+  const autoTable = (await import('jspdf-autotable')).default;
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  const PH = doc.internal.pageSize.getHeight();
+  const ML = 14;
+  const MR = 14;
+  const CW = W - ML - MR;
   let y = 0;
 
   const {
-    storeName, tagline, address, phone, logoData,
-    periodLabel, nowStr, totalRevenue, totalCogs, grossProfit,
-    totalExpenses, netProfit, grossMargin, avgTrx, txCount,
-    trendData, menuRanking, paymentData, stockData,
-    expensesByCategory, expenseList, cashRegister, aiInsight, aiTips,
+    storeName,
+    tagline,
+    address,
+    phone,
+    logoData,
+    periodLabel,
+    nowStr,
+    totalRevenue,
+    totalCogs,
+    grossProfit,
+    totalExpenses,
+    netProfit,
+    grossMargin,
+    avgTrx,
+    txCount,
+    trendData,
+    menuRanking,
+    paymentData,
+    stockData,
+    expensesByCategory,
+    expenseList,
+    cashRegister,
+    aiInsight,
+    aiTips,
   } = data;
 
-  // ── Page utilities ────────────────────────────────────────────────────────────────────────────────
-  const drawPageFooter = (pageNum: number, totalPages: number) => {
-    doc.setFillColor(...C.orange); doc.rect(0, PH - 8, W, 8, 'F');
-    doc.setFontSize(5.5); doc.setFont('helvetica','normal'); doc.setTextColor(255,255,255);
-    doc.text(`${storeName}  ·  Laporan ${periodLabel}  ·  Dibuat oleh KaffePOS`, ML, PH - 2.5);
-    doc.text(`Hal. ${pageNum} / ${totalPages}  ·  ${nowStr}`, W - MR, PH - 2.5, { align: 'right' });
-  };
+  const reportProfile = [
+    `Periode laporan: ${periodLabel}`,
+    `Tanggal pembuatan: ${nowStr}`,
+    `Jumlah transaksi: ${fNum(txCount)} transaksi`,
+    `Status dokumen: siap digunakan sebagai ringkasan manajerial dan operasional`,
+  ];
 
-  // Track pages that already have a header (prevent double-stamping)
+  const avgDailyRevenue = trendData.length ? Math.round(trendData.reduce((sum, item) => sum + item.value, 0) / trendData.length) : 0;
+  const peakTrend = trendData.reduce<{ label: string; value: number } | null>((best, item) => (!best || item.value > best.value ? item : best), null);
+  const lowTrend = trendData.reduce<{ label: string; value: number } | null>((best, item) => (!best || item.value < best.value ? item : best), null);
+  const expenseRatio = pct(totalExpenses, totalRevenue);
+  const cogsRatio = pct(totalCogs, totalRevenue);
+  const netMargin = pct(netProfit, totalRevenue);
+  const totalCashRegister = cashRegister.reduce((sum: number, item: any) => sum + (item.amount || 0), 0);
+  const criticalStock = stockData.filter((item) => item.pct <= 100);
+  const topMenu = menuRanking[0];
+  const paymentLeader = paymentData.reduce<{ label: string; value: number; color: string } | null>((best, item) => (!best || item.value > best.value ? item : best), null);
+  const expenseLeader = expensesByCategory.reduce<{ label: string; value: number } | null>((best, item) => (!best || item.value > best.value ? item : best), null);
+  const totalMenuRevenue = menuRanking.reduce((sum, item) => sum + (item.rev || 0), 0);
+  const summaryBullets = [
+    `Pendapatan tercatat ${fRp(totalRevenue)} dengan laba bersih ${fRp(netProfit)} dan margin bersih ${netMargin}%.`,
+    topMenu ? `Menu paling kuat adalah ${topMenu.label} dengan penjualan ${fNum(topMenu.value)} porsi dan omzet ${fRp(topMenu.rev)}.` : 'Belum ada menu dominan yang bisa dijadikan fokus promosi.',
+    paymentLeader ? `Metode pembayaran terbesar adalah ${paymentLeader.label} dengan porsi ${pct(paymentLeader.value, totalRevenue)}% dari total penerimaan.` : 'Belum ada data komposisi pembayaran.',
+    criticalStock.length > 0 ? `${criticalStock.length} item inventori berada pada level kritis dan perlu prioritas restock.` : 'Inventori utama berada pada level aman untuk operasional saat ini.',
+    expenseLeader ? `Pos beban operasional terbesar adalah ${expenseLeader.label} sebesar ${fRp(expenseLeader.value)}.` : 'Belum ada beban operasional yang tercatat pada periode ini.',
+  ];
+
   const pagedHeaders = new Set<number>();
 
+  const drawPageFooter = (pageNum: number, totalPages: number) => {
+    doc.setFillColor(...C.dark);
+    doc.rect(0, PH - 8, W, 8, 'F');
+    doc.setFontSize(5.6);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.white);
+    doc.text(`${storeName}  |  Laporan ${periodLabel}`, ML, PH - 2.6);
+    doc.text(`Halaman ${pageNum}/${totalPages}  |  ${nowStr}`, W - MR, PH - 2.6, { align: 'right' });
+  };
+
   const addPageHeader = (pageNum?: number) => {
-    const pg = pageNum ?? (doc as any).getCurrentPageInfo().pageNumber;
-    if (pagedHeaders.has(pg)) return 22;
-    pagedHeaders.add(pg);
-    const curPg = (doc as any).getCurrentPageInfo().pageNumber;
-    if (pg !== curPg) doc.setPage(pg);
-    doc.setFillColor(...C.light); doc.rect(0, 0, W, 18, 'F');
-    doc.setFillColor(...C.orange); doc.rect(0, 0, W, 1.2, 'F');
+    const page = pageNum ?? (doc as any).getCurrentPageInfo().pageNumber;
+    if (pagedHeaders.has(page)) return 22;
+    pagedHeaders.add(page);
+    const currentPage = (doc as any).getCurrentPageInfo().pageNumber;
+    if (page !== currentPage) doc.setPage(page);
+    doc.setFillColor(...C.white);
+    doc.rect(0, 0, W, 18, 'F');
+    doc.setFillColor(...C.orange);
+    doc.rect(0, 0, W, 1.4, 'F');
     if (logoData && logoData.length > 50) {
       try {
         const fmt = logoData.startsWith('data:image/png') ? 'PNG' : 'JPEG';
         doc.addImage(logoData, fmt, W - MR - 12, 3, 12, 12);
-      } catch { /* ignore */ }
+      } catch {
+        // ignore image errors
+      }
     }
-    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...C.orange);
-    doc.text(storeName, ML, 10);
-    doc.setFontSize(6); doc.setFont('helvetica','normal'); doc.setTextColor(...C.gray);
-    doc.text(`Laporan ${periodLabel}  ·  ${txCount} transaksi  ·  ${nowStr}`, ML, 15.5);
-    if (pg !== curPg) doc.setPage(curPg);
+    doc.setFontSize(8.2);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.orange);
+    doc.text(storeName, ML, 9.5);
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.gray);
+    doc.text(`Laporan ${periodLabel} | ${fNum(txCount)} transaksi | dibuat ${nowStr}`, ML, 15);
+    if (page !== currentPage) doc.setPage(currentPage);
     return 22;
   };
 
   const np = (need: number) => {
-    if (y + need > PH - 22) {
+    if (y + need > PH - 18) {
       doc.addPage();
-      addPageHeader();
-      y = 22;
+      y = addPageHeader();
     }
-    return y;
   };
 
-  // safeAutoTable: wraps autoTable to stamp header on every new page it creates, then syncs y
-  const safeAutoTable = (opts:any) => {
-    const origDidDrawPage = opts.didDrawPage;
-    opts.didDrawPage = (d:any) => {
-      addPageHeader(d.pageNumber);
-      if (origDidDrawPage) origDidDrawPage(d);
+  const safeAutoTable = (opts: any) => {
+    const originalDidDrawPage = opts.didDrawPage;
+    opts.didDrawPage = (hookData: any) => {
+      addPageHeader(hookData.pageNumber);
+      if (originalDidDrawPage) originalDidDrawPage(hookData);
     };
     autoTable(doc, opts);
-    const lastPg = doc.getNumberOfPages();
-    doc.setPage(lastPg);
-    y = (doc as any).lastAutoTable.finalY + 12;
+    const lastPage = doc.getNumberOfPages();
+    doc.setPage(lastPage);
+    y = (doc as any).lastAutoTable.finalY + 10;
   };
 
   const secHead = (title: string, sub: string | null = null) => {
-    np(20);
+    np(18);
     y = sectionHead(doc, title, sub, ML, y, CW);
   };
 
-  // ════════════════════════════════════════════════════════
-  // PAGE 1 — COVER
-  // ════════════════════════════════════════════════════════
-  // Dark background gradient effect
-  doc.setFillColor(...C.dark); doc.rect(0, 0, W, 130, 'F');
-  doc.setFillColor(30, 41, 59); doc.rect(0, 100, W, 30, 'F');
+  // Cover
+  doc.setFillColor(...C.dark);
+  doc.rect(0, 0, W, 136, 'F');
+  doc.setFillColor(...C.slate);
+  doc.rect(0, 105, W, 31, 'F');
+  doc.setFillColor(...C.orange);
+  doc.rect(0, 136, W, 3.2, 'F');
 
-  // Orange accent bar
-  doc.setFillColor(...C.orange); doc.rect(0, 130, W, 3, 'F');
-
-  // Logo
-  let logoH = 0;
+  let logoPlaced = false;
   if (logoData && logoData.length > 50) {
     try {
       const fmt = logoData.startsWith('data:image/png') ? 'PNG' : 'JPEG';
       doc.addImage(logoData, fmt, ML, 18, 22, 22);
-      logoH = 22;
-    } catch { /* ignore */ }
+      logoPlaced = true;
+    } catch {
+      // ignore image errors
+    }
   }
 
-  // Store name
-  doc.setFontSize(28); doc.setFont('helvetica','bold'); doc.setTextColor(255, 255, 255);
-  doc.text(storeName, logoH > 0 ? ML + 26 : ML, logoH > 0 ? 28 : 32);
-
+  doc.setFontSize(25);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.white);
+  doc.text(storeName, logoPlaced ? ML + 28 : ML, 29);
   if (tagline) {
-    doc.setFontSize(10); doc.setFont('helvetica','italic'); doc.setTextColor(253, 186, 116);
-    doc.text(tagline, logoH > 0 ? ML + 26 : ML, logoH > 0 ? 38 : 42);
+    doc.setFontSize(9.2);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(253, 186, 116);
+    doc.text(cleanText(tagline), logoPlaced ? ML + 28 : ML, 37);
   }
 
-  // Contact info
-  const infoLine = [address, phone].filter(Boolean).join('  ·  ');
+  const infoLine = [address, phone].filter(Boolean).map((item) => cleanText(item)).join('  |  ');
   if (infoLine) {
-    doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(148, 163, 184);
-    doc.text(infoLine, ML, 55);
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.muted);
+    doc.text(infoLine, ML, 53);
   }
 
-  // Report title block
-  doc.setFontSize(15); doc.setFont('helvetica','bold'); doc.setTextColor(255,255,255);
-  doc.text('LAPORAN KEUANGAN & ANALITIK', ML, 82);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.white);
+  doc.text('LAPORAN PENJUALAN, OPERASIONAL, DAN ANALITIK', ML, 80);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...C.muted);
+  doc.text(`Periode ${periodLabel} | Dokumen analisis profesional siap arsip`, ML, 88);
 
-  doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(148, 163, 184);
-  doc.text(`Periode: ${periodLabel.toUpperCase()}   ·   ${txCount} Transaksi   ·   ${nowStr}`, ML, 90);
+  doc.setDrawColor(...C.orange);
+  doc.setLineWidth(0.45);
+  doc.line(ML, 94, ML + 42, 94);
+  doc.setDrawColor(...C.muted);
+  doc.setLineWidth(0.2);
+  doc.line(ML + 45, 94, W - MR, 94);
 
-  // Decorative divider
-  doc.setDrawColor(249, 115, 22); doc.setLineWidth(0.5);
-  doc.line(ML, 96, ML + 40, 96);
-  doc.setDrawColor(148, 163, 184); doc.setLineWidth(0.3);
-  doc.line(ML + 42, 96, W - MR, 96);
-
-  // Cover KPI cards
-  const coverKPIs = [
-    { l: 'Total Pendapatan',    v: fRp(totalRevenue),       bg: C.bgOrange, vc: [154,52,18]  as [number,number,number] },
-    { l: 'Laba Bersih',         v: fRp(netProfit),          bg: netProfit >= 0 ? C.bgGreen : C.bgRed, vc: netProfit >= 0 ? C.green : C.red },
-    { l: 'Margin Kotor',        v: `${grossMargin}%`,       bg: C.bgBlue,   vc: C.blue },
-    { l: 'Total Transaksi',     v: String(txCount),         bg: [250,245,255] as [number,number,number], vc: C.purple },
+  const coverMetrics = [
+    { label: 'Pendapatan', value: fRp(totalRevenue), bg: C.bgOrange, color: C.orangeDark, sub: `${fNum(txCount)} transaksi` },
+    { label: 'Laba Bersih', value: fRp(netProfit), bg: netProfit >= 0 ? C.bgGreen : C.bgRed, color: netProfit >= 0 ? C.green : C.red, sub: `${netMargin}% margin bersih` },
+    { label: 'Margin Kotor', value: `${grossMargin}%`, bg: C.bgBlue, color: C.blue, sub: `${cogsRatio}% HPP` },
+    { label: 'Biaya Operasional', value: fRp(totalExpenses), bg: C.bgPurple, color: C.purple, sub: `${expenseRatio}% dari omzet` },
   ];
-  const ckW = (CW - 9) / 4;
-  coverKPIs.forEach((k, i) => kpiBox(doc, k.l, k.v, null, ML + i * (ckW + 3), 104, ckW, 18, k.bg, k.vc));
-
-  // Cover content area
-  y = 140;
-  doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...C.slate);
-  doc.text('ISI LAPORAN:', ML, y); y += 7;
-  const toc = [
-    '01  Ringkasan Eksekutif & KPI Utama',
-    '02  Laporan Laba Rugi Lengkap',
-    '03  Tren Penjualan Harian (Grafik)',
-    '04  Analisis Menu Terlaris',
-    '05  Komposisi Metode Pembayaran',
-    '06  Status Inventori & Stok Kritis',
-    '07  Detail Pengeluaran Operasional',
-    '08  Saldo Kasir & Kas Operasional',
-    aiInsight ? '09  Analisis & Rekomendasi AI' : '',
-  ].filter(Boolean);
-  toc.forEach(t => {
-    doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(...C.gray);
-    doc.text(t, ML + 4, y); y += 6;
+  const coverCardW = (CW - 9) / 4;
+  coverMetrics.forEach((item, index) => {
+    kpiBox(doc, item.label, item.value, item.sub, ML + index * (coverCardW + 3), 104, coverCardW, 20, item.bg, item.color);
   });
 
-  // Cover footer
-  doc.setFontSize(6.5); doc.setFont('helvetica','normal'); doc.setTextColor(100, 116, 139);
-  doc.text('Dokumen ini dibuat otomatis oleh KaffePOS. Bersifat rahasia — hanya untuk keperluan internal.', W / 2, PH - 18, { align: 'center' });
-  doc.setFillColor(...C.orange); doc.rect(0, PH - 8, W, 8, 'F');
-  doc.setFontSize(6); doc.setTextColor(255,255,255);
-  doc.text(`${storeName}  ·  www.kaffepos.app`, W / 2, PH - 2.5, { align: 'center' });
+  y = 149;
+  doc.setFontSize(8.2);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...C.slate);
+  doc.text('PROFIL DOKUMEN', ML, y);
+  y += 7;
+  y = drawBulletList(doc, reportProfile, ML, y, 84, 5.4);
 
-  // ════════════════════════════════════════════════════════
-  // PAGE 2+ — CONTENT
-  // ════════════════════════════════════════════════════════
+  const reportScope = [
+    'Ringkasan eksekutif dan indikator kinerja utama',
+    'Laporan laba rugi, tren penjualan, dan performa menu',
+    'Komposisi pembayaran, inventori, pengeluaran, dan saldo kas',
+    aiInsight ? 'Analisis AI dan rekomendasi tindakan prioritas' : 'Area rekomendasi tindakan manajerial',
+  ];
+  const panelHeight = drawInfoPanel(doc, {
+    title: 'CAKUPAN LAPORAN',
+    lines: reportScope,
+    x: ML + 96,
+    y: 148,
+    w: CW - 96,
+    bg: C.bgSlate,
+    titleColor: C.dark,
+  });
+  y = Math.max(y, 148 + panelHeight + 4);
+
+  doc.setFontSize(6.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...C.gray);
+  doc.text('Dokumen ini dihasilkan otomatis oleh KaffePOS dan dirancang untuk kebutuhan review operasional internal.', W / 2, PH - 17, { align: 'center' });
+  doc.setFillColor(...C.orange);
+  doc.rect(0, PH - 8, W, 8, 'F');
+  doc.setFontSize(6);
+  doc.setTextColor(...C.white);
+  doc.text(`${storeName}  |  Laporan ${periodLabel}`, W / 2, PH - 2.5, { align: 'center' });
+
+  // Content pages
   doc.addPage();
   y = addPageHeader();
 
-  // ── SECTION 1: RINGKASAN EKSEKUTIF ───────────────────────────────
-  secHead('RINGKASAN EKSEKUTIF', `Periode: ${periodLabel}`);
-
-  const kw = (CW - 10) / 3;
-  const kpis = [
-    { l: 'Total Pendapatan',    v: fRp(totalRevenue),  sub: `${txCount} transaksi`,        bg: C.bgOrange, vc: [154,52,18]  as [number,number,number] },
-    { l: 'Laba Kotor',          v: fRp(grossProfit),   sub: `Margin ${grossMargin}%`,       bg: grossProfit >= 0 ? C.bgGreen : C.bgRed, vc: grossProfit >= 0 ? C.green : C.red },
-    { l: 'Pengeluaran Ops',     v: fRp(totalExpenses), sub: `${expenseList.length} item`,   bg: C.bgRed,   vc: C.red },
-    { l: 'Laba Bersih',         v: fRp(netProfit),     sub: netProfit >= 0 ? '▲ Profit' : '▼ Rugi', bg: netProfit >= 0 ? C.bgGreen : C.bgRed, vc: netProfit >= 0 ? C.green : C.red },
-    { l: 'Rata-rata Transaksi', v: fRp(avgTrx),        sub: 'per order',                   bg: C.bgBlue,  vc: C.blue },
-    { l: 'HPP / COGS',          v: fRp(totalCogs),     sub: `${totalRevenue > 0 ? Math.round(totalCogs/totalRevenue*100) : 0}% dari omzet`, bg: [250,245,255] as [number,number,number], vc: C.purple },
+  secHead('RINGKASAN EKSEKUTIF', `Periode ${periodLabel}`);
+  const topRowW = (CW - 10) / 3;
+  const summaryKpis = [
+    { label: 'Total Pendapatan', value: fRp(totalRevenue), sub: `${fNum(txCount)} transaksi`, bg: C.bgOrange, color: C.orangeDark },
+    { label: 'Laba Kotor', value: fRp(grossProfit), sub: `${grossMargin}% margin kotor`, bg: grossProfit >= 0 ? C.bgGreen : C.bgRed, color: grossProfit >= 0 ? C.green : C.red },
+    { label: 'Laba Bersih', value: fRp(netProfit), sub: `${netMargin}% margin bersih`, bg: netProfit >= 0 ? C.bgGreen : C.bgRed, color: netProfit >= 0 ? C.green : C.red },
+    { label: 'Rata-rata Transaksi', value: fRp(avgTrx), sub: 'nilai per transaksi', bg: C.bgBlue, color: C.blue },
+    { label: 'Beban Operasional', value: fRp(totalExpenses), sub: `${expenseList.length} catatan`, bg: C.bgRed, color: C.red },
+    { label: 'Modal Kas', value: fRp(totalCashRegister), sub: `${cashRegister.length} catatan`, bg: C.bgPurple, color: C.purple },
   ];
-  kpis.forEach((k, i) => kpiBox(doc, k.l, k.v, k.sub, ML + (i % 3) * (kw + 5), y + Math.floor(i / 3) * 22, kw, 19, k.bg, k.vc));
-  y += 46;
+  summaryKpis.forEach((item, index) => {
+    kpiBox(
+      doc,
+      item.label,
+      item.value,
+      item.sub,
+      ML + (index % 3) * (topRowW + 5),
+      y + Math.floor(index / 3) * 24,
+      topRowW,
+      20,
+      item.bg,
+      item.color,
+    );
+  });
+  y += 51;
 
-  // ── SECTION 2: LABA RUGI ─────────────────────────────────────────
-  np(70); secHead('LAPORAN LABA RUGI', null);
+  const leftSummaryH = drawInfoPanel(doc, {
+    title: 'SOROTAN KINERJA',
+    lines: summaryBullets,
+    x: ML,
+    y,
+    w: CW * 0.58,
+    bg: C.bgSlate,
+    titleColor: C.dark,
+  });
+  const rightSummaryLines = [
+    `Rasio HPP terhadap omzet sebesar ${cogsRatio}%.`,
+    `Beban operasional menyerap ${expenseRatio}% dari pendapatan.`,
+    peakTrend ? `Puncak penjualan tercatat pada ${peakTrend.label} sebesar ${fRp(peakTrend.value)}.` : 'Belum ada tren penjualan yang dapat dihitung.',
+    lowTrend ? `Titik penjualan terendah berada pada ${lowTrend.label} sebesar ${fRp(lowTrend.value)}.` : 'Belum ada pembanding penjualan terendah.',
+  ];
+  const rightSummaryH = drawInfoPanel(doc, {
+    title: 'CATATAN MANAJERIAL',
+    lines: rightSummaryLines,
+    x: ML + CW * 0.6,
+    y,
+    w: CW * 0.4,
+    bg: C.bgBlue,
+    titleColor: C.blue,
+  });
+  y += Math.max(leftSummaryH, rightSummaryH) + 10;
+
+  secHead('LAPORAN LABA RUGI', 'Struktur pendapatan dan profitabilitas');
+  const profitCardW = (CW - 6) / 2;
+  const profitAnalysisLines = [
+    `Pendapatan bersih periode ini ${fRp(totalRevenue)}.`,
+    `HPP tercatat ${fRp(totalCogs)} atau ${cogsRatio}% dari omzet.`,
+    `Laba bersih ${fRp(netProfit)} dengan margin ${netMargin}%.`,
+  ];
+  const opsAnalysisLines = [
+    `Beban operasional ${fRp(totalExpenses)} atau ${expenseRatio}% dari omzet.`,
+    `Rata-rata transaksi berada di level ${fRp(avgTrx)} per transaksi.`,
+    netProfit >= 0 ? 'Operasional masih menghasilkan profit positif.' : 'Perlu pengetatan biaya agar posisi rugi dapat dikoreksi.',
+  ];
+  const profitPanelH = drawInfoPanel(doc, {
+    title: 'ANALISIS PROFIT',
+    lines: profitAnalysisLines,
+    x: ML,
+    y,
+    w: profitCardW,
+    bg: C.bgGreen,
+    titleColor: C.green,
+  });
+  const opsPanelH = drawInfoPanel(doc, {
+    title: 'ANALISIS OPERASIONAL',
+    lines: opsAnalysisLines,
+    x: ML + profitCardW + 6,
+    y,
+    w: profitCardW,
+    bg: C.bgBlue,
+    titleColor: C.blue,
+  });
+  y += Math.max(profitPanelH, opsPanelH) + 6;
+
   safeAutoTable({
     startY: y,
-    head: [['Keterangan', 'Jumlah', 'Porsi']],
+    head: [['Komponen', 'Nominal', 'Proporsi', 'Catatan']],
     body: [
-      ['Total Pendapatan Kotor',    fRp(totalRevenue),  '100%'],
-      ['(-) HPP / Harga Pokok',  `- ${fRp(totalCogs)}`, `${totalRevenue > 0 ? Math.round(totalCogs/totalRevenue*100) : 0}%`],
-      ['LABA KOTOR',             fRp(grossProfit),   `${grossMargin}%`],
-      ['(-) Beban Operasional',  `- ${fRp(totalExpenses)}`, `${totalRevenue > 0 ? Math.round(totalExpenses/totalRevenue*100) : 0}%`],
-      ['LABA BERSIH',            fRp(netProfit),     `${totalRevenue > 0 ? Math.round(netProfit/totalRevenue*100) : 0}%`],
-      ['Rata-rata per Transaksi', fRp(avgTrx),        `(${txCount} trx)`],
+      ['Pendapatan Kotor', fRp(totalRevenue), '100%', 'Basis seluruh analisis penjualan'],
+      ['HPP / COGS', `- ${fRp(totalCogs)}`, `${cogsRatio}%`, 'Biaya bahan dan komponen langsung'],
+      ['Laba Kotor', fRp(grossProfit), `${grossMargin}%`, 'Hasil setelah HPP dikurangi'],
+      ['Beban Operasional', `- ${fRp(totalExpenses)}`, `${expenseRatio}%`, 'Pengeluaran operasional periode ini'],
+      ['Laba Bersih', fRp(netProfit), `${netMargin}%`, netProfit >= 0 ? 'Posisi masih positif' : 'Masih membutuhkan efisiensi'],
+      ['Rata-rata per Transaksi', fRp(avgTrx), `${fNum(txCount)} trx`, 'Nilai rata-rata setiap order'],
     ],
     theme: 'plain',
-    styles: { cellPadding: 4, fontSize: 7.5, lineColor: [241, 245, 249], lineWidth: { bottom: 0.3 } },
-    headStyles: { fillColor: [248, 250, 252], textColor: [100, 116, 139], fontStyle: 'bold', fontSize: 7 },
+    styles: { cellPadding: 4, fontSize: 7.4, lineColor: [241, 245, 249], lineWidth: { bottom: 0.22 } },
+    headStyles: { fillColor: [248, 250, 252], textColor: [100, 116, 139], fontStyle: 'bold', fontSize: 7.1 },
     bodyStyles: { textColor: [51, 65, 85] },
     margin: { left: ML, right: MR, top: 25, bottom: 20 },
-    columnStyles: { 
-      0: { cellWidth: 90 },
-      1: { halign: 'right', fontStyle: 'bold', cellWidth: 50 }, 
-      2: { halign: 'right', textColor: [148, 163, 184] } 
+    columnStyles: {
+      0: { cellWidth: 48, fontStyle: 'bold' },
+      1: { cellWidth: 42, halign: 'right', fontStyle: 'bold' },
+      2: { cellWidth: 22, halign: 'right', textColor: [148, 163, 184] },
+      3: { cellWidth: 'auto' },
     },
-    didParseCell: (d:any) => {
-      if (d.section === 'body') {
-        if (d.row.index === 2) { d.cell.styles.fillColor = [248, 250, 252]; d.cell.styles.textColor = [15, 23, 42]; d.cell.styles.fontStyle = 'bold'; }
-        if (d.row.index === 4) { d.cell.styles.fillColor = netProfit >= 0 ? [240, 253, 244] : [254, 242, 242]; d.cell.styles.fontStyle = 'bold'; d.cell.styles.fontSize = 8.5; d.cell.styles.textColor = netProfit >= 0 ? [22, 163, 74] : [220, 38, 38]; }
+    didParseCell: (hookData: any) => {
+      if (hookData.section !== 'body') return;
+      if (hookData.row.index === 2) {
+        hookData.cell.styles.fillColor = [248, 250, 252];
+        hookData.cell.styles.textColor = [15, 23, 42];
+      }
+      if (hookData.row.index === 4) {
+        hookData.cell.styles.fillColor = netProfit >= 0 ? [240, 253, 244] : [254, 242, 242];
+        hookData.cell.styles.textColor = netProfit >= 0 ? [22, 163, 74] : [220, 38, 38];
+        hookData.cell.styles.fontStyle = 'bold';
       }
     },
   });
 
-  // ── SECTION 3: TREN PENJUALAN (LINE CHART) ───────────────────────
   if (trendData.length >= 2) {
-    np(75); secHead('TREN PENJUALAN', `${trendData.length} hari terakhir`);
-    const chartH = 40;
-    // Background
-    doc.setFillColor(248,250,252); doc.roundedRect(ML, y, CW, chartH + 12, 2, 2, 'F');
-    doc.setFillColor(226,232,240); doc.setLineWidth(0.15);
-    // Y-axis max label
-    const maxTrend = Math.max(...trendData.map(d => d.value), 1);
-    doc.setFontSize(5); doc.setTextColor(...C.gray);
-    doc.text(fRp(maxTrend), ML + 2, y + 6);
-    doc.text('0', ML + 2, y + chartH + 2);
-    // Draw chart
-    drawLineChart(doc, trendData, ML + 18, y + 4, CW - 22, chartH, C.orange);
-    y += chartH + 20;
+    secHead('TREN PENJUALAN', `${trendData.length} titik observasi`);
+    const trendCardW = (CW - 9) / 4;
+    const momentum = trendData.length >= 2 ? pct(trendData[trendData.length - 1].value - trendData[trendData.length - 2].value, Math.max(trendData[trendData.length - 2].value, 1)) : 0;
+    const trendMetrics = [
+      { label: 'Rata-rata Harian', value: fRp(avgDailyRevenue), sub: 'berdasarkan grafik', bg: C.bgBlue, color: C.blue },
+      { label: 'Puncak Penjualan', value: peakTrend ? fRp(peakTrend.value) : '-', sub: peakTrend?.label || '-', bg: C.bgOrange, color: C.orangeDark },
+      { label: 'Titik Terendah', value: lowTrend ? fRp(lowTrend.value) : '-', sub: lowTrend?.label || '-', bg: C.bgRed, color: C.red },
+      { label: 'Perubahan Akhir', value: `${momentum >= 0 ? '+' : ''}${momentum}%`, sub: 'dibanding titik sebelumnya', bg: C.bgGreen, color: momentum >= 0 ? C.green : C.red },
+    ];
+    trendMetrics.forEach((item, index) => {
+      kpiBox(doc, item.label, item.value, item.sub, ML + index * (trendCardW + 3), y, trendCardW, 18, item.bg, item.color);
+    });
+    y += 24;
+
+    np(68);
+    doc.setFillColor(...C.bgSlate);
+    doc.roundedRect(ML, y, CW, 53, 2, 2, 'F');
+    doc.setDrawColor(...C.border);
+    doc.setLineWidth(0.18);
+    doc.roundedRect(ML, y, CW, 53, 2, 2, 'S');
+    doc.setFontSize(5.2);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.gray);
+    doc.text(fRp(Math.max(...trendData.map((item) => item.value), 0)), ML + 3, y + 8);
+    doc.text('0', ML + 3, y + 42.5);
+    drawLineChart(doc, trendData, ML + 16, y + 5, CW - 22, 34, C.orange);
+    const trendLines = [
+      `Konsistensi penjualan harian membantu membaca ritme operasional dan kebutuhan stok.`,
+      peakTrend ? `Periode terkuat ada di ${peakTrend.label}; ini cocok dijadikan acuan promosi ulang.` : 'Belum ada puncak penjualan yang menonjol.',
+    ];
+    drawBulletList(doc, trendLines, ML + 4, y + 47, CW - 8, 4.8);
+    y += 60;
   }
 
-  // ── SECTION 4: MENU TERLARIS ──────────────────────────────────────
   if (menuRanking.length > 0) {
+    secHead('PERFORMA MENU', `Top ${Math.min(menuRanking.length, 8)} menu berdasarkan kuantitas`);
     const topMenus = menuRanking.slice(0, 8);
-    np(14 + (topMenus.length * 9) + 20); secHead('MENU TERLARIS', `Top ${Math.min(menuRanking.length, 10)}`);
+    const leftW = CW * 0.56;
+    const rightX = ML + leftW + 6;
+    const rightW = CW - leftW - 6;
+    const panelHeight = 14 + topMenus.length * 7.4;
+    np(panelHeight + 12);
 
-    // Split layout: bar chart left + table right
-    const barAreaH = topMenus.length * 9 + 4;
+    doc.setFillColor(...C.bgSlate);
+    doc.roundedRect(ML, y, leftW, panelHeight, 2, 2, 'F');
+    doc.roundedRect(rightX, y, rightW, panelHeight, 2, 2, 'F');
+    doc.setDrawColor(...C.border);
+    doc.setLineWidth(0.18);
+    doc.roundedRect(ML, y, leftW, panelHeight, 2, 2, 'S');
+    doc.roundedRect(rightX, y, rightW, panelHeight, 2, 2, 'S');
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.dark);
+    doc.text('Volume Penjualan Menu', ML + 4, y + 6.5);
+    drawHBar(
+      doc,
+      topMenus.map((item) => ({ label: item.label, value: item.value, meta: item.sub })),
+      ML + 4,
+      y + 11,
+      leftW - 8,
+      4.6,
+      C.orange,
+    );
 
-    // Left: horizontal bar chart
-    doc.setFillColor(248,250,252); doc.roundedRect(ML, y, CW * 0.55, barAreaH, 2, 2, 'F');
-    drawHBar(doc, topMenus.map(m => ({ label: m.label, value: m.value })),
-      ML + 3, y + 4, CW * 0.55 - 6, 5, C.orange);
-
-    // Right: pie/donut
-    const pieData = topMenus.slice(0, 6).map((m, i) => ({
-      label: m.label, value: m.value,
-      color: ['#f97316','#3b82f6','#10b981','#8b5cf6','#ef4444','#ec4899'][i],
+    const donutData = topMenus.slice(0, 6).map((item, index) => ({
+      label: item.label,
+      value: item.value,
+      color: CHART_COLORS[index % CHART_COLORS.length],
     }));
-    const pieX = ML + CW * 0.58;
-    const pieR = 18;
-    const pieY = y + 24;
-    drawDonut(doc, pieData, pieX + pieR + 4, pieY, pieR);
-    // Mini legend beside donut
-    const legData = pieData.map(d => ({ ...d, total: topMenus.reduce((s, m) => s + m.value, 0) }));
-    legendRow(doc, legData, pieX, y + 4, (CW * 0.42 - 8) / 2);
+    drawDonut(doc, donutData, rightX + 20, y + 19, 15.5, ['Top Menu', fNum(donutData.reduce((sum, item) => sum + item.value, 0))]);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.dark);
+    doc.text('Kontribusi Menu Utama', rightX + 40, y + 6.5);
+    drawLegendBlock(
+      doc,
+      donutData.map((item) => ({
+        ...item,
+        suffix: `${pct(item.value, donutData.reduce((sum, value) => sum + value.value, 0))}%`,
+      })),
+      rightX + 40,
+      y + 11,
+      rightW - 44,
+    );
+    y += panelHeight + 8;
 
-    y += barAreaH + 10;
-
-    // Full ranking table
-    np(8 + topMenus.length * 8);
     safeAutoTable({
       startY: y,
-      head: [['Rank', 'Nama Menu', 'Terjual', 'Omzet', 'Porsi']],
-      body: topMenus.map((m, i) => {
-        const totalRev = topMenus.reduce((s, x) => s + x.rev, 1);
-        return [ `#${i + 1}`, m.label, `${m.value} px`, m.sub, `${Math.round(m.rev / totalRev * 100)}%` ];
-      }),
+      head: [['Peringkat', 'Nama Menu', 'Qty Terjual', 'Omzet', 'Kontribusi Omzet']],
+      body: topMenus.map((item, index) => [
+        `#${index + 1}`,
+        item.label,
+        `${fNum(item.value)} porsi`,
+        fRp(item.rev),
+        `${pct(item.rev, totalMenuRevenue)}%`,
+      ]),
       theme: 'plain',
-      styles: { cellPadding: 3.5, fontSize: 7.5, lineColor: [241, 245, 249], lineWidth: { bottom: 0.2 } },
+      styles: { cellPadding: 3.6, fontSize: 7.3, lineColor: [241, 245, 249], lineWidth: { bottom: 0.22 } },
       headStyles: { fillColor: [248, 250, 252], textColor: [100, 116, 139], fontStyle: 'bold', fontSize: 7 },
       bodyStyles: { textColor: [51, 65, 85] },
       margin: { left: ML, right: MR, top: 25, bottom: 20 },
-      columnStyles: { 
-        0: { halign: 'center', cellWidth: 15, textColor: [148, 163, 184] }, 
-        1: { fontStyle: 'bold' }, 
-        2: { halign: 'center' }, 
-        3: { halign: 'right', fontStyle: 'bold' }, 
-        4: { halign: 'right', textColor: [148, 163, 184] } 
+      columnStyles: {
+        0: { cellWidth: 18, halign: 'center', textColor: [148, 163, 184] },
+        1: { cellWidth: 60, fontStyle: 'bold' },
+        2: { cellWidth: 28, halign: 'center' },
+        3: { cellWidth: 36, halign: 'right', fontStyle: 'bold' },
+        4: { halign: 'right', textColor: [148, 163, 184] },
       },
     });
-    y = (doc as any).lastAutoTable.finalY + 12;
   }
 
-  // ── SECTION 5: METODE PEMBAYARAN ─────────────────────────────────
   if (paymentData.length > 0) {
-    np(50 + paymentData.length * 9); secHead('METODE PEMBAYARAN', null);
-
-    const totalPay = paymentData.reduce((s, d) => s + d.value, 0);
-    // Donut
-    drawDonut(doc, paymentData, ML + 22, y + 22, 18);
-    // Legend
-    paymentData.forEach((d, i) => {
-      const lx = ML + 50;
-      const ly = y + i * 9;
-      const rgb = hexToRgb(d.color);
-      doc.setFillColor(...rgb); doc.roundedRect(lx, ly + 1, 10, 5, 1, 1, 'F');
-      doc.setFontSize(6); doc.setFont('helvetica','bold'); doc.setTextColor(255,255,255);
-      doc.text(`${Math.round(d.value / totalPay * 100)}%`, lx + 5, ly + 4.8, { align: 'center' });
-      doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...C.slate);
-      doc.text(d.label, lx + 13, ly + 4.8);
-      doc.setFontSize(6.5); doc.setFont('helvetica','normal'); doc.setTextColor(...C.gray);
-      doc.text(fRp(d.value as number), ML + CW, ly + 4.8, { align: 'right' });
-    });
-    // Bar chart for payments
-    const payBarW = CW * 0.38;
-    drawVBar(doc, paymentData.map(d => ({ label: d.label, value: d.value })),
-      ML + CW - payBarW, y, payBarW, 35, paymentData.map(d => hexToRgb(d.color)));
-    y += 50;
+    secHead('KOMPOSISI PEMBAYARAN', 'Distribusi penerimaan berdasarkan metode bayar');
+    const totalPayment = paymentData.reduce((sum, item) => sum + item.value, 0);
+    np(62);
+    doc.setFillColor(...C.bgSlate);
+    doc.roundedRect(ML, y, CW, 52, 2, 2, 'F');
+    doc.setDrawColor(...C.border);
+    doc.setLineWidth(0.18);
+    doc.roundedRect(ML, y, CW, 52, 2, 2, 'S');
+    drawDonut(doc, paymentData, ML + 24, y + 25, 17, ['Penerimaan', fRp(totalPayment)]);
+    drawLegendBlock(
+      doc,
+      paymentData.map((item) => ({
+        ...item,
+        suffix: `${pct(item.value, totalPayment)}%`,
+      })),
+      ML + 50,
+      y + 9,
+      52,
+    );
+    drawVBar(
+      doc,
+      paymentData.map((item) => ({ label: item.label, value: item.value })),
+      ML + CW - 55,
+      y + 8,
+      48,
+      28,
+      paymentData.map((item) => hexToRgb(item.color)),
+    );
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.gray);
+    doc.text('Grafik batang menunjukkan nominal penerimaan, donut menampilkan komposisi proporsi.', ML + 4, y + 47);
+    y += 60;
   }
 
-  // ── SECTION 6: INVENTORI ──────────────────────────────────────────
   if (stockData.length > 0) {
-    const criticalStock = stockData.filter(s => s.pct <= 100);
-    np(14 + Math.min(stockData.length, 15) * 8 + 10);
-    secHead('STATUS INVENTORI', criticalStock.length > 0 ? `⚠ ${criticalStock.length} item stok kritis` : 'Semua stok aman');
-
-    // Color-coded bar chart
-    const barH = 4.5;
-    stockData.slice(0, 12).forEach((s, i) => {
-      const bw = Math.min(s.pct, 300) / 300 * (CW - 35);
-      const by = y + i * (barH + 3.5);
-      const col: [number,number,number] = s.pct <= 50 ? C.red : s.pct <= 100 ? C.amber : C.green;
-      doc.setFontSize(5.5); doc.setFont('helvetica','normal'); doc.setTextColor(...C.gray);
-      doc.text(s.label.slice(0, 20), ML, by + barH - 0.5);
-      doc.setFillColor(240, 240, 240); doc.roundedRect(ML + 35, by, CW - 35, barH, 0.8, 0.8, 'F');
-      if (bw > 0) { doc.setFillColor(...col); doc.roundedRect(ML + 35, by, bw, barH, 0.8, 0.8, 'F'); }
-      doc.setFontSize(5.5); doc.setFont('helvetica','bold'); doc.setTextColor(...col);
-      doc.text(`${s.stock} ${s.unit}`, ML + CW, by + barH - 0.5, { align: 'right' });
+    secHead('STATUS INVENTORI', criticalStock.length > 0 ? `${criticalStock.length} item perlu perhatian` : 'Stok utama berada pada level aman');
+    const visibleStock = stockData.slice(0, 12);
+    np(visibleStock.length * 8 + 22);
+    doc.setFillColor(...C.bgSlate);
+    doc.roundedRect(ML, y, CW, visibleStock.length * 7.8 + 14, 2, 2, 'F');
+    doc.setDrawColor(...C.border);
+    doc.setLineWidth(0.18);
+    doc.roundedRect(ML, y, CW, visibleStock.length * 7.8 + 14, 2, 2, 'S');
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.dark);
+    doc.text('Monitoring Stok dan Ambang Minimum', ML + 4, y + 6.5);
+    visibleStock.forEach((item, index) => {
+      const rowY = y + 11 + index * 7.8;
+      const ratio = clamp(item.pct, 0, 300);
+      const barWidth = (ratio / 300) * (CW - 58);
+      const barColor: [number, number, number] = item.pct <= 50 ? C.red : item.pct <= 100 ? C.amber : C.green;
+      doc.setFontSize(5.8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...C.slate);
+      doc.text(item.label.slice(0, 28), ML + 4, rowY + 2.8);
+      doc.setFillColor(...C.white);
+      doc.roundedRect(ML + 44, rowY, CW - 58, 4.2, 0.8, 0.8, 'F');
+      doc.setFillColor(...barColor);
+      doc.roundedRect(ML + 44, rowY, barWidth, 4.2, 0.8, 0.8, 'F');
+      doc.setFontSize(5.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...C.gray);
+      doc.text(`Min ${item.min} ${item.unit}`, ML + CW - 27, rowY + 2.8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...barColor);
+      doc.text(`${item.stock} ${item.unit}`, ML + CW - 3, rowY + 2.8, { align: 'right' });
     });
-    y += stockData.slice(0, 12).length * 8 + 8;
+    y += visibleStock.length * 7.8 + 20;
 
     if (criticalStock.length > 0) {
-      np(14 + criticalStock.length * 7);
-      doc.setFillColor(254, 242, 242); doc.roundedRect(ML, y, CW, criticalStock.length * 7 + 8, 2, 2, 'F');
-      doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...C.red);
-      doc.text('⚠ Daftar Item Stok Kritis — Perlu Restock Segera:', ML + 4, y + 6);
-      criticalStock.forEach((s, i) => {
-        doc.setFontSize(6.5); doc.setFont('helvetica','normal'); doc.setTextColor(...C.slate);
-        doc.text(`• ${s.label}: ${s.stock} ${s.unit} (min ${s.min} ${s.unit}) — ${s.pct}%`, ML + 8, y + 12 + i * 6.5);
+      np(criticalStock.length * 6.5 + 20);
+      const panelH = criticalStock.length * 6.2 + 12;
+      doc.setFillColor(...C.bgRed);
+      doc.roundedRect(ML, y, CW, panelH, 2, 2, 'F');
+      doc.setDrawColor(...C.red);
+      doc.setLineWidth(0.18);
+      doc.roundedRect(ML, y, CW, panelH, 2, 2, 'S');
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...C.red);
+      doc.text('Prioritas Restock', ML + 4, y + 6.5);
+      criticalStock.forEach((item, index) => {
+        doc.setFontSize(6);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...C.slate);
+        doc.text(`- ${item.label}: ${item.stock} ${item.unit} tersedia dari batas minimum ${item.min} ${item.unit} (${item.pct}%)`, ML + 4, y + 12 + index * 6.2);
       });
-      y += criticalStock.length * 7 + 14;
+      y += panelH + 8;
     }
   }
 
-  // ── SECTION 7: PENGELUARAN OPERASIONAL ───────────────────────────
   if (expenseList.length > 0) {
-    np(14 + Math.max(expensesByCategory.length * 7.5, 44) + 15); secHead('PENGELUARAN OPERASIONAL', `Total: ${fRp(totalExpenses)}`);
-
-    // Pie by category
+    secHead('PENGELUARAN OPERASIONAL', `Total beban operasional ${fRp(totalExpenses)}`);
     if (expensesByCategory.length > 0) {
-      const expColors = ['#ef4444','#f97316','#f59e0b','#8b5cf6','#3b82f6','#10b981'];
-      const expPieData = expensesByCategory.map((e, i) => ({ label: e.label, value: e.value, color: expColors[i % expColors.length] }));
-      const expTotal = expensesByCategory.reduce((s, e) => s + e.value, 0);
-      drawDonut(doc, expPieData, ML + 20, y + 22, 16);
-      expPieData.forEach((d, i) => {
-        const lx = ML + 45; const ly = y + i * 7.5;
-        const rgb = hexToRgb(d.color);
-        doc.setFillColor(...rgb); doc.circle(lx + 1.5, ly + 2.5, 1.5, 'F');
-        doc.setFontSize(6); doc.setFont('helvetica','normal'); doc.setTextColor(...C.gray);
-        doc.text(d.label, lx + 5, ly + 3.5);
-        doc.setFont('helvetica','bold'); doc.setTextColor(...C.slate);
-        doc.text(fRp(d.value), ML + CW, ly + 3.5, { align: 'right' });
-        doc.setTextColor(...C.gray);
-        doc.text(`${Math.round(d.value / expTotal * 100)}%`, ML + CW - 22, ly + 3.5, { align: 'right' });
-      });
-      y += Math.max(expPieData.length * 7.5, 44) + 8;
+      np(58);
+      doc.setFillColor(...C.bgSlate);
+      doc.roundedRect(ML, y, CW, 48, 2, 2, 'F');
+      doc.setDrawColor(...C.border);
+      doc.setLineWidth(0.18);
+      doc.roundedRect(ML, y, CW, 48, 2, 2, 'S');
+      const expenseColors = ['#ef4444', '#f97316', '#f59e0b', '#8b5cf6', '#3b82f6', '#10b981'];
+      const expensePieData = expensesByCategory.map((item, index) => ({
+        label: item.label,
+        value: item.value,
+        color: expenseColors[index % expenseColors.length],
+      }));
+      drawDonut(doc, expensePieData, ML + 22, y + 23, 15, ['Total', fRp(totalExpenses)]);
+      drawLegendBlock(
+        doc,
+        expensePieData.map((item) => ({
+          ...item,
+          suffix: `${pct(item.value, totalExpenses)}%`,
+        })),
+        ML + 45,
+        y + 9,
+        55,
+      );
+      doc.setFontSize(6);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...C.gray);
+      doc.text('Kategori dengan porsi terbesar perlu dimonitor agar tidak menggerus margin.', ML + CW - 70, y + 42);
+      y += 56;
     }
 
-    const expRows = expenseList.slice(0, 20);
-    np(14 + expRows.length * 7);
     safeAutoTable({
       startY: y,
-      head: [['Tanggal', 'Keterangan', 'Kategori', 'Kasir', 'Nominal']],
-      body: expRows.map((e:any) => [
-        new Date(e.date).toLocaleDateString('id-ID', { day:'2-digit', month:'short' }),
-        e.description || '-', e.category || 'Operasional', e.cashier || '-', fRp(e.amount),
+      head: [['Tanggal', 'Deskripsi', 'Kategori', 'Petugas', 'Nominal']],
+      body: expenseList.slice(0, 30).map((item: any) => [
+        dateShortLabel(item.date),
+        cleanText(item.description) || '-',
+        cleanText(item.category) || 'Operasional',
+        cleanText(item.cashier) || '-',
+        fRp(item.amount || 0),
       ]),
       theme: 'plain',
-      styles: { cellPadding: 4, fontSize: 7.5, lineColor: [241, 245, 249], lineWidth: { bottom: 0.2 } },
+      styles: { cellPadding: 3.7, fontSize: 7.2, lineColor: [241, 245, 249], lineWidth: { bottom: 0.22 } },
       headStyles: { fillColor: [248, 250, 252], textColor: [100, 116, 139], fontStyle: 'bold', fontSize: 7 },
       bodyStyles: { textColor: [51, 65, 85] },
       margin: { left: ML, right: MR, top: 25, bottom: 20 },
-      columnStyles: { 
-        0: { cellWidth: 25, textColor: [100, 116, 139] },
-        2: { cellWidth: 35 }, 
-        3: { cellWidth: 30 }, 
-        4: { halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] } 
+      columnStyles: {
+        0: { cellWidth: 23, textColor: [100, 116, 139] },
+        2: { cellWidth: 34 },
+        3: { cellWidth: 28 },
+        4: { cellWidth: 30, halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] },
       },
-      foot: [['', '', '', 'TOTAL OPS', fRp(totalExpenses)]],
-      footStyles: { fillColor: [254, 242, 242], textColor: [220, 38, 38], fontStyle: 'bold', fontSize: 8, halign: 'right' },
+      foot: [['', '', '', 'TOTAL PENGELUARAN', fRp(totalExpenses)]],
+      footStyles: { fillColor: [254, 242, 242], textColor: [220, 38, 38], fontStyle: 'bold', fontSize: 7.8, halign: 'right' },
     });
-    y = (doc as any).lastAutoTable.finalY + 12;
   }
 
-  // ── SECTION 8: SALDO KASIR ────────────────────────────────────────
-  const todayCR = cashRegister.filter(Boolean).slice(0, 20);
-  if (todayCR.length > 0) {
-    np(14 + todayCR.length * 8);
-    secHead('SALDO KASIR AWAL', `${todayCR.length} hari`);
+  if (cashRegister.length > 0) {
+    secHead('SALDO KAS OPERASIONAL', `Modal kas tercatat ${fRp(totalCashRegister)}`);
+    const cashNotes = [
+      `Total pembukaan kas yang tercatat pada periode laporan adalah ${fRp(totalCashRegister)}.`,
+      `Jumlah catatan pembukaan kas: ${fNum(cashRegister.length)} hari/batch.`,
+      'Gunakan tabel berikut untuk mencocokkan modal awal kas dengan pengeluaran dan arus operasional harian.',
+    ];
+    const cashPanelH = drawInfoPanel(doc, {
+      title: 'RINGKASAN KAS',
+      lines: cashNotes,
+      x: ML,
+      y,
+      w: CW,
+      bg: C.bgBlue,
+      titleColor: C.blue,
+    });
+    y += cashPanelH + 8;
+
     safeAutoTable({
       startY: y,
-      head: [['Tanggal Modal', 'Petugas Kasir', 'Catatan', 'Saldo']],
-      body: todayCR.map((c:any) => [
-        new Date(c.date).toLocaleDateString('id-ID', { weekday:'short', day:'2-digit', month:'short' }),
-        c.opened_by || 'Staff Kasir', c.note || '-', fRp(c.amount)
+      head: [['Tanggal Modal', 'Petugas', 'Catatan', 'Saldo Awal']],
+      body: cashRegister.slice(0, 30).map((item: any) => [
+        dateLabel(item.date),
+        cleanText(item.opened_by) || 'Staff Kasir',
+        cleanText(item.note) || '-',
+        fRp(item.amount || 0),
       ]),
       theme: 'plain',
-      styles: { cellPadding: 4, fontSize: 7.5, lineColor: [241, 245, 249], lineWidth: { bottom: 0.2 } },
+      styles: { cellPadding: 3.8, fontSize: 7.2, lineColor: [241, 245, 249], lineWidth: { bottom: 0.22 } },
       headStyles: { fillColor: [248, 250, 252], textColor: [100, 116, 139], fontStyle: 'bold', fontSize: 7 },
       bodyStyles: { textColor: [51, 65, 85] },
       margin: { left: ML, right: MR, top: 25, bottom: 20 },
-      columnStyles: { 
-        0: { cellWidth: 35, textColor: [100, 116, 139] },
-        1: { cellWidth: 40 },
-        3: { halign: 'right', fontStyle: 'bold', textColor: [15, 23, 42] } 
+      columnStyles: {
+        0: { cellWidth: 34, textColor: [100, 116, 139] },
+        1: { cellWidth: 38 },
+        3: { cellWidth: 32, halign: 'right', fontStyle: 'bold' },
       },
-      foot: [['', '', 'TOTAL MODAL KASIR', fRp(todayCR.reduce((s: number, c:any) => s + c.amount, 0))]],
-      footStyles: { fillColor: [248, 250, 252], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 7.5, halign: 'right' },
+      foot: [['', '', 'TOTAL MODAL KAS', fRp(totalCashRegister)]],
+      footStyles: { fillColor: [239, 246, 255], textColor: [37, 99, 235], fontStyle: 'bold', fontSize: 7.8, halign: 'right' },
     });
-    y = (doc as any).lastAutoTable.finalY + 12;
   }
 
-  // ── SECTION 9: AI INSIGHT ─────────────────────────────────────────
-  if (aiInsight) {
-    const lines = aiInsight.split('\n').filter(Boolean);
-    const boxH = lines.length * 6 + (aiTips?.length ? aiTips.length * 6 + 8 : 0) + 12;
-    np(14 + Math.min(boxH, 80) + 10); secHead('ANALISIS & REKOMENDASI AI', 'Powered by Google Gemini');
+  if (aiInsight || (aiTips && aiTips.length > 0)) {
+    secHead('ANALISIS DAN REKOMENDASI AI', 'Bahan acuan tindakan operasional');
+    const aiSummaryLines = aiInsight
+      ? doc.splitTextToSize(cleanText(aiInsight), CW - 8).slice(0, 9)
+      : ['Tidak ada ringkasan AI untuk periode ini.'];
+    const tipLines = (aiTips || []).map((item) => cleanText(item)).filter(Boolean);
+    const summaryPanelH = 12 + aiSummaryLines.length * 4.2;
+    np(summaryPanelH + Math.max(22, tipLines.length * 6.2 + 14));
 
-    doc.setFillColor(239, 246, 255); doc.roundedRect(ML, y, CW, Math.min(boxH, 80), 2, 2, 'F');
-    doc.setDrawColor(...C.blue); doc.setLineWidth(0.3);
-    doc.roundedRect(ML, y, CW, Math.min(boxH, 80), 2, 2, 'S');
+    doc.setFillColor(...C.bgBlue);
+    doc.roundedRect(ML, y, CW, summaryPanelH, 2, 2, 'F');
+    doc.setDrawColor(...C.blue);
+    doc.setLineWidth(0.18);
+    doc.roundedRect(ML, y, CW, summaryPanelH, 2, 2, 'S');
+    doc.setFontSize(7.2);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.blue);
+    doc.text('Ringkasan AI', ML + 4, y + 6.5);
+    doc.setFontSize(6.2);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.slate);
+    doc.text(aiSummaryLines, ML + 4, y + 12);
+    y += summaryPanelH + 8;
 
-    // AI icon
-    doc.setFontSize(12); doc.text('✨', ML + 3, y + 9);
-    doc.setFontSize(7.5); doc.setFont('helvetica','bold'); doc.setTextColor(...C.blue);
-    doc.text('Gemini AI — Insight Bisnis', ML + 12, y + 9);
-
-    let aiY = y + 15;
-    lines.slice(0, 10).forEach(line => {
-      if (aiY > y + 75) return;
-      doc.setFontSize(6.5); doc.setFont('helvetica','normal'); doc.setTextColor(...C.slate);
-      const wrapped = doc.splitTextToSize(line.replace(/[*_#]/g, ''), CW - 8);
-      doc.text(wrapped, ML + 4, aiY);
-      aiY += wrapped.length * 4.5 + 1;
-    });
-
-    y += Math.min(boxH, 80) + 8;
-
-    // Tips box
-    if (aiTips && aiTips.length > 0) {
-      np(14 + aiTips.length * 8);
-      doc.setFillColor(240, 253, 244); doc.roundedRect(ML, y, CW, aiTips.length * 8 + 12, 2, 2, 'F');
-      doc.setFontSize(7.5); doc.setFont('helvetica','bold'); doc.setTextColor(...C.green);
-      doc.text('💡 Rekomendasi Aksi:', ML + 4, y + 8);
-      aiTips.forEach((tip, i) => {
-        doc.setFontSize(6.5); doc.setFont('helvetica','normal'); doc.setTextColor(...C.slate);
-        const wrapped = doc.splitTextToSize(`${i + 1}. ${tip}`, CW - 10);
-        doc.text(wrapped, ML + 6, y + 14 + i * 7.5);
-      });
-      y += aiTips.length * 8 + 18;
+    if (tipLines.length > 0) {
+      const tipsPanelH = 12 + tipLines.length * 6.1;
+      doc.setFillColor(...C.bgGreen);
+      doc.roundedRect(ML, y, CW, tipsPanelH, 2, 2, 'F');
+      doc.setDrawColor(...C.green);
+      doc.setLineWidth(0.18);
+      doc.roundedRect(ML, y, CW, tipsPanelH, 2, 2, 'S');
+      doc.setFontSize(7.2);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...C.green);
+      doc.text('Rekomendasi Tindakan', ML + 4, y + 6.5);
+      drawBulletList(doc, tipLines, ML + 2, y + 12, CW - 4, 5.4);
+      y += tipsPanelH + 8;
     }
   }
 
-  // ── Stamp footers on all pages (headers already stamped inline) ────
   const totalPages = doc.getNumberOfPages();
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i);
-    // Only stamp header if somehow missed (safety net)
-    addPageHeader(i);
-    drawPageFooter(i, totalPages);
+  for (let page = 1; page <= totalPages; page += 1) {
+    doc.setPage(page);
+    addPageHeader(page);
+    drawPageFooter(page, totalPages);
   }
 
-  // ── Save ──────────────────────────────────────────────────────────
-  await downloadPDFReport(doc, `Laporan_${data.period}`, storeName);
+  if (mode === 'share') {
+    return sharePDFReport(doc, `Laporan_${data.period}`, storeName, shareText);
+  }
+
+  return downloadPDFReport(doc, `Laporan_${data.period}`, storeName);
 }

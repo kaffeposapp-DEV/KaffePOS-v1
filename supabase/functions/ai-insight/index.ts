@@ -17,6 +17,25 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+function mapGeminiError(status: number, message: string): string {
+  const normalized = message.toLowerCase()
+
+  if (normalized.includes('billing') || normalized.includes('limit: 0')) {
+    return 'Billing Gemini belum aktif. Sistem akan memakai analisis cadangan.'
+  }
+
+  if (
+    status === 429 ||
+    normalized.includes('quota') ||
+    normalized.includes('rate limit') ||
+    normalized.includes('resource exhausted')
+  ) {
+    return 'Layanan AI sedang mencapai batas kuota. Sistem akan memakai analisis cadangan.'
+  }
+
+  return 'Layanan AI sedang tidak tersedia. Sistem akan memakai analisis cadangan.'
+}
+
 serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -107,31 +126,51 @@ serve(async (req: Request) => {
     const prompt = body.prompt.slice(0, 4000)
 
     // ── 5. Panggil Gemini ────────────────────────────────────────
-    const geminiRes = await fetch(GEMINI_URL, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature:      0.4,
-          maxOutputTokens:  600,
-          responseMimeType: 'application/json',
-        },
-        safetySettings: [
-          { category: 'HARM_CATEGORY_HARASSMENT',        threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_HATE_SPEECH',       threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-        ],
-      }),
-    })
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
+    let geminiRes: Response
+
+    try {
+      geminiRes = await fetch(GEMINI_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature:      0.4,
+            maxOutputTokens:  600,
+            responseMimeType: 'application/json',
+          },
+          safetySettings: [
+            { category: 'HARM_CATEGORY_HARASSMENT',        threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_HATE_SPEECH',       threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+          ],
+        }),
+        signal: controller.signal,
+      })
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error)
+      console.error('[ai-insight] Gemini fetch failed:', errMsg)
+      return new Response(
+        JSON.stringify({
+          error: errMsg.toLowerCase().includes('abort')
+            ? 'Layanan AI timeout. Sistem akan memakai analisis cadangan.'
+            : 'Layanan AI sedang tidak tersedia. Sistem akan memakai analisis cadangan.'
+        }),
+        { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
+      )
+    } finally {
+      clearTimeout(timeoutId)
+    }
 
     if (!geminiRes.ok) {
       const errData = await geminiRes.json().catch(() => ({})) as { error?: { message?: string } }
       const errMsg  = errData?.error?.message ?? `Gemini error ${geminiRes.status}`
       console.error('[ai-insight] Gemini error:', errMsg)
       return new Response(
-        JSON.stringify({ error: `Gemini: ${errMsg}` }),
+        JSON.stringify({ error: mapGeminiError(geminiRes.status, errMsg) }),
         { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
       )
     }

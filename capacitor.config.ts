@@ -13,8 +13,7 @@ const config: CapacitorConfig = {
   android: {
     // allowMixedContent: JANGAN aktifkan — security risk, konflik dengan androidScheme https
     captureInput: true,
-    // Aktif untuk debug via USB/Chrome DevTools. Matikan lagi sebelum build release.
-    webContentsDebuggingEnabled: true,
+    webContentsDebuggingEnabled: false,
     appendUserAgent: 'KaffePOS/9.0',
   },
 

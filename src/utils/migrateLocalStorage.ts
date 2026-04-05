@@ -1,8 +1,8 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
+ 
+ 
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/utils/migrateLocalStorage.ts
 // ═══════════════════════════════════════════════════════════════════
@@ -176,6 +176,7 @@ export async function migrateFromLocalStorage(
             amount:      parseInt(e.amount) || 0,
             category:    e.category || 'Operasional',
             cashier:     e.user   || e.cashier || '',
+            source:      e.source || ((e.category || 'Operasional') === 'Bahan Baku' ? 'inventory' : 'cashier'),
           })).filter((r: Record<string, any>) => r.amount > 0);
 
           if (rows.length) {

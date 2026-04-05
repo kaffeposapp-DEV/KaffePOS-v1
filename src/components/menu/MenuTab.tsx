@@ -1,8 +1,8 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
+ 
+ 
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/menu/MenuTab.tsx
 import { useState, useMemo, useRef } from 'react';
@@ -13,6 +13,7 @@ import type { MenuItem } from '@/types';
 
 const fRp = (n: number) => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
 const EMPTY: Partial<MenuItem> = { name:'', price:0, category:'Coffee', image_url:'', description:'', recipe:[], variants:[], is_available:true };
+const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 export default function MenuTab({ toast }:any) {
   const { menu, inventory, saveMenuItem, deleteMenuItem } = useStore();
@@ -33,7 +34,9 @@ export default function MenuTab({ toast }:any) {
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
+    if (!ALLOWED_IMAGE_TYPES.has(file.type)) { toast.showToast('Gunakan PNG, JPG, atau WEBP', 'warning'); return; }
     if (file.size > 1024*1024) { toast.showToast('Foto maks 1MB','warning'); return; }
+    if (file.name.toLowerCase().endsWith('.svg')) { toast.showToast('Format SVG tidak didukung untuk keamanan', 'warning'); return; }
     const reader = new FileReader();
     reader.onload = ev => setForm(f => ({ ...f, image_url: ev.target?.result as string }));
     reader.readAsDataURL(file);
@@ -44,9 +47,11 @@ export default function MenuTab({ toast }:any) {
     if (!form.name) { toast.showToast('Nama menu wajib diisi','warning'); return; }
     if (!form.price || form.price <= 0) { toast.showToast('Harga harus lebih dari 0','warning'); return; }
     setSaving(true);
-    setShowModal(false);
-    toast.showToast(form.id ? '✅ Menu diperbarui!' : '✅ Menu ditambahkan!', 'success');
-    try { await saveMenuItem(form); }
+    try {
+      await saveMenuItem(form);
+      setShowModal(false);
+      toast.showToast(form.id ? '✅ Menu diperbarui!' : '✅ Menu ditambahkan!', 'success');
+    }
     catch (err:any) { toast.showToast('Gagal: ' + err.message, 'error'); }
     finally { setSaving(false); }
   };
@@ -195,7 +200,7 @@ export default function MenuTab({ toast }:any) {
                     <p className="text-[11px] text-slate-400">JPG/PNG maks 1MB</p>
                   </div>
                 </div>
-                <input ref={imgRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload}/>
+                <input ref={imgRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleImageUpload}/>
               </div>
 
               {/* NAMA & HARGA */}

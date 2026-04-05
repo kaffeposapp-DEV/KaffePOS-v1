@@ -1,9 +1,9 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
+ 
+ 
+ 
+ 
 // src/lib/aiInsight.ts — KaffePOS v6
 // Panggil AI via Supabase Edge Function (API key aman di server, tidak expose di APK)
 // SECURITY: JANGAN pakai VITE_GEMINI_API_KEY — akan ter-bundle di APK dan bisa dicuri!
@@ -35,6 +35,7 @@ export interface AIInsight {
   stockAlert: string;
   prediction: string;
   tips:       string[];
+  source?:    'gemini' | 'local';
 }
 
 // ── Format currency singkat ───────────────────────────────────────
@@ -85,6 +86,67 @@ Balas HANYA dalam format JSON ini (tanpa markdown, tanpa komentar):
 }`;
 }
 
+function createLocalInsight(ctx: InsightContext): AIInsight {
+  const bestMenu = ctx.topMenus[0];
+  const lowStock = ctx.lowStockItems[0];
+  const recentTrend = ctx.trendData.slice(-3);
+  const trendAvg = recentTrend.length > 0
+    ? Math.round(recentTrend.reduce((sum, item) => sum + item.value, 0) / recentTrend.length)
+    : ctx.totalRevenue;
+  const nextPeriodLabel = ctx.period === 'Hari Ini'
+    ? 'besok'
+    : ctx.period === 'Minggu Ini'
+    ? 'minggu depan'
+    : 'periode berikutnya';
+
+  const summaryParts = [
+    `Pendapatan ${ctx.period.toLowerCase()} mencapai ${fRpShort(ctx.totalRevenue)} dari ${ctx.txCount} transaksi, dengan rata-rata ${fRpShort(ctx.avgTrx)} per transaksi.`,
+    ctx.netProfit >= 0
+      ? `Laba bersih saat ini ${fRpShort(ctx.netProfit)} dengan margin kotor ${ctx.grossMargin}%.`
+      : `Posisi laba bersih masih minus ${fRpShort(Math.abs(ctx.netProfit))}; pengeluaran perlu ditekan agar margin membaik.`,
+  ];
+
+  const tips = [
+    bestMenu
+      ? `Dorong penjualan ${bestMenu.name} saat jam ramai.`
+      : 'Evaluasi menu yang paling sering dibeli pelanggan.',
+    ctx.totalExpenses > ctx.totalRevenue * 0.3
+      ? 'Tekan pengeluaran operasional yang tidak mendesak.'
+      : 'Jaga ritme operasional agar biaya tetap efisien.',
+    lowStock
+      ? `Restock ${lowStock.name} sebelum stok habis.`
+      : 'Pertahankan stok aman untuk menu paling laku.',
+  ];
+
+  return {
+    summary: summaryParts.join(' '),
+    bestMenu: bestMenu
+      ? `${bestMenu.name} adalah menu terkuat saat ini; prioritaskan stok, promosi, dan upselling menu ini.`
+      : 'Belum ada menu dominan; cek produk dengan margin terbaik untuk diprioritaskan.',
+    stockAlert: lowStock
+      ? `${lowStock.name} tinggal ${lowStock.stock} ${lowStock.unit}, mendekati batas minimum ${lowStock.min} ${lowStock.unit}.`
+      : 'Stok semua bahan dalam kondisi aman.',
+    prediction: `Jika tren saat ini konsisten, pendapatan ${nextPeriodLabel} berpotensi di kisaran ${fRpShort(Math.max(trendAvg, 0))}.`,
+    tips,
+    source: 'local',
+  };
+}
+
+function shouldUseLocalFallback(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return [
+    'quota',
+    'billing',
+    'resource exhausted',
+    'rate limit',
+    '429',
+    'timeout',
+    'network',
+    'failed to fetch',
+    'respons ai tidak valid',
+  ].some(keyword => normalized.includes(keyword));
+}
+
 // ── Panggil via Supabase Edge Function (UTAMA — API key aman) ─────
 async function callViaEdgeFunction(prompt: string): Promise<AIInsight> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -92,15 +154,29 @@ async function callViaEdgeFunction(prompt: string): Promise<AIInsight> {
     throw new Error('Sesi tidak ditemukan. Silakan login ulang.');
   }
 
-  const res = await fetch(EDGE_FUNCTION_URL, {
-    method:  'POST',
-    headers: {
-      'Content-Type':  'application/json',
-      'Authorization': `Bearer ${session.access_token}`,
-      'apikey':        SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({ prompt }),
-  });
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), 15000);
+
+  let res: Response;
+  try {
+    res = await fetch(EDGE_FUNCTION_URL, {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey':        SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ prompt }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('Permintaan AI timeout. Menjalankan analisis cadangan.');
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
 
   const data = await res.json() as AIInsight & { error?: string };
 
@@ -108,7 +184,7 @@ async function callViaEdgeFunction(prompt: string): Promise<AIInsight> {
     throw new Error(data.error || `Edge Function error ${res.status}`);
   }
 
-  return data;
+  return { ...data, source: 'gemini' };
 }
 
 // ── Main: getAIInsight dengan auto-fallback ───────────────────────
@@ -124,11 +200,20 @@ export async function getAIInsight(ctx: InsightContext): Promise<AIInsight> {
         'Lengkapi resep menu untuk tracking HPP',
         'Aktifkan notifikasi stok kritis',
       ],
+      source: 'local',
     };
   }
 
   const prompt = buildPrompt(ctx);
-  return callViaEdgeFunction(prompt);
+  try {
+    return await callViaEdgeFunction(prompt);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (shouldUseLocalFallback(message)) {
+      return createLocalInsight(ctx);
+    }
+    throw error;
+  }
 }
 
 // ── Cache 10 menit ────────────────────────────────────────────────

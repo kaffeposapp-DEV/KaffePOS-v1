@@ -184,7 +184,9 @@ serve(async (req: Request) => {
     if (paymentError) throw paymentError;
 
     if (profile.email && payload.plan !== 'secangkir') {
+      const internalSecret = Deno.env.get('NOTIFICATION_INTERNAL_SECRET') ?? '';
       await supabaseAdmin.functions.invoke('send-notification', {
+        headers: internalSecret ? { 'x-notification-secret': internalSecret } : undefined,
         body: {
           type: 'subscription_activated',
           email: profile.email,

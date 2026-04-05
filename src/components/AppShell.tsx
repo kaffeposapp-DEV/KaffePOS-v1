@@ -1,12 +1,12 @@
+ 
+ 
+ 
+ 
+ 
 /* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
+ 
+ 
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/AppShell.tsx — KaffePOS v5 — FAST INIT: cache storeId, show instantly
 import React, { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
@@ -139,7 +139,7 @@ export default function AppShell() {
         saveCashRegister(entry as Partial<any>).catch(() => {});
       });
     } catch { /* ignore */ }
-  }, [isOnline]); // eslint-disable-line
+  }, [isOnline]);  
 
   const initDone    = useRef(false);
   const isMounted   = useRef(true);
@@ -147,7 +147,7 @@ export default function AppShell() {
   useEffect(() => {
     isMounted.current = true;
     return () => { isMounted.current = false; cleanup(); };
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [],   );
 
   useEffect(() => {
     const uid = user?.id || profile?.id;
@@ -225,7 +225,7 @@ export default function AppShell() {
     };
 
     init();
-  }, [user?.id, profile?.id]); // eslint-disable-line
+  }, [user?.id, profile?.id]);  
 
   // Reset tampilan saat logout; pembersihan cache dilakukan di AuthContext
   useEffect(() => {
@@ -244,7 +244,7 @@ export default function AppShell() {
         await Haptics.impact({ style: ImpactStyle.Light });
       } catch { /* ignore */ }
     }
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [],   );
 
   const toast = { 
     showToast: (m: string, t?: ToastType) => showToast(m, t),

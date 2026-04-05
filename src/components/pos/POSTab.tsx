@@ -1,18 +1,17 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
+ 
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/pos/POSTab.tsx — KaffePOS v5
 import { useState, useMemo, useCallback, useRef } from 'react';
 import {
   ShoppingBag, Plus, Minus, X, ChevronRight,
-  Search, Receipt, Printer,
+  Search, Printer,
 } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import PrintActionSheet from '@/components/pos/PrintActionSheet';
-import ExpenseModal from '@/components/pos/ExpenseModal';
 import type { Profile, MenuItem, Transaction } from '@/types';
 
 const fRp = (n: number) =>
@@ -31,7 +30,7 @@ function quickAmounts(total: number): number[] {
 
 export default function POSTab({ toast, profile }: Props) {
   const {
-    menu, inventory, cart, discount, transactions,
+    menu, inventory, cart, discount, transactions, isOnline,
     addToCart, updateQty, clearCart, setDiscount,
     saveTransaction, storeSettings,
   } = useStore();
@@ -46,7 +45,7 @@ export default function POSTab({ toast, profile }: Props) {
   const [lastTx,     setLastTx]     = useState<Transaction | null>(null);
   const [custName,   setCustName]   = useState('');   // ← Nama pelanggan
   const [showPrintSheet, setShowPrintSheet] = useState(false);
-  const [showExpense, setShowExpense] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Debounce search input
@@ -54,7 +53,7 @@ export default function POSTab({ toast, profile }: Props) {
     setSearch(val);
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => setDSearch(val), 200);
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [],   );
 
   const cats = useMemo(() =>
     ['All', ...new Set(menu.map(m => m.category))],
@@ -73,13 +72,15 @@ export default function POSTab({ toast, profile }: Props) {
   const subtotal = useMemo(() => cart.reduce((s, c) => s + c.price * c.qty, 0), [cart]);
   const discAmt  = useMemo(() => {
     if (!discount) return 0;
-    return discount.endsWith('%')
+    const rawDiscount = discount.endsWith('%')
       ? Math.round(subtotal * parseInt(discount) / 100)
       : parseInt(discount) || 0;
+    return Math.min(Math.max(0, rawDiscount), subtotal);
   }, [subtotal, discount]);
   const taxPct = storeSettings?.tax_percent || 0;
-  const taxAmt = Math.round((subtotal - discAmt) * taxPct / 100);
-  const total  = subtotal - discAmt + taxAmt;
+  const taxableBase = Math.max(0, subtotal - discAmt);
+  const taxAmt = Math.round(taxableBase * taxPct / 100);
+  const total  = taxableBase + taxAmt;
   const paid   = method === 'Tunai' ? parseInt(cash) || 0 : total;
   const change = Math.max(0, paid - total);
 
@@ -111,10 +112,26 @@ export default function POSTab({ toast, profile }: Props) {
   }, [checkStock, addToCart, toast]);
 
 
-  const handleCheckout = useCallback(() => {
+  const handleCheckout = useCallback(async () => {
     if (!cart.length) return;
+    if (!isOnline) {
+      toast.showToast('Checkout offline dinonaktifkan agar stok tetap akurat di semua perangkat.', 'warning');
+      return;
+    }
     if (method === 'Tunai' && paid < total) {
       toast.showToast('Uang bayar kurang', 'warning');
+      return;
+    }
+    const stockOk = cart.every((cartItem) => {
+      const base = menu.find(m => m.id === (cartItem._baseId || cartItem.id));
+      if (!base?.recipe?.length) return true;
+      return base.recipe.every((recipeItem) => {
+        const material = inventory.find(i => i.id === recipeItem.matId);
+        return material && material.stock >= recipeItem.qty * cartItem.qty;
+      });
+    });
+    if (!stockOk) {
+      toast.showToast('Stok bahan berubah. Periksa ulang keranjang sebelum checkout.', 'warning');
       return;
     }
 
@@ -133,13 +150,20 @@ export default function POSTab({ toast, profile }: Props) {
     const group = Math.floor(count / 100);
     const letter = String.fromCharCode(65 + Math.min(group, 25)); // A-Z mask
     const num = (count % 100) + 1;
-    const orderId = `ORDER #${letter}${String(num).padStart(3, '0')}`;
+    const uniqueSuffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+    const orderId = `ORDER #${letter}${String(num).padStart(3, '0')}-${uniqueSuffix}`;
 
     const tx = {
       id: orderId,
       store_id: useStore.getState().storeId || 'temp',
       date:        new Date().toISOString(),
-      items:       cart.map(c => ({ name: c.name, qty: c.qty, price: c.price, subtotal: c.price * c.qty })),
+      items:       cart.map(c => ({
+        name: c.name,
+        qty: c.qty,
+        price: c.price,
+        subtotal: c.price * c.qty,
+        menu_item_id: c._baseId || c.id,
+      })),
       subtotal, discount: discAmt, discount_label: discount || null,
       tax: taxAmt, total, cogs: Math.round(cogs),
       paid, change, method,
@@ -149,19 +173,21 @@ export default function POSTab({ toast, profile }: Props) {
       created_at:  new Date().toISOString(),
     };
 
-    // ✅ Optimistic: tampilkan receipt & reset cart SEKETIKA
-    setLastTx(tx);
-    clearCart();
-    setCustName('');   // ← Reset nama pelanggan
-    setShowPay(false);
-    setShowRcpt(true);
-    toast.showToast('Transaksi berhasil! ✅', 'success');
-
-    // Save ke Supabase di background — tidak block UI
-    saveTransaction(tx as unknown as Transaction).catch((e:any) => {
-      toast.showToast('⚠ Gagal sinkron: ' + (e instanceof Error ? e.message : 'Error'), 'warning');
-    });
-  }, [cart, method, paid, total, discAmt, discount, taxAmt, subtotal, menu, inventory, profile, saveTransaction, clearCart, toast]);
+    try {
+      setCheckingOut(true);
+      const savedTx = await saveTransaction(tx as unknown as Transaction);
+      setLastTx(savedTx);
+      clearCart();
+      setCustName('');
+      setShowPay(false);
+      setShowRcpt(true);
+      toast.showToast('Transaksi berhasil! ✅', 'success');
+    } catch (e:any) {
+      toast.showToast(e instanceof Error ? e.message : 'Checkout gagal diproses', 'warning');
+    } finally {
+      setCheckingOut(false);
+    }
+  }, [cart, isOnline, method, paid, total, discAmt, discount, taxAmt, subtotal, menu, inventory, profile, saveTransaction, clearCart, toast]);
 
 
   const lowStock = useMemo(() =>
@@ -180,13 +206,6 @@ export default function POSTab({ toast, profile }: Props) {
               {lowStock.length > 0 && (
                 <p className="text-[10px] text-red-500 font-bold mt-0.5">⚠ {lowStock.length} bahan kritis</p>
               )}
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setShowExpense(true)}
-                className="flex items-center gap-2 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-500 transition-colors px-3 py-2 rounded-xl text-xs font-bold active:scale-95">
-                <Receipt size={14}/>
-                <span className="hidden sm:inline">Kas Keluar</span>
-              </button>
             </div>
           </div>
           <div className="relative">
@@ -347,10 +366,10 @@ export default function POSTab({ toast, profile }: Props) {
                 </div>
               )}
 
-              <button onClick={handleCheckout} disabled={method === 'Tunai' && paid < total}
+              <button onClick={handleCheckout} disabled={checkingOut || method === 'Tunai' && paid < total}
                 className="w-full relative overflow-hidden bg-slate-900 text-white p-4 rounded-2xl font-black text-sm uppercase tracking-wider active:scale-[0.98] transition-all disabled:opacity-50 shadow-[0_8px_20px_rgb(15,23,42,0.2)] group">
                 <span className="relative z-10 flex items-center justify-center gap-2">
-                  SELESAIKAN PEMBAYARAN
+                  {checkingOut ? 'MEMPROSES...' : 'SELESAIKAN PEMBAYARAN'}
                   {method === 'Tunai' && paid >= total && paid > total && <span className="text-green-400 ml-1 bg-white/10 py-1 px-2.5 rounded-lg border border-white/5">Kembali: {fRp(change)}</span>}
                 </span>
                 <div className="absolute inset-0 block bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"/>
@@ -419,9 +438,9 @@ export default function POSTab({ toast, profile }: Props) {
               </div>
             )}
 
-            <button onClick={handleCheckout} disabled={!cart.length || (method === 'Tunai' && paid < total)}
+            <button onClick={handleCheckout} disabled={checkingOut || !cart.length || (method === 'Tunai' && paid < total)}
               className="w-full py-4 bg-slate-900 border border-slate-700 text-white font-black text-base rounded-2xl active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 shadow-[0_8px_30px_rgb(15,23,42,0.3)]">
-              {`BAYAR SEKARANG`}
+              {checkingOut ? 'MEMPROSES...' : 'BAYAR SEKARANG'}
             </button>
           </div>
         </div>
@@ -472,7 +491,6 @@ export default function POSTab({ toast, profile }: Props) {
 
       {/* Action Sheets */}
       <PrintActionSheet visible={showPrintSheet} onClose={() => setShowPrintSheet(false)} transaction={lastTx} storeSettings={storeSettings} toast={toast} />
-      {showExpense && <ExpenseModal onClose={() => setShowExpense(false)} cashierName={profile?.display_name || profile?.username || 'Kasir'} toast={toast} />}
     </div>
   );
 }

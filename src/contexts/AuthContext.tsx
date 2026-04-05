@@ -1,8 +1,8 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
+ 
+ 
 /* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/contexts/AuthContext.tsx — KaffePOS v11 BULLETPROOF AUTH
 // Strategi: SIMPLE + RELIABLE
@@ -66,19 +66,6 @@ async function ensureProfileBg(uid: string, email: string, displayName?: string)
     supabase.functions.invoke('send-notification', { body: { type: 'welcome', email, name } }).catch(() => {});
     return data ?? null;
   } catch { return null; }
-}
-
-async function sendVerificationEmailViaEdge(email: string, name?: string) {
-  const { status, data } = await invokeEdgeFunctionJson('send-notification', {
-    type: 'verification',
-    email,
-    name: name || email.split('@')[0],
-    redirectTo: AUTH_REDIRECT_URL,
-  });
-
-  if (status >= 400) {
-    throw new Error(String(data?.error || 'Gagal mengirim email verifikasi.'));
-  }
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
@@ -213,9 +200,9 @@ interface AuthCtx {
   signInWithGoogle: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
+  updatePassword: (password: string) => Promise<{ error: string | null }>;
   resendVerification: (email: string) => Promise<{ error: string | null }>;
   verifyEmailCode: (email: string, code: string) => Promise<{ error: string | null }>;
-  emergencyConfirm: (email: string) => Promise<{ error: string | null }>;
   refreshProfile: () => Promise<void>;
 }
 
@@ -451,7 +438,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed')) return { error: `Jaringan (SignIn): ${msg}` };
       return { error: 'Gagal login: ' + msg };
     }
-  }, [applyAuthenticatedSession], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [applyAuthenticatedSession],   );
 
   // ─── signUp ──────────────────────────────────────────────────
   const signUp = useCallback(async (email: string, password: string, username: string) => {
@@ -516,7 +503,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { error: 'Nama toko / username sudah digunakan. Pakai nama lain ya.' };
         }
         if (m.includes('Password should be'))
-          return { error: 'Password terlalu lemah. Gunakan minimal 8 karakter.' };
+          return { error: 'Password terlalu lemah. Gunakan minimal 10 karakter dengan huruf besar, huruf kecil, dan angka.' };
         if (m.includes('network') || m.includes('fetch'))
           return { error: `Jaringan (SignUp): ${m}` };
         return { error: m };
@@ -532,19 +519,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data.user?.id && needsVerification) {
-        // Simpan sementara untuk polling di atas
         localStorage.setItem('kaffepos_pending_verification', cleanEmail);
         localStorage.setItem('kaffepos_registered_email', cleanEmail);
-        try {
-          await withTimeout(
-            sendVerificationEmailViaEdge(cleanEmail, cleanUsername),
-            12000,
-            'Pengiriman email verifikasi terlalu lama. Coba lagi sebentar.'
-          );
-        } catch (mailError: any) {
-          console.error('[SignUp] Custom verification send failed:', mailError);
-          return { error: `Akun dibuat, tapi email verifikasi gagal dikirim: ${mailError?.message || 'Coba lagi sebentar.'}` };
-        }
       }
 
       return { error: null, needsVerification };
@@ -582,34 +558,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       return { error: `Gagal mendaftar: ${e?.message || 'Check connection'}` }; 
     }
-  }, [applyAuthenticatedSession], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [applyAuthenticatedSession],   );
 
   // ── resendVerification ───────────────────────────────────────
   const resendVerification = useCallback(async (email: string) => {
     try {
       const cleanEmail = email.trim().toLowerCase();
 
-      try {
-        await withTimeout(
-          sendVerificationEmailViaEdge(cleanEmail),
-          12000,
-          'Pengiriman email verifikasi terlalu lama. Coba lagi sebentar.'
-        );
-        return { error: null };
-      } catch (edgeErr: any) {
-        console.error('[Auth] Custom resend failed:', edgeErr);
-        return { error: edgeErr?.message || 'Gagal mengirim ulang email.' };
-      }
+      const { error } = await withTimeout(
+        supabase.auth.resend({
+          type: 'signup',
+          email: cleanEmail,
+          options: {
+            emailRedirectTo: AUTH_REDIRECT_URL,
+          },
+        }),
+        12000,
+        'Pengiriman email verifikasi terlalu lama. Coba lagi sebentar.'
+      );
+      if (error) return { error: error.message || 'Gagal mengirim ulang email.' };
+      return { error: null };
     } catch (e:any) {
       console.error('[Auth] Resend process failed:', e);
       if (isNativeRuntime() && isNetworkLikeError(e?.message || '')) {
         try {
-          const { status, data } = await nativeFunctionPost(
-            'send-notification',
+          const { status, data } = await nativeAuthPost(
+            '/auth/v1/resend',
             {
-              type: 'verification',
+              type: 'signup',
               email: email.trim().toLowerCase(),
-              redirectTo: AUTH_REDIRECT_URL,
+            },
+            {
+              redirect_to: AUTH_REDIRECT_URL,
             }
           );
           if (status < 400) return { error: null };
@@ -620,7 +600,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       return { error: e.message || 'Gagal mengirim ulang email.' };
     }
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [],   );
 
   const verifyEmailCode = useCallback(async (email: string, code: string) => {
     const cleanEmail = email.trim().toLowerCase();
@@ -649,18 +629,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const emergencyConfirm = useCallback(async (email: string) => {
-    try {
-      const { error } = await supabase.functions.invoke('confirm-user', {
-        body: { email }
-      });
-      if (error) throw error;
-      return { error: null };
-    } catch (e:any) {
-      return { error: e.message };
-    }
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
-
   // ─── signInWithGoogle ─────────────────────────────────────────
   // STRATEGI FINAL: PKCE + Chrome Custom Tabs
   // HP ini menggunakan Infinix — GMS ada tapi perlu diverifikasi.
@@ -682,7 +650,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (e:any) {
       return { error: e?.message || 'Gagal membuka Google. Coba lagi.' };
     }
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [],   );
 
 
 
@@ -697,18 +665,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await cacheSession(null);
     try { await supabase.auth.signOut(); } catch { /* ignore */ }
     redirectToLogin(true);
-  }, [resetClientState], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [resetClientState],   );
 
   // ─── resetPassword ───────────────────────────────────────────
   const resetPassword = useCallback(async (email: string) => {
     try {
       const { error } = await withTimeout(
-        supabase.functions.invoke('send-notification', {
-          body: {
-            type: 'password_reset',
-            email: email.trim().toLowerCase(),
-            redirectTo: PASSWORD_RESET_REDIRECT_URL,
-          },
+        supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+          redirectTo: PASSWORD_RESET_REDIRECT_URL,
         }),
         9000,
         'Pengiriman email reset terlalu lama. Coba lagi sebentar.'
@@ -718,13 +682,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (e:any) {
       if (isNativeRuntime() && isNetworkLikeError(e?.message || '')) {
         try {
-          const { status, data } = await nativeFunctionPost(
-            'send-notification',
-            {
-              type: 'password_reset',
-              email: email.trim().toLowerCase(),
-              redirectTo: PASSWORD_RESET_REDIRECT_URL,
-            }
+          const { status, data } = await nativeAuthPost(
+            '/auth/v1/recover',
+            { email: email.trim().toLowerCase() },
+            { redirect_to: PASSWORD_RESET_REDIRECT_URL }
           );
           if (status < 400) return { error: null };
           return { error: (data as any)?.error || 'Gagal mengirim email reset.' };
@@ -734,7 +695,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       return { error: 'Tidak ada koneksi internet.' };
     }
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [],   );
+
+  const updatePassword = useCallback(async (password: string) => {
+    const nextPassword = password.trim();
+    if (
+      nextPassword.length < 10 ||
+      !/[A-Z]/.test(nextPassword) ||
+      !/[a-z]/.test(nextPassword) ||
+      !/\d/.test(nextPassword)
+    ) {
+      return { error: 'Password baru minimal 10 karakter dan wajib mengandung huruf besar, huruf kecil, serta angka.' };
+    }
+
+    try {
+      const { error } = await withTimeout(
+        supabase.auth.updateUser({ password: nextPassword }),
+        9000,
+        'Penyimpanan password baru terlalu lama. Coba lagi.'
+      );
+      if (error) {
+        return { error: error.message || 'Gagal menyimpan password baru.' };
+      }
+      localStorage.removeItem('kaffepos_password_reset_required');
+      return { error: null };
+    } catch (e: any) {
+      return { error: e?.message || 'Gagal menyimpan password baru.' };
+    }
+  }, []);
 
   const isPro = (() => {
     const p = profile;
@@ -752,8 +740,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user, profile, isPro,
       isAuthenticated: !!user,
       loading,
-      signIn, signUp, resendVerification, verifyEmailCode, emergencyConfirm, signInWithGoogle,
-      signOut, resetPassword, refreshProfile,
+      signIn, signUp, resendVerification, verifyEmailCode, signInWithGoogle,
+      signOut, resetPassword, updatePassword, refreshProfile,
     }}>
       {children}
     </AuthCtx.Provider>

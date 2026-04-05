@@ -1,8 +1,8 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
+ 
+ 
 /* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/pos/DailyOpeningModal.tsx
 // Dialog saldo kasir harian — VERSI FIXED
@@ -83,7 +83,7 @@ export function useNeedsOpeningCash(
     }
 
     return () => clearTimeout(timerRef.current);
-  }, [ready, syncing, cashRegister.length]); // eslint-disable-line
+  }, [ready, syncing, cashRegister.length]);  
 
   // Reset otomatis jam 00:00
   useEffect(() => {
@@ -96,7 +96,7 @@ export function useNeedsOpeningCash(
       setNeeds(true);
     }, msToMidnight);
     return () => clearTimeout(t);
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [],   );
 
   return needs;
 }
@@ -122,9 +122,6 @@ export default function DailyOpeningModal({ cashierName, toast, onDone }: Props)
     if (numVal <= 0) { toast.showToast('Masukkan jumlah saldo awal', 'warning'); return; }
     setSaving(true);
 
-    // Tandai sudah di-input hari ini DULU (optimistic)
-    setLastOpeningDate();
-
     if (!isOnline) {
       // ── OFFLINE: simpan ke antrian localStorage ──────────────
       try {
@@ -137,21 +134,22 @@ export default function DailyOpeningModal({ cashierName, toast, onDone }: Props)
         });
         localStorage.setItem(LS_OFFLINE_KEY, JSON.stringify(queue));
       } catch { /* ignore */ }
+      setLastOpeningDate();
       toast.showToast(`💾 Saldo ${fRp(numVal)} disimpan (offline, sync otomatis)`, 'success');
       setSaving(false);
       onDone();
       return;
     }
 
-    // ── ONLINE: langsung tutup dialog, simpan di background ──────
-    onDone(); // TIDAK AWAIT — tutup dulu UI, user tidak nunggu
     try {
       await saveCashRegister({
         amount:     numVal,
         note:       note.trim() || 'Saldo awal buka toko',
         opened_by:  cashierName,
       });
+      setLastOpeningDate();
       toast.showToast(`✅ Saldo awal ${fRp(numVal)} tercatat!`, 'success');
+      onDone();
     } catch (e:any) {
       // Rollback LS jika gagal
       try { localStorage.removeItem(LS_KEY); } catch { /* ignore */ }

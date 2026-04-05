@@ -1,8 +1,8 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
+ 
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/settings/NotificationCenter.tsx
 import { useState, useEffect } from 'react';
@@ -12,7 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { user } = useAuth();
-  const [notifs, setNotifs] = useState<any[]>([], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  const [notifs, setNotifs] = useState<any[]>([],   );
   const [loading, setLoading] = useState(true);
 
   const fetchNotifs = async () => {
@@ -25,7 +25,7 @@ export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolea
         .order('created_at', { ascending: false })
         .limit(20);
       if (error) throw error;
-      setNotifs(data || [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+      setNotifs(data || [],   );
     } catch (e) {
       console.error('[Notif] fetch error:', e);
     } finally {

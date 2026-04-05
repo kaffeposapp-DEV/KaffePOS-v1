@@ -1,8 +1,8 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
+ 
+ 
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/history/HistoryTab.tsx — KaffePOS v4 — PrintActionSheet
 import { useState, useMemo, useCallback, useRef } from 'react';
@@ -38,7 +38,7 @@ export default function HistoryTab({ toast }:any) {
     setSearch(val);
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => { setDSearch(val); setPage(1); }, 250);
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [],   );
 
   // ── Period filter ────────────────────────────────────────────
   const periodCutoff = useMemo((): number | null => {
@@ -91,7 +91,7 @@ export default function HistoryTab({ toast }:any) {
   const handlePrint = useCallback((tx:any) => {
     setPrintTx(tx);
     setShowPrintSheet(true);
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [],   );
 
   const PERIODS: { id: Period; label: string }[] = [
     { id: 'today', label: 'Hari Ini' },

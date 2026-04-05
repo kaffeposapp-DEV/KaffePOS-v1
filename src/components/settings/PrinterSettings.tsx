@@ -1,8 +1,8 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
+ 
+ 
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/settings/PrinterSettings.tsx
 // UI pengaturan Bluetooth thermal printer — scan, connect, test print, paper size
@@ -23,8 +23,8 @@ interface Props { toast: { showToast: (msg: string, type: string) => void } }
 type ConnStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 export default function PrinterSettings({ toast }: Props) {
-  const [devices,           setDevices]           = useState<BTPrinterDevice[]>([], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
-  const [allDevices,        setAllDevices]         = useState<BTPrinterDevice[]>([], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  const [devices,           setDevices]           = useState<BTPrinterDevice[]>([],   );
+  const [allDevices,        setAllDevices]         = useState<BTPrinterDevice[]>([],   );
   const [scanning,          setScanning]           = useState(false);
   const [connStatus,        setConnStatus]         = useState<ConnStatus>('disconnected');
   const [connectedPrinter,  setConnectedPrinter]   = useState<SavedPrinter | null>(null);
@@ -40,7 +40,7 @@ export default function PrinterSettings({ toast }: Props) {
       setConnectedPrinter(saved);
       setConnStatus('connected');
     }
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [],   );
 
   const handleAutoConnect = useCallback(async () => {
     const saved = getSavedPrinter();
@@ -84,7 +84,7 @@ export default function PrinterSettings({ toast }: Props) {
     } finally {
       setScanning(false);
     }
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [],   );
 
   const handleConnect = useCallback(async (device: BTPrinterDevice) => {
     setConnStatus('connecting');

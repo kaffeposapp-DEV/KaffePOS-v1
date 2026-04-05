@@ -1,9 +1,9 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
+ 
+ 
+ 
 /* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
 // src/components/report/KasDailyPanel.tsx
 // Panel Kas Harian: Saldo Kasir Awal → Pengeluaran → Selisih
 // Menampilkan detail akuntansi per hari dengan status sumber dana
@@ -23,6 +23,10 @@ interface Props {
   expenses:      ExpenseEntry[];
   transactions:  TransactionEntry[];
   period:        string;
+}
+
+function getExpenseSource(expense: { source?: string; category?: string }) {
+  return expense.source || (expense.category === 'Bahan Baku' ? 'inventory' : 'cashier');
 }
 
 /** Kelompokkan transaksi+expense+kasir per hari */
@@ -48,7 +52,9 @@ function groupByDay(cashRegister: CashRegisterEntry[], expenses: ExpenseEntry[],
   // Kumpulkan semua tanggal relevan
   const allDates = new Set<string>();
   cashRegister.filter(c => inPeriod(c.date)).forEach(c => allDates.add(new Date(c.date).toDateString()));
-  expenses.filter(e => inPeriod(e.date)).forEach(e => allDates.add(new Date(e.date).toDateString()));
+  expenses
+    .filter(e => inPeriod(e.date) && getExpenseSource(e) === 'cashier')
+    .forEach(e => allDates.add(new Date(e.date).toDateString()));
 
   allDates.forEach(ds => {
     const d = new Date(ds);
@@ -61,7 +67,7 @@ function groupByDay(cashRegister: CashRegisterEntry[], expenses: ExpenseEntry[],
     if (dayMap.has(ds)) dayMap.get(ds)!.opens.push(c);
   });
 
-  expenses.filter(e => inPeriod(e.date)).forEach(e => {
+  expenses.filter(e => inPeriod(e.date) && getExpenseSource(e) === 'cashier').forEach(e => {
     const ds = new Date(e.date).toDateString();
     if (dayMap.has(ds)) dayMap.get(ds)!.exps.push(e);
   });

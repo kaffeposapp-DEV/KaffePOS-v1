@@ -1,8 +1,8 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
+ 
+ 
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/pos/ExpenseModal.tsx
 // Catat pengeluaran operasional mendadak — sumber: saldo kasir awal hari ini
@@ -13,7 +13,7 @@ import { useStore } from '@/hooks/useStore';
 const fRp = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
 
-const CATEGORIES = ['Bahan Baku', 'Operasional', 'Gaji', 'Utilitas', 'Peralatan', 'Lain-lain'];
+const CATEGORIES = ['Operasional', 'Gaji', 'Utilitas', 'Peralatan', 'Lain-lain'];
 
 const QUICK_AMOUNTS = [5_000, 10_000, 20_000, 50_000, 100_000, 200_000];
 
@@ -30,6 +30,9 @@ export default function ExpenseModal({ onClose, cashierName, toast }: Props) {
   const [category, setCategory]   = useState('Operasional');
   const [saving, setSaving]       = useState(false);
 
+  const getExpenseSource = (expense: { source?: string; category?: string }) =>
+    expense.source || (expense.category === 'Bahan Baku' ? 'inventory' : 'cashier');
+
   const numVal = parseInt(amount.replace(/\D/g, '')) || 0;
 
   // Saldo kasir awal hari ini
@@ -41,7 +44,10 @@ export default function ExpenseModal({ onClose, cashierName, toast }: Props) {
 
   // Pengeluaran hari ini
   const todayExpenses = useMemo(() =>
-    expenses.filter(e => new Date(e.date).toDateString() === todayStr),
+    expenses.filter(e =>
+      new Date(e.date).toDateString() === todayStr &&
+      getExpenseSource(e) === 'cashier'
+    ),
     [expenses, todayStr]
   );
   const todayTotal = todayExpenses.reduce((s, e) => s + e.amount, 0);
@@ -56,10 +62,11 @@ export default function ExpenseModal({ onClose, cashierName, toast }: Props) {
     if (!description.trim()) { toast.showToast('Masukkan keterangan pengeluaran', 'warning'); return; }
 
     setSaving(true);
-    // Optimistic: tutup & beri feedback seketika
-    toast.showToast(`💸 ${fRp(numVal)} dicatat sebagai pengeluaran`, 'success');
-    onClose();
     saveExpense({ amount: numVal, description: description.trim(), category, cashier: cashierName })
+      .then(() => {
+        toast.showToast(`💸 ${fRp(numVal)} dicatat sebagai pengeluaran`, 'success');
+        onClose();
+      })
       .catch((e:any) => toast.showToast('⚠ Gagal simpan: ' + (e?.message || ''), 'warning'))
       .finally(() => setSaving(false));
   };
@@ -77,8 +84,8 @@ export default function ExpenseModal({ onClose, cashierName, toast }: Props) {
                 <Receipt size={20} className="text-white" />
               </div>
               <div>
-                <p className="text-white/80 text-xs font-bold">Pengeluaran Mendadak</p>
-                <h3 className="text-white font-black text-base leading-tight">Catat Pengeluaran</h3>
+                <p className="text-white/80 text-xs font-bold">Pengeluaran Operasional</p>
+                <h3 className="text-white font-black text-base leading-tight">Catat Pengeluaran Kasir</h3>
               </div>
             </div>
             <button onClick={onClose}
@@ -121,6 +128,9 @@ export default function ExpenseModal({ onClose, cashierName, toast }: Props) {
                 💡 Belum ada saldo awal hari ini — pengeluaran tetap bisa dicatat
               </p>
             )}
+            <p className="text-[10px] text-slate-400 mt-2 text-center">
+              Restock bahan baku dari nav Gudang tidak dihitung ke saldo kasir.
+            </p>
           </div>
 
           {/* Riwayat singkat hari ini */}

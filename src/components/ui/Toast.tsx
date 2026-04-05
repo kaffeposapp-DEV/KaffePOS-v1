@@ -1,9 +1,9 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
+ 
+ 
+ 
 /* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
 // src/components/ui/Toast.tsx
 import { useEffect, useCallback } from 'react';
 import { CheckCircle2, AlertTriangle, XCircle, Info, X, FolderOpen } from 'lucide-react';
@@ -101,7 +101,7 @@ import { useState } from 'react';
 import type { ToastType } from '@/types';
 
 export function useToast() {
-  const [toasts, setToasts] = useState<ToastMessage[]>([], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  const [toasts, setToasts] = useState<ToastMessage[]>([],   );
 
   const showToast = useCallback((
     message: string,
@@ -113,11 +113,11 @@ export function useToast() {
   ) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     setToasts(prev => [...prev, { id, message, type, ...options }]);
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [],   );
 
   const dismissToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [],   );
 
   // Convenience: show download success with "Open File" button
   const showDownloadSuccess = useCallback((fileName: string, onOpen?: () => void) => {

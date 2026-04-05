@@ -6,7 +6,6 @@
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
 -- ─────────────────────────────────────────────────────────────────
 -- 1. PROFILES — extends auth.users
 -- ─────────────────────────────────────────────────────────────────
@@ -21,7 +20,6 @@ CREATE TABLE public.profiles (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 -- Auto-create profile on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -36,11 +34,9 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
 CREATE OR REPLACE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-
 -- Auto-update updated_at
 CREATE OR REPLACE FUNCTION public.update_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
@@ -49,11 +45,9 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
 CREATE TRIGGER profiles_updated_at
   BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
-
 -- ─────────────────────────────────────────────────────────────────
 -- 2. STORES — one store per user (expandable to multi-store)
 -- ─────────────────────────────────────────────────────────────────
@@ -75,11 +69,9 @@ CREATE TABLE public.stores (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 CREATE TRIGGER stores_updated_at
   BEFORE UPDATE ON public.stores
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
-
 -- ─────────────────────────────────────────────────────────────────
 -- 3. MENU CATEGORIES
 -- ─────────────────────────────────────────────────────────────────
@@ -90,7 +82,6 @@ CREATE TABLE public.menu_categories (
   sort_order INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 -- ─────────────────────────────────────────────────────────────────
 -- 4. MENU ITEMS
 -- ─────────────────────────────────────────────────────────────────
@@ -111,15 +102,12 @@ CREATE TABLE public.menu_items (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 CREATE TRIGGER menu_items_updated_at
   BEFORE UPDATE ON public.menu_items
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
-
 -- Index for fast lookup
 CREATE INDEX idx_menu_items_store_id ON public.menu_items(store_id);
 CREATE INDEX idx_menu_items_category ON public.menu_items(store_id, category);
-
 -- ─────────────────────────────────────────────────────────────────
 -- 5. INVENTORY (Raw Materials / Bahan Baku)
 -- ─────────────────────────────────────────────────────────────────
@@ -134,13 +122,10 @@ CREATE TABLE public.inventory (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 CREATE TRIGGER inventory_updated_at
   BEFORE UPDATE ON public.inventory
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
-
 CREATE INDEX idx_inventory_store_id ON public.inventory(store_id);
-
 -- ─────────────────────────────────────────────────────────────────
 -- 6. TRANSACTIONS
 -- ─────────────────────────────────────────────────────────────────
@@ -167,10 +152,8 @@ CREATE TABLE public.transactions (
   void_by         TEXT,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 CREATE INDEX idx_transactions_store_date ON public.transactions(store_id, date DESC);
 CREATE INDEX idx_transactions_store_id ON public.transactions(store_id);
-
 -- ─────────────────────────────────────────────────────────────────
 -- 7. EXPENSES (Pengeluaran)
 -- ─────────────────────────────────────────────────────────────────
@@ -184,9 +167,7 @@ CREATE TABLE public.expenses (
   cashier     TEXT,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 CREATE INDEX idx_expenses_store_date ON public.expenses(store_id, date DESC);
-
 -- ─────────────────────────────────────────────────────────────────
 -- 8. CASH FLOW (Modal / Penarikan)
 -- ─────────────────────────────────────────────────────────────────
@@ -200,9 +181,7 @@ CREATE TABLE public.cash_flow (
   cashier     TEXT,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 CREATE INDEX idx_cash_flow_store_date ON public.cash_flow(store_id, date DESC);
-
 -- ─────────────────────────────────────────────────────────────────
 -- 9. ACCOUNTS / KASIR (Staff)
 -- ─────────────────────────────────────────────────────────────────
@@ -216,7 +195,6 @@ CREATE TABLE public.store_accounts (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(store_id, username)
 );
-
 -- ─────────────────────────────────────────────────────────────────
 -- 10. SUBSCRIPTIONS
 -- ─────────────────────────────────────────────────────────────────
@@ -233,9 +211,7 @@ CREATE TABLE public.subscriptions (
   amount_paid     INTEGER,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 CREATE INDEX idx_subscriptions_user ON public.subscriptions(user_id, status);
-
 -- ─────────────────────────────────────────────────────────────────
 -- 11. LICENSE KEYS (Admin-generated activation codes)
 -- ─────────────────────────────────────────────────────────────────
@@ -251,7 +227,6 @@ CREATE TABLE public.license_keys (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   expires_at      TIMESTAMPTZ  -- key itself expires (not subscription)
 );
-
 -- ─────────────────────────────────────────────────────────────────
 -- 12. SYNC LOG (offline-first conflict resolution)
 -- ─────────────────────────────────────────────────────────────────
@@ -265,10 +240,8 @@ CREATE TABLE public.sync_log (
   synced_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   device_id   TEXT
 );
-
 -- Clean up old sync logs (keep 7 days)
 CREATE INDEX idx_sync_log_store ON public.sync_log(store_id, synced_at DESC);
-
 -- ═══════════════════════════════════════════════════════════════════
 -- ROW LEVEL SECURITY (RLS)
 -- ═══════════════════════════════════════════════════════════════════
@@ -285,69 +258,56 @@ ALTER TABLE public.store_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.subscriptions  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.license_keys   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sync_log       ENABLE ROW LEVEL SECURITY;
-
 -- ── PROFILES ──
 CREATE POLICY "Users can view own profile"
   ON public.profiles FOR SELECT USING (auth.uid() = id);
-
 CREATE POLICY "Users can update own profile"
   ON public.profiles FOR UPDATE USING (auth.uid() = id);
-
 -- ── STORES ──
 CREATE POLICY "Owners can CRUD their store"
   ON public.stores FOR ALL USING (owner_id = auth.uid());
-
 -- ── MENU CATEGORIES ──
 CREATE POLICY "Store owner can CRUD categories"
   ON public.menu_categories FOR ALL
   USING (store_id IN (SELECT id FROM public.stores WHERE owner_id = auth.uid()));
-
 -- ── MENU ITEMS ──
 CREATE POLICY "Store owner can CRUD menu"
   ON public.menu_items FOR ALL
   USING (store_id IN (SELECT id FROM public.stores WHERE owner_id = auth.uid()));
-
 -- ── INVENTORY ──
 CREATE POLICY "Store owner can CRUD inventory"
   ON public.inventory FOR ALL
   USING (store_id IN (SELECT id FROM public.stores WHERE owner_id = auth.uid()));
-
 -- ── TRANSACTIONS ──
 CREATE POLICY "Store owner can CRUD transactions"
   ON public.transactions FOR ALL
   USING (store_id IN (SELECT id FROM public.stores WHERE owner_id = auth.uid()));
-
 -- ── EXPENSES ──
 CREATE POLICY "Store owner can CRUD expenses"
   ON public.expenses FOR ALL
   USING (store_id IN (SELECT id FROM public.stores WHERE owner_id = auth.uid()));
-
 -- ── CASH FLOW ──
 CREATE POLICY "Store owner can CRUD cash_flow"
   ON public.cash_flow FOR ALL
   USING (store_id IN (SELECT id FROM public.stores WHERE owner_id = auth.uid()));
-
 -- ── STORE ACCOUNTS ──
 CREATE POLICY "Store owner can CRUD accounts"
   ON public.store_accounts FOR ALL
   USING (store_id IN (SELECT id FROM public.stores WHERE owner_id = auth.uid()));
-
 -- ── SUBSCRIPTIONS ──
 CREATE POLICY "Users can view own subscriptions"
   ON public.subscriptions FOR SELECT USING (user_id = auth.uid());
-
 -- ── LICENSE KEYS ──
 CREATE POLICY "Anyone can read unused key (for activation)"
   ON public.license_keys FOR SELECT USING (is_used = false);
-
 CREATE POLICY "System can update license key on use"
-  ON public.license_keys FOR UPDATE USING (true); -- controlled by Edge Function
+  ON public.license_keys FOR UPDATE USING (true);
+-- controlled by Edge Function
 
 -- ── SYNC LOG ──
 CREATE POLICY "Store owner can CRUD sync log"
   ON public.sync_log FOR ALL
   USING (store_id IN (SELECT id FROM public.stores WHERE owner_id = auth.uid()));
-
 -- ═══════════════════════════════════════════════════════════════════
 -- HELPER FUNCTIONS
 -- ═══════════════════════════════════════════════════════════════════
@@ -362,13 +322,11 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER AS $$
       AND (tier_expires_at IS NULL OR tier_expires_at > NOW())
   );
 $$;
-
 -- Get user's store_id
 CREATE OR REPLACE FUNCTION public.get_store_id(user_uuid UUID)
 RETURNS UUID LANGUAGE sql STABLE SECURITY DEFINER AS $$
   SELECT id FROM public.stores WHERE owner_id = user_uuid LIMIT 1;
 $$;
-
 -- ═══════════════════════════════════════════════════════════════════
 -- REALTIME PUBLICATIONS
 -- ═══════════════════════════════════════════════════════════════════
@@ -380,7 +338,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.menu_items;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.expenses;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.cash_flow;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
-
 -- ═══════════════════════════════════════════════════════════════════
 -- SEED: Default license keys (optional, for testing)
 -- ═══════════════════════════════════════════════════════════════════
@@ -388,4 +345,4 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
 -- VALUES
 --   ('KAFFE-PRO-TEST-001', 'pro', 'monthly', 'admin'),
 --   ('KAFFE-PRO-LIFE-001', 'pro', 'lifetime', 'admin'),
---   ('KAFFE-BSC-TEST-001', 'basic', 'monthly', 'admin');
+--   ('KAFFE-BSC-TEST-001', 'basic', 'monthly', 'admin');;

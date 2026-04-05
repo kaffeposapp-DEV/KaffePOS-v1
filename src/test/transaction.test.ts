@@ -1,8 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useStore } from '@/hooks/useStore';
@@ -11,6 +6,15 @@ import { supabase } from '@/lib/supabase';
 // Mock Supabase
 vi.mock('@/lib/supabase', () => ({
   supabase: {
+    rpc: vi.fn((fn: string) => {
+      if (fn === 'process_checkout') {
+        return Promise.resolve({ data: { id: 'tx_123', store_id: 'store_123', items: [], subtotal: 10000, discount: 0, tax: 0, total: 10000, cogs: 0, paid: 10000, change: 0, method: 'Tunai', is_void: false, date: new Date().toISOString() }, error: null });
+      }
+      if (fn === 'void_transaction_secure') {
+        return Promise.resolve({ data: { id: 'tx_123', store_id: 'store_123', is_void: true }, error: null });
+      }
+      return Promise.resolve({ data: null, error: null });
+    }),
     from: vi.fn(() => ({
       select: vi.fn().mockReturnThis(),
       insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'tx_123' }, error: null }) }) }),
@@ -90,13 +94,20 @@ describe('Transaction Flow (useStore)', () => {
 
   it('transaksi tersimpan ke Supabase', async () => {
     const tx = {
-      items: [{ name: 'Coffee', qty: 1, price: 10000 }],
+      items: [{ name: 'Coffee', qty: 1, price: 10000, subtotal: 10000, menu_item_id: 'item_1' }],
+      subtotal: 10000,
+      discount: 0,
+      tax: 0,
+      cogs: 0,
+      paid: 10000,
+      change: 0,
+      method: 'Tunai',
+      is_void: false,
       total: 10000,
-      payment_method: 'cash',
       date: new Date().toISOString()
     };
 
     await useStore.getState().saveTransaction(tx as any);
-    expect(supabase.from).toHaveBeenCalledWith('transactions');
+    expect(supabase.rpc).toHaveBeenCalledWith('process_checkout', expect.any(Object));
   });
 });

@@ -1,8 +1,8 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
+ 
+ 
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/App.tsx — KaffePOS v13 PKCE CODE VERIFIER RESTORE FIX
 // FIX v13: Restore PKCE code verifier dari Preferences sebelum exchangeCodeForSession
@@ -129,8 +129,12 @@ function ExitConfirmDialog({ show, onConfirm, onCancel }: { show: boolean; onCon
 function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
+  const requiresPasswordReset = typeof window !== 'undefined' && localStorage.getItem('kaffepos_password_reset_required') === '1';
   if (loading) return <AuthLoading />;
-  if (isAuthenticated && location.pathname === '/auth') {
+  if (requiresPasswordReset && location.pathname !== '/auth') {
+    return <Navigate to="/auth?mode=reset" replace />;
+  }
+  if (isAuthenticated && location.pathname === '/auth' && !requiresPasswordReset) {
     return <Navigate to="/" replace />;
   }
   return (
@@ -158,7 +162,7 @@ export default function App() {
   useEffect(() => {
     const t = setTimeout(() => setSplashDone(true), 700);
     return () => clearTimeout(t);
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [],   );
 
   // Jika auth resolve lebih cepat (misal cache fast path), tutup splash segera
   useEffect(() => {
@@ -184,7 +188,7 @@ export default function App() {
       }
     });
     return () => { handler.then(h => h.remove()); };
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [],   );
 
   // ── Deep link: Google OAuth PKCE callback & Email Confirmation ────────────────────────
   useEffect(() => {
@@ -192,9 +196,11 @@ export default function App() {
       // Handle deep links for both Google OAuth and Email confirmation
       if (url.includes('login-callback') || 
           url.includes('email-confirmed') ||
+          url.includes('reset-password') ||
           url.includes('access_token') ||
           url.includes('token_hash=') ||
           url.includes('type=signup') ||
+          url.includes('type=recovery') ||
           url.includes('code=')) {
         
         try {
@@ -224,8 +230,13 @@ export default function App() {
             });
             if (error) console.error('[DeepLink] verifyOtp error:', error.message);
             if (data?.session) {
-              localStorage.removeItem('kaffepos_pending_verification');
-              localStorage.removeItem('kaffepos_registered_email');
+              if (otpType === 'recovery') {
+                localStorage.setItem('kaffepos_password_reset_required', '1');
+                window.history.replaceState({}, '', '/auth?mode=reset');
+              } else {
+                localStorage.removeItem('kaffepos_pending_verification');
+                localStorage.removeItem('kaffepos_registered_email');
+              }
               setSplashDone(true);
             }
           }
@@ -239,8 +250,15 @@ export default function App() {
             });
             if (error) console.error('[DeepLink] setSession error:', error.message);
             if (data?.session) {
-              localStorage.removeItem('kaffepos_pending_verification');
-              localStorage.removeItem('kaffepos_registered_email');
+              const type = getParamFromDeepLink(urlObj, 'type');
+              const looksLikeRecovery = type === 'recovery' || url.includes('reset-password');
+              if (looksLikeRecovery) {
+                localStorage.setItem('kaffepos_password_reset_required', '1');
+                window.history.replaceState({}, '', '/auth?mode=reset');
+              } else {
+                localStorage.removeItem('kaffepos_pending_verification');
+                localStorage.removeItem('kaffepos_registered_email');
+              }
               setSplashDone(true);
             }
           }
@@ -258,7 +276,7 @@ export default function App() {
     return () => {
       urlListener.then(l => l.remove());
     };
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [],   );
 
   // ── FIX 4: APP Lifecycle & Network Status ──────────────────────
   useEffect(() => {
@@ -295,7 +313,7 @@ export default function App() {
       statusListener.then(l => l.remove());
       stateListener.then(l => l.remove());
     };
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+  }, [],   );
 
   if (!splashDone) return <SplashScreen />;
 

@@ -1,8 +1,8 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/settings/SettingsTab.tsx — KaffePOS v5
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -32,6 +32,7 @@ const SAFE_COLS = [
   'receipt_show_cashier','receipt_show_trx_id','receipt_divider',
   'receipt_custom_line1','receipt_custom_line2',
 ];
+const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 function saveToLS(storeId: string | null, data:any) {
   if (!storeId) return;
@@ -220,7 +221,7 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
     saveToLS(storeId, newForm);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => doSave(newForm), 1000);
-  }, [storeId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [storeId]);  
 
   const update = (key: string, val:any) => {
     const nf = { ...form, [key]: val };
@@ -229,6 +230,8 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
+    if (!ALLOWED_IMAGE_TYPES.has(file.type)) { toast.showToast('Logo harus PNG, JPG, atau WEBP','warning'); return; }
+    if (file.name.toLowerCase().endsWith('.svg')) { toast.showToast('SVG tidak didukung untuk keamanan','warning'); return; }
     if (file.size > 500*1024) { toast.showToast('Logo maks 500KB','warning'); return; }
     const reader = new FileReader();
     reader.onload = ev => {
@@ -370,7 +373,7 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
                 <p className="text-xs text-slate-400">PNG/JPG maks 500KB</p>
               </div>
             </div>
-            <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload}/>
+            <input ref={logoRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleLogoUpload}/>
             <Inp label="URL Logo (alternatif)" value={form.logo_url?.startsWith('data:')?'':form.logo_url} onChange={(v:string)=>update('logo_url',v)} placeholder="https://..."/>
           </div>
 
@@ -628,4 +631,4 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
     </div>
   );
 }
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 

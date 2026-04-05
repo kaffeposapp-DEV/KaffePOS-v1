@@ -1,8 +1,8 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
+ 
+ 
 /* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/utils/downloadFile.ts
 // ═══════════════════════════════════════════════════════════════════
@@ -33,6 +33,14 @@ export interface DownloadResult {
   method?: string;
   cancelled?: boolean;
   error?: string;
+}
+
+export interface SharePdfOptions {
+  fileName: string;
+  base64: string;
+  title?: string;
+  text?: string;
+  dialogTitle?: string;
 }
 
 // ── MAIN FUNCTION ──────────────────────────────────────────────────
@@ -340,6 +348,77 @@ export async function downloadPDFReport(
     mimeType: 'application/pdf',
     _shareAfterSave: true,
   });
+}
+
+export async function sharePDFReport(
+  jdoc: any,
+  reportName: string,
+  storeName: string = 'KaffePOS',
+  text?: string,
+): Promise<DownloadResult> {
+  const date = new Date().toISOString().slice(0, 10);
+  const fileName = `KaffePOS_${reportName.replace(/\s+/g, '_')}_${storeName.replace(/[^a-zA-Z0-9]/g, '_')}_${date}.pdf`;
+  const dataUri: string = jdoc.output('datauristring');
+  const base64 = dataUri.split(',')[1];
+
+  return sharePdfFile({
+    fileName,
+    base64,
+    title: `Laporan ${storeName}`,
+    ...(text ? { text } : {}),
+    dialogTitle: 'Kirim laporan via WhatsApp',
+  });
+}
+
+export async function sharePdfFile(opts: SharePdfOptions): Promise<DownloadResult> {
+  const {
+    fileName,
+    base64,
+    title = fileName,
+    text = '',
+    dialogTitle = 'Bagikan PDF',
+  } = opts;
+
+  if (!Capacitor.isNativePlatform()) {
+    const downloadResult = await downloadFile({
+      data: base64,
+      fileName,
+      mimeType: 'application/pdf',
+      _shareAfterSave: false,
+    });
+
+    try {
+      const waText = text || `Laporan PDF siap diunduh: ${fileName}`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(waText)}`, '_blank');
+    } catch {
+      // ignore browser popup issues
+    }
+
+    return downloadResult;
+  }
+
+  try {
+    await Filesystem.writeFile({
+      path: fileName,
+      data: base64,
+      directory: Directory.Cache,
+      recursive: true,
+    });
+
+    const { uri } = await Filesystem.getUri({ path: fileName, directory: Directory.Cache });
+
+    await Share.share({
+      title,
+      text,
+      url: uri,
+      dialogTitle,
+    });
+
+    return { ok: true, filePath: fileName, uri, method: 'native-share-pdf' };
+  } catch (err:any) {
+    console.error('[sharePdfFile] Share PDF failed:', err);
+    return { ok: false, error: err?.message || 'Gagal membagikan PDF' };
+  }
 }
 
 // ── JSON BACKUP ────────────────────────────────────────────────────

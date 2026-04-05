@@ -7,6 +7,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SUPABASE_URL      = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const SUPABASE_ANON     = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+const INTERNAL_SECRET   = Deno.env.get('NOTIFICATION_INTERNAL_SECRET') ?? '';
+const ADMIN_EMAILS      = (Deno.env.get('ADMIN_EMAILS') ?? 'kaffeposapp@gmail.com')
+  .split(',')
+  .map((email) => email.trim().toLowerCase())
+  .filter(Boolean);
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -50,6 +56,93 @@ const TEXT_MUTED  = '#6B7280';
 const BRAND_DARK  = '#5A2A17';
 const BRAND_GOLD  = '#F0C676';
 const BRAND_CREAM = '#FBF7F2';
+
+const INTERNAL_ONLY_TYPES = new Set<NotifPayload['type']>([
+  'daily_sales',
+  'subscription_activated',
+  'subscription_expiry_reminder',
+]);
+
+type RequestContext = {
+  authEmail: string | null;
+  isAdmin: boolean;
+  isInternal: boolean;
+  ip: string;
+};
+
+async function getRequestContext(req: Request): Promise<RequestContext> {
+  const authHeader = req.headers.get('Authorization') ?? '';
+  const internalHeader = req.headers.get('x-notification-secret') ?? '';
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('cf-connecting-ip') ||
+    'unknown';
+
+  let authEmail: string | null = null;
+  if (authHeader.startsWith('Bearer ') && SUPABASE_ANON) {
+    const authClient = createClient(SUPABASE_URL, SUPABASE_ANON, {
+      auth: { autoRefreshToken: false, persistSession: false },
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data } = await authClient.auth.getUser();
+    authEmail = data.user?.email?.trim().toLowerCase() ?? null;
+  }
+
+  return {
+    authEmail,
+    isAdmin: !!authEmail && ADMIN_EMAILS.includes(authEmail),
+    isInternal: !!INTERNAL_SECRET && internalHeader === INTERNAL_SECRET,
+    ip,
+  };
+}
+
+async function enforceRateLimit(
+  adminClient: ReturnType<typeof createClient>,
+  key: string,
+  ip: string,
+  maxHits: number,
+  windowMinutes: number,
+) {
+  const now = new Date();
+  const windowStart = new Date(now.getTime() - windowMinutes * 60 * 1000).toISOString();
+
+  const { data: existing, error: fetchError } = await adminClient
+    .from('edge_rate_limits')
+    .select('id,hits')
+    .eq('rate_key', key)
+    .gte('window_started_at', windowStart)
+    .order('window_started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (fetchError) throw fetchError;
+
+  if (!existing) {
+    const { error } = await adminClient.from('edge_rate_limits').insert({
+      rate_key: key,
+      hits: 1,
+      last_ip: ip,
+      window_started_at: now.toISOString(),
+      updated_at: now.toISOString(),
+    });
+    if (error) throw error;
+    return;
+  }
+
+  if ((existing.hits ?? 0) >= maxHits) {
+    throw new Error('Terlalu banyak permintaan. Tunggu beberapa menit lalu coba lagi.');
+  }
+
+  const { error } = await adminClient
+    .from('edge_rate_limits')
+    .update({
+      hits: (existing.hits ?? 0) + 1,
+      last_ip: ip,
+      updated_at: now.toISOString(),
+    })
+    .eq('id', existing.id);
+  if (error) throw error;
+}
 
 function baseLayout(content: string, previewText: string = ''): string {
   return `
@@ -328,51 +421,36 @@ serve(async (req: Request) => {
     const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
+    const requestContext = await getRequestContext(req);
+    const normalizedEmail = payload.email.trim().toLowerCase();
+
+    if (payload.type === 'verification' || payload.type === 'password_reset') {
+      return new Response(JSON.stringify({
+        error: 'Flow ini dipindahkan ke Supabase Auth. Endpoint service-role publik dinonaktifkan.',
+      }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (INTERNAL_ONLY_TYPES.has(payload.type) && !requestContext.isInternal && !requestContext.isAdmin) {
+      return new Response(JSON.stringify({ error: 'Akses ditolak.' }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (payload.type === 'welcome' && !requestContext.isInternal) {
+      if (!requestContext.authEmail || requestContext.authEmail !== normalizedEmail) {
+        return new Response(JSON.stringify({ error: 'Akses ditolak.' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      await enforceRateLimit(adminClient, `welcome:${normalizedEmail}`, requestContext.ip, 3, 60);
+    }
 
     let html    = '';
     let subject = '';
 
     switch (payload.type) {
-      case 'verification': {
-        const otp = payload.otp || Math.floor(100000 + Math.random() * 900000).toString();
-        const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-        const { error: otpStoreError } = await adminClient
-          .from('email_verification_codes')
-          .insert({
-            email: payload.email.trim().toLowerCase(),
-            purpose: 'signup',
-            code: otp,
-            expires_at: expiresAt,
-          });
-        if (otpStoreError) throw otpStoreError;
-        html = getVerificationHtml(name, otp);
-        subject = `Verifikasi Akun KaffePOS - ${otp}`;
-        break;
-      }
-      case 'password_reset': {
-        let link = payload.link || '#';
-        if (!payload.link) {
-          const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
-            type: 'recovery',
-            email: payload.email,
-            options: {
-              redirectTo: payload.redirectTo || 'kaffepos://reset-password',
-            },
-          } as any);
-          if (linkError) throw linkError;
-          link =
-            linkData?.properties?.action_link ||
-            linkData?.action_link ||
-            linkData?.properties?.email_otp ||
-            '#';
-          if (!link || link === '#') {
-            throw new Error('Recovery link gagal dibuat.');
-          }
-        }
-        html = getPasswordResetHtml(name, link);
-        subject = `Reset Password KaffePOS`;
-        break;
-      }
       case 'daily_sales': {
         const summary = payload.salesSummary || {
           totalIncome: 'Rp 0',
@@ -423,7 +501,7 @@ serve(async (req: Request) => {
       headers: { 'Authorization': `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from: 'KaffePOS <noreply@kaffepos.my.id>',
-        to: [payload.email],
+        to: [normalizedEmail],
         subject,
         html,
       }),
@@ -432,7 +510,7 @@ serve(async (req: Request) => {
     if (!res.ok) throw new Error(`Resend API failed: ${await res.text()}`);
 
     // Log to notifications table if user exists
-    const user = await findUserByEmail(adminClient, payload.email);
+    const user = await findUserByEmail(adminClient, normalizedEmail);
     if (user) {
       await adminClient.from('notifications').insert({
         user_id: user.id,

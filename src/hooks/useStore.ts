@@ -1,8 +1,8 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
+ 
+ 
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/hooks/useStore.ts — KaffePOS v5 — Full localStorage cache (menu+inv+trx)
 import { create } from 'zustand';
@@ -27,9 +27,9 @@ const MENU_SELECT =
 const INVENTORY_SELECT =
   'id,store_id,name,stock,unit,min_stock,cost_per_unit,created_at,updated_at';
 const TRANSACTION_SELECT =
-  'id,store_id,date,items,subtotal,discount,discount_label,tax,total,cogs,paid,change,method,cashier,note,is_void,void_reason,void_at,void_by,created_at';
+  'id,store_id,date,items,subtotal,discount,discount_label,tax,total,cogs,paid,change,method,customer_name,cashier,note,is_void,void_reason,void_at,void_by,created_at';
 const EXPENSE_SELECT =
-  'id,store_id,date,description,amount,category,cashier,created_at';
+  'id,store_id,date,description,amount,category,cashier,source,created_at';
 const CASH_FLOW_SELECT =
   'id,store_id,date,type,amount,description,cashier,created_at';
 const CASH_REGISTER_SELECT =
@@ -66,11 +66,10 @@ function persistCache(
   try {
     localStorage.setItem(`kpos_menu_${storeId}`,  JSON.stringify(menu));
     localStorage.setItem(`kpos_inv_${storeId}`,   JSON.stringify(inventory));
-    // Simpan cache lebih panjang agar riwayat tidak mudah terpotong saat restart.
-    localStorage.setItem(`kpos_trx_${storeId}`,   JSON.stringify(transactions.slice(0, 5000)));
-    localStorage.setItem(`kpos_exp_${storeId}`,   JSON.stringify(expenses.slice(0, 5000)));
-    localStorage.setItem(`kpos_cf_${storeId}`,    JSON.stringify(cashFlow.slice(0, 5000)));
-    localStorage.setItem(`kpos_cr_${storeId}`,    JSON.stringify(cashRegister.slice(0, 5000)));
+    localStorage.setItem(`kpos_trx_${storeId}`,   JSON.stringify(transactions));
+    localStorage.setItem(`kpos_exp_${storeId}`,   JSON.stringify(expenses));
+    localStorage.setItem(`kpos_cf_${storeId}`,    JSON.stringify(cashFlow));
+    localStorage.setItem(`kpos_cr_${storeId}`,    JSON.stringify(cashRegister));
   } catch { /* ignore */ }
 }
 
@@ -117,7 +116,7 @@ function getPendingWrites(storeId: string | null): PendingWrite[] {
 }
 function savePendingWrites(storeId: string | null, writes: PendingWrite[]) {
   if (!storeId) return;
-  try { localStorage.setItem(getPendingWritesKey(storeId), JSON.stringify(writes.slice(0, 100))); } catch { /* ignore */ }
+  try { localStorage.setItem(getPendingWritesKey(storeId), JSON.stringify(writes)); } catch { /* ignore */ }
 }
 function addPendingWrite(storeId: string | null, pw: PendingWrite) {
   const writes = getPendingWrites(storeId);
@@ -230,8 +229,8 @@ interface AppStore {
   deleteMenuItem:      (id: string) => Promise<void>;
   saveInventoryItem:   (item: InventoryItemUpdate) => Promise<void>;
   deleteInventoryItem: (id: string) => Promise<void>;
-  saveTransaction:     (tx: Omit<Transaction, 'store_id'>) => Promise<void>;
-  voidTransaction:     (id: string, reason: string, by: string) => Promise<void>;
+  saveTransaction:     (tx: Omit<Transaction, 'store_id'>) => Promise<Transaction>;
+  voidTransaction:     (id: string, reason: string, by: string) => Promise<Transaction>;
   saveExpense:         (exp: Partial<Expense>) => Promise<void>;
   deleteExpense:       (id: string) => Promise<void>;
   saveCashFlow:        (entry: Partial<CashFlowEntry>) => Promise<void>;
@@ -381,13 +380,13 @@ export const useStore = create<AppStore>((set, get) => ({
       try {
         const [trx, exp, cf, cr] = await Promise.all([
           supabase.from('transactions').select(TRANSACTION_SELECT).eq('store_id', storeId)
-            .order('date', { ascending: false }).limit(5000),
+            .order('date', { ascending: false }),
           supabase.from('expenses').select(EXPENSE_SELECT).eq('store_id', storeId)
-            .order('date', { ascending: false }).limit(5000),
+            .order('date', { ascending: false }),
           supabase.from('cash_flow').select(CASH_FLOW_SELECT).eq('store_id', storeId)
-            .order('date', { ascending: false }).limit(5000),
+            .order('date', { ascending: false }),
           supabase.from('cash_register').select(CASH_REGISTER_SELECT).eq('store_id', storeId)
-            .order('date', { ascending: false }).limit(5000),
+            .order('date', { ascending: false }),
         ]);
 
         const trxData = mergeById((trx.data || []) as Transaction[], get().transactions);
@@ -747,6 +746,10 @@ export const useStore = create<AppStore>((set, get) => ({
     const minStock  = typeof item.minStock === 'string' ? parseFloat(item.minStock) : (item.minStock || 5);
     const unitCost  = qty > 0 ? totalCost / qty  : 0;
 
+    if (qty < 0 || totalCost < 0 || minStock < 0 || unitCost < 0) {
+      throw new Error('Qty, biaya, dan stok minimum tidak boleh negatif.');
+    }
+
     if (item.type === 'new') {
       const tempId = makeClientId('inv');
       const optimistic: InventoryItem = {
@@ -787,7 +790,7 @@ export const useStore = create<AppStore>((set, get) => ({
           const { data: expData, error: expError } = await supabase.from('expenses').insert({
             id: expId,
             store_id: storeId, date: new Date().toISOString(),
-            description: `Beli ${item.name}`, amount: totalCost, category: 'Bahan Baku',
+            description: `Beli ${item.name}`, amount: totalCost, category: 'Bahan Baku', source: 'inventory',
           }).select().single();
           if (expError) {
             addPendingWrite(storeId, {
@@ -796,7 +799,7 @@ export const useStore = create<AppStore>((set, get) => ({
               data: {
                 id: expId,
                 store_id: storeId, date: new Date().toISOString(),
-                description: `Beli ${item.name}`, amount: totalCost, category: 'Bahan Baku',
+                description: `Beli ${item.name}`, amount: totalCost, category: 'Bahan Baku', source: 'inventory',
               }
             });
           }
@@ -850,7 +853,7 @@ export const useStore = create<AppStore>((set, get) => ({
         const { data: expData, error: expError } = await supabase.from('expenses').insert({
           id: expId,
           store_id: storeId, date: new Date().toISOString(),
-          description: `Restock ${item.name}`, amount: totalCost, category: 'Bahan Baku',
+          description: `Restock ${item.name}`, amount: totalCost, category: 'Bahan Baku', source: 'inventory',
         }).select().single();
         if (expError) {
           addPendingWrite(storeId, {
@@ -859,7 +862,7 @@ export const useStore = create<AppStore>((set, get) => ({
             data: {
               id: expId,
               store_id: storeId, date: new Date().toISOString(),
-              description: `Restock ${item.name}`, amount: totalCost, category: 'Bahan Baku',
+              description: `Restock ${item.name}`, amount: totalCost, category: 'Bahan Baku', source: 'inventory',
             }
           });
         }
@@ -889,8 +892,9 @@ export const useStore = create<AppStore>((set, get) => ({
   },
 
   saveTransaction: async (tx) => {
-    const { storeId, inventory, menu } = get();
-    if (!storeId) return;
+    const { storeId, isOnline } = get();
+    if (!storeId) throw new Error('Store belum dimuat.');
+    if (!isOnline) throw new Error('Checkout butuh koneksi internet agar stok tetap akurat di semua perangkat.');
     const existingIds = get().transactions.map(transaction => transaction.id);
     const normalizedDate = tx.date || new Date().toISOString();
     const normalizedId = makeUniqueTransactionId(tx.id, existingIds);
@@ -903,86 +907,78 @@ export const useStore = create<AppStore>((set, get) => ({
       cashier: tx.cashier || 'Kasir',
       is_void: tx.is_void ?? false,
     };
+    const safeSubtotal = Math.max(0, txWithId.subtotal || 0);
+    const safeDiscount = Math.min(Math.max(0, txWithId.discount || 0), safeSubtotal);
+    const safeTaxBase = Math.max(0, safeSubtotal - safeDiscount);
+    const safeTax = Math.max(0, txWithId.tax || 0);
+    const safeTotal = Math.max(0, safeTaxBase + safeTax);
+    const safePaid = Math.max(0, txWithId.paid || 0);
+    const safeChange = Math.max(0, safePaid - safeTotal);
+    const normalizedTx = {
+      ...txWithId,
+      subtotal: safeSubtotal,
+      discount: safeDiscount,
+      tax: safeTax,
+      total: safeTotal,
+      paid: safePaid,
+      change: safeChange,
+      cogs: Math.max(0, txWithId.cogs || 0),
+    };
 
-    const updates: { id: string; newStock: number }[] = [];
-    for (const cartItem of txWithId.items) {
-      const baseName = cartItem.name.split(' (')[0];
-      const menuItem = menu.find(m => m.name === cartItem.name || m.name === baseName || m.id === (cartItem as unknown as CartItem)._baseId);
-      if (menuItem?.recipe?.length) {
-        for (const r of menuItem.recipe) {
-          const inv = inventory.find(i => i.id === r.matId);
-          if (inv) {
-            const existing = updates.find(u => u.id === r.matId);
-            if (existing) {
-              existing.newStock = Math.max(0, existing.newStock - r.qty * cartItem.qty);
-            } else {
-              updates.push({ id: r.matId, newStock: Math.max(0, inv.stock - r.qty * cartItem.qty) });
-            }
-          }
-        }
-      }
+    const { data, error } = await supabase.rpc('process_checkout', {
+      p_store_id: storeId,
+      p_transaction_id: normalizedTx.id,
+      p_date: normalizedTx.date,
+      p_items: normalizedTx.items,
+      p_subtotal: normalizedTx.subtotal,
+      p_discount: normalizedTx.discount,
+      p_discount_label: normalizedTx.discount_label ?? null,
+      p_tax: normalizedTx.tax,
+      p_total: normalizedTx.total,
+      p_cogs: normalizedTx.cogs,
+      p_paid: normalizedTx.paid,
+      p_change: normalizedTx.change,
+      p_method: normalizedTx.method,
+      p_cashier: normalizedTx.cashier,
+      p_note: normalizedTx.note ?? null,
+      p_customer_name: normalizedTx.customer_name ?? null,
+    });
+
+    if (error || !data) {
+      throw new Error(error?.message || 'Checkout gagal diproses.');
     }
 
-    if (updates.length > 0) {
-      set(s => ({
-        inventory: s.inventory.map(i => {
-          const u = updates.find(u => u.id === i.id);
-          return u ? { ...i, stock: u.newStock } : i;
-        })
-      }));
-      for (const u of updates) {
-        supabase.from('inventory').update({ stock: u.newStock }).eq('id', u.id)
-          .then(({ error }) => {
-            if (error) {
-              addPendingWrite(storeId, { table: 'inventory', op: 'update', data: { stock: u.newStock }, id: u.id });
-            }
-          });
-      }
-    }
-
-    markInserted(txWithId.id);
+    const savedTx = data as Transaction;
+    markInserted(savedTx.id);
     set(s => ({
-      transactions: s.transactions.some(t => t.id === txWithId.id)
-        ? s.transactions
-        : [{ ...txWithId, store_id: storeId } as Transaction, ...s.transactions]
+      transactions: s.transactions.some(t => t.id === savedTx.id)
+        ? s.transactions.map(t => t.id === savedTx.id ? savedTx : t)
+        : [savedTx, ...s.transactions]
     }));
     persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
-
-    const { data, error } = await supabase.from('transactions').insert({
-      ...txWithId, store_id: storeId,
-    }).select().single();
-
-    if (error) {
-      addPendingWrite(storeId, { table: 'transactions', op: 'insert', data: { ...txWithId, store_id: storeId } as unknown as Record<string, unknown> });
-      import('@/utils/toast').then(m => m.showToast('Transaksi disimpan offline dan akan disinkronkan otomatis', 'success'));
-      return;
-    }
-
-    if (data) {
-      set(s => ({
-        transactions: s.transactions.map(t => t.id === txWithId.id ? data as Transaction : t)
-      }));
-      persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
-    }
+    await get().loadAll(storeId);
+    return savedTx;
   },
 
   voidTransaction: async (id, reason, by) => {
     try {
-      const payload = {
-        is_void: true, void_reason: reason,
-        void_at: new Date().toISOString(), void_by: by,
-      };
-      const { error } = await supabase.from('transactions').update(payload).eq('id', id);
-      if (error) {
-        addPendingWrite(get().storeId, { table: 'transactions', op: 'update', id, data: payload as Record<string, unknown> });
-        import('@/utils/toast').then(m => m.showToast('Void transaksi dijadwalkan saat online kembali', 'success'));
-      }
+      const storeId = get().storeId;
+      if (!storeId) throw new Error('Store belum dimuat.');
+      if (!get().isOnline) throw new Error('Void transaksi butuh koneksi internet agar stok kembali dengan benar.');
+      const { data, error } = await supabase.rpc('void_transaction_secure', {
+        p_store_id: storeId,
+        p_transaction_id: id,
+        p_reason: reason,
+        p_void_by: by,
+      });
+      if (error || !data) throw new Error(error?.message || 'Gagal membatalkan transaksi');
+      const voidedTx = data as Transaction;
       set(s => ({
-        transactions: s.transactions.map(t => t.id === id ? { ...t, is_void: true, void_reason: reason } : t)
+        transactions: s.transactions.map(t => t.id === id ? voidedTx : t)
       }));
-      if (get().storeId) {
-        persistCache(get().storeId!, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
-      }
+      persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
+      await get().loadAll(storeId);
+      return voidedTx;
     } catch (e:any) {
       const msg = e?.message || 'Gagal membatalkan transaksi';
       import('@/utils/toast').then(m => m.showToast(msg, 'error'));
@@ -994,6 +990,7 @@ export const useStore = create<AppStore>((set, get) => ({
     const { storeId } = get();
     if (!storeId) return;
     try {
+      if ((exp.amount || 0) <= 0) throw new Error('Jumlah pengeluaran harus lebih dari 0.');
       const optimisticId = exp.id || (typeof crypto !== 'undefined' && crypto.randomUUID
         ? crypto.randomUUID()
         : `exp_${Date.now()}_${Math.random().toString(36).slice(2)}`);
@@ -1001,6 +998,7 @@ export const useStore = create<AppStore>((set, get) => ({
         id: optimisticId,
         store_id: storeId,
         date: new Date().toISOString(),
+        source: 'cashier' as const,
         ...exp,
       };
       markInserted(optimisticId);

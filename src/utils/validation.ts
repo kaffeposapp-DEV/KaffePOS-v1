@@ -1,10 +1,16 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
+ 
+ 
+ 
+ 
 import { z } from 'zod';
+
+const strongPassword = z.string()
+  .min(10, 'Password minimal 10 karakter')
+  .regex(/[A-Z]/, 'Password wajib mengandung huruf besar')
+  .regex(/[a-z]/, 'Password wajib mengandung huruf kecil')
+  .regex(/\d/, 'Password wajib mengandung angka');
 
 export const loginSchema = z.object({
   email: z.string().email('Format email tidak valid'),
@@ -13,7 +19,7 @@ export const loginSchema = z.object({
 
 export const signUpSchema = z.object({
   email: z.string().email('Format email tidak valid'),
-  password: z.string().min(8, 'Password minimal 8 karakter'),
+  password: strongPassword,
   username: z.string().min(3, 'Username minimal 3 karakter').max(30, 'Username maksimal 30 karakter'),
 });
 

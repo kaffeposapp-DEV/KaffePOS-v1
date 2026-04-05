@@ -1,8 +1,8 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react/no-unescaped-entities */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
+ 
+ 
+ 
+ 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo } from 'react';
 import { Plus, Archive, Trash2, X, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
@@ -61,10 +61,17 @@ export default function WarehouseTab({ toast }: { toast:any }) {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.qty) { toast.showToast('Nama dan jumlah wajib diisi', 'warning'); return; }
+    const qty = Number(form.qty);
+    const cost = Number(form.cost || 0);
+    const minStock = Number(form.minStock || 0);
+    if (qty < 0 || cost < 0 || minStock < 0) {
+      toast.showToast('Qty, biaya, dan stok minimum tidak boleh negatif', 'warning');
+      return;
+    }
     setSaving(true);
-    setShowModal(false); // tutup modal langsung
     try {
       await saveInventoryItem(form as unknown as InventoryItemUpdate);
+      setShowModal(false);
       const msg = form.type==='new' ? '✅ Bahan ditambahkan!' : form.type==='edit' ? '✅ Bahan diperbarui!' : '✅ Stok diperbarui!';
       toast.showToast(msg, 'success');
     } catch (e:any) {
@@ -105,6 +112,9 @@ export default function WarehouseTab({ toast }: { toast:any }) {
             </button>
           </div>
         </div>
+        <p className="text-[11px] text-slate-400 mb-3">
+          Restock dari Gudang tercatat sebagai pembelian bahan baku dan tidak mengurangi saldo awal kasir.
+        </p>
 
         {lowStock.length > 0 && (
           <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 mb-2 flex items-start gap-2">
@@ -219,7 +229,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
               ) : (
                 <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
                   <p className="font-bold text-orange-700">{form.name}</p>
-                  <p className="text-orange-500 text-xs">Menambah stok yang sudah ada</p>
+                  <p className="text-orange-500 text-xs">Menambah stok yang sudah ada tanpa memotong saldo buka kasir</p>
                 </div>
               )}
               <div className="grid grid-cols-2 gap-3">
