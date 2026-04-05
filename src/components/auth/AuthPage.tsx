@@ -277,10 +277,10 @@ export default function AuthPage() {
                 </button>
 
                 <button
-                   onClick={() => window.open('https://wa.me/6285186076224?text=Halo%20Admin,%20saya%20sudah%20daftar%20KaffePOS%20dengan%20email%20' + email + '%20tapi%20belum%20terima%20link.', '_blank')}
-                   className="py-3.5 bg-white border-2 border-green-100 text-green-600 font-black text-[11px] uppercase tracking-wider rounded-2xl active:scale-95 flex items-center justify-center gap-2"
+                   onClick={() => window.open('https://instagram.com/kaffepos', '_blank')}
+                   className="py-3.5 bg-white border-2 border-pink-100 text-pink-600 font-black text-[11px] uppercase tracking-wider rounded-2xl active:scale-95 flex items-center justify-center gap-2"
                 >
-                   Bantuan Admin
+                   Instagram
                 </button>
             </div>
 

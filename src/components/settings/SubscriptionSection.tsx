@@ -8,7 +8,7 @@
 import { useState } from 'react';
 import { Check, X, Crown, Zap, Key, ChevronRight, Lock, Sparkles, MessageCircle, RefreshCw } from 'lucide-react';
 
-const WA_ADMIN = '6285186076224'; // 0851-8607-6224
+const INSTAGRAM_URL = 'https://instagram.com/kaffepos';
 
 interface SubscriptionSectionProps {
   isPro:   boolean;
@@ -32,7 +32,7 @@ const FEATURE_COMPARISON = [
   { label: 'AI Insight penjualan',     basic: false, pro: true  },
   { label: 'Logo & branding struk',    basic: false, pro: true  },
   { label: 'Backup data otomatis',     basic: false, pro: true  },
-  { label: 'Prioritas support WA',     basic: false, pro: true  },
+  { label: 'Prioritas support Instagram', basic: false, pro: true  },
 ];
 
 const PLANS = [
@@ -79,13 +79,8 @@ export default function SubscriptionSection({ isPro, profile, toast, onActivateL
     } finally { setRefreshing(false); }
   };
 
-  const openWA = (planName: string, planPrice: string) => {
-    const msg =
-      `Halo admin KaffePOS! 👋\n\nSaya ingin upgrade ke PRO.\n\n` +
-      `📦 Paket: *${planName}* (${planPrice})\n` +
-      `👤 Akun: ${profile?.email || profile?.username || '-'}\n\n` +
-      `Mohon info cara pembayaran & aktivasi lisensinya. Terima kasih!`;
-    window.open(`https://wa.me/${WA_ADMIN}?text=${encodeURIComponent(msg)}`, '_system');
+  const openInstagram = (_planName: string, _planPrice: string) => {
+    window.open(INSTAGRAM_URL, '_system');
   };
 
   const handleActivate = async () => {
@@ -179,7 +174,7 @@ export default function SubscriptionSection({ isPro, profile, toast, onActivateL
                 )}
                 {isExpired && (
                   <p className="text-white/80 text-xs text-center">
-                    Hubungi admin untuk perpanjang
+                    Butuh bantuan? Hubungi kami di Instagram @kaffepos
                   </p>
                 )}
               </div>
@@ -213,9 +208,9 @@ export default function SubscriptionSection({ isPro, profile, toast, onActivateL
           </p>
           <div className="flex gap-2 mt-2">
             <button
-              onClick={() => openWA('Perpanjang PRO', '-')}
-              className="flex-1 py-2.5 bg-green-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 active:scale-95">
-              <MessageCircle size={13} />WhatsApp Admin
+              onClick={() => openInstagram('Perpanjang PRO', '-')}
+              className="flex-1 py-2.5 bg-gradient-to-r from-pink-500 to-orange-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 active:scale-95">
+              <MessageCircle size={13} />Instagram
             </button>
             <button
               onClick={() => setShowLicForm(!showLicForm)}
@@ -347,13 +342,13 @@ export default function SubscriptionSection({ isPro, profile, toast, onActivateL
         </div>
       </div>
 
-      {/* Tombol upgrade via WA */}
+      {/* Tombol upgrade via Instagram */}
       <button
-        onClick={() => openWA(selected.name, selected.price)}
+        onClick={() => openInstagram(selected.name, selected.price)}
         className="w-full py-4 rounded-2xl font-black text-white text-base active:scale-95 flex items-center justify-center gap-2.5 shadow-lg"
-        style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)' }}>
+        style={{ background: 'linear-gradient(135deg,#ec4899,#f97316)' }}>
         <MessageCircle size={20} />
-        Chat Admin — Upgrade {selected.name} {selected.price}
+        Hubungi Instagram — Upgrade {selected.name} {selected.price}
       </button>
 
       <div className="flex items-center gap-2 justify-center">

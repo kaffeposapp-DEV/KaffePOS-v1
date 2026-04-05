@@ -138,7 +138,7 @@ export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolea
           </div>
           <div>
             <p className="text-xs font-black text-slate-800">Butuh Bantuan?</p>
-            <p className="text-[10px] text-slate-500">Hubungi admin KaffePOS via WhatsApp jika ada keluhan.</p>
+            <p className="text-[10px] text-slate-500">Butuh bantuan? Hubungi kami di Instagram @kaffepos</p>
           </div>
         </div>
       </div>

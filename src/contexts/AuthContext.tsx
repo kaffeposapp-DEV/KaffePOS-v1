@@ -51,6 +51,21 @@ async function ensureProfileBg(uid: string, email: string, displayName?: string)
   } catch { return null; }
 }
 
+async function sendVerificationEmailViaEdge(email: string, name?: string) {
+  const { error } = await supabase.functions.invoke('send-notification', {
+    body: {
+      type: 'verification',
+      email,
+      name: name || email.split('@')[0],
+      redirectTo: AUTH_REDIRECT_URL,
+    }
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Gagal mengirim email verifikasi.');
+  }
+}
+
 async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -422,6 +437,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data.user?.id && needsVerification) {
         // Simpan sementara untuk polling di atas
         localStorage.setItem('kaffepos_pending_verification', cleanEmail);
+        localStorage.setItem('kaffepos_registered_email', cleanEmail);
+        try {
+          await withTimeout(
+            sendVerificationEmailViaEdge(cleanEmail, cleanUsername),
+            12000,
+            'Pengiriman email verifikasi terlalu lama. Coba lagi sebentar.'
+          );
+        } catch (mailError: any) {
+          console.error('[SignUp] Custom verification send failed, falling back to Supabase:', mailError);
+          const { error: resendErr } = await supabase.auth.resend({
+            type: 'signup',
+            email: cleanEmail,
+            options: { emailRedirectTo: AUTH_REDIRECT_URL }
+          });
+          if (resendErr) {
+            return { error: `Akun dibuat, tapi email verifikasi gagal dikirim: ${resendErr.message}` };
+          }
+        }
       }
 
       return { error: null, needsVerification };
@@ -466,24 +499,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const cleanEmail = email.trim().toLowerCase();
 
-      // 1. Jalur Resmi Supabase (Paling Reliable)
-      const { error: resendErr } = await withTimeout(
-        supabase.auth.resend({
-          type: 'signup',
-          email: cleanEmail,
-          options: { emailRedirectTo: AUTH_REDIRECT_URL }
-        }),
-        9000,
-        'Pengiriman email verifikasi terlalu lama. Coba lagi sebentar.'
-      );
+      try {
+        await withTimeout(
+          sendVerificationEmailViaEdge(cleanEmail),
+          12000,
+          'Pengiriman email verifikasi terlalu lama. Coba lagi sebentar.'
+        );
+        return { error: null };
+      } catch (edgeErr: any) {
+        console.error('[Auth] Custom resend failed, fallback to Supabase:', edgeErr);
+        const { error: resendErr } = await withTimeout(
+          supabase.auth.resend({
+            type: 'signup',
+            email: cleanEmail,
+            options: { emailRedirectTo: AUTH_REDIRECT_URL }
+          }),
+          9000,
+          'Pengiriman email verifikasi terlalu lama. Coba lagi sebentar.'
+        );
 
-      if (resendErr) {
-        console.error('[Auth] Supabase Resend Error:', resendErr.message);
-        if (resendErr.message.toLowerCase().includes('rate limit')) return { error: 'Tunggu 1 menit sebelum mencoba lagi (Limit).' };
-        return { error: resendErr.message };
+        if (resendErr) {
+          console.error('[Auth] Supabase Resend Error:', resendErr.message);
+          if (resendErr.message.toLowerCase().includes('rate limit')) return { error: 'Tunggu 1 menit sebelum mencoba lagi (Limit).' };
+          return { error: resendErr.message };
+        }
+
+        return { error: null };
       }
-
-      return { error: null };
     } catch (e:any) {
       console.error('[Auth] Resend process failed:', e);
       if (isNativeRuntime() && isNetworkLikeError(e?.message || '')) {
