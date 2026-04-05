@@ -134,8 +134,28 @@ BEGIN
 END $$;
 
 -- ── Realtime publications yang dipakai frontend ──
-ALTER PUBLICATION supabase_realtime ADD TABLE public.stores;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.cash_register;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'stores'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.stores;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'cash_register'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.cash_register;
+  END IF;
+END $$;
 -- ── Policies: konsisten pakai WITH CHECK untuk write ──
 DO $$
 BEGIN

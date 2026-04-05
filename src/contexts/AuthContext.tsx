@@ -16,6 +16,7 @@ import { Preferences } from '@capacitor/preferences';
 import { AUTH_REDIRECT_URL, PASSWORD_RESET_REDIRECT_URL, SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from '@/lib/supabase';
 import type { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import type { Profile } from '@/types';
+import { clearUserCache, redirectToLogin, setActiveUserId, getActiveUserId } from '@/utils/sessionIsolation';
 import { loginSchema, signUpSchema } from '@/utils/validation';
 
 // Removed unused getAppPlugin
@@ -68,17 +69,15 @@ async function ensureProfileBg(uid: string, email: string, displayName?: string)
 }
 
 async function sendVerificationEmailViaEdge(email: string, name?: string) {
-  const { error } = await supabase.functions.invoke('send-notification', {
-    body: {
-      type: 'verification',
-      email,
-      name: name || email.split('@')[0],
-      redirectTo: AUTH_REDIRECT_URL,
-    }
+  const { status, data } = await invokeEdgeFunctionJson('send-notification', {
+    type: 'verification',
+    email,
+    name: name || email.split('@')[0],
+    redirectTo: AUTH_REDIRECT_URL,
   });
 
-  if (error) {
-    throw new Error(error.message || 'Gagal mengirim email verifikasi.');
+  if (status >= 400) {
+    throw new Error(String(data?.error || 'Gagal mengirim email verifikasi.'));
   }
 }
 
@@ -174,6 +173,35 @@ async function nativeFunctionPost(functionName: string, body: Record<string, unk
   };
 }
 
+async function invokeEdgeFunctionJson(functionName: string, body: Record<string, unknown>) {
+  if (isNativeRuntime()) {
+    return nativeFunctionPost(functionName, body);
+  }
+
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  let data: Record<string, unknown> | null = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  return {
+    status: response.status,
+    data,
+  };
+}
+
 interface AuthCtx {
   user: Session['user'] | null;
   profile: Profile | null;
@@ -186,6 +214,7 @@ interface AuthCtx {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
   resendVerification: (email: string) => Promise<{ error: string | null }>;
+  verifyEmailCode: (email: string, code: string) => Promise<{ error: string | null }>;
   emergencyConfirm: (email: string) => Promise<{ error: string | null }>;
   refreshProfile: () => Promise<void>;
 }
@@ -199,6 +228,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const mounted    = useRef(true);
   const signedOut  = useRef(false);
   const initDone   = useRef(false);
+  const activeUserIdRef = useRef<string | null>(null);
+
+  const resetClientState = useCallback(async (opts?: { preserveKeys?: string[]; redirect?: boolean }) => {
+    const currentUserId = activeUserIdRef.current;
+    try {
+      const mod = await import('@/hooks/useStore');
+      mod.useStore.getState().cleanup?.();
+      mod.useStore.getState().resetState?.();
+    } catch { /* ignore */ }
+    clearUserCache(currentUserId, opts?.preserveKeys || []);
+    activeUserIdRef.current = null;
+    setActiveUserId(null);
+    if (mounted.current) {
+      setUser(null);
+      setProfile(null);
+      setLoading(false);
+    }
+    if (opts?.redirect) redirectToLogin(true);
+  }, []);
 
   const refreshProfile = useCallback(async () => {
     const uid = user?.id;
@@ -212,6 +260,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const applyAuthenticatedSession = useCallback((session: Session | null) => {
     if (!mounted.current) return;
     if (!session?.user) {
+      activeUserIdRef.current = null;
+      setActiveUserId(null);
       setUser(null);
       setProfile(null);
       void cacheSession(null);
@@ -219,9 +269,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    const incomingUserId = session.user.id;
+    const previousUserId = activeUserIdRef.current || getActiveUserId();
+    if (previousUserId && previousUserId !== incomingUserId) {
+      clearUserCache(previousUserId, [SESSION_CACHE_KEY]);
+      void import('@/hooks/useStore').then(mod => mod.useStore.getState().resetState?.()).catch(() => {});
+    }
+
     localStorage.removeItem('kaffepos_pending_verification');
     localStorage.removeItem('kaffepos_registered_email');
     void cacheSession(session);
+    activeUserIdRef.current = incomingUserId;
+    setActiveUserId(incomingUserId);
     setUser(session.user);
     setLoading(false);
     const dn = session.user.user_metadata?.full_name || session.user.user_metadata?.name;
@@ -256,10 +315,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!mounted.current) return;
 
         if (event === 'SIGNED_OUT') {
-          setUser(null);
-          setProfile(null);
           void cacheSession(null);
-          setLoading(false);
+          void resetClientState({ redirect: true });
           return;
         }
 
@@ -268,7 +325,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION') {
+        if (event === 'USER_UPDATED') {
+          applyAuthenticatedSession(session);
+          return;
+        }
+
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
           applyAuthenticatedSession(session);
         }
       }
@@ -560,6 +622,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
 
+  const verifyEmailCode = useCallback(async (email: string, code: string) => {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanCode = code.replace(/\D/g, '');
+
+    if (!cleanEmail) return { error: 'Email tidak boleh kosong.' };
+    if (cleanCode.length !== 6) return { error: 'Kode verifikasi harus 6 digit.' };
+
+    try {
+      const { status, data } = await withTimeout(
+        invokeEdgeFunctionJson('verify-email-code', {
+          email: cleanEmail,
+          code: cleanCode,
+        }),
+        9000,
+        'Verifikasi kode terlalu lama. Periksa koneksi internet lalu coba lagi.'
+      );
+      if (status >= 400) {
+        return { error: String(data?.error || 'Kode verifikasi gagal diproses.') };
+      }
+      localStorage.removeItem('kaffepos_pending_verification');
+      localStorage.setItem('kaffepos_registered_email', cleanEmail);
+      return { error: null };
+    } catch (e: any) {
+      return { error: e?.message || 'Kode verifikasi gagal diproses.' };
+    }
+  }, []);
+
   const emergencyConfirm = useCallback(async (email: string) => {
     try {
       const { error } = await supabase.functions.invoke('confirm-user', {
@@ -601,14 +690,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ─── signOut ─────────────────────────────────────────────────
   const signOut = useCallback(async () => {
     signedOut.current = true;
-    try { const mod = await import('@/hooks/useStore'); mod.useStore.getState().cleanup?.(); } catch { /* ignore */ }
     try {
       localStorage.setItem(EXPLICIT_SIGNOUT_KEY, '1');
     } catch { /* ignore */ }
+    await resetClientState({ preserveKeys: [EXPLICIT_SIGNOUT_KEY] });
     await cacheSession(null);
     try { await supabase.auth.signOut(); } catch { /* ignore */ }
-    if (mounted.current) { setUser(null); setProfile(null); setLoading(false); }
-  }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
+    redirectToLogin(true);
+  }, [resetClientState], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
 
   // ─── resetPassword ───────────────────────────────────────────
   const resetPassword = useCallback(async (email: string) => {
@@ -663,7 +752,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user, profile, isPro,
       isAuthenticated: !!user,
       loading,
-      signIn, signUp, resendVerification, emergencyConfirm, signInWithGoogle,
+      signIn, signUp, resendVerification, verifyEmailCode, emergencyConfirm, signInWithGoogle,
       signOut, resetPassword, refreshProfile,
     }}>
       {children}

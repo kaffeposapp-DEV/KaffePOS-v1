@@ -15,6 +15,7 @@ import { Capacitor } from '@capacitor/core';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/hooks/useStore';
 import { supabase } from '@/lib/supabase';
+import { getStoreCacheKey } from '@/utils/sessionIsolation';
 import { ToastContainer, useToast } from './ui/Toast';
 import DailyOpeningModal, { useNeedsOpeningCash } from './pos/DailyOpeningModal';
 import type { Tab, ToastType } from '@/types';
@@ -38,7 +39,6 @@ const NAV = [
 ] as const;
 
 const LS_LAST_TAB  = 'kpos_last_tab';
-const LS_STORE_ID  = 'kpos_store_id';   // cache storeId → skip query pada launch berikutnya
 const EXPLICIT_SIGNOUT_KEY = 'kaffepos_explicit_signout';
 
 // ── Error boundary ────────────────────────────────────────────────
@@ -80,11 +80,11 @@ function AppLoading({ message }: { message?: string }) {
 }
 
 /** Cache storeId di localStorage */
-function getCachedStoreId(): string | null {
-  try { return localStorage.getItem(LS_STORE_ID); } catch { return null; }
+function getCachedStoreId(userId: string): string | null {
+  try { return localStorage.getItem(getStoreCacheKey(userId)); } catch { return null; }
 }
-function setCachedStoreId(id: string) {
-  try { localStorage.setItem(LS_STORE_ID, id); } catch { /* ignore */ }
+function setCachedStoreId(userId: string, id: string) {
+  try { localStorage.setItem(getStoreCacheKey(userId), id); } catch { /* ignore */ }
 }
 
 export default function AppShell() {
@@ -155,8 +155,9 @@ export default function AppShell() {
     initDone.current = true;
 
     const init = async () => {
-      const cachedId = getCachedStoreId();
       const uid = user?.id || profile?.id;
+      if (!uid) return;
+      const cachedId = uid ? getCachedStoreId(uid) : null;
       try { localStorage.removeItem(EXPLICIT_SIGNOUT_KEY); } catch { /* ignore */ }
 
       if (cachedId) {
@@ -171,7 +172,7 @@ export default function AppShell() {
              console.warn('[AppShell] Cache mismatch or RLS error:', error);
              // Don't reset if it's just a network error
              if (error && !error.message.includes('fetch')) {
-                localStorage.removeItem(LS_STORE_ID);
+                localStorage.removeItem(getStoreCacheKey(uid!));
                 initDone.current = false;
                 if (isMounted.current) setReady(false);
                 setTimeout(init, 500);
@@ -209,7 +210,7 @@ export default function AppShell() {
 
         if (!activeStore?.id) throw new Error('ID toko tidak ditemukan');
 
-        setCachedStoreId(activeStore.id);
+        setCachedStoreId(uid, activeStore.id);
         if (isMounted.current) setReady(true);
         loadAll(activeStore.id).catch(() => {});
 
@@ -226,28 +227,11 @@ export default function AppShell() {
     init();
   }, [user?.id, profile?.id]); // eslint-disable-line
 
-  // Reset saat logout — bersihkan semua state dan cache user-specific
+  // Reset tampilan saat logout; pembersihan cache dilakukan di AuthContext
   useEffect(() => {
     if (!user?.id) {
       initDone.current = false;
       setReady(false);
-      let shouldClear = false;
-      try {
-        shouldClear = localStorage.getItem(EXPLICIT_SIGNOUT_KEY) === '1';
-      } catch { /* ignore */ }
-
-      if (!shouldClear) return;
-
-      // Bersihkan cache yang user-specific hanya jika user memang sign-out sengaja
-      try {
-        const keysToRemove: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i) || '';
-          if (k.startsWith('kpos_') && k !== 'kpos_last_tab') keysToRemove.push(k);
-        }
-        keysToRemove.forEach(k => localStorage.removeItem(k));
-        localStorage.removeItem(EXPLICIT_SIGNOUT_KEY);
-      } catch { /* ignore */ }
     }
   }, [user?.id]);
 

@@ -131,7 +131,7 @@ function getVerificationHtml(name: string, otp: string): string {
       <div class="otp-code">${otp}</div>
     </div>
     
-    <div class="helper-card">Kode ini berlaku selama 10 menit. Jika kamu tidak merasa mendaftar, email ini bisa diabaikan dengan aman.</div>
+    <div class="helper-card">Kode ini berlaku selama 30 menit. Jika kamu tidak merasa mendaftar, email ini bisa diabaikan dengan aman.</div>
   `, `Kode verifikasi KaffePOS kamu: ${otp}`);
 }
 
@@ -335,6 +335,16 @@ serve(async (req: Request) => {
     switch (payload.type) {
       case 'verification': {
         const otp = payload.otp || Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+        const { error: otpStoreError } = await adminClient
+          .from('email_verification_codes')
+          .insert({
+            email: payload.email.trim().toLowerCase(),
+            purpose: 'signup',
+            code: otp,
+            expires_at: expiresAt,
+          });
+        if (otpStoreError) throw otpStoreError;
         html = getVerificationHtml(name, otp);
         subject = `Verifikasi Akun KaffePOS - ${otp}`;
         break;

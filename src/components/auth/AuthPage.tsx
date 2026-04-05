@@ -19,7 +19,7 @@ type Mode = 'login' | 'register' | 'forgot';
 
 
 export default function AuthPage() {
-  const { signIn, signUp, resetPassword, resendVerification, isAuthenticated, emergencyConfirm } = useAuth();
+  const { signIn, signUp, resetPassword, resendVerification, verifyEmailCode, isAuthenticated, emergencyConfirm } = useAuth();
 
   const [mode,       setMode]       = useState<Mode>('login');
   const [email,      setEmail]      = useState('');
@@ -35,6 +35,8 @@ export default function AuthPage() {
   const [registered, setRegistered] = useState(false);  // Real-time Validation Errors
   const [formErrors, setFormErrors] = useState<{ email?: string; pass?: string; uname?: string }>({});
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verifyingCode, setVerifyingCode] = useState(false);
 
   const gCancelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(true);
@@ -154,7 +156,7 @@ export default function AuthPage() {
         if (result.needsVerification) {
           setRegistered(true);
           localStorage.setItem('kaffepos_registered_email', trimmedEmail);
-          setOk('Akun berhasil dibuat! Cek Gmail kamu untuk link verifikasi.');
+          setOk('Akun berhasil dibuat! Kode verifikasi 6 digit sudah dikirim ke email kamu.');
         }
       } else {
         const { error } = await resetPassword(trimmedEmail);
@@ -174,10 +176,13 @@ export default function AuthPage() {
   if (registered) {
     return (
       <div
-        className="min-h-screen bg-slate-50 flex flex-col"
+        className="min-h-screen bg-slate-50 flex flex-col overflow-y-auto"
         style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
       >
-      <div className="flex-1 flex flex-col justify-center px-6 max-w-sm mx-auto w-full py-8 md:py-12">
+      <div
+        className="flex-1 flex flex-col justify-start md:justify-center px-6 max-w-sm mx-auto w-full py-8 md:py-12"
+        style={{ paddingBottom: 'max(32px, env(safe-area-inset-bottom, 16px))' }}
+      >
           {/* Header Konfirmasi — Premium Look */}
           <div className="text-center mb-10">
             <div className="w-24 h-24 bg-orange-100 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 relative">
@@ -185,8 +190,8 @@ export default function AuthPage() {
               <Mail size={56} className="text-orange-600 relative z-10" />
             </div>
             <h2 className="text-3xl font-black text-slate-900 mb-3 font-poppins" id="title-confirm-email">Cek Inbox Kamu</h2>
-            <p className="text-slate-500 text-sm leading-relaxed px-4">
-              Email verifikasi sudah meluncur ke <span className="font-bold text-slate-900">{email}</span>. Klik link di dalamnya untuk mulai jualan.
+              <p className="text-slate-500 text-sm leading-relaxed px-4">
+              Kode verifikasi 6 digit sudah dikirim ke <span className="font-bold text-slate-900">{email}</span>. Masukkan kodenya di bawah ini untuk aktivasi akun.
             </p>
           </div>
 
@@ -207,10 +212,31 @@ export default function AuthPage() {
               </div>
               <div className="text-left flex-1">
                 <p className="text-sm font-black text-slate-900">Buka Gmail</p>
-                <p className="text-[11px] text-slate-400 font-medium italic">Klik tombol "Verifikasi" di dalamnya</p>
+                <p className="text-[11px] text-slate-400 font-medium italic">Salin kode 6 digit dari email verifikasi</p>
               </div>
               <ExternalLink size={18} className="text-slate-300 group-hover:text-orange-400" />
             </button>
+
+            <div className="bg-white border-2 border-orange-100 rounded-3xl p-5 shadow-sm">
+              <label htmlFor="field-verification-code" className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-3">
+                Masukkan Kode Verifikasi
+              </label>
+              <input
+                id="field-verification-code"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="Contoh: 123456"
+                className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl px-4 py-4 text-center text-2xl tracking-[0.5em] font-black text-slate-900 focus:outline-none focus:bg-white focus:border-orange-400"
+                style={{ fontSize: 24 }}
+              />
+              <p className="mt-3 text-[11px] text-slate-400 leading-relaxed">
+                Kode berlaku 30 menit. Jika email belum masuk, gunakan tombol kirim ulang.
+              </p>
+            </div>
 
             {/* Status Display inside Registered View */}
             {err && (
@@ -234,6 +260,53 @@ export default function AuthPage() {
 
           <div className="space-y-3">
             <button
+              id="btn-verify-code"
+              onClick={async () => {
+                setErr(''); setOk('');
+                if (verificationCode.replace(/\D/g, '').length !== 6) {
+                  setErr('Masukkan 6 digit kode verifikasi dari email Anda.');
+                  return;
+                }
+
+                setVerifyingCode(true);
+                try {
+                  const result = await verifyEmailCode(email.trim(), verificationCode);
+                  if (result.error) {
+                    setErr(result.error);
+                    return;
+                  }
+
+                  if (pass.trim()) {
+                    const loginResult = await signIn(email.trim(), pass);
+                    if (loginResult.error) {
+                      if (loginResult.error === 'email_not_confirmed') {
+                        setOk('Kode sudah benar. Akun sedang diproses. Tunggu beberapa detik lalu coba masuk.');
+                      } else {
+                        setOk('Email berhasil diverifikasi. Sekarang silakan masuk ke KaffePOS.');
+                        setMode('login');
+                        setRegistered(false);
+                        localStorage.removeItem('kaffepos_registered_email');
+                      }
+                    }
+                  } else {
+                    setOk('Email berhasil diverifikasi. Sekarang silakan masuk ke KaffePOS.');
+                    setMode('login');
+                    setRegistered(false);
+                    localStorage.removeItem('kaffepos_registered_email');
+                  }
+                } catch (e: any) {
+                  setErr(e?.message || 'Verifikasi kode gagal.');
+                } finally {
+                  setVerifyingCode(false);
+                }
+              }}
+              disabled={verifyingCode}
+              className="w-full py-4 bg-emerald-500 text-white font-black text-base rounded-2xl active:scale-95 disabled:opacity-60 flex items-center justify-center gap-3 shadow-xl shadow-emerald-100"
+            >
+              {verifyingCode ? <RefreshCw size={20} className="animate-spin" /> : <>Verifikasi Kode <ChevronRight size={18} /></>}
+            </button>
+
+            <button
               id="btn-confirm-login"
               onClick={async () => {
                 setErr(''); setOk(''); setConfirming(true);
@@ -250,7 +323,7 @@ export default function AuthPage() {
               disabled={confirming}
               className="w-full py-4 bg-orange-500 text-white font-black text-base rounded-2xl active:scale-95 disabled:opacity-60 flex items-center justify-center gap-3 shadow-xl shadow-orange-100"
             >
-              {confirming ? <RefreshCw size={20} className="animate-spin" /> : <>Saya Sudah Konfirmasi <ChevronRight size={18} /></>}
+              {confirming ? <RefreshCw size={20} className="animate-spin" /> : <>Cek Status Verifikasi <ChevronRight size={18} /></>}
             </button>
 
             <div className="grid grid-cols-2 gap-3 mt-4">
@@ -265,7 +338,7 @@ export default function AuthPage() {
                     if (result.error) {
                       setErr(result.error || 'Gagal mengirim ulang email.');
                     } else {
-                      setOk('Email baru dikirim! Cek inbox/spam.');
+                      setOk('Kode verifikasi baru sudah dikirim. Cek inbox/spam.');
                       setResendCooldown(60);
                     }
                   }}
@@ -287,6 +360,7 @@ export default function AuthPage() {
             <button
               onClick={() => {
                 setRegistered(false);
+                setVerificationCode('');
                 localStorage.removeItem('kaffepos_registered_email');
               }}
               className="w-full py-4 text-slate-400 font-bold text-xs active:scale-95 flex items-center justify-center gap-2"
@@ -297,7 +371,7 @@ export default function AuthPage() {
 
           <div className="mt-12 p-5 bg-white rounded-3xl border border-slate-100 italic">
             <p className="text-[10px] text-slate-400 text-center leading-relaxed">
-              *Jika email tidak ada di Inbox, coba cek folder <strong>SPAM</strong> atau <strong>PROMOSI</strong>.
+              *Jika email tidak ada di Inbox, coba cek folder <strong>SPAM</strong> atau <strong>PROMOSI</strong>. Jika ada beberapa email, gunakan kode terbaru.
             </p>
           </div>
         </div>

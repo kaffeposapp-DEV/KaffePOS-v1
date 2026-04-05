@@ -13,6 +13,7 @@ import { useStore } from '@/hooks/useStore';
 import { usePrinter } from '@/hooks/usePrinter';
 import { printReceiptBrowser, printReceiptClassicBt } from '@/utils/thermalPrinter';
 import { supabase } from '@/lib/supabase';
+import { getStoreSettingsKey } from '@/utils/sessionIsolation';
 import NotificationCenter from './NotificationCenter';
 import {
   createReceiptPrintData,
@@ -32,9 +33,14 @@ const SAFE_COLS = [
   'receipt_custom_line1','receipt_custom_line2',
 ];
 
-const LS_KEY = 'kaffepos_store_settings';
-function saveToLS(data:any) { try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch { /* ignore */ } }
-function loadFromLS():any { try { const r = localStorage.getItem(LS_KEY); return r ? JSON.parse(r) : null; } catch { return null; } }
+function saveToLS(storeId: string | null, data:any) {
+  if (!storeId) return;
+  try { localStorage.setItem(getStoreSettingsKey(storeId), JSON.stringify(data)); } catch { /* ignore */ }
+}
+function loadFromLS(storeId: string | null):any {
+  if (!storeId) return null;
+  try { const r = localStorage.getItem(getStoreSettingsKey(storeId)); return r ? JSON.parse(r) : null; } catch { return null; }
+}
 
 interface InpProps {
   label: string;
@@ -135,7 +141,7 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
   const { storeSettings, saveStoreSettings, storeId } = useStore();
   const printer = usePrinter();
   const [section, setSection]     = useState<Section>('brand');
-  const [form, setForm]           = useState<any>({ ...DEFAULTS, ...(loadFromLS() as any ||{}) });
+  const [form, setForm]           = useState<any>({ ...DEFAULTS, ...(loadFromLS(storeId) as any ||{}) });
   const [previewOpen, setPrev]    = useState(false);
   const [saving, setSaving]       = useState(false);
   const [saveErr, setSaveErr]     = useState('');
@@ -152,9 +158,12 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
     if (storeSettings) {
       const merged = { ...DEFAULTS, ...storeSettings };
       setForm(merged);
-      saveToLS(merged);
+      saveToLS(storeId, merged);
+      return;
     }
-  }, [storeSettings]);
+    const cached = loadFromLS(storeId);
+    if (cached) setForm({ ...DEFAULTS, ...cached });
+  }, [storeSettings, storeId]);
 
   useEffect(() => {
     setKasirName(profile?.display_name || profile?.username || '');
@@ -208,7 +217,7 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
   };
 
   const triggerSave = useCallback((newForm:any) => {
-    saveToLS(newForm);
+    saveToLS(storeId, newForm);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => doSave(newForm), 1000);
   }, [storeId]); // eslint-disable-line react-hooks/exhaustive-deps

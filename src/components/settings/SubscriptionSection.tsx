@@ -13,7 +13,6 @@ import {
   BILLING_CYCLE_LABELS,
   INSTAGRAM_ADMIN_URL,
   RENEWAL_URL,
-  SUBSCRIPTION_PLANS,
   formatDateId,
   formatRupiah,
   getPlanDefinition,
@@ -115,8 +114,6 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
   const daysRemaining = expiryDate ? Math.ceil((expiryDate.getTime() - Date.now()) / 86_400_000) : null;
   const isExpired = currentSubscription?.status === 'expired' || (!!expiryDate && expiryDate.getTime() <= Date.now());
   const expiringSoon = !isExpired && daysRemaining !== null && daysRemaining <= 7;
-  const selectedPlanDef = getPlanDefinition(selectedPlan);
-
   const paidHistory = useMemo(() => paymentHistory.filter((entry) => entry.amount > 0), [paymentHistory]);
 
   const handleRefresh = async () => {
@@ -130,10 +127,6 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
     } finally {
       setRefreshing(false);
     }
-  };
-
-  const openInstagram = () => {
-    window.open(INSTAGRAM_ADMIN_URL, '_blank', 'noopener,noreferrer');
   };
 
   const goToConfirmation = (plan: string, billingCycle: string) => {
