@@ -20,7 +20,7 @@ export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolea
     try {
       const { data, error } = await supabase
         .from('notifications')
-        .select('*')
+        .select('id,title,message,type,is_read,created_at,metadata')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(20);
@@ -48,10 +48,25 @@ export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolea
   useEffect(() => {
     if (!isOpen) return;
     fetchNotifs();
+    if (!user?.id) return;
     // Mark as read after 2 seconds of viewing
     const timer = setTimeout(() => markAllRead(), 2000);
-    return () => clearTimeout(timer);
-  }, [isOpen]);
+    const channel = supabase.channel(`notifications_${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${user.id}`,
+      }, () => {
+        fetchNotifs().catch(() => {});
+      })
+      .subscribe();
+
+    return () => {
+      clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
+  }, [isOpen, user?.id]);
 
   if (!isOpen) return null;
 

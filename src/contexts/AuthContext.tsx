@@ -188,7 +188,6 @@ interface AuthCtx {
   resendVerification: (email: string) => Promise<{ error: string | null }>;
   emergencyConfirm: (email: string) => Promise<{ error: string | null }>;
   refreshProfile: () => Promise<void>;
-  activatePro: (planId: string, licenseKey: string) => Promise<{ error: string | null }>;
 }
 
 const AuthCtx = createContext<AuthCtx | null>(null);
@@ -239,7 +238,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ({ new: n }) => { if (mounted.current) setProfile((p:any) => ({ ...p, ...n })); })
       .subscribe();
     const poll = setInterval(() => {
-      supabase.from('profiles').select('tier,is_pro,pro_plan,pro_expires_at,pro_activated_at')
+      supabase.from('profiles').select('tier,tier_expires_at,is_pro,pro_plan,pro_expires_at,pro_activated_at')
         .eq('id', user.id).single()
         .then(({ data }) => { if (data && mounted.current) setProfile((p:any) => p ? { ...p, ...data } : p); });
     }, 30_000);
@@ -648,51 +647,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
 
-  // ─── activatePro ─────────────────────────────────────────────
-  const activatePro = useCallback(async (planId: string, licenseKey: string) => {
-    if (!user?.id) return { error: 'Belum login. Silakan login terlebih dahulu.' };
-    try {
-      const { data: keyRow, error: keyErr } = await supabase
-        .from('lisensi_key').select('*').eq('key', licenseKey).maybeSingle();
-      if (keyErr && keyErr.code !== 'PGRST116') console.warn('lisensi_key error:', keyErr.message);
-      else if (keyRow) {
-        if (keyRow.is_used) return { error: 'Kode lisensi sudah pernah digunakan.' };
-        if (keyRow.expires_at && new Date(keyRow.expires_at) < new Date())
-          return { error: 'Kode lisensi sudah kadaluarsa. Hubungi admin.' };
-        if (keyRow.plan) planId = keyRow.plan;
-      } else if (keyErr?.code !== 'PGRST116') {
-        return { error: 'Kode lisensi tidak valid. Periksa kembali kode dari admin.' };
-      }
-      const expiresAt = new Date();
-      if (planId === 'yearly') expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-      else if (planId === 'lifetime') expiresAt.setFullYear(expiresAt.getFullYear() + 99);
-      else expiresAt.setMonth(expiresAt.getMonth() + 1);
-      const { error: profileErr } = await supabase.from('profiles').update({
-        tier: 'pro', is_pro: true, pro_plan: planId, pro_order_id: licenseKey,
-        pro_activated_at: new Date().toISOString(), pro_expires_at: expiresAt.toISOString(),
-      }).eq('id', user.id);
-      if (profileErr) return { error: `Gagal aktivasi: ${profileErr.message}` };
-      if (keyRow) {
-        await supabase.from('lisensi_key').update({
-          is_used: true, used_by: user.id, used_at: new Date().toISOString(),
-        }).eq('key', licenseKey);
-      }
-      if (mounted.current) {
-        setProfile((p:any) => p ? { ...p, tier: 'pro', is_pro: true, pro_plan: planId,
-          pro_activated_at: new Date().toISOString(), pro_expires_at: expiresAt.toISOString() } : p);
-      }
-      return { error: null };
-    } catch (e:any) { return { error: (e as Error)?.message || 'Terjadi kesalahan. Coba lagi.' }; }
-  }, [user?.id]);
-
   const isPro = (() => {
     const p = profile;
     if (!p) return false;
     const hasPro = p.tier === 'pro' || !!p.is_pro;
     if (!hasPro) return false;
     if (p.pro_plan === 'lifetime') return true;
-    if (!p.pro_expires_at) return true;
-    return new Date(p.pro_expires_at) > new Date();
+    const expiresAt = p.pro_expires_at || p.tier_expires_at;
+    if (!expiresAt) return true;
+    return new Date(expiresAt) > new Date();
   })();
 
   return (
@@ -701,7 +664,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: !!user,
       loading,
       signIn, signUp, resendVerification, emergencyConfirm, signInWithGoogle,
-      signOut, resetPassword, refreshProfile, activatePro,
+      signOut, resetPassword, refreshProfile,
     }}>
       {children}
     </AuthCtx.Provider>

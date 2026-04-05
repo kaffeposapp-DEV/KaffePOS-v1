@@ -18,7 +18,7 @@ vi.mock('@/lib/supabase', () => ({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       single: vi.fn().mockResolvedValue({ 
-        data: { tier: 'pro', is_pro: true, pro_plan: 'monthly', pro_expires_at: new Date(Date.now() + 86400000).toISOString() }, 
+        data: { tier: 'pro', is_pro: true, pro_plan: 'kopi_susu', pro_expires_at: new Date(Date.now() + 86400000).toISOString() }, 
         error: null 
       }),
       maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -34,37 +34,13 @@ describe('Subscription Service', () => {
     subscriptionManager.clearCache();
   });
 
-  it('validateLicenseKey format salah -> error', async () => {
-    const res = await subscriptionManager.validateAndActivateLicense('');
-    expect(res.success).toBe(false);
-    expect(res.message).toBe('Kode lisensi minimal 10 karakter');
-  });
-
-  it('validateLicenseKey valid -> aktivasi berhasil', async () => {
-    // Mock valid license check
-    (supabase.from as any).mockImplementationOnce(() => ({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      maybeSingle: vi.fn().mockResolvedValue({ 
-        data: { key: 'VALID_KEY_123', is_used: false, plan: 'monthly' }, 
-        error: null 
-      }),
-    })).mockImplementationOnce(() => ({ // mock profile update
-      update: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockResolvedValue({ error: null }),
-    }));
-
-    const res = await subscriptionManager.validateAndActivateLicense('VALID_KEY_123');
-    expect(res.success).toBe(true);
-  });
-
-  it('incrementTransaction freemium -> blocked setelah 50', async () => {
-    // Mock freemium profile
+  it('incrementTransaction secangkir -> blocked setelah 50', async () => {
+    // Mock free profile
     (supabase.from as any).mockImplementation(() => ({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       single: vi.fn().mockResolvedValue({ 
-        data: { tier: 'freemium', is_pro: false }, 
+        data: { tier: 'basic', is_pro: false, pro_plan: 'secangkir' }, 
         error: null 
       }),
     }));
@@ -85,7 +61,7 @@ describe('Subscription Service', () => {
         data: { 
           tier: 'pro', 
           is_pro: true, 
-          pro_plan: 'monthly',
+          pro_plan: 'kopi_susu',
           pro_expires_at: new Date(Date.now() + 86400000).toISOString()
         }, 
         error: null 
@@ -93,7 +69,7 @@ describe('Subscription Service', () => {
     }));
 
     const status = await subscriptionManager.getStatus(true);
-    expect(status.plan).toBe('monthly');
+    expect(status.plan).toBe('kopi_susu');
     expect(subscriptionManager.isPro()).toBe(true);
   });
 });

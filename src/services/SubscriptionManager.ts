@@ -8,9 +8,7 @@
 // Device-based subscription dengan Supabase sync + offline fallback
 
 import { supabase } from '@/lib/supabase';
-import { licenseSchema } from '@/utils/validation';
-
-export type PlanType = 'freemium' | 'monthly' | 'pro' | 'yearly' | 'lifetime' | 'enterprise';
+export type PlanType = 'secangkir' | 'kopi_susu' | 'signature' | 'founder';
 
 export interface SubscriptionStatus {
   plan:             PlanType;
@@ -87,7 +85,7 @@ function resetMonthlyTxCount(): void {
 // ── Default status ────────────────────────────────────────────────
 function defaultStatus(): SubscriptionStatus {
   return {
-    plan: 'freemium',
+    plan: 'secangkir',
     isActive: true,
     expiryDate: null,
     transactionCount: getMonthlyTxCount(),
@@ -148,7 +146,7 @@ class SubscriptionManagerClass {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('tier, is_pro, pro_plan, pro_expires_at, pro_activated_at')
+      .select('tier, tier_expires_at, is_pro, pro_plan, pro_expires_at, pro_activated_at')
       .eq('id', user.id)
       .single();
 
@@ -157,7 +155,7 @@ class SubscriptionManagerClass {
     const hasPro = profile.tier === 'pro' || !!profile.is_pro;
     if (!hasPro) {
       return {
-        plan: 'freemium',
+        plan: 'secangkir',
         isActive: true,
         expiryDate: null,
         transactionCount: getMonthlyTxCount(),
@@ -166,12 +164,13 @@ class SubscriptionManagerClass {
       };
     }
 
-    const planType = (profile.pro_plan as PlanType) || 'lifetime';
+    const planType = (profile.pro_plan as PlanType) || 'founder';
     let expiryDate: Date | null = null;
     let daysRemaining: number | null = null;
 
-    if (planType !== 'lifetime' && profile.pro_expires_at) {
-      expiryDate = new Date(profile.pro_expires_at);
+    const resolvedExpiry = profile.pro_expires_at || profile.tier_expires_at;
+    if (resolvedExpiry) {
+      expiryDate = new Date(resolvedExpiry);
       daysRemaining = Math.ceil((expiryDate.getTime() - Date.now()) / 86_400_000);
       if (daysRemaining <= 0) {
         return defaultStatus(); // expired → freemium
@@ -186,78 +185,6 @@ class SubscriptionManagerClass {
       transactionLimit: -1, // unlimited
       daysRemaining,
     };
-  }
-
-  async validateAndActivateLicense(licenseKey: string): Promise<{
-    success: boolean;
-    message: string;
-    plan?: PlanType;
-  }> {
-    // ── Input Sanitization ──
-    const validation = licenseSchema.safeParse({ licenseKey });
-    if (!validation.success) {
-      return { success: false, message: validation.error.issues[0].message };
-    }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, message: 'Belum login. Silakan login terlebih dahulu.' };
-
-    try {
-      const { data: keyRow, error: keyErr } = await supabase
-        .from('lisensi_key')
-        .select('*')
-        .eq('key', licenseKey)
-        .maybeSingle();
-
-      if (keyErr && keyErr.code !== 'PGRST116') {
-        throw keyErr;
-      }
-
-      if (!keyRow) return { success: false, message: 'Kode lisensi tidak ditemukan.' };
-      if (keyRow.is_used) return { success: false, message: 'Kode lisensi sudah pernah digunakan.' };
-      if (keyRow.expires_at && new Date(keyRow.expires_at) < new Date()) {
-        return { success: false, message: 'Kode lisensi sudah kadaluarsa.' };
-      }
-
-      const planId: PlanType = (keyRow.plan as PlanType) || 'monthly';
-      const expiresAt = new Date();
-      if (planId === 'yearly')        expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-      else if (planId === 'lifetime') expiresAt.setFullYear(expiresAt.getFullYear() + 99);
-      else                            expiresAt.setMonth(expiresAt.getMonth() + 1);
-
-      const { error: updateErr } = await supabase.from('profiles').update({
-        tier: 'pro', is_pro: true,
-        pro_plan: planId,
-        pro_order_id: licenseKey,
-        pro_activated_at: new Date().toISOString(),
-        pro_expires_at: expiresAt.toISOString(),
-      }).eq('id', user.id);
-
-      if (updateErr) throw updateErr;
-
-      await supabase.from('lisensi_key').update({
-        is_used: true, used_by: user.id, used_at: new Date().toISOString(),
-      }).eq('key', licenseKey);
-
-      this.cachedStatus = null;
-      await this.getStatus(true);
-
-      const expStr = planId === 'lifetime' ? 'Seumur hidup' :
-        expiresAt.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-
-      const successMsg = `🎉 Paket ${planId.toUpperCase()} aktif hingga ${expStr}!`;
-      import('@/utils/toast').then(m => m.showToast(successMsg, 'success'));
-
-      return {
-        success: true,
-        message: successMsg,
-        plan: planId,
-      };
-    } catch (e:any) {
-      const msg = e instanceof Error ? e.message : 'Terjadi kesalahan.';
-      import('@/utils/toast').then(m => m.showToast(msg, 'error'));
-      return { success: false, message: msg };
-    }
   }
 
   async checkTransactionAllowed(): Promise<{ allowed: boolean; remaining: number | null }> {
@@ -279,7 +206,7 @@ class SubscriptionManagerClass {
   isPro(): boolean {
     const s = this.cachedStatus;
     if (!s) return false;
-    return s.plan !== 'freemium' && s.isActive;
+    return s.plan !== 'secangkir' && s.isActive;
   }
 
   clearCache(): void {

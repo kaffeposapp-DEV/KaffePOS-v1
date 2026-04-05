@@ -4,410 +4,361 @@
 /* eslint-disable react-refresh/only-export-components */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// src/components/settings/SubscriptionSection.tsx
-import { useState } from 'react';
-import { Check, X, Crown, Zap, Key, ChevronRight, Lock, Sparkles, MessageCircle, RefreshCw } from 'lucide-react';
-
-const INSTAGRAM_URL = 'https://instagram.com/kaffepos';
+import { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Check, ChevronRight, ExternalLink, History, Instagram, Shield } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
+import {
+  BILLING_CYCLE_LABELS,
+  INSTAGRAM_ADMIN_URL,
+  RENEWAL_URL,
+  SUBSCRIPTION_PLANS,
+  formatDateId,
+  formatRupiah,
+  getPlanDefinition,
+  getPlanPrice,
+} from '@/lib/subscriptionPlans';
+import { isAdminEmail } from '@/lib/admin';
 
 interface SubscriptionSectionProps {
-  isPro:   boolean;
-  profile:any;
-  toast:   any;
-  onActivateLicense:  (key: string) => Promise<{ error: string | null }>;
-  onRefreshStatus:    () => Promise<void>;
+  isPro: boolean;
+  profile: any;
+  toast: any;
+  onRefreshStatus: () => Promise<void>;
 }
 
-const FEATURE_COMPARISON = [
-  { label: 'POS Kasir',                basic: true,  pro: true  },
-  { label: 'Manajemen menu',           basic: true,  pro: true  },
-  { label: 'Riwayat transaksi',        basic: true,  pro: true  },
-  { label: 'Gudang & stok bahan',      basic: true,  pro: true  },
-  { label: 'Laporan harian',           basic: true,  pro: true  },
-  { label: 'Cetak via browser/WiFi',   basic: true,  pro: true  },
-  { label: 'Thermal printer BT & USB', basic: false, pro: true  },
-  { label: 'Export PDF & Excel',       basic: false, pro: true  },
-  { label: 'Laporan mingguan/bulanan', basic: false, pro: true  },
-  { label: 'Multi kasir / pengguna',   basic: false, pro: true  },
-  { label: 'AI Insight penjualan',     basic: false, pro: true  },
-  { label: 'Logo & branding struk',    basic: false, pro: true  },
-  { label: 'Backup data otomatis',     basic: false, pro: true  },
-  { label: 'Prioritas support Instagram', basic: false, pro: true  },
+type SubscriptionRow = {
+  id: string;
+  plan: string;
+  billing_cycle: string;
+  status: string;
+  activated_at: string;
+  expires_at: string | null;
+  payment_amount: number | null;
+};
+
+type PaymentHistoryRow = {
+  id: string;
+  plan: string;
+  billing_cycle: string;
+  amount: number;
+  payment_method: string;
+  paid_at: string;
+  status: string;
+  payment_note: string | null;
+};
+
+const DEFAULT_SELECTIONS = [
+  { plan: 'secangkir', billingCycle: 'free' },
+  { plan: 'kopi_susu', billingCycle: 'monthly' },
+  { plan: 'signature', billingCycle: 'quarterly' },
+  { plan: 'founder', billingCycle: 'yearly' },
 ];
 
-const PLANS = [
-  {
-    id:       'monthly',
-    name:     'Bulanan',
-    price:    'Rp 49.000',
-    per:      '/bulan',
-    badge:    '',
-    gradient: 'linear-gradient(135deg,#475569,#1e293b)',
-  },
-  {
-    id:       'yearly',
-    name:     'Tahunan',
-    price:    'Rp 399.000',
-    per:      '/tahun',
-    badge:    'HEMAT 32%',
-    gradient: 'linear-gradient(135deg,#f97316,#f59e0b)',
-  },
-  {
-    id:       'lifetime',
-    name:     'Seumur Hidup',
-    price:    'Rp 899.000',
-    per:      'sekali bayar',
-    badge:    'TERBAIK',
-    gradient: 'linear-gradient(135deg,#7c3aed,#4f46e5)',
-  },
-];
+export default function SubscriptionSection({ isPro, profile, toast, onRefreshStatus }: SubscriptionSectionProps) {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [currentSubscription, setCurrentSubscription] = useState<SubscriptionRow | null>(null);
+  const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryRow[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState('signature');
+  const [selectedCycle, setSelectedCycle] = useState('quarterly');
 
-export default function SubscriptionSection({ isPro, profile, toast, onActivateLicense, onRefreshStatus }: SubscriptionSectionProps) {
-  const [licKey,       setLicKey]       = useState('');
-  const [licLoading,   setLicLoading]   = useState(false);
-  const [showLicForm,  setShowLicForm]  = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState('yearly');
-  const [refreshing,   setRefreshing]   = useState(false);
+  const loadSubscriptionData = async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    try {
+      const [{ data: subscriptions }, { data: history }] = await Promise.all([
+        supabase
+          .from('subscriptions')
+          .select('id,plan,billing_cycle,status,activated_at,expires_at,payment_amount')
+          .eq('user_id', user.id)
+          .order('activated_at', { ascending: false })
+          .limit(20),
+        supabase
+          .from('payment_history')
+          .select('id,plan,billing_cycle,amount,payment_method,paid_at,status,payment_note')
+          .eq('user_id', user.id)
+          .order('paid_at', { ascending: false })
+          .limit(20),
+      ]);
+
+      setCurrentSubscription((subscriptions || [])[0] || null);
+      setPaymentHistory(history || []);
+    } catch {
+      toast.showToast('Gagal memuat data langganan.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSubscriptionData();
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`subscription-settings-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions', filter: `user_id=eq.${user.id}` }, loadSubscriptionData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_history', filter: `user_id=eq.${user.id}` }, loadSubscriptionData)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id]);
+
+  const resolvedPlan = getPlanDefinition(currentSubscription?.plan || profile?.pro_plan || 'secangkir');
+  const resolvedCycle = currentSubscription?.billing_cycle || (resolvedPlan.isFree ? 'free' : 'monthly');
+  const expiryDate = currentSubscription?.expires_at ? new Date(currentSubscription.expires_at) : null;
+  const daysRemaining = expiryDate ? Math.ceil((expiryDate.getTime() - Date.now()) / 86_400_000) : null;
+  const isExpired = currentSubscription?.status === 'expired' || (!!expiryDate && expiryDate.getTime() <= Date.now());
+  const expiringSoon = !isExpired && daysRemaining !== null && daysRemaining <= 7;
+  const selectedPlanDef = getPlanDefinition(selectedPlan);
+
+  const paidHistory = useMemo(() => paymentHistory.filter((entry) => entry.amount > 0), [paymentHistory]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
       await onRefreshStatus();
-      toast.showToast('Status berhasil diperbarui!', 'success');
+      await loadSubscriptionData();
+      toast.showToast('Data langganan berhasil diperbarui.', 'success');
     } catch {
-      toast.showToast('Gagal cek status', 'error');
-    } finally { setRefreshing(false); }
-  };
-
-  const openInstagram = (_planName: string, _planPrice: string) => {
-    window.open(INSTAGRAM_URL, '_system');
-  };
-
-  const handleActivate = async () => {
-    const key = licKey.trim().toUpperCase();
-    if (!key) { toast.showToast('Masukkan kode lisensi', 'warning'); return; }
-    setLicLoading(true);
-    try {
-      const result = await onActivateLicense(key);
-      if (result.error) {
-        toast.showToast(result.error, 'error');
-      } else {
-        toast.showToast('🎉 PRO berhasil diaktifkan! Selamat!', 'success');
-        setLicKey('');
-        setShowLicForm(false);
-      }
-    } catch (e:any) {
-      toast.showToast(e?.message || 'Gagal aktivasi', 'error');
-    } finally { setLicLoading(false); }
-  };
-
-  // ── Helper: hitung info plan ─────────────────────────────────
-  const getPlanInfo = () => {
-    const plan = profile?.pro_plan || 'lifetime';
-    const exp  = profile?.pro_expires_at ? new Date(profile.pro_expires_at) : null;
-    const now  = new Date();
-    const planLabel = plan === 'monthly' ? 'Bulanan' : plan === 'yearly' ? 'Tahunan' : 'Seumur Hidup';
-    const planEmoji = plan === 'monthly' ? '📅' : plan === 'yearly' ? '📆' : '♾️';
-
-    if (plan === 'lifetime' || !exp) {
-      return { planLabel, planEmoji, daysLeft: null, isExpired: false, expDate: null };
+      toast.showToast('Gagal memperbarui data langganan.', 'error');
+    } finally {
+      setRefreshing(false);
     }
-    const daysLeft   = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    const isExpired  = daysLeft <= 0;
-    const expDate    = exp.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-    return { planLabel, planEmoji, daysLeft, isExpired, expDate };
   };
 
-  // ── PRO AKTIF ────────────────────────────────────────────────
-  if (isPro) {
-    const { planLabel, planEmoji, daysLeft, isExpired, expDate } = getPlanInfo();
-    return (
-      <div className="space-y-4">
-        {/* Status card PRO */}
-        <div className="rounded-3xl overflow-hidden"
-          style={{ background: isExpired
-            ? 'linear-gradient(135deg,#64748b,#475569)'
-            : 'linear-gradient(135deg,#f97316 0%,#f59e0b 50%,#eab308 100%)' }}>
-          <div className="p-5">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
-                  <Crown size={26} className="text-white" />
-                </div>
-                <div>
-                  <p className="text-white font-black text-xl">KaffePOS PRO</p>
-                  <p className="text-white/80 text-xs">
-                    {planEmoji} Paket {planLabel} {isExpired ? '— Expired' : '✅'}
-                  </p>
-                </div>
-              </div>
-              {/* Tombol refresh */}
-              <button onClick={handleRefresh} disabled={refreshing}
-                className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center active:scale-95">
-                <RefreshCw size={15} className={`text-white ${refreshing ? 'animate-spin' : ''}`} />
-              </button>
+  const openInstagram = () => {
+    window.open(INSTAGRAM_ADMIN_URL, '_blank', 'noopener,noreferrer');
+  };
+
+  const goToConfirmation = (plan: string, billingCycle: string) => {
+    navigate(`/plan-confirmation?plan=${plan}&billingCycle=${billingCycle}`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="p-5" style={{ background: resolvedPlan.gradient }}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-white/70">Langganan Saat Ini</p>
+              <h3 className="mt-2 text-2xl font-black text-white">{resolvedPlan.name}</h3>
+              <p className="mt-1 text-sm text-white/80">
+                {BILLING_CYCLE_LABELS[(resolvedCycle as keyof typeof BILLING_CYCLE_LABELS) || 'monthly']} · {currentSubscription?.status === 'cancelled' ? 'Dibatalkan' : isExpired ? 'Expired' : 'Aktif'}
+              </p>
             </div>
 
-            {/* Info expiry */}
-            {daysLeft !== null ? (
-              <div className="bg-white/20 rounded-2xl px-4 py-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-white/80 text-xs font-bold">
-                    {isExpired ? '⚠ Berakhir pada' : 'Aktif hingga'}
-                  </span>
-                  <span className="text-white font-black text-sm">{expDate}</span>
-                </div>
-                {!isExpired && (
-                  <>
-                    {/* Progress bar sisa waktu */}
-                    <div className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
-                      {(() => {
-                        const total = profile?.pro_plan === 'monthly' ? 30 : 365;
-                        const pct   = Math.max(5, Math.min(100, (daysLeft / total) * 100));
-                        return <div className="h-full bg-white rounded-full" style={{ width: `${pct}%` }} />;
-                      })()}
-                    </div>
-                    <p className="text-white/70 text-[11px] text-center">
-                      {daysLeft} hari lagi tersisa
-                    </p>
-                  </>
-                )}
-                {isExpired && (
-                  <p className="text-white/80 text-xs text-center">
-                    Butuh bantuan? Hubungi kami di Instagram @kaffepos
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="bg-white/20 rounded-2xl px-4 py-2.5 flex items-center justify-center gap-2">
-                <span className="text-white font-black text-sm">♾️ Aktif Selamanya</span>
-              </div>
-            )}
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="rounded-2xl border border-white/20 bg-white/15 px-4 py-2 text-xs font-black text-white backdrop-blur disabled:opacity-60"
+            >
+              {refreshing ? 'Memuat...' : 'Refresh'}
+            </button>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl bg-white/15 p-4 backdrop-blur">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-white/70">Status Paket</p>
+              <p className="mt-2 text-sm font-bold text-white">
+                {resolvedPlan.isFree ? 'Gratis aktif otomatis' : isPro ? 'Paket berbayar aktif' : 'Belum aktif'}
+              </p>
+              <p className="mt-1 text-xs text-white/75">{resolvedPlan.description}</p>
+            </div>
+            <div className="rounded-2xl bg-white/15 p-4 backdrop-blur">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-white/70">Tanggal Berakhir</p>
+              <p className="mt-2 text-sm font-bold text-white">{expiryDate ? formatDateId(expiryDate) : 'Tidak ada batas waktu'}</p>
+              <p className="mt-1 text-xs text-white/75">
+                {expiryDate ? `${Math.max(daysRemaining || 0, 0)} hari tersisa` : 'Paket gratis selalu aktif'}
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Fitur aktif */}
-        <div className="bg-white rounded-2xl border border-slate-100 p-4">
-          <p className="text-xs font-black text-slate-400 mb-3">FITUR AKTIF</p>
-          <div className="grid grid-cols-1 gap-2">
-            {FEATURE_COMPARISON.filter(f => f.pro).map((f, i) => (
-              <div key={i} className="flex items-center gap-2.5">
-                <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center shrink-0">
-                  <Check size={11} className="text-green-600" strokeWidth={3} />
+        <div className="space-y-3 p-5">
+          {expiringSoon && (
+            <div className="rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-bold text-orange-700">
+              Langganan kamu hampir habis!
+            </div>
+          )}
+
+          {isExpired && (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+              Langganan habis. Chat @kaffepos untuk perpanjang.
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <a
+              href={INSTAGRAM_ADMIN_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white"
+            >
+              <Instagram size={16} />
+              Perpanjang / Upgrade
+            </a>
+            <button
+              onClick={() => setShowHistory((value) => !value)}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600"
+            >
+              <History size={16} />
+              Lihat Riwayat Pembayaran
+            </button>
+          </div>
+
+          {isAdminEmail(profile?.email) && (
+            <button
+              onClick={() => navigate('/admin')}
+              className="inline-flex items-center gap-2 text-xs font-bold text-slate-400"
+            >
+              <Shield size={14} />
+              Buka panel admin internal
+            </button>
+          )}
+        </div>
+      </div>
+
+      {showHistory && (
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Riwayat Pembayaran</p>
+              <p className="mt-1 text-sm text-slate-500">Daftar pembayaran yang sudah tercatat di akunmu.</p>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+              {paidHistory.length} transaksi
+            </span>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {paidHistory.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500">
+                Belum ada pembayaran yang tercatat.
+              </div>
+            )}
+
+            {paidHistory.map((entry) => {
+              const plan = getPlanDefinition(entry.plan);
+              return (
+                <div key={entry.id} className="rounded-2xl border border-slate-100 px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-slate-800">{plan.name}</p>
+                      <p className="text-xs text-slate-500">
+                        {BILLING_CYCLE_LABELS[(entry.billing_cycle as keyof typeof BILLING_CYCLE_LABELS) || 'monthly']} · {formatDateId(entry.paid_at)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-black text-slate-900">{formatRupiah(entry.amount)}</p>
+                      <p className="text-xs uppercase tracking-[0.15em] text-emerald-600">{entry.status}</p>
+                    </div>
+                  </div>
+                  {entry.payment_note && (
+                    <p className="mt-2 text-xs text-slate-500">{entry.payment_note}</p>
+                  )}
                 </div>
-                <span className="text-sm text-slate-700">{f.label}</span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Pilih Paket</p>
+            <p className="mt-1 text-sm text-slate-500">Semua paket berbayar diaktifkan manual oleh admin setelah pembayaran terkonfirmasi.</p>
+          </div>
+          {loading && <span className="text-xs font-bold text-slate-400">Memuat...</span>}
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {DEFAULT_SELECTIONS.map(({ plan, billingCycle }) => {
+            const planDef = getPlanDefinition(plan);
+            const active = selectedPlan === plan && selectedCycle === billingCycle;
+            return (
+              <button
+                key={`${plan}-${billingCycle}`}
+                onClick={() => {
+                  setSelectedPlan(plan);
+                  setSelectedCycle(billingCycle);
+                }}
+                className={`rounded-3xl border p-4 text-left transition ${active ? 'border-slate-900 shadow-sm' : 'border-slate-200'}`}
+              >
+                <div className="rounded-2xl p-4" style={{ background: planDef.gradient }}>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-white/70">{planDef.badge}</p>
+                  <p className="mt-2 text-xl font-black text-white">{planDef.name}</p>
+                  <p className="mt-1 text-sm text-white/80">{formatRupiah(getPlanPrice(plan, billingCycle))}</p>
+                  <p className="mt-1 text-xs text-white/70">{BILLING_CYCLE_LABELS[billingCycle as keyof typeof BILLING_CYCLE_LABELS]}</p>
+                </div>
+                <div className="mt-3 flex items-center justify-between">
+                  <p className="text-sm font-bold text-slate-700">{planDef.description}</p>
+                  {active && <Check size={16} className="text-emerald-500" />}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          Mau unlock fitur ini? Tinggal chat admin kami. Aktivasi maksimal 1x24 jam setelah transfer dikonfirmasi.
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <button
+            onClick={() => goToConfirmation(selectedPlan, selectedCycle)}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white"
+          >
+            Lihat Konfirmasi Paket
+            <ChevronRight size={16} />
+          </button>
+          <a
+            href={INSTAGRAM_ADMIN_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600"
+          >
+            <ExternalLink size={16} />
+            Chat Admin untuk Upgrade
+          </a>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Cara Berlangganan</p>
+          <div className="mt-3 space-y-2">
+            {[
+              'Pilih paket yang paling cocok untuk kebutuhan tokomu.',
+              'Klik tombol konfirmasi paket atau langsung chat admin di Instagram.',
+              'Transfer sesuai nominal yang diberikan admin.',
+              'Kirim bukti transfer, lalu tunggu aktivasi maksimal 1x24 jam.',
+            ].map((step, index) => (
+              <div key={step} className="flex items-start gap-3 text-sm text-slate-600">
+                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-black text-white">
+                  {index + 1}
+                </span>
+                <span>{step}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Perpanjang / kode baru */}
-        <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4">
-          <p className="text-orange-700 text-xs font-bold mb-1">
-            {isExpired ? '⏰ Langganan expired — perpanjang sekarang' : '🔑 Perpanjang atau punya kode baru?'}
-          </p>
-          <div className="flex gap-2 mt-2">
-            <button
-              onClick={() => openInstagram('Perpanjang PRO', '-')}
-              className="flex-1 py-2.5 bg-gradient-to-r from-pink-500 to-orange-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 active:scale-95">
-              <MessageCircle size={13} />Instagram
-            </button>
-            <button
-              onClick={() => setShowLicForm(!showLicForm)}
-              className="flex-1 py-2.5 border-2 border-orange-300 text-orange-600 text-xs font-bold rounded-xl active:scale-95">
-              Input Kode Lisensi
-            </button>
-          </div>
-          {showLicForm && (
-            <div className="mt-3 space-y-2">
-              <input value={licKey} onChange={e => setLicKey(e.target.value.toUpperCase())}
-                placeholder="KAFFE-PRO-XXXX-XXXX"
-                className="w-full border border-orange-200 rounded-xl px-4 py-2.5 text-sm font-mono tracking-widest focus:outline-none bg-white"
-                style={{ fontSize: 14 }} />
-              <button onClick={handleActivate} disabled={licLoading || !licKey}
-                className="w-full py-2.5 bg-orange-500 text-white font-bold rounded-xl text-sm active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
-                {licLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                {licLoading ? 'Mengaktifkan...' : 'Aktifkan Kode'}
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ── BASIC (belum PRO) ────────────────────────────────────────
-  const selected = PLANS.find(p => p.id === selectedPlan)!;
-
-  return (
-    <div className="space-y-4">
-      {/* Status BASIC */}
-      <div className="bg-slate-100 border-2 border-slate-200 rounded-3xl p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-slate-200 rounded-xl flex items-center justify-center shrink-0">
-              <Zap size={18} className="text-slate-500" />
-            </div>
-            <div>
-              <p className="font-black text-slate-700">Tier BASIC — Gratis</p>
-              <p className="text-slate-400 text-xs">Upgrade untuk fitur lengkap</p>
-            </div>
-          </div>
-          {/* Tombol cek status — untuk user yang sudah bayar */}
-          <button onClick={handleRefresh} disabled={refreshing}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 active:scale-95 disabled:opacity-50 shrink-0">
-            <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
-            {refreshing ? 'Cek...' : 'Cek Status'}
-          </button>
-        </div>
-        {/* Hint */}
-        <p className="text-[10px] text-slate-400 mt-2.5 pl-1">
-          💡 Sudah bayar? Tap "Cek Status" — PRO akan aktif seketika
-        </p>
-      </div>
-
-      {/* Banner PRO */}
-      <div className="rounded-3xl overflow-hidden"
-        style={{ background: 'linear-gradient(135deg,#1e293b 0%,#334155 100%)' }}>
-        <div className="p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <Sparkles size={14} className="text-amber-400" />
-            <p className="text-amber-400 text-[11px] font-black tracking-wider">UPGRADE KE PRO</p>
-          </div>
-          <p className="text-white font-black text-xl leading-tight mb-1">
-            Buka Semua Fitur<br/>Tanpa Batasan
-          </p>
-          <p className="text-slate-400 text-xs">
-            Thermal printer BT/USB · Laporan lengkap · Multi kasir
-          </p>
-        </div>
-      </div>
-
-      {/* Perbandingan fitur */}
-      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-        <div className="grid grid-cols-3 bg-slate-50 border-b border-slate-100">
-          <div className="p-3"><p className="text-[11px] font-black text-slate-400">FITUR</p></div>
-          <div className="p-3 border-x border-slate-100 text-center"><p className="text-[11px] font-black text-slate-500">BASIC</p></div>
-          <div className="p-3 text-center"><p className="text-[11px] font-black text-orange-500">PRO ⭐</p></div>
-        </div>
-        {FEATURE_COMPARISON.map((f, i) => (
-          <div key={i} className={`grid grid-cols-3 border-b border-slate-50 last:border-0 ${!f.basic ? 'bg-orange-50/20' : ''}`}>
-            <div className="p-3 flex items-center">
-              <p className="text-[11px] text-slate-600 font-medium leading-tight">{f.label}</p>
-            </div>
-            <div className="p-3 border-x border-slate-100 flex items-center justify-center">
-              {f.basic
-                ? <Check size={13} className="text-green-500" strokeWidth={3} />
-                : <X size={13} className="text-slate-200" strokeWidth={3} />}
-            </div>
-            <div className="p-3 flex items-center justify-center">
-              <Check size={13} className="text-orange-500" strokeWidth={3} />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Pilih paket — scroll horizontal */}
-      <div>
-        <p className="text-[11px] font-black text-slate-400 mb-2.5">PILIH PAKET</p>
-        <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-          {PLANS.map(plan => (
-            <button key={plan.id}
-              onClick={() => setSelectedPlan(plan.id)}
-              className={`shrink-0 w-38 rounded-2xl overflow-hidden transition-all active:scale-95 ${
-                selectedPlan === plan.id
-                  ? 'ring-2 ring-orange-400 ring-offset-2 shadow-lg'
-                  : 'opacity-75'
-              }`}
-              style={{ width: 148 }}>
-              <div style={{ background: plan.gradient }} className="p-4">
-                {plan.badge && (
-                  <span className="text-[10px] font-black bg-white/25 text-white px-2 py-0.5 rounded-full mb-2 inline-block">
-                    {plan.badge}
-                  </span>
-                )}
-                <p className="text-white font-black text-lg leading-tight">{plan.price}</p>
-                <p className="text-white/70 text-[10px]">{plan.per}</p>
-              </div>
-              <div className="bg-white p-3 flex items-center justify-between">
-                <p className="font-black text-slate-700 text-sm">{plan.name}</p>
-                <div className={`w-4 h-4 rounded-full flex items-center justify-center border-2 ${
-                  selectedPlan === plan.id ? 'bg-orange-500 border-orange-500' : 'border-slate-200'
-                }`}>
-                  {selectedPlan === plan.id && <Check size={9} className="text-white" strokeWidth={3} />}
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Tombol upgrade via Instagram */}
-      <button
-        onClick={() => openInstagram(selected.name, selected.price)}
-        className="w-full py-4 rounded-2xl font-black text-white text-base active:scale-95 flex items-center justify-center gap-2.5 shadow-lg"
-        style={{ background: 'linear-gradient(135deg,#ec4899,#f97316)' }}>
-        <MessageCircle size={20} />
-        Hubungi Instagram — Upgrade {selected.name} {selected.price}
-      </button>
-
-      <div className="flex items-center gap-2 justify-center">
-        <div className="flex-1 h-px bg-slate-100" />
-        <p className="text-xs text-slate-400 px-2">atau punya kode lisensi?</p>
-        <div className="flex-1 h-px bg-slate-100" />
-      </div>
-
-      {/* Aktivasi kode lisensi */}
-      <div className="bg-white rounded-2xl border border-slate-100">
-        <button onClick={() => setShowLicForm(!showLicForm)}
-          className="w-full flex items-center justify-between p-4">
-          <div className="flex items-center gap-2.5">
-            <Key size={15} className="text-slate-400" />
-            <p className="text-sm font-bold text-slate-600">Input kode lisensi dari admin</p>
-          </div>
-          <ChevronRight size={15} className={`text-slate-300 transition-transform ${showLicForm ? 'rotate-90' : ''}`} />
-        </button>
-
-        {showLicForm && (
-          <div className="px-4 pb-4 space-y-3 border-t border-slate-100 pt-3">
-            <p className="text-xs text-slate-400">
-              Masukkan kode yang kamu terima dari admin setelah pembayaran dikonfirmasi
-            </p>
-            <input value={licKey} onChange={e => setLicKey(e.target.value.toUpperCase())}
-              placeholder="KAFFE-PRO-XXXX-XXXX"
-              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono tracking-widest focus:outline-none focus:border-orange-400"
-              style={{ fontSize: 14 }} />
-            <button onClick={handleActivate} disabled={licLoading || !licKey}
-              className="w-full py-3.5 bg-slate-900 text-white font-black rounded-2xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
-              {licLoading
-                ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                : <Lock size={15} />}
-              {licLoading ? 'Mengaktifkan...' : 'Aktifkan Lisensi'}
-            </button>
-            <p className="text-center text-[10px] text-slate-300">
-              Kode diterima setelah admin konfirmasi pembayaran
-            </p>
-          </div>
+        {!resolvedPlan.isFree && (
+          <a
+            href={RENEWAL_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-slate-400"
+          >
+            <AlertTriangle size={14} />
+            Halaman perpanjang cepat: {RENEWAL_URL}
+          </a>
         )}
-      </div>
-
-      {/* Info cara bayar */}
-      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
-        <p className="text-blue-700 text-xs font-black mb-2">📋 Cara Upgrade ke PRO</p>
-        {[
-          'Tap tombol "Chat Admin" di atas',
-          'Admin konfirmasi & info rekening/QRIS',
-          'Transfer sesuai paket yang dipilih',
-          'Kirim bukti transfer ke admin via WA',
-          'Admin kirim kode lisensi dalam maks. 1 jam',
-          'Input kode di form "Aktifkan Lisensi"',
-          'PRO langsung aktif! 🎉',
-        ].map((step, i) => (
-          <div key={i} className="flex items-start gap-2 mb-1">
-            <span className="text-blue-400 font-black text-[10px] mt-0.5 shrink-0">{i + 1}.</span>
-            <p className="text-blue-600 text-xs">{step}</p>
-          </div>
-        ))}
       </div>
     </div>
   );

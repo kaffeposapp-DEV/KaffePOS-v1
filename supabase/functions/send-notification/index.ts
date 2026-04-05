@@ -14,12 +14,18 @@ const corsHeaders = {
 };
 
 interface NotifPayload {
-  type: 'welcome' | 'verification' | 'password_reset' | 'daily_sales';
+  type: 'welcome' | 'verification' | 'password_reset' | 'daily_sales' | 'subscription_activated' | 'subscription_expiry_reminder';
   email: string;
   name?: string;
   otp?: string;
   link?: string;
+  subject?: string;
   redirectTo?: string;
+  plan?: string;
+  billingCycle?: string;
+  expiresAt?: string | null;
+  features?: string[];
+  reminderKind?: '7_days' | '3_days' | 'expiry_day' | '3_days_after';
   salesSummary?: {
     totalIncome: string;
     totalOrders: number;
@@ -27,6 +33,15 @@ interface NotifPayload {
     date: string;
   };
 }
+
+const ALLOWED_TYPES = new Set<NotifPayload['type']>([
+  'welcome',
+  'verification',
+  'password_reset',
+  'daily_sales',
+  'subscription_activated',
+  'subscription_expiry_reminder',
+]);
 
 const BRAND_COLOR = '#C2622A';
 const LIGHT_BG    = '#F3F4F6';
@@ -190,6 +205,94 @@ function getDailySalesHtml(name: string, summary: any): string {
   `, `Laporan penjualan harian: ${summary.totalIncome}`);
 }
 
+function getSubscriptionActivatedHtml(
+  name: string,
+  plan: string,
+  billingCycle: string,
+  expiresAt: string | null,
+  features: string[],
+): string {
+  return baseLayout(`
+    <p class="section-label">Langganan Aktif</p>
+    <h2>Langganan KaffePOS kamu sudah aktif! ☕</h2>
+    <p class="lede">Halo <strong>${name}</strong>! Langganan <strong>${plan}</strong> kamu sudah aktif.</p>
+    <p>Periode aktif: <strong>${billingCycle}</strong>.</p>
+
+    <div class="summary-card">
+      <p class="micro" style="margin: 0;">Aktif hingga</p>
+      <p style="font-size: 26px; font-weight: 800; color: #241A14; margin: 6px 0 0;">
+        ${expiresAt || 'Tidak ada batas waktu'}
+      </p>
+    </div>
+
+    <ul class="feature-list">
+      ${features.map((feature, index) => `
+        <li class="feature-item">
+          <span class="feature-badge">${String(index + 1).padStart(2, '0')}</span>
+          <span class="feature-copy">${feature}</span>
+        </li>
+      `).join('')}
+    </ul>
+
+    <div style="text-align: center;">
+      <a href="https://kaffepos.app" class="btn">Buka KaffePOS</a>
+    </div>
+
+    <div class="helper-card">Ada pertanyaan? DM kami di Instagram @kaffepos</div>
+  `, `Langganan ${plan} KaffePOS kamu sudah aktif.`);
+}
+
+function getSubscriptionReminderCopy(kind: NotifPayload['reminderKind']) {
+  switch (kind) {
+    case '7_days':
+      return {
+        heading: 'Langganan kamu akan segera habis.',
+        body: 'akan berakhir dalam 7 hari.',
+      };
+    case '3_days':
+      return {
+        heading: 'Tinggal 3 hari lagi sebelum langganan habis.',
+        body: 'akan berakhir dalam 3 hari.',
+      };
+    case 'expiry_day':
+      return {
+        heading: 'Langganan kamu habis hari ini.',
+        body: 'habis hari ini.',
+      };
+    case '3_days_after':
+      return {
+        heading: 'Langganan kamu sudah habis.',
+        body: 'sudah habis sejak 3 hari lalu.',
+      };
+    default:
+      return {
+        heading: 'Pengingat langganan KaffePOS',
+        body: 'akan segera berakhir.',
+      };
+  }
+}
+
+function getSubscriptionExpiryReminderHtml(
+  name: string,
+  plan: string,
+  expiresAt: string | null,
+  reminderKind: NotifPayload['reminderKind'],
+): string {
+  const copy = getSubscriptionReminderCopy(reminderKind);
+  return baseLayout(`
+    <p class="section-label">Pengingat Langganan</p>
+    <h2>${copy.heading}</h2>
+    <p class="lede">Halo <strong>${name}</strong>, langganan <strong>${plan}</strong> kamu ${copy.body}</p>
+    <p>${expiresAt ? `Tanggal penting: <strong>${expiresAt}</strong>.` : ''}</p>
+
+    <div style="text-align: center;">
+      <a href="https://kaffepos.my.id/perpanjang" class="btn">Perpanjang Langganan</a>
+    </div>
+
+    <div class="helper-card">Chat admin @kaffepos untuk perpanjang langganan kamu.</div>
+  `, `Pengingat langganan ${plan} KaffePOS.`);
+}
+
 async function findUserByEmail(adminClient: any, email: string) {
   let page = 1;
   while (true) {
@@ -210,8 +313,13 @@ serve(async (req: Request) => {
   try {
     const payload: NotifPayload = await req.json();
 
-    if (!payload.email) {
+    if (!payload.email || typeof payload.email !== 'string') {
       return new Response(JSON.stringify({ error: 'invalid payload' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (!ALLOWED_TYPES.has(payload.type)) {
+      return new Response(JSON.stringify({ error: 'notification type tidak valid' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -266,6 +374,30 @@ serve(async (req: Request) => {
         subject = `Laporan Penjualan Harian - ${summary.date}`;
         break;
       }
+      case 'subscription_activated': {
+        const plan = payload.plan || 'KaffePOS';
+        const billingCycle = payload.billingCycle || 'Manual';
+        html = getSubscriptionActivatedHtml(
+          name,
+          plan,
+          billingCycle,
+          payload.expiresAt || null,
+          payload.features || [],
+        );
+        subject = payload.subject || 'Langganan KaffePOS kamu sudah aktif! ☕';
+        break;
+      }
+      case 'subscription_expiry_reminder': {
+        const plan = payload.plan || 'KaffePOS';
+        html = getSubscriptionExpiryReminderHtml(
+          name,
+          plan,
+          payload.expiresAt || null,
+          payload.reminderKind,
+        );
+        subject = payload.subject || 'Pengingat langganan KaffePOS';
+        break;
+      }
       case 'welcome':
       default:
         html = getWelcomeHtml(name);
@@ -296,7 +428,7 @@ serve(async (req: Request) => {
         user_id: user.id,
         title: subject,
         message: payload.type === 'daily_sales' ? `Laporan penjualan harian telah dikirim ke email.` : `Email ${payload.type} telah dikirim.`,
-        type: payload.type === 'daily_sales' ? 'transaction' : 'system',
+        type: payload.type === 'welcome' ? 'welcome' : 'success',
         metadata: { channel: 'email', provider: 'resend', type: payload.type }
       });
     }

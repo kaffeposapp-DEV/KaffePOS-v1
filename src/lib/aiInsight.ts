@@ -111,42 +111,6 @@ async function callViaEdgeFunction(prompt: string): Promise<AIInsight> {
   return data;
 }
 
-// ── Fallback: Direct call ke Gemini API ───────────────────────────
-async function callGeminiFallback(prompt: string): Promise<AIInsight> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('Kunci API Gemini (VITE_GEMINI_API_KEY) tidak ditemukan di konfigurasi build aplikasi ini.');
-  }
-
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.2, responseMimeType: 'application/json' }
-    })
-  });
-
-  if (!res.ok) {
-    throw new Error(`Gagal memuat AI Insight. (Status ${res.status})`);
-  }
-
-  const data = await res.json();
-  try {
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-    return JSON.parse(rawText) as AIInsight;
-  } catch (e) {
-    throw new Error('Jawaban AI tidak dapat diproses.');
-  }
-}
-
-// ── Flag apakah Edge Function aktif ──────────────────────────────
-async function isEdgeFunctionAvailable(): Promise<boolean> {
-  // Langsung Bypass ke Gemini API agar performa instan tanpa nunggu preflight 5 detik
-  return false; 
-}
-
 // ── Main: getAIInsight dengan auto-fallback ───────────────────────
 export async function getAIInsight(ctx: InsightContext): Promise<AIInsight> {
   if (ctx.txCount === 0) {
@@ -164,16 +128,7 @@ export async function getAIInsight(ctx: InsightContext): Promise<AIInsight> {
   }
 
   const prompt = buildPrompt(ctx);
-
-  // Coba Edge Function dulu, fallback ke direct Gemini jika belum deploy
-  const useEdge = await isEdgeFunctionAvailable();
-
-  if (useEdge) {
-    return callViaEdgeFunction(prompt);
-  } else {
-    console.warn('[aiInsight] Edge Function tidak tersedia, fallback ke direct Gemini.');
-    return callGeminiFallback(prompt);
-  }
+  return callViaEdgeFunction(prompt);
 }
 
 // ── Cache 10 menit ────────────────────────────────────────────────

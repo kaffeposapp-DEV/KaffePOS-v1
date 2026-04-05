@@ -83,6 +83,7 @@ export interface Profile {
   id: string; username?: string; display_name?: string;
   email?: string; avatar_url?: string;
   tier?: string;       // 'pro' | 'basic' — kolom utama di Supabase
+  tier_expires_at?: string;
   is_pro?: boolean;    // kolom legacy (fallback)
   pro_plan?: string; pro_order_id?: string;
   pro_activated_at?: string; pro_expires_at?: string; created_at?: string;

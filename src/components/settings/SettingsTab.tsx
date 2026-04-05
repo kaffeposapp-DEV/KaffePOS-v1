@@ -131,7 +131,7 @@ const DEFAULTS:any = getReceiptSettings();
 type Section = 'brand'|'receipt'|'printer'|'license';
 
 export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPro: boolean; profile:any }) {
-  const { signOut, activatePro, refreshProfile } = useAuth();
+  const { signOut, refreshProfile } = useAuth();
   const { storeSettings, saveStoreSettings, storeId } = useStore();
   const printer = usePrinter();
   const [section, setSection]     = useState<Section>('brand');
@@ -158,14 +158,30 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
 
   useEffect(() => {
     setKasirName(profile?.display_name || profile?.username || '');
-    // Fetch unread notifications
-    if (profile?.id) {
+    if (!profile?.id) return;
+
+    const loadUnread = () => {
       supabase.from('notifications')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', profile.id)
         .eq('is_read', false)
         .then(({ count }) => { if (count !== null) setUnreadNotifs(count); });
-    }
+    };
+
+    loadUnread();
+
+    const channel = supabase.channel(`notifications_badge_${profile.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${profile.id}`,
+      }, () => loadUnread())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [profile]);
 
   const doSave = async (data:any) => {
@@ -554,10 +570,6 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
               isPro={isPro}
               profile={profile}
               toast={toast}
-              onActivateLicense={async (key: string) => {
-                const result = await activatePro('monthly', key);
-                return result;
-              }}
               onRefreshStatus={refreshProfile}
             />
 

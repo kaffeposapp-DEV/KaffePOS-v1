@@ -26,6 +26,8 @@ import type { EmailOtpType } from '@supabase/supabase-js';
 
 const AuthPage = lazy(() => import('./components/auth/AuthPage'));
 const AppShell = lazy(() => import('./components/AppShell'));
+const PlanConfirmation = lazy(() => import('./pages/PlanConfirmation'));
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 
 function SplashScreen() {
   return (
@@ -133,7 +135,11 @@ function AppRoutes() {
   }
   return (
     <Routes>
+      <Route path="/plan-confirmation" element={<PlanConfirmation />} />
       <Route path="/auth" element={<AuthPage />} />
+      <Route path="/admin" element={
+        isAuthenticated ? <AdminPanel /> : <Navigate to="/auth" replace />
+      } />
       <Route path="/*" element={
         isAuthenticated ? <AppShell /> : <Navigate to="/auth" replace />
       } />

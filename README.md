@@ -32,7 +32,7 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```bash
 npx supabase login
 npx supabase link --project-ref YOUR_PROJECT_REF
-npx supabase functions deploy activate-pro
+npx supabase functions deploy activate-subscription
 npx supabase functions deploy send-notification
 ```
 
@@ -141,7 +141,7 @@ kaffepos/
 │   ├── migrations/
 │   │   └── 001_initial_schema.sql  ← Full DB schema + RLS
 │   └── functions/
-│       ├── activate-pro/    ← PRO tier activation
+│       ├── activate-subscription/ ← Manual subscription activation
 │       └── send-notification/ ← Email notifications
 │
 ├── android/                 ← Capacitor Android project
@@ -270,11 +270,12 @@ CREATE POLICY "Store owner can CRUD transactions"
 | Multi-cashier | ✅ | ✅ |
 | Backup/Restore | ✅ | ✅ |
 
-**Activate Pro:**
-1. User masukkan license key di Settings
-2. Edge Function `activate-pro` validates & upgrades tier
-3. Profile `tier = 'pro'` updated in Supabase
-4. Email konfirmasi dikirim otomatis
+**Flow Langganan Manual:**
+1. User pilih paket lalu chat admin di Instagram
+2. Admin verifikasi transfer secara manual
+3. Edge Function `activate-subscription` mengaktifkan langganan
+4. Profile dan subscription sync otomatis di Supabase
+5. Email konfirmasi dikirim otomatis
 
 ---
 

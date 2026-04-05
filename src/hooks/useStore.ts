@@ -14,6 +14,28 @@ import type {
   InventoryItemUpdate,
 } from '@/types';
 
+const STORE_SELECT =
+  'id,owner_id,store_name,address,whatsapp,tax_percent,receipt_header,receipt_footer,logo_url,logo_base64,logo_position,logo_size,show_logo_on_receipt,currency,tagline,email,website,paper_width,receipt_font_size,receipt_show_address,receipt_show_whatsapp,receipt_show_tax,receipt_show_cashier,receipt_show_trx_id,receipt_divider,receipt_custom_line1,receipt_custom_line2,created_at,updated_at';
+const MENU_SELECT =
+  'id,store_id,name,price,category,image_url,description,is_available,sort_order,recipe,variants,created_at,updated_at';
+const INVENTORY_SELECT =
+  'id,store_id,name,stock,unit,min_stock,cost_per_unit,created_at,updated_at';
+const TRANSACTION_SELECT =
+  'id,store_id,date,items,subtotal,discount,discount_label,tax,total,cogs,paid,change,method,cashier,note,is_void,void_reason,void_at,void_by,created_at';
+const EXPENSE_SELECT =
+  'id,store_id,date,description,amount,category,cashier,created_at';
+const CASH_FLOW_SELECT =
+  'id,store_id,date,type,amount,description,cashier,created_at';
+const CASH_REGISTER_SELECT =
+  'id,store_id,date,amount,note,opened_by,created_at';
+
+function makeClientId(prefix: string) {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
 // ── localStorage helpers ──────────────────────────────────────────
 const LS_SETTINGS_KEY = 'kaffepos_store_settings';
 
@@ -71,7 +93,8 @@ function markInserted(id: string) {
 function makeUniqueTransactionId(preferredId?: string, existingIds: string[] = []) {
   const baseId = preferredId?.trim() || `trx_${Date.now()}`;
   if (!existingIds.includes(baseId)) return baseId;
-  const suffix = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(-8);
+  const isoCleanupPattern = ['[', '-', ':', '.', 'T', 'Z', ']'].join('');
+  const suffix = new Date().toISOString().replace(new RegExp(isoCleanupPattern, 'g'), '').slice(-8);
   let nextId = `${baseId}-${suffix}`;
   let attempt = 1;
   while (existingIds.includes(nextId)) {
@@ -128,9 +151,16 @@ async function flushPending() {
   const remaining: PendingWrite[] = [];
   for (const pw of writes) {
     try {
-      if (pw.op === 'insert')      await supabase.from(pw.table).insert(pw.data);
-      else if (pw.op === 'update') await supabase.from(pw.table).update(pw.data).eq('id', pw.id!);
-      else if (pw.op === 'delete') await supabase.from(pw.table).delete().eq('id', pw.id!);
+      if (pw.op === 'insert') {
+        const { error } = await supabase.from(pw.table).insert(pw.data);
+        if (error) throw error;
+      } else if (pw.op === 'update') {
+        const { error } = await supabase.from(pw.table).update(pw.data).eq('id', pw.id!);
+        if (error) throw error;
+      } else if (pw.op === 'delete') {
+        const { error } = await supabase.from(pw.table).delete().eq('id', pw.id!);
+        if (error) throw error;
+      }
     } catch {
       remaining.push(pw);
     }
@@ -268,9 +298,9 @@ export const useStore = create<AppStore>((set, get) => ({
 
     try {
       const [store, menu, inv] = await Promise.all([
-        supabase.from('stores').select('*').eq('id', storeId).single(),
-        supabase.from('menu_items').select('*').eq('store_id', storeId).order('sort_order'),
-        supabase.from('inventory').select('*').eq('store_id', storeId).order('name'),
+        supabase.from('stores').select(STORE_SELECT).eq('id', storeId).single(),
+        supabase.from('menu_items').select(MENU_SELECT).eq('store_id', storeId).order('sort_order'),
+        supabase.from('inventory').select(INVENTORY_SELECT).eq('store_id', storeId).order('name'),
       ]);
 
       if (store.error) throw store.error;
@@ -312,13 +342,13 @@ export const useStore = create<AppStore>((set, get) => ({
     const loadSecondary = async () => {
       try {
         const [trx, exp, cf, cr] = await Promise.all([
-          supabase.from('transactions').select('*').eq('store_id', storeId)
+          supabase.from('transactions').select(TRANSACTION_SELECT).eq('store_id', storeId)
             .order('date', { ascending: false }).limit(5000),
-          supabase.from('expenses').select('*').eq('store_id', storeId)
+          supabase.from('expenses').select(EXPENSE_SELECT).eq('store_id', storeId)
             .order('date', { ascending: false }).limit(5000),
-          supabase.from('cash_flow').select('*').eq('store_id', storeId)
+          supabase.from('cash_flow').select(CASH_FLOW_SELECT).eq('store_id', storeId)
             .order('date', { ascending: false }).limit(5000),
-          supabase.from('cash_register').select('*').eq('store_id', storeId)
+          supabase.from('cash_register').select(CASH_REGISTER_SELECT).eq('store_id', storeId)
             .order('date', { ascending: false }).limit(5000),
         ]);
 
@@ -608,7 +638,7 @@ export const useStore = create<AppStore>((set, get) => ({
           throw error;
         }
       } else {
-        const tempId = `temp_${Date.now()}`;
+        const tempId = makeClientId('menu');
         const optimistic: MenuItem = {
           id: tempId, store_id: storeId,
           name: item.name || '', price: item.price || 0,
@@ -623,6 +653,7 @@ export const useStore = create<AppStore>((set, get) => ({
         persistCache(storeId, newMenu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
 
         const { data, error } = await supabase.from('menu_items').insert({
+          id: tempId,
           store_id: storeId, name: item.name, price: item.price || 0,
           category: item.category || 'Coffee', image_url: item.image_url || '',
           description: item.description || '', recipe: item.recipe || [],
@@ -630,12 +661,19 @@ export const useStore = create<AppStore>((set, get) => ({
         }).select().single();
 
         if (error) {
-          set(s => ({
-            menu: s.menu.filter(m => m.id !== tempId),
-            customCats,
-          }));
-          persistCache(storeId, menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
-          throw error;
+          addPendingWrite({
+            table: 'menu_items',
+            op: 'insert',
+            data: {
+              id: tempId,
+              store_id: storeId, name: item.name, price: item.price || 0,
+              category: item.category || 'Coffee', image_url: item.image_url || '',
+              description: item.description || '', recipe: item.recipe || [],
+              variants: item.variants || [], sort_order: menu.length, is_available: item.is_available ?? true,
+            }
+          });
+          import('@/utils/toast').then(m => m.showToast('Menu disimpan offline dan akan disinkronkan otomatis', 'success'));
+          return;
         }
         if (data) {
           markInserted(data.id);
@@ -655,7 +693,11 @@ export const useStore = create<AppStore>((set, get) => ({
     if (!storeId) return;
     set(s => ({ menu: s.menu.filter(m => m.id !== id) }));
     persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
-    await supabase.from('menu_items').delete().eq('id', id);
+    const { error } = await supabase.from('menu_items').delete().eq('id', id);
+    if (error) {
+      addPendingWrite({ table: 'menu_items', op: 'delete', id, data: {} });
+      import('@/utils/toast').then(m => m.showToast('Penghapusan menu dijadwalkan saat online kembali', 'success'));
+    }
   },
 
   saveInventoryItem: async (item) => {
@@ -668,7 +710,7 @@ export const useStore = create<AppStore>((set, get) => ({
     const unitCost  = qty > 0 ? totalCost / qty  : 0;
 
     if (item.type === 'new') {
-      const tempId = `inv_temp_${Date.now()}`;
+      const tempId = makeClientId('inv');
       const optimistic: InventoryItem = {
         id: tempId, store_id: storeId,
         name: item.name, stock: qty,
@@ -680,24 +722,46 @@ export const useStore = create<AppStore>((set, get) => ({
       persistCache(storeId, get().menu, newInv, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
 
       const { data, error } = await supabase.from('inventory').insert({
+        id: tempId,
         store_id: storeId, name: item.name, stock: qty,
         unit: item.unit || 'pcs', min_stock: minStock, cost_per_unit: unitCost,
       }).select().single();
 
       if (error) {
-        set(s => ({ inventory: s.inventory.filter(i => i.id !== tempId) }));
-        persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
-        throw new Error(error.message);
+        addPendingWrite({
+          table: 'inventory',
+          op: 'insert',
+          data: {
+            id: tempId,
+            store_id: storeId, name: item.name, stock: qty,
+            unit: item.unit || 'pcs', min_stock: minStock, cost_per_unit: unitCost,
+          }
+        });
+        import('@/utils/toast').then(m => m.showToast('Stok disimpan offline dan akan disinkronkan otomatis', 'success'));
+        return;
       }
       if (data) {
         markInserted(data.id);
         set(s => ({ inventory: s.inventory.map(i => i.id === tempId ? data as InventoryItem : i) }));
         persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
         if (totalCost > 0) {
-          const { data: expData } = await supabase.from('expenses').insert({
+          const expId = makeClientId('exp');
+          const { data: expData, error: expError } = await supabase.from('expenses').insert({
+            id: expId,
             store_id: storeId, date: new Date().toISOString(),
             description: `Beli ${item.name}`, amount: totalCost, category: 'Bahan Baku',
           }).select().single();
+          if (expError) {
+            addPendingWrite({
+              table: 'expenses',
+              op: 'insert',
+              data: {
+                id: expId,
+                store_id: storeId, date: new Date().toISOString(),
+                description: `Beli ${item.name}`, amount: totalCost, category: 'Bahan Baku',
+              }
+            });
+          }
           if (expData) {
             markInserted(expData.id);
             set(s => ({ expenses: [expData as Expense, ...s.expenses] }));
@@ -744,10 +808,23 @@ export const useStore = create<AppStore>((set, get) => ({
         throw new Error(error.message);
       }
       if (totalCost > 0) {
-        const { data: expData } = await supabase.from('expenses').insert({
+        const expId = makeClientId('exp');
+        const { data: expData, error: expError } = await supabase.from('expenses').insert({
+          id: expId,
           store_id: storeId, date: new Date().toISOString(),
           description: `Restock ${item.name}`, amount: totalCost, category: 'Bahan Baku',
         }).select().single();
+        if (expError) {
+          addPendingWrite({
+            table: 'expenses',
+            op: 'insert',
+            data: {
+              id: expId,
+              store_id: storeId, date: new Date().toISOString(),
+              description: `Restock ${item.name}`, amount: totalCost, category: 'Bahan Baku',
+            }
+          });
+        }
         if (expData) {
           markInserted(expData.id);
           set(s => ({ expenses: [expData as Expense, ...s.expenses] }));
@@ -763,7 +840,10 @@ export const useStore = create<AppStore>((set, get) => ({
       set(s => ({ inventory: s.inventory.filter(i => i.id !== id) }));
       persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
       const { error } = await supabase.from('inventory').delete().eq('id', id);
-      if (error) throw error;
+      if (error) {
+        addPendingWrite({ table: 'inventory', op: 'delete', id, data: {} });
+        import('@/utils/toast').then(m => m.showToast('Penghapusan stok dijadwalkan saat online kembali', 'success'));
+      }
     } catch (e:any) {
       const msg = e instanceof Error ? e.message : 'Gagal menghapus inventaris';
       import('@/utils/toast').then(m => m.showToast(msg, 'error'));
@@ -836,6 +916,7 @@ export const useStore = create<AppStore>((set, get) => ({
 
     if (error) {
       addPendingWrite({ table: 'transactions', op: 'insert', data: { ...txWithId, store_id: storeId } as unknown as Record<string, unknown> });
+      import('@/utils/toast').then(m => m.showToast('Transaksi disimpan offline dan akan disinkronkan otomatis', 'success'));
       return;
     }
 
@@ -849,11 +930,15 @@ export const useStore = create<AppStore>((set, get) => ({
 
   voidTransaction: async (id, reason, by) => {
     try {
-      const { error } = await supabase.from('transactions').update({
+      const payload = {
         is_void: true, void_reason: reason,
         void_at: new Date().toISOString(), void_by: by,
-      }).eq('id', id);
-      if (error) throw error;
+      };
+      const { error } = await supabase.from('transactions').update(payload).eq('id', id);
+      if (error) {
+        addPendingWrite({ table: 'transactions', op: 'update', id, data: payload as Record<string, unknown> });
+        import('@/utils/toast').then(m => m.showToast('Void transaksi dijadwalkan saat online kembali', 'success'));
+      }
       set(s => ({
         transactions: s.transactions.map(t => t.id === id ? { ...t, is_void: true, void_reason: reason } : t)
       }));
@@ -912,13 +997,8 @@ export const useStore = create<AppStore>((set, get) => ({
     }
     const { error } = await supabase.from('expenses').delete().eq('id', id);
     if (error) {
-      const { data } = await supabase.from('expenses').select('*').eq('id', id).single();
-      if (data) {
-        set(s => ({ expenses: [data as Expense, ...s.expenses] }));
-        if (get().storeId) {
-          persistCache(get().storeId!, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
-        }
-      }
+      addPendingWrite({ table: 'expenses', op: 'delete', id, data: {} });
+      import('@/utils/toast').then(m => m.showToast('Penghapusan pengeluaran dijadwalkan saat online kembali', 'success'));
     }
   },
 
@@ -1013,7 +1093,10 @@ export const useStore = create<AppStore>((set, get) => ({
         delete toSave.logo_base64;
       }
       const { error } = await supabase.from('stores').update(toSave).eq('id', storeId);
-      if (error) throw error;
+      if (error) {
+        addPendingWrite({ table: 'stores', op: 'update', id: storeId, data: toSave as Record<string, unknown> });
+        import('@/utils/toast').then(m => m.showToast('Pengaturan disimpan offline dan akan disinkronkan otomatis', 'success'));
+      }
     } catch (e:any) {
       const msg = e?.message || 'Gagal menyimpan pengaturan toko';
       import('@/utils/toast').then(m => m.showToast(msg, 'error'));

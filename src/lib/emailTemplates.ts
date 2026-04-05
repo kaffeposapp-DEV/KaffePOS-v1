@@ -154,3 +154,57 @@ export const getDailySalesTemplate = (name: string, summary: { totalIncome: stri
     <a href="https://kaffepos.app" class="btn">Lihat Detail Laporan</a>
   </div>
 `, `Laporan penjualan harian: ${summary.totalIncome} dari ${summary.totalOrders} pesanan.`);
+
+export const getSubscriptionActivatedTemplate = (
+  name: string,
+  plan: string,
+  billingCycle: string,
+  expiresAt: string | null,
+  features: string[],
+) => baseLayout(`
+  <p class="section-label">Langganan Aktif</p>
+  <h2>Langganan KaffePOS kamu sudah aktif! ☕</h2>
+  <p class="lede">Halo <strong>${name}</strong>! Langganan <strong>${plan}</strong> kamu sudah aktif.</p>
+  <p>${billingCycle ? `Periode aktif: <strong>${billingCycle}</strong>.` : ''}</p>
+
+  <div class="summary-card">
+    <p class="micro" style="margin: 0;">Aktif hingga</p>
+    <p style="font-size: 26px; font-weight: 800; color: #241A14; margin: 6px 0 0;">
+      ${expiresAt || 'Tidak ada batas waktu'}
+    </p>
+  </div>
+
+  <ul class="feature-list">
+    ${features.map((feature, index) => `
+      <li class="feature-item">
+        <span class="feature-badge">${String(index + 1).padStart(2, '0')}</span>
+        <span class="feature-copy">${feature}</span>
+      </li>
+    `).join('')}
+  </ul>
+
+  <div style="text-align: center;">
+    <a href="https://kaffepos.app" class="btn">Buka KaffePOS</a>
+  </div>
+
+  <div class="helper-card">Ada pertanyaan? DM kami di Instagram @kaffepos</div>
+`, `Langganan ${plan} kamu di KaffePOS sudah aktif.`);
+
+export const getSubscriptionExpiryReminderTemplate = (
+  name: string,
+  plan: string,
+  expiresAt: string | null,
+  heading: string,
+  body: string,
+) => baseLayout(`
+  <p class="section-label">Pengingat Langganan</p>
+  <h2>${heading}</h2>
+  <p class="lede">Halo <strong>${name}</strong>, langganan <strong>${plan}</strong> kamu ${body}</p>
+  <p>${expiresAt ? `Tanggal penting: <strong>${expiresAt}</strong>.` : ''}</p>
+
+  <div style="text-align: center;">
+    <a href="https://kaffepos.my.id/perpanjang" class="btn">Perpanjang Langganan</a>
+  </div>
+
+  <div class="helper-card">Chat admin @kaffepos untuk perpanjang langganan kamu.</div>
+`, `Pengingat langganan ${plan} KaffePOS.`);
