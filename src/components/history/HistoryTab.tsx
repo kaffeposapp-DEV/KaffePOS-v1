@@ -28,7 +28,7 @@ export default function HistoryTab({ toast }:any) {
   const [voidR,    setVoidR]    = useState('');
   const [showVoid, setShowVoid] = useState<any>(null);
   const [voiding,  setVoiding]  = useState(false);
-  const [period,   setPeriod]   = useState<Period>('today');
+  const [period,   setPeriod]   = useState<Period>('all');
   const [page,     setPage]     = useState(1);
   const [showPrintSheet, setShowPrintSheet] = useState(false);
   const [printTx, setPrintTx] = useState<any>(null);
@@ -41,20 +41,22 @@ export default function HistoryTab({ toast }:any) {
   }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
 
   // ── Period filter ────────────────────────────────────────────
-  const periodCutoff = useMemo((): string | null => {
+  const periodCutoff = useMemo((): number | null => {
     const now = new Date();
     if (period === 'today') {
-      const d = new Date(now); d.setHours(0,0,0,0); return d.toISOString();
+      const d = new Date(now); d.setHours(0,0,0,0); return d.getTime();
     }
-    if (period === '7d')  { const d = new Date(now); d.setDate(d.getDate()-7);  return d.toISOString(); }
-    if (period === '30d') { const d = new Date(now); d.setDate(d.getDate()-30); return d.toISOString(); }
+    if (period === '7d')  { const d = new Date(now); d.setDate(d.getDate()-7);  return d.getTime(); }
+    if (period === '30d') { const d = new Date(now); d.setDate(d.getDate()-30); return d.getTime(); }
     return null;
   }, [period]);
 
   const filtered = useMemo(() => {
     const q = dSearch.toLowerCase();
-    return transactions.filter(t => {
-      if (periodCutoff && t.date < periodCutoff) return false;
+    return [...transactions]
+      .filter(t => {
+      const txTime = new Date(t.date).getTime();
+      if (periodCutoff && Number.isFinite(txTime) && txTime < periodCutoff) return false;
       if (!q) return true;
       return (
         t.id.toLowerCase().includes(q) ||
@@ -62,7 +64,8 @@ export default function HistoryTab({ toast }:any) {
         t.items.some(i => i.name.toLowerCase().includes(q)) ||
         t.method.toLowerCase().includes(q)
       );
-    });
+    })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, dSearch, periodCutoff]);
 
   const pageCount  = Math.ceil(filtered.length / PAGE_SIZE);

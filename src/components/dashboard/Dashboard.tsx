@@ -28,6 +28,7 @@ import {
   Pie,
 } from 'recharts';
 import { useStore } from '@/hooks/useStore';
+import { getInventoryUsageMap } from '@/utils/receipt';
 
 const fRp = (n: number) =>
   new Intl.NumberFormat('id-ID', {
@@ -94,16 +95,20 @@ function DashboardCard({
 
 export default function Dashboard() {
   const {
+    storeId,
     transactions,
     expenses,
     inventory,
+    menu,
     cashRegister,
     storeSettings,
     loading,
     syncing,
     isOnline,
+    loadAll,
   } = useStore();
   const [range, setRange] = useState<RangeKey>('today');
+  const [refreshing, setRefreshing] = useState(false);
 
   const now = new Date();
   const startToday = startOfDay(now);
@@ -220,6 +225,16 @@ export default function Dashboard() {
     [inventory]
   );
 
+  const stockUsageRows = useMemo(
+    () => getInventoryUsageMap(inventory, menu, transactions),
+    [inventory, menu, transactions]
+  );
+
+  const stockUsageMap = useMemo(
+    () => new Map(stockUsageRows.map((row) => [row.itemId, row])),
+    [stockUsageRows]
+  );
+
   const activeCashier = useMemo(() => {
     const todayRegister = cashRegister
       .filter((entry: any) => isSameDay(new Date(entry.date), now))
@@ -230,6 +245,18 @@ export default function Dashboard() {
   const totalRangeRevenue = filteredTransactions.reduce((sum: number, trx: any) => sum + (trx.total || 0), 0);
   const totalRangeExpenses = filteredExpenses.reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
   const avgTransaction = filteredTransactions.length > 0 ? totalRangeRevenue / filteredTransactions.length : 0;
+  const hasAnyBusinessData =
+    nonVoidTransactions.length > 0 || expenses.length > 0 || inventory.length > 0 || cashRegister.length > 0;
+
+  const handleRefresh = async () => {
+    if (!storeId || refreshing) return;
+    setRefreshing(true);
+    try {
+      await loadAll(storeId);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   if (loading && transactions.length === 0 && inventory.length === 0) {
     return (
@@ -249,24 +276,44 @@ export default function Dashboard() {
             {storeSettings?.store_name || 'KaffePOS'} · {isOnline ? 'Online' : 'Offline'} {syncing ? '· Syncing...' : ''}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
-          {[
-            { id: 'today', label: 'Hari Ini' },
-            { id: 'week', label: '7 Hari' },
-            { id: 'month', label: '30 Hari' },
-          ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setRange(item.id as RangeKey)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold ${
-                range === item.id ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/10' : 'text-slate-500 hover:bg-slate-50'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleRefresh}
+            disabled={!storeId || refreshing || syncing}
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 shadow-sm text-slate-600 flex items-center gap-2 disabled:opacity-60"
+          >
+            <RefreshCw size={14} className={refreshing || syncing ? 'animate-spin' : ''} />
+            Muat Ulang
+          </button>
+          <div className="flex flex-wrap items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+            {[
+              { id: 'today', label: 'Hari Ini' },
+              { id: 'week', label: '7 Hari' },
+              { id: 'month', label: '30 Hari' },
+            ].map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setRange(item.id as RangeKey)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold ${
+                  range === item.id ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/10' : 'text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {!hasAnyBusinessData && (
+        <div className="bg-white border border-dashed border-slate-200 rounded-[28px] p-8 text-center">
+          <p className="text-base font-black text-slate-800 mb-2">Dashboard masih kosong</p>
+          <p className="text-sm text-slate-500 max-w-xl mx-auto">
+            Belum ada transaksi, stok, kasir, atau pengeluaran yang bisa ditampilkan. Mulai dari input menu,
+            buka kas harian, lalu lakukan transaksi pertama agar overview ini terisi otomatis.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <DashboardCard
@@ -427,7 +474,8 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-4">
               {lowStockItems.map((item) => {
-                const pct = item.min_stock > 0 ? Math.min(100, Math.round((item.stock / item.min_stock) * 100)) : 100;
+                const usage = stockUsageMap.get(item.id);
+                const pct = usage?.percent ?? (item.min_stock > 0 ? Math.min(100, Math.round((item.stock / item.min_stock) * 100)) : 100);
                 return (
                   <div key={item.id} className="space-y-2">
                     <div className="flex justify-between items-end gap-3">
@@ -442,6 +490,9 @@ export default function Dashboard() {
                         style={{ width: `${pct}%` }}
                       />
                     </div>
+                    <p className="text-[10px] text-slate-400">
+                      Terpakai {Math.round(usage?.used || 0).toLocaleString('id-ID')} {item.unit} dari total tercatat {Math.round(usage?.baseline || item.stock).toLocaleString('id-ID')} {item.unit}
+                    </p>
                   </div>
                 );
               })}

@@ -8,10 +8,23 @@ export type Tab = 'dashboard' | 'pos' | 'warehouse' | 'menu' | 'history' | 'repo
 export interface StoreSettings {
   id: string; owner_id: string; store_name: string;
   address?: string; whatsapp?: string; tagline?: string;
-  receipt_footer?: string; tax_percent?: number;
+  receipt_header?: string; receipt_footer?: string; tax_percent?: number;
   logo_url?: string; logo_base64?: string;
   logo_position?: 'left'|'center'|'right'; logo_size?: number;
+  show_logo_on_receipt?: boolean;
   paper_width?: '58mm'|'80mm'; is_pro?: boolean;
+  receipt_font_size?: 'small'|'medium'|'large';
+  receipt_show_address?: boolean;
+  receipt_show_whatsapp?: boolean;
+  receipt_show_tax?: boolean;
+  receipt_show_cashier?: boolean;
+  receipt_show_trx_id?: boolean;
+  receipt_divider?: 'dash'|'equal'|'star'|'dot';
+  receipt_custom_line1?: string;
+  receipt_custom_line2?: string;
+  currency?: string;
+  email?: string;
+  website?: string;
   created_at?: string; updated_at?: string;
 }
 export interface MenuItem {
@@ -32,7 +45,7 @@ export interface InventoryItem {
   cost_per_unit: number; created_at?: string; updated_at?: string;
 }
 export interface InventoryItemUpdate {
-  type: 'new' | 'edit' | 'add';
+  type: 'new' | 'edit' | 'add' | 'restock';
   id?: string;
   name: string;
   qty: string | number;

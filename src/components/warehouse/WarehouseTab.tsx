@@ -9,6 +9,7 @@ import { Plus, Archive, Trash2, X, AlertTriangle, ChevronDown, ChevronUp } from 
 import { useStore } from '@/hooks/useStore';
 import DeleteConfirmSheet from '@/components/ui/DeleteConfirmSheet';
 import type { InventoryItem, InventoryItemUpdate, MenuItem } from '@/types';
+import { getInventoryUsageMap } from '@/utils/receipt';
 
 const fRp = (n: number) => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
 
@@ -23,7 +24,7 @@ interface WarehouseForm {
 }
 
 export default function WarehouseTab({ toast }: { toast:any }) {
-  const { inventory, menu, saveInventoryItem, deleteInventoryItem } = useStore();
+  const { inventory, menu, transactions, saveInventoryItem, deleteInventoryItem } = useStore();
   const [showModal,    setShowModal]    = useState(false);
   const [form,         setForm]         = useState<WarehouseForm>({ id:'', name:'', qty:'', cost:'', unit:'gr', minStock:'5', type:'new' });
   const [search,       setSearch]       = useState('');
@@ -36,6 +37,10 @@ export default function WarehouseTab({ toast }: { toast:any }) {
   , [inventory, search]);
 
   const lowStock = inventory.filter(i => i.stock <= i.min_stock);
+  const usageMap = useMemo(() => {
+    const rows = getInventoryUsageMap(inventory, menu, transactions);
+    return new Map(rows.map((row) => [row.itemId, row]));
+  }, [inventory, menu, transactions]);
 
   // Which menus use each inventory item
   const usedInMenu = useMemo(() => {
@@ -69,7 +74,21 @@ export default function WarehouseTab({ toast }: { toast:any }) {
     }
   };
 
-  const getStockPct = (item: InventoryItem) => item.min_stock > 0 ? Math.min((item.stock / item.min_stock) * 100, 200) : 100;
+  const getStockMeta = (item: InventoryItem) => {
+    const usage = usageMap.get(item.id);
+    const healthPct = item.min_stock > 0 ? Math.min((item.stock / item.min_stock) * 100, 200) : 100;
+    const fillPct = usage?.percent ?? 100;
+    const isLow = item.stock <= item.min_stock;
+    const barColor = isLow ? '#ef4444' : fillPct < 40 ? '#f97316' : '#10b981';
+    return {
+      used: usage?.used || 0,
+      baseline: usage?.baseline || item.stock,
+      fillPct,
+      healthPct,
+      barColor,
+      label: isLow ? 'Stok menipis' : fillPct >= 70 ? 'Stok full' : 'Stok aman',
+    };
+  };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
@@ -109,10 +128,9 @@ export default function WarehouseTab({ toast }: { toast:any }) {
           </div>
         ) : filtered.map(item => {
           const isLow = item.stock <= item.min_stock;
-          const pct   = getStockPct(item);
+          const stockMeta = getStockMeta(item);
           const inMenus = usedInMenu[item.id] || [];
           const expanded = expandedId === item.id;
-          const barColor = isLow ? '#ef4444' : pct < 150 ? '#f97316' : '#10b981';
 
           return (
             <div key={item.id} className={`bg-white rounded-2xl border-2 overflow-hidden ${isLow?'border-red-200':'border-slate-100'}`}>
@@ -139,6 +157,10 @@ export default function WarehouseTab({ toast }: { toast:any }) {
                       <span>HPP: {fRp(item.cost_per_unit)}/{item.unit}</span>
                       <span>Nilai: {fRp(item.stock * item.cost_per_unit)}</span>
                     </div>
+                    <div className="flex gap-3 mt-1 text-xs text-slate-400 flex-wrap">
+                      <span>Terpakai: {stockMeta.used.toLocaleString('id-ID')} {item.unit}</span>
+                      <span>Total tercatat: {stockMeta.baseline.toLocaleString('id-ID')} {item.unit}</span>
+                    </div>
                   </div>
                   <div className="flex gap-1.5 ml-2 shrink-0">
                     <button onClick={()=>openRestock(item)} className="px-3 py-1.5 bg-orange-100 text-orange-600 rounded-lg text-xs font-bold active:scale-95">Restock</button>
@@ -149,11 +171,12 @@ export default function WarehouseTab({ toast }: { toast:any }) {
                 </div>
 
                 {/* Stock bar */}
-                <div className="w-full bg-slate-100 rounded-full h-1.5">
-                  <div className="h-1.5 rounded-full transition-all" style={{width:`${Math.min(pct/2,100)}%`, backgroundColor:barColor}}/>
+                <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                  <div className="h-2.5 rounded-full transition-all" style={{width:`${stockMeta.fillPct}%`, backgroundColor:stockMeta.barColor}}/>
                 </div>
-                <div className="flex justify-between text-[10px] text-slate-300 mt-0.5">
-                  <span>0</span><span>Min: {item.min_stock}</span>
+                <div className="flex justify-between text-[10px] mt-1">
+                  <span className={isLow ? 'text-red-500 font-bold' : 'text-slate-300'}>{stockMeta.label}</span>
+                  <span className="text-slate-400">{stockMeta.fillPct}% sisa dari total stok tercatat</span>
                 </div>
               </div>
 

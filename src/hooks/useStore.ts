@@ -28,12 +28,23 @@ function loadSettingsFromLS(): StoreSettings | null {
 }
 
 // ── Persist seluruh state ke localStorage setelah setiap perubahan ─
-function persistCache(storeId: string, menu: MenuItem[], inventory: InventoryItem[], transactions: Transaction[]) {
+function persistCache(
+  storeId: string,
+  menu: MenuItem[],
+  inventory: InventoryItem[],
+  transactions: Transaction[],
+  expenses: Expense[] = [],
+  cashFlow: CashFlowEntry[] = [],
+  cashRegister: CashRegister[] = [],
+) {
   try {
     localStorage.setItem(`kpos_menu_${storeId}`,  JSON.stringify(menu));
     localStorage.setItem(`kpos_inv_${storeId}`,   JSON.stringify(inventory));
-    // Simpan maks 1000 transaksi terbaru
-    localStorage.setItem(`kpos_trx_${storeId}`,   JSON.stringify(transactions.slice(0, 1000)));
+    // Simpan cache lebih panjang agar riwayat tidak mudah terpotong saat restart.
+    localStorage.setItem(`kpos_trx_${storeId}`,   JSON.stringify(transactions.slice(0, 5000)));
+    localStorage.setItem(`kpos_exp_${storeId}`,   JSON.stringify(expenses.slice(0, 5000)));
+    localStorage.setItem(`kpos_cf_${storeId}`,    JSON.stringify(cashFlow.slice(0, 5000)));
+    localStorage.setItem(`kpos_cr_${storeId}`,    JSON.stringify(cashRegister.slice(0, 5000)));
   } catch { /* ignore */ }
 }
 
@@ -43,22 +54,31 @@ function loadCache(storeId: string) {
     menu:     (load(`kpos_menu_${storeId}`) || []) as MenuItem[],
     inv:      (load(`kpos_inv_${storeId}`)  || []) as InventoryItem[],
     trx:      (load(`kpos_trx_${storeId}`)  || []) as Transaction[],
+    expenses: (load(`kpos_exp_${storeId}`)  || []) as Expense[],
+    cashFlow: (load(`kpos_cf_${storeId}`)   || []) as CashFlowEntry[],
+    cashReg:  (load(`kpos_cr_${storeId}`)   || []) as CashRegister[],
     settings: loadSettingsFromLS(),
   };
 }
-
-// ── 90-day window helper ──────────────────────────────────────────
-const d90ago = () => {
-  const d = new Date();
-  d.setDate(d.getDate() - 90);
-  return d.toISOString();
-};
 
 // ── Anti-duplikat: track ID yang baru di-INSERT oleh kita sendiri ─
 const recentlyInserted = new Set<string>();
 function markInserted(id: string) {
   recentlyInserted.add(id);
   setTimeout(() => recentlyInserted.delete(id), 20_000);
+}
+
+function makeUniqueTransactionId(preferredId?: string, existingIds: string[] = []) {
+  const baseId = preferredId?.trim() || `trx_${Date.now()}`;
+  if (!existingIds.includes(baseId)) return baseId;
+  const suffix = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(-8);
+  let nextId = `${baseId}-${suffix}`;
+  let attempt = 1;
+  while (existingIds.includes(nextId)) {
+    nextId = `${baseId}-${suffix}-${attempt}`;
+    attempt += 1;
+  }
+  return nextId;
 }
 
 // ── Offline queue (persisted ke localStorage agar survive app restart) ──
@@ -77,9 +97,34 @@ function addPendingWrite(pw: PendingWrite) {
   savePendingWrites(writes);
 }
 
+function sortByDateDesc<T extends { date?: string; created_at?: string }>(items: T[]) {
+  return [...items].sort((a, b) => {
+    const aTime = new Date(a.date || a.created_at || 0).getTime();
+    const bTime = new Date(b.date || b.created_at || 0).getTime();
+    return bTime - aTime;
+  });
+}
+
+function mergeById<T extends { id: string; date?: string; created_at?: string }>(
+  remoteItems: T[],
+  localItems: T[],
+) {
+  const merged = new Map<string, T>();
+
+  for (const item of localItems) {
+    merged.set(item.id, item);
+  }
+  for (const item of remoteItems) {
+    merged.set(item.id, { ...(merged.get(item.id) || {}), ...item });
+  }
+
+  return sortByDateDesc(Array.from(merged.values()));
+}
+
 async function flushPending() {
   const writes = getPendingWrites();
   if (writes.length === 0) return;
+  useStore.setState({ syncing: true });
   const remaining: PendingWrite[] = [];
   for (const pw of writes) {
     try {
@@ -91,6 +136,7 @@ async function flushPending() {
     }
   }
   savePendingWrites(remaining);
+  useStore.setState({ syncing: remaining.length > 0 });
 }
 
 if (typeof window !== 'undefined') {
@@ -206,6 +252,9 @@ export const useStore = create<AppStore>((set, get) => ({
         menu:          cache.menu,
         inventory:     cache.inv,
         transactions:  cache.trx,
+        expenses:      cache.expenses,
+        cashFlow:      cache.cashFlow,
+        cashRegister:  cache.cashReg,
         customCats:    cats,
         loading:       false,
         cart:          cachedCart,
@@ -245,7 +294,15 @@ export const useStore = create<AppStore>((set, get) => ({
         transactions: s.transactions,
       }));
 
-      persistCache(storeId, menuData, invData, get().transactions);
+      persistCache(
+        storeId,
+        menuData,
+        invData,
+        get().transactions,
+        get().expenses,
+        get().cashFlow,
+        get().cashRegister,
+      );
     } catch (e:any) {
       const msg = e instanceof Error ? e.message : 'Gagal memuat data dari server';
       import('@/utils/toast').then(m => m.showToast(msg, 'error'));
@@ -254,28 +311,40 @@ export const useStore = create<AppStore>((set, get) => ({
 
     const loadSecondary = async () => {
       try {
-        const cutoff = d90ago();
         const [trx, exp, cf, cr] = await Promise.all([
           supabase.from('transactions').select('*').eq('store_id', storeId)
-            .gte('date', cutoff).order('date', { ascending: false }).limit(1000),
+            .order('date', { ascending: false }).limit(5000),
           supabase.from('expenses').select('*').eq('store_id', storeId)
-            .gte('date', cutoff).order('date', { ascending: false }).limit(1000),
+            .order('date', { ascending: false }).limit(5000),
           supabase.from('cash_flow').select('*').eq('store_id', storeId)
-            .gte('date', cutoff).order('date', { ascending: false }).limit(1000),
+            .order('date', { ascending: false }).limit(5000),
           supabase.from('cash_register').select('*').eq('store_id', storeId)
-            .gte('date', cutoff).order('date', { ascending: false }).limit(1000),
+            .order('date', { ascending: false }).limit(5000),
         ]);
 
-        const trxData = (trx.data || []) as Transaction[];
+        const trxData = mergeById((trx.data || []) as Transaction[], get().transactions);
+        const expData = mergeById((exp.data || []) as Expense[], get().expenses);
+        const cfData = mergeById((cf.data || []) as CashFlowEntry[], get().cashFlow);
+        const crData = mergeById((cr.data || []) as CashRegister[], get().cashRegister);
         set({
           transactions: trxData,
-          expenses:     (exp.data  || []) as Expense[],
-          cashFlow:     (cf.data   || []) as CashFlowEntry[],
-          cashRegister: (cr.data   || []) as CashRegister[],
+          expenses:     expData,
+          cashFlow:     cfData,
+          cashRegister: crData,
           syncing: false,
         });
-        persistCache(storeId, get().menu, get().inventory, trxData);
-      } catch { /* ignore */ }
+        persistCache(
+          storeId,
+          get().menu,
+          get().inventory,
+          trxData,
+          expData,
+          cfData,
+          crData,
+        );
+      } catch {
+        set({ syncing: false });
+      }
     };
 
     set({ syncing: true });
@@ -328,6 +397,7 @@ export const useStore = create<AppStore>((set, get) => ({
         }
         const stdCats = ['Coffee', 'Non-Coffee', 'Snack'];
         const freshCats = [...new Set(newMenu.map(m => m.category))].filter(c => c && !stdCats.includes(c));
+        persistCache(storeId_, newMenu, s.inventory, s.transactions, s.expenses, s.cashFlow, s.cashRegister);
         return { menu: newMenu, customCats: freshCats };
       });
     });
@@ -342,12 +412,21 @@ export const useStore = create<AppStore>((set, get) => ({
             return {};
           }
           const exists = s.inventory.some(i => i.id === payloadNew.id);
-          return exists ? {} : { inventory: [...s.inventory, payloadNew].sort((a,b)=>a.name.localeCompare(b.name)) };
+          if (exists) return {};
+          const newInventory = [...s.inventory, payloadNew].sort((a,b)=>a.name.localeCompare(b.name));
+          persistCache(storeId_, s.menu, newInventory, s.transactions, s.expenses, s.cashFlow, s.cashRegister);
+          return { inventory: newInventory };
         }
-        if (payload.eventType === 'UPDATE')
-          return { inventory: s.inventory.map(i => i.id === payloadNew.id ? { ...i, ...payloadNew } : i) };
-        if (payload.eventType === 'DELETE')
-          return { inventory: s.inventory.filter(i => i.id !== payloadOld.id) };
+        if (payload.eventType === 'UPDATE') {
+          const newInventory = s.inventory.map(i => i.id === payloadNew.id ? { ...i, ...payloadNew } : i);
+          persistCache(storeId_, s.menu, newInventory, s.transactions, s.expenses, s.cashFlow, s.cashRegister);
+          return { inventory: newInventory };
+        }
+        if (payload.eventType === 'DELETE') {
+          const newInventory = s.inventory.filter(i => i.id !== payloadOld.id);
+          persistCache(storeId_, s.menu, newInventory, s.transactions, s.expenses, s.cashFlow, s.cashRegister);
+          return { inventory: newInventory };
+        }
         return {};
       });
     });
@@ -362,12 +441,21 @@ export const useStore = create<AppStore>((set, get) => ({
             return {};
           }
           const exists = s.transactions.some(t => t.id === payloadNew.id);
-          return exists ? {} : { transactions: [payloadNew, ...s.transactions] };
+          if (exists) return {};
+          const newTransactions = [payloadNew, ...s.transactions];
+          persistCache(storeId_, s.menu, s.inventory, newTransactions, s.expenses, s.cashFlow, s.cashRegister);
+          return { transactions: newTransactions };
         }
-        if (payload.eventType === 'UPDATE')
-          return { transactions: s.transactions.map(t => t.id === payloadNew.id ? { ...t, ...payloadNew } : t) };
-        if (payload.eventType === 'DELETE')
-          return { transactions: s.transactions.filter(t => t.id !== payloadOld.id) };
+        if (payload.eventType === 'UPDATE') {
+          const newTransactions = s.transactions.map(t => t.id === payloadNew.id ? { ...t, ...payloadNew } : t);
+          persistCache(storeId_, s.menu, s.inventory, newTransactions, s.expenses, s.cashFlow, s.cashRegister);
+          return { transactions: newTransactions };
+        }
+        if (payload.eventType === 'DELETE') {
+          const newTransactions = s.transactions.filter(t => t.id !== payloadOld.id);
+          persistCache(storeId_, s.menu, s.inventory, newTransactions, s.expenses, s.cashFlow, s.cashRegister);
+          return { transactions: newTransactions };
+        }
         return {};
       });
     });
@@ -390,12 +478,50 @@ export const useStore = create<AppStore>((set, get) => ({
             return {};
           }
           const exists = s.expenses.some(e => e.id === payloadNew.id);
-          return exists ? {} : { expenses: [payloadNew, ...s.expenses] };
+          if (exists) return {};
+          const newExpenses = [payloadNew, ...s.expenses];
+          persistCache(storeId_, s.menu, s.inventory, s.transactions, newExpenses, s.cashFlow, s.cashRegister);
+          return { expenses: newExpenses };
         }
-        if (payload.eventType === 'UPDATE')
-          return { expenses: s.expenses.map(e => e.id === payloadNew.id ? { ...e, ...payloadNew } : e) };
-        if (payload.eventType === 'DELETE')
-          return { expenses: s.expenses.filter(e => e.id !== payloadOld.id) };
+        if (payload.eventType === 'UPDATE') {
+          const newExpenses = s.expenses.map(e => e.id === payloadNew.id ? { ...e, ...payloadNew } : e);
+          persistCache(storeId_, s.menu, s.inventory, s.transactions, newExpenses, s.cashFlow, s.cashRegister);
+          return { expenses: newExpenses };
+        }
+        if (payload.eventType === 'DELETE') {
+          const newExpenses = s.expenses.filter(e => e.id !== payloadOld.id);
+          persistCache(storeId_, s.menu, s.inventory, s.transactions, newExpenses, s.cashFlow, s.cashRegister);
+          return { expenses: newExpenses };
+        }
+        return {};
+      });
+    });
+
+    setupChannel('cash_flow', 'cash_flow', `store_id=eq.${storeId_}`, (payload) => {
+      const payloadNew = payload.new as CashFlowEntry;
+      const payloadOld = payload.old as CashFlowEntry;
+      set(s => {
+        if (payload.eventType === 'INSERT') {
+          if (recentlyInserted.has(payloadNew.id)) {
+            recentlyInserted.delete(payloadNew.id);
+            return {};
+          }
+          const exists = s.cashFlow.some(entry => entry.id === payloadNew.id);
+          if (exists) return {};
+          const newCashFlow = [payloadNew, ...s.cashFlow];
+          persistCache(storeId_, s.menu, s.inventory, s.transactions, s.expenses, newCashFlow, s.cashRegister);
+          return { cashFlow: newCashFlow };
+        }
+        if (payload.eventType === 'UPDATE') {
+          const newCashFlow = s.cashFlow.map(entry => entry.id === payloadNew.id ? { ...entry, ...payloadNew } : entry);
+          persistCache(storeId_, s.menu, s.inventory, s.transactions, s.expenses, newCashFlow, s.cashRegister);
+          return { cashFlow: newCashFlow };
+        }
+        if (payload.eventType === 'DELETE') {
+          const newCashFlow = s.cashFlow.filter(entry => entry.id !== payloadOld.id);
+          persistCache(storeId_, s.menu, s.inventory, s.transactions, s.expenses, newCashFlow, s.cashRegister);
+          return { cashFlow: newCashFlow };
+        }
         return {};
       });
     });
@@ -410,10 +536,21 @@ export const useStore = create<AppStore>((set, get) => ({
             return {};
           }
           const exists = s.cashRegister.some(r => r.id === payloadNew.id);
-          return exists ? {} : { cashRegister: [payloadNew, ...s.cashRegister] };
+          if (exists) return {};
+          const newCashRegister = [payloadNew, ...s.cashRegister];
+          persistCache(storeId_, s.menu, s.inventory, s.transactions, s.expenses, s.cashFlow, newCashRegister);
+          return { cashRegister: newCashRegister };
         }
-        if (payload.eventType === 'DELETE')
-          return { cashRegister: s.cashRegister.filter(r => r.id !== payloadOld.id) };
+        if (payload.eventType === 'UPDATE') {
+          const newCashRegister = s.cashRegister.map(r => r.id === payloadNew.id ? { ...r, ...payloadNew } : r);
+          persistCache(storeId_, s.menu, s.inventory, s.transactions, s.expenses, s.cashFlow, newCashRegister);
+          return { cashRegister: newCashRegister };
+        }
+        if (payload.eventType === 'DELETE') {
+          const newCashRegister = s.cashRegister.filter(r => r.id !== payloadOld.id);
+          persistCache(storeId_, s.menu, s.inventory, s.transactions, s.expenses, s.cashFlow, newCashRegister);
+          return { cashRegister: newCashRegister };
+        }
         return {};
       });
     });
@@ -458,7 +595,7 @@ export const useStore = create<AppStore>((set, get) => ({
         const updated = menu.map(m => m.id === item.id ? { ...m, ...item } as MenuItem : m);
         const freshCats = [...new Set(updated.map(m => m.category))].filter(c => c && !stdCats.includes(c));
         set({ menu: updated, customCats: freshCats });
-        persistCache(storeId, updated, get().inventory, get().transactions);
+        persistCache(storeId, updated, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
         const { error } = await supabase.from('menu_items').update({
           name: item.name, price: item.price, category: item.category,
           image_url: item.image_url || '', description: item.description || '',
@@ -467,7 +604,7 @@ export const useStore = create<AppStore>((set, get) => ({
         }).eq('id', item.id);
         if (error) {
           set({ menu, customCats });
-          persistCache(storeId, menu, get().inventory, get().transactions);
+          persistCache(storeId, menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
           throw error;
         }
       } else {
@@ -483,7 +620,7 @@ export const useStore = create<AppStore>((set, get) => ({
         const newMenu = [...menu, optimistic];
         const freshCats = [...new Set(newMenu.map(m => m.category))].filter(c => c && !stdCats.includes(c));
         set({ menu: newMenu, customCats: freshCats });
-        persistCache(storeId, newMenu, get().inventory, get().transactions);
+        persistCache(storeId, newMenu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
 
         const { data, error } = await supabase.from('menu_items').insert({
           store_id: storeId, name: item.name, price: item.price || 0,
@@ -497,13 +634,13 @@ export const useStore = create<AppStore>((set, get) => ({
             menu: s.menu.filter(m => m.id !== tempId),
             customCats,
           }));
-          persistCache(storeId, menu, get().inventory, get().transactions);
+          persistCache(storeId, menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
           throw error;
         }
         if (data) {
           markInserted(data.id);
           set(s => ({ menu: s.menu.map(m => m.id === tempId ? data as MenuItem : m) }));
-          persistCache(storeId, get().menu, get().inventory, get().transactions);
+          persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
         }
       }
     } catch (e:any) {
@@ -517,7 +654,7 @@ export const useStore = create<AppStore>((set, get) => ({
     const { storeId } = get();
     if (!storeId) return;
     set(s => ({ menu: s.menu.filter(m => m.id !== id) }));
-    persistCache(storeId, get().menu, get().inventory, get().transactions);
+    persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
     await supabase.from('menu_items').delete().eq('id', id);
   },
 
@@ -540,7 +677,7 @@ export const useStore = create<AppStore>((set, get) => ({
       };
       const newInv = [...get().inventory, optimistic].sort((a,b) => a.name.localeCompare(b.name));
       set({ inventory: newInv });
-      persistCache(storeId, get().menu, newInv, get().transactions);
+      persistCache(storeId, get().menu, newInv, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
 
       const { data, error } = await supabase.from('inventory').insert({
         store_id: storeId, name: item.name, stock: qty,
@@ -549,13 +686,13 @@ export const useStore = create<AppStore>((set, get) => ({
 
       if (error) {
         set(s => ({ inventory: s.inventory.filter(i => i.id !== tempId) }));
-        persistCache(storeId, get().menu, get().inventory, get().transactions);
+        persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
         throw new Error(error.message);
       }
       if (data) {
         markInserted(data.id);
         set(s => ({ inventory: s.inventory.map(i => i.id === tempId ? data as InventoryItem : i) }));
-        persistCache(storeId, get().menu, get().inventory, get().transactions);
+        persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
         if (totalCost > 0) {
           const { data: expData } = await supabase.from('expenses').insert({
             store_id: storeId, date: new Date().toISOString(),
@@ -575,14 +712,14 @@ export const useStore = create<AppStore>((set, get) => ({
         ? { ...i, name: item.name, stock: qty, unit: item.unit || i.unit, min_stock: minStock, cost_per_unit: newCost }
         : i
       )}));
-      persistCache(storeId, get().menu, get().inventory, get().transactions);
+      persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
       const { error } = await supabase.from('inventory').update({
         name: item.name, stock: qty, unit: item.unit, min_stock: minStock, cost_per_unit: newCost,
       }).eq('id', item.id);
       if (error) {
         if (existing) {
           set(s => ({ inventory: s.inventory.map(i => i.id === item.id ? existing : i) }));
-          persistCache(storeId, get().menu, get().inventory, get().transactions);
+          persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
         }
         throw new Error(error.message);
       }
@@ -597,13 +734,13 @@ export const useStore = create<AppStore>((set, get) => ({
       set(s => ({ inventory: s.inventory.map(i => i.id === item.id
         ? { ...i, stock: newStock, cost_per_unit: newCost } : i
       )}));
-      persistCache(storeId, get().menu, get().inventory, get().transactions);
+      persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
       const { error } = await supabase.from('inventory').update({
         stock: newStock, cost_per_unit: newCost,
       }).eq('id', item.id);
       if (error) {
         set(s => ({ inventory: s.inventory.map(i => i.id === item.id ? existing : i) }));
-        persistCache(storeId, get().menu, get().inventory, get().transactions);
+        persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
         throw new Error(error.message);
       }
       if (totalCost > 0) {
@@ -624,7 +761,7 @@ export const useStore = create<AppStore>((set, get) => ({
     if (!storeId) return;
     try {
       set(s => ({ inventory: s.inventory.filter(i => i.id !== id) }));
-      persistCache(storeId, get().menu, get().inventory, get().transactions);
+      persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
       const { error } = await supabase.from('inventory').delete().eq('id', id);
       if (error) throw error;
     } catch (e:any) {
@@ -636,12 +773,17 @@ export const useStore = create<AppStore>((set, get) => ({
   saveTransaction: async (tx) => {
     const { storeId, inventory, menu } = get();
     if (!storeId) return;
+    const existingIds = get().transactions.map(transaction => transaction.id);
+    const normalizedDate = tx.date || new Date().toISOString();
+    const normalizedId = makeUniqueTransactionId(tx.id, existingIds);
 
     const txWithId = {
       ...tx,
-      id: tx.id || (typeof crypto !== 'undefined' && crypto.randomUUID
-        ? (crypto.randomUUID() as string)
-        : `trx_${Date.now()}_${Math.random().toString(36).slice(2)}`),
+      id: normalizedId,
+      date: normalizedDate,
+      created_at: tx.created_at || normalizedDate,
+      cashier: tx.cashier || 'Kasir',
+      is_void: tx.is_void ?? false,
     };
 
     const updates: { id: string; newStock: number }[] = [];
@@ -686,7 +828,7 @@ export const useStore = create<AppStore>((set, get) => ({
         ? s.transactions
         : [{ ...txWithId, store_id: storeId } as Transaction, ...s.transactions]
     }));
-    persistCache(storeId, get().menu, get().inventory, get().transactions);
+    persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
 
     const { data, error } = await supabase.from('transactions').insert({
       ...txWithId, store_id: storeId,
@@ -701,7 +843,7 @@ export const useStore = create<AppStore>((set, get) => ({
       set(s => ({
         transactions: s.transactions.map(t => t.id === txWithId.id ? data as Transaction : t)
       }));
-      persistCache(storeId, get().menu, get().inventory, get().transactions);
+      persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
     }
   },
 
@@ -715,6 +857,9 @@ export const useStore = create<AppStore>((set, get) => ({
       set(s => ({
         transactions: s.transactions.map(t => t.id === id ? { ...t, is_void: true, void_reason: reason } : t)
       }));
+      if (get().storeId) {
+        persistCache(get().storeId!, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
+      }
     } catch (e:any) {
       const msg = e?.message || 'Gagal membatalkan transaksi';
       import('@/utils/toast').then(m => m.showToast(msg, 'error'));
@@ -726,13 +871,32 @@ export const useStore = create<AppStore>((set, get) => ({
     const { storeId } = get();
     if (!storeId) return;
     try {
+      const optimisticId = exp.id || (typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `exp_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+      const payload = {
+        id: optimisticId,
+        store_id: storeId,
+        date: new Date().toISOString(),
+        ...exp,
+      };
+      markInserted(optimisticId);
+      set(s => ({ expenses: [{ ...payload } as Expense, ...s.expenses] }));
+      persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
+
       const { data, error } = await supabase.from('expenses').insert({
-        store_id: storeId, date: new Date().toISOString(), ...exp,
+        ...payload,
       }).select().single();
-      if (error) throw error;
+      if (error) {
+        addPendingWrite({ table: 'expenses', op: 'insert', data: payload as unknown as Record<string, unknown> });
+        import('@/utils/toast').then(m => m.showToast('Pengeluaran disimpan offline dan akan disinkronkan otomatis', 'success'));
+        return;
+      }
       if (data) {
-        markInserted(data.id);
-        set(s => ({ expenses: [data as Expense, ...s.expenses] }));
+        set(s => ({
+          expenses: s.expenses.map(existing => existing.id === optimisticId ? data as Expense : existing)
+        }));
+        persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
       }
     } catch (e:any) {
       const msg = e?.message || 'Gagal mencatat pengeluaran';
@@ -743,10 +907,18 @@ export const useStore = create<AppStore>((set, get) => ({
 
   deleteExpense: async (id) => {
     set(s => ({ expenses: s.expenses.filter(e => e.id !== id) }));
+    if (get().storeId) {
+      persistCache(get().storeId!, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
+    }
     const { error } = await supabase.from('expenses').delete().eq('id', id);
     if (error) {
       const { data } = await supabase.from('expenses').select('*').eq('id', id).single();
-      if (data) set(s => ({ expenses: [data as Expense, ...s.expenses] }));
+      if (data) {
+        set(s => ({ expenses: [data as Expense, ...s.expenses] }));
+        if (get().storeId) {
+          persistCache(get().storeId!, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
+        }
+      }
     }
   },
 
@@ -754,11 +926,33 @@ export const useStore = create<AppStore>((set, get) => ({
     const { storeId } = get();
     if (!storeId) return;
     try {
+      const optimisticId = entry.id || (typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `cf_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+      const payload = {
+        id: optimisticId,
+        store_id: storeId,
+        date: new Date().toISOString(),
+        ...entry,
+      };
+      markInserted(optimisticId);
+      set(s => ({ cashFlow: [{ ...payload } as CashFlowEntry, ...s.cashFlow] }));
+      persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
+
       const { data, error } = await supabase.from('cash_flow').insert({
-        store_id: storeId, date: new Date().toISOString(), ...entry,
+        ...payload,
       }).select().single();
-      if (error) throw error;
-      if (data) set(s => ({ cashFlow: [data as CashFlowEntry, ...s.cashFlow] }));
+      if (error) {
+        addPendingWrite({ table: 'cash_flow', op: 'insert', data: payload as unknown as Record<string, unknown> });
+        import('@/utils/toast').then(m => m.showToast('Arus kas disimpan offline dan akan disinkronkan otomatis', 'success'));
+        return;
+      }
+      if (data) {
+        set(s => ({
+          cashFlow: s.cashFlow.map(existing => existing.id === optimisticId ? data as CashFlowEntry : existing)
+        }));
+        persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
+      }
     } catch (e:any) {
       const msg = e?.message || 'Gagal menyimpan arus kas';
       import('@/utils/toast').then(m => m.showToast(msg, 'error'));
@@ -770,13 +964,32 @@ export const useStore = create<AppStore>((set, get) => ({
     const { storeId } = get();
     if (!storeId) return;
     try {
+      const optimisticId = entry.id || (typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `cr_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+      const payload = {
+        id: optimisticId,
+        store_id: storeId,
+        date: new Date().toISOString(),
+        ...entry,
+      };
+      markInserted(optimisticId);
+      set(s => ({ cashRegister: [{ ...payload } as CashRegister, ...s.cashRegister] }));
+      persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
+
       const { data, error } = await supabase.from('cash_register').insert({
-        store_id: storeId, date: new Date().toISOString(), ...entry,
+        ...payload,
       }).select().single();
-      if (error) throw error;
+      if (error) {
+        addPendingWrite({ table: 'cash_register', op: 'insert', data: payload as unknown as Record<string, unknown> });
+        import('@/utils/toast').then(m => m.showToast('Register kasir disimpan offline dan akan disinkronkan otomatis', 'success'));
+        return;
+      }
       if (data) {
-        markInserted(data.id);
-        set(s => ({ cashRegister: [data as CashRegister, ...s.cashRegister] }));
+        set(s => ({
+          cashRegister: s.cashRegister.map(existing => existing.id === optimisticId ? data as CashRegister : existing)
+        }));
+        persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
       }
     } catch (e:any) {
       const msg = e?.message || 'Gagal menyimpan register kasir';

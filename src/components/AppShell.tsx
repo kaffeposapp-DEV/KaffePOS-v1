@@ -39,6 +39,7 @@ const NAV = [
 
 const LS_LAST_TAB  = 'kpos_last_tab';
 const LS_STORE_ID  = 'kpos_store_id';   // cache storeId → skip query pada launch berikutnya
+const EXPLICIT_SIGNOUT_KEY = 'kaffepos_explicit_signout';
 
 // ── Error boundary ────────────────────────────────────────────────
 class TabError extends React.Component<{ name: string; children: React.ReactNode }, { err: boolean }> {
@@ -156,6 +157,7 @@ export default function AppShell() {
     const init = async () => {
       const cachedId = getCachedStoreId();
       const uid = user?.id || profile?.id;
+      try { localStorage.removeItem(EXPLICIT_SIGNOUT_KEY); } catch { /* ignore */ }
 
       if (cachedId) {
         if (isMounted.current) setReady(true);
@@ -229,15 +231,22 @@ export default function AppShell() {
     if (!user?.id) {
       initDone.current = false;
       setReady(false);
-      // Bersihkan cache yang user-specific supaya akun beda tidak kena cache lama
+      let shouldClear = false;
+      try {
+        shouldClear = localStorage.getItem(EXPLICIT_SIGNOUT_KEY) === '1';
+      } catch { /* ignore */ }
+
+      if (!shouldClear) return;
+
+      // Bersihkan cache yang user-specific hanya jika user memang sign-out sengaja
       try {
         const keysToRemove: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i) || '';
-          // Hapus cache store, menu, inventory, transaksi — tapi KEEP kpos_last_tab
           if (k.startsWith('kpos_') && k !== 'kpos_last_tab') keysToRemove.push(k);
         }
         keysToRemove.forEach(k => localStorage.removeItem(k));
+        localStorage.removeItem(EXPLICIT_SIGNOUT_KEY);
       } catch { /* ignore */ }
     }
   }, [user?.id]);

@@ -14,6 +14,7 @@
 //   - Preferences disimpan di app-private SharedPreferences (persistent)
 import { createClient } from '@supabase/supabase-js';
 import { Capacitor } from '@capacitor/core';
+import { Preferences } from '@capacitor/preferences';
 
 export const SUPABASE_URL      = (import.meta.env.VITE_SUPABASE_URL).replace(/\/$/, '');
 if (!SUPABASE_URL) throw new Error('Missing VITE_SUPABASE_URL in .env');
@@ -31,6 +32,27 @@ export function getAuthRedirectUrl(path = '/auth/callback') {
 export const AUTH_REDIRECT_URL = getAuthRedirectUrl();
 export const PASSWORD_RESET_REDIRECT_URL = getAuthRedirectUrl('/reset-password');
 
+const webStorage = {
+  getItem: (key: string) => localStorage.getItem(key),
+  setItem: (key: string, value: string) => localStorage.setItem(key, value),
+  removeItem: (key: string) => localStorage.removeItem(key),
+};
+
+const nativeStorage = {
+  async getItem(key: string) {
+    const { value } = await Preferences.get({ key });
+    return value;
+  },
+  async setItem(key: string, value: string) {
+    await Preferences.set({ key, value });
+  },
+  async removeItem(key: string) {
+    await Preferences.remove({ key });
+  },
+};
+
+const authStorage = Capacitor.isNativePlatform() ? nativeStorage : webStorage;
+
 // ── Supabase client ──────────────────────────────────────────────
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -38,11 +60,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
-    storage: {
-      getItem: (k) => localStorage.getItem(k),
-      setItem: (k, v) => localStorage.setItem(k, v),
-      removeItem: (k) => localStorage.removeItem(k),
-    }
+    storage: authStorage
   },
   realtime: {
     params: { eventsPerSecond: 10 },

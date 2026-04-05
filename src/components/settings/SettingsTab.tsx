@@ -11,9 +11,17 @@ import SubscriptionSection from './SubscriptionSection';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/hooks/useStore';
 import { usePrinter } from '@/hooks/usePrinter';
-import { printReceiptBrowser, testPrintMP58 } from '@/utils/thermalPrinter';
+import { printReceiptBrowser, printReceiptClassicBt } from '@/utils/thermalPrinter';
 import { supabase } from '@/lib/supabase';
 import NotificationCenter from './NotificationCenter';
+import {
+  createReceiptPrintData,
+  formatReceiptCurrency,
+  getReceiptDividerChar,
+  getReceiptFontPx,
+  getReceiptPreviewWidth,
+  getReceiptSettings,
+} from '@/utils/receipt';
 
 const SAFE_COLS = [
   'store_name','address','whatsapp','tax_percent','receipt_header','receipt_footer',
@@ -79,53 +87,46 @@ const Sel = ({ label, value, onChange, options }: SelProps) => (
 );
 
 function ReceiptPreview({ s }: { s:any }) {
-  const dc = s.receipt_divider==='star'?'*':s.receipt_divider==='equal'?'=':s.receipt_divider==='dot'?'·':'-';
-  const W  = s.paper_width==='80mm' ? 300 : 210;
-  const fs = s.receipt_font_size==='large' ? 12 : s.receipt_font_size==='small' ? 9 : 10.5;
-  const fRp = (n: number) => 'Rp'+new Intl.NumberFormat('id-ID').format(n||0);
+  const settings = getReceiptSettings(s);
+  const dc = getReceiptDividerChar(settings.receipt_divider);
+  const W  = getReceiptPreviewWidth(settings.paper_width);
+  const fs = getReceiptFontPx(settings.receipt_font_size);
+  const fRp = (n: number) => formatReceiptCurrency(n);
   const div = dc.repeat(Math.floor(W/7));
-  const tax = Math.round(68000*(s.tax_percent||0)/100);
+  const tax = Math.round(68000*(settings.tax_percent||0)/100);
   return (
     <div className="flex justify-center overflow-x-auto pb-2">
       <div style={{width:W,fontFamily:"'Courier New',monospace",fontSize:fs,background:'#fff',border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 8px',lineHeight:1.6,color:'#1e293b',minWidth:W}}>
-        {s.show_logo_on_receipt&&s.logo_url&&<div style={{textAlign:s.logo_position||'center',marginBottom:4}}><img src={s.logo_url} alt="" style={{height:s.logo_size||40,display:'inline-block',objectFit:'contain'}}/></div>}
-        <div style={{textAlign:'center',fontWeight:'bold',fontSize:fs+3}}>{s.store_name||'Nama Toko'}</div>
-        {s.tagline&&<div style={{textAlign:'center',fontSize:fs-0.5,color:'#64748b'}}>{s.tagline}</div>}
-        {s.receipt_show_address&&s.address&&<div style={{textAlign:'center',fontSize:fs-1,color:'#64748b'}}>{s.address}</div>}
-        {s.receipt_show_whatsapp&&s.whatsapp&&<div style={{textAlign:'center',fontSize:fs-1,color:'#64748b'}}>WA: {s.whatsapp}</div>}
-        {s.receipt_header&&<div style={{textAlign:'center',fontSize:fs-0.5}}>{s.receipt_header}</div>}
+        {settings.show_logo_on_receipt&&settings.logo_url&&<div style={{textAlign:settings.logo_position||'center',marginBottom:4}}><img src={settings.logo_url} alt="" style={{height:settings.logo_size||40,display:'inline-block',objectFit:'contain'}}/></div>}
+        <div style={{textAlign:'center',fontWeight:'bold',fontSize:fs+3}}>{settings.store_name||'Nama Toko'}</div>
+        {settings.tagline&&<div style={{textAlign:'center',fontSize:fs-0.5,color:'#64748b'}}>{settings.tagline}</div>}
+        {settings.receipt_show_address&&settings.address&&<div style={{textAlign:'center',fontSize:fs-1,color:'#64748b'}}>{settings.address}</div>}
+        {settings.receipt_show_whatsapp&&settings.whatsapp&&<div style={{textAlign:'center',fontSize:fs-1,color:'#64748b'}}>WA: {settings.whatsapp}</div>}
+        {settings.receipt_header&&<div style={{textAlign:'center',fontSize:fs-0.5}}>{settings.receipt_header}</div>}
         <div style={{color:'#94a3b8',margin:'4px 0'}}>{div}</div>
-        {s.receipt_show_trx_id&&<div style={{fontSize:fs-1,color:'#64748b'}}>No: TRX-20250301-001</div>}
+        {settings.receipt_show_trx_id&&<div style={{fontSize:fs-1,color:'#64748b'}}>No: TRX-20250301-001</div>}
         <div style={{fontSize:fs-1,color:'#64748b'}}>Tgl: {new Date().toLocaleString('id-ID',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
-        {s.receipt_show_cashier&&<div style={{fontSize:fs-1,color:'#64748b'}}>Kasir: @kasir1</div>}
+        {settings.receipt_show_cashier&&<div style={{fontSize:fs-1,color:'#64748b'}}>Kasir: kasir1</div>}
         <div style={{color:'#94a3b8',margin:'4px 0'}}>{div}</div>
         {[{n:'Kopi Susu',q:2,p:25000},{n:'Teh Tarik',q:1,p:18000}].map((i,idx)=>(
           <div key={idx}><div style={{fontWeight:'bold'}}>{i.n}</div><div style={{display:'flex',justifyContent:'space-between',paddingLeft:8}}><span>{i.q}x {fRp(i.p)}</span><span>{fRp(i.q*i.p)}</span></div></div>
         ))}
         <div style={{color:'#94a3b8',margin:'4px 0'}}>{div}</div>
-        {s.receipt_show_tax&&tax>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:fs-0.5}}><span>Pajak {s.tax_percent}%</span><span>{fRp(tax)}</span></div>}
+        {settings.receipt_show_tax&&tax>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:fs-0.5}}><span>Pajak {settings.tax_percent}%</span><span>{fRp(tax)}</span></div>}
         <div style={{display:'flex',justifyContent:'space-between',fontWeight:'bold',fontSize:fs+1}}><span>TOTAL</span><span>{fRp(68000+tax)}</span></div>
         <div style={{color:'#94a3b8',margin:'4px 0'}}>{div}</div>
         <div style={{display:'flex',justifyContent:'space-between'}}><span>Bayar (Tunai)</span><span>{fRp(70000)}</span></div>
         <div style={{display:'flex',justifyContent:'space-between',fontWeight:'bold'}}><span>Kembali</span><span>{fRp(70000-68000-tax)}</span></div>
         <div style={{color:'#94a3b8',margin:'4px 0'}}>{div}</div>
-        <div style={{textAlign:'center',fontWeight:'bold'}}>{s.receipt_footer||'Terima kasih!'}</div>
-        {s.receipt_custom_line1&&<div style={{textAlign:'center',fontSize:fs-0.5,color:'#64748b'}}>{s.receipt_custom_line1}</div>}
-        {s.receipt_custom_line2&&<div style={{textAlign:'center',fontSize:fs-0.5,color:'#64748b'}}>{s.receipt_custom_line2}</div>}
-        <div style={{textAlign:'center',fontSize:fs-2,color:'#cbd5e1',marginTop:4}}>** {s.paper_width||'58mm'} **</div>
+        <div style={{textAlign:'center',fontWeight:'bold'}}>{settings.receipt_footer||'Terima kasih!'}</div>
+        {settings.receipt_custom_line1&&<div style={{textAlign:'center',fontSize:fs-0.5,color:'#64748b'}}>{settings.receipt_custom_line1}</div>}
+        {settings.receipt_custom_line2&&<div style={{textAlign:'center',fontSize:fs-0.5,color:'#64748b'}}>{settings.receipt_custom_line2}</div>}
+        <div style={{textAlign:'center',fontSize:fs-2,color:'#cbd5e1',marginTop:4}}>** {settings.paper_width||'58mm'} **</div>
       </div>
     </div>
   );
 }
-
-const DEFAULTS:any = {
-  logo_position:'center', logo_size:40, show_logo_on_receipt:true,
-  paper_width:'58mm', receipt_font_size:'medium',
-  receipt_show_address:true, receipt_show_whatsapp:true,
-  receipt_show_tax:true, receipt_show_cashier:true,
-  receipt_show_trx_id:true, receipt_divider:'dash',
-  tax_percent:0, currency:'IDR',
-};
+const DEFAULTS:any = getReceiptSettings();
 
 type Section = 'brand'|'receipt'|'printer'|'license';
 
@@ -227,9 +228,10 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
       if (!user) throw new Error('Belum login');
       const { error } = await supabase
         .from('profiles')
-        .update({ display_name: kasirName.trim(), username: kasirName.trim() })
+        .update({ display_name: kasirName.trim() })
         .eq('id', user.id);
       if (error) throw error;
+      await refreshProfile();
       setKasirSaved(true); setTimeout(() => setKasirSaved(false), 2500);
       toast.showToast('Nama kasir disimpan!', 'success');
     } catch (e:any) { toast.showToast(e.message || 'Gagal simpan nama kasir', 'error'); }
@@ -240,22 +242,24 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
   const handleTestPrint = async () => {
     try {
       if (printer.btConnected) {
-        await testPrintMP58();
+        await printReceiptClassicBt(createReceiptPrintData(form, {
+          id: 'TEST-' + Date.now().toString().slice(-6),
+          date: new Date().toISOString(),
+          cashier: kasirName.trim() || profile?.display_name || profile?.username || 'Kasir',
+          method: 'Tunai',
+          items: [{ name: 'Kopi Susu', qty: 1, price: 25000, subtotal: 25000 }],
+          subtotal: 25000, discount: 0, tax: 0, total: 25000, paid: 25000, change: 0,
+        }) as any);
         toast.showToast('✅ Test print berhasil! Cek printer.', 'success');
       } else {
-        printReceiptBrowser({
-          storeName: form.store_name || 'KaffePOS',
-          footer: form.receipt_footer || 'Terima kasih!',
-          paperWidth: (form.paper_width || '58mm') as '58mm'|'80mm',
-          transaction: {
+        printReceiptBrowser(createReceiptPrintData(form, {
             id: 'TEST-' + Date.now().toString().slice(-6),
             date: new Date().toISOString(),
             cashier: 'Admin',
             method: 'Tunai',
             items: [{ name: 'Kopi Susu', qty: 1, price: 25000, subtotal: 25000 }],
             subtotal: 25000, discount: 0, tax: 0, total: 25000, paid: 25000, change: 0,
-          },
-        });
+          }) as any);
         toast.showToast('🖨️ Test print dibuka di browser', 'success');
       }
     } catch (e:any) {

@@ -6,12 +6,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/report/ReportTab.tsx — v5 + Gemini AI Insight
 import { useState, useMemo, useCallback } from 'react';
-import { Download, TrendingUp, ShoppingBag, DollarSign, CreditCard, Wallet, Receipt, Sparkles, RefreshCw, ChevronDown, ChevronUp, Scale, Mail } from 'lucide-react';
+import { Download, TrendingUp, ShoppingBag, DollarSign, CreditCard, Wallet, Receipt, Sparkles, RefreshCw, ChevronDown, ChevronUp, Scale, Mail, Plus } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { generateProfessionalPDF, type ReportData } from '@/utils/pdfReport';
 import { getAIInsightCached, type InsightContext, type AIInsight } from '@/lib/aiInsight';
 import KasDailyPanel from './KasDailyPanel';
+import ExpenseModal from '@/components/pos/ExpenseModal';
 
 
 const fRp  = (n: number) => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
@@ -118,6 +119,7 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError,   setAiError]   = useState('');
   const [aiOpen,    setAiOpen]    = useState(false);
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
 
   const filtered = useMemo(()=>{
     const now=new Date();
@@ -308,17 +310,27 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
 
 
   const PERIODS=[{id:'harian',l:'Hari Ini'},{id:'mingguan',l:'7 Hari'},{id:'bulanan',l:'Bulan Ini'},{id:'semua',l:'Semua'}];
+  const hasAnyReportData = filtered.length > 0 || filteredExp.length > 0 || filteredCR.length > 0;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
       <div className="bg-white border-b border-slate-100 px-3 sm:px-4 pt-3 pb-3">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-black text-slate-800 text-lg">Laporan & Analitik</h2>
-          <button onClick={handleDownload} disabled={downloading}
-            className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 text-white rounded-xl text-xs font-bold active:scale-95 disabled:opacity-50 shrink-0">
-            {downloading?<div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"/>:<Download size={13}/>}
-            {downloading?'Proses...':'PDF'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowExpenseModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold active:scale-95 shrink-0"
+            >
+              <Plus size={13} />
+              Pengeluaran
+            </button>
+            <button onClick={handleDownload} disabled={downloading}
+              className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 text-white rounded-xl text-xs font-bold active:scale-95 disabled:opacity-50 shrink-0">
+              {downloading?<div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"/>:<Download size={13}/>}
+              {downloading?'Proses...':'PDF'}
+            </button>
+          </div>
         </div>
         <div className="flex gap-1.5">
           {PERIODS.map(p=><button key={p.id} onClick={()=>setPeriod(p.id as Period)} className={`flex-1 py-1.5 rounded-lg text-xs font-bold ${period===p.id?'bg-orange-500 text-white':'bg-slate-100 text-slate-500'}`}>{p.l}</button>)}
@@ -326,6 +338,14 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        {!hasAnyReportData && (
+          <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-6 text-center">
+            <p className="text-base font-black text-slate-800 mb-2">Belum ada data laporan</p>
+            <p className="text-sm text-slate-500">
+              Mulai transaksi, buka kas harian, atau catat pengeluaran agar laporan penjualan dan operasional muncul di sini.
+            </p>
+          </div>
+        )}
         {/* KPI */}
         <div className="grid grid-cols-2 gap-2">
           <StatCard label="Pendapatan" value={fRp(totalRevenue)} sub={`${filtered.length} trx`} icon={<DollarSign size={15}/>} color="orange"/>
@@ -652,6 +672,13 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
           <div><p className="font-bold text-orange-700 text-sm">PDF lengkap dengan semua chart</p><p className="text-orange-400 text-xs">{filtered.length} transaksi + pie chart + inventaris</p></div>
         </div>
       </div>
+      {showExpenseModal && (
+        <ExpenseModal
+          onClose={() => setShowExpenseModal(false)}
+          cashierName={profile?.display_name || profile?.username || 'Kasir'}
+          toast={toast}
+        />
+      )}
     </div>
   );
 }

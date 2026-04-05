@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { AUTH_REDIRECT_URL, supabase } from '@/lib/supabase';
 
 export const registerWithEmail = async (
   username: string,
@@ -64,12 +64,14 @@ export const resendVerificationEmail = async (
   email: string
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    const { error } = await supabase.auth.resend({
-      type: 'signup',
-      email,
-      options: {
-        emailRedirectTo: 'id.kaffeepos.app://email-confirmed'
-      }
+    const cleanEmail = email.trim().toLowerCase();
+    const { error } = await supabase.functions.invoke('send-notification', {
+      body: {
+        type: 'verification',
+        email: cleanEmail,
+        name: cleanEmail.split('@')[0],
+        redirectTo: AUTH_REDIRECT_URL,
+      },
     });
     if (error) return { success: false, error: error.message };
     return { success: true };

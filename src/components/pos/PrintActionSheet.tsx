@@ -13,6 +13,12 @@ import { usePrinter } from '@/hooks/usePrinter';
 import { type PrintData } from '@/utils/thermalPrinter';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
+import {
+  createReceiptPrintData,
+  formatReceiptCurrency,
+  getReceiptDividerChar,
+  getReceiptSettings,
+} from '@/utils/receipt';
 
 // ── Format helpers ───────────────────────────────────────────────────────────
 const fRp = (n: number) => 'Rp ' + new Intl.NumberFormat('id-ID').format(n || 0);
@@ -28,11 +34,12 @@ function formatDate(d: string) {
 async function generateReceiptPDFBase64(tx:any, storeSettings:any): Promise<string> {
   const { jsPDF } = await import('jspdf');
   const { convertLogoForPrint } = await import('@/utils/thermalPrinter');
-  const pw = storeSettings?.paper_width === '80mm' ? 80 : 58;
+  const settings = getReceiptSettings(storeSettings);
+  const pw = settings.paper_width === '80mm' ? 80 : 58;
   const doc = new jsPDF({ unit: 'mm', format: [pw, 297], orientation: 'portrait' });
-  const font = 8;
+  const font = settings.receipt_font_size === 'large' ? 9 : settings.receipt_font_size === 'small' ? 7 : 8;
   let y = 4;
-  const fRpJ = (n: number) => 'Rp' + new Intl.NumberFormat('id-ID').format(n || 0);
+  const fRpJ = (n: number) => formatReceiptCurrency(n);
   const line = (text: string, align: 'left' | 'center' | 'right' = 'left', bold = false) => {
     doc.setFontSize(font);
     doc.setFont('courier', bold ? 'bold' : 'normal');
@@ -41,27 +48,34 @@ async function generateReceiptPDFBase64(tx:any, storeSettings:any): Promise<stri
     else doc.text(text, 3, y);
     y += font * 0.42;
   };
-  const divider = () => { line('-'.repeat(Math.floor((pw - 6) / 1.8))); };
+  const dividerChar = getReceiptDividerChar(settings.receipt_divider);
+  const divider = () => { line(dividerChar.repeat(Math.floor((pw - 6) / 1.8))); };
 
   // Logo
-  const rawLogoUrl = storeSettings?.logo_url || storeSettings?.logo_base64 || '';
-  if (rawLogoUrl && rawLogoUrl.length > 10) {
+  const rawLogoUrl = settings.logo_url || settings.logo_base64 || '';
+  if (settings.show_logo_on_receipt !== false && rawLogoUrl && rawLogoUrl.length > 10) {
     try {
       const processedLogo = await convertLogoForPrint(rawLogoUrl, { mode: 'grayscale', threshold: 220 });
-      const logoSize = storeSettings?.logo_size || 40;
+      const logoSize = settings.logo_size || 40;
       const logoH = Math.min(logoSize * 0.264583, 15);
       const logoW = logoH;
-      doc.addImage(processedLogo, 'PNG', (pw - logoW) / 2, y, logoW, logoH);
+      const x =
+        settings.logo_position === 'left' ? 3 :
+        settings.logo_position === 'right' ? pw - logoW - 3 :
+        (pw - logoW) / 2;
+      doc.addImage(processedLogo, 'PNG', x, y, logoW, logoH);
       y += logoH + 1;
     } catch { /* skip */ }
   }
 
   // Header
-  const storeName = storeSettings?.store_name || 'KaffePOS';
+  const storeName = settings.store_name || 'KaffePOS';
   doc.setFont('courier', 'bold'); doc.setFontSize(font + 2);
   doc.text(storeName, pw / 2, y, { align: 'center' }); y += (font + 2) * 0.45;
-  if (storeSettings?.address) line(storeSettings.address, 'center');
-  if (storeSettings?.whatsapp) line('WA: ' + storeSettings.whatsapp, 'center');
+  if (settings.tagline) line(settings.tagline, 'center');
+  if (settings.receipt_show_address && settings.address) line(settings.address, 'center');
+  if (settings.receipt_show_whatsapp && settings.whatsapp) line('WA: ' + settings.whatsapp, 'center');
+  if (settings.receipt_header) line(settings.receipt_header, 'center');
   divider();
 
   // ORDER ID Besar di Tengah
@@ -78,7 +92,7 @@ async function generateReceiptPDFBase64(tx:any, storeSettings:any): Promise<stri
 
   doc.setFontSize(font); doc.setFont('courier', 'normal');
   line('Tgl : ' + formatDate(tx.date));
-  if (tx.cashier) line('Kasir: ' + tx.cashier);
+  if (settings.receipt_show_cashier !== false && tx.cashier) line('Kasir: ' + tx.cashier);
   divider();
 
   tx.items.forEach((item:any) => {
@@ -95,7 +109,7 @@ async function generateReceiptPDFBase64(tx:any, storeSettings:any): Promise<stri
     doc.text('Diskon', 3, y); doc.text('-' + fRpJ(tx.discount), pw - 3, y, { align: 'right' });
     y += font * 0.42;
   }
-  if (tx.tax > 0) {
+  if (settings.receipt_show_tax !== false && tx.tax > 0) {
     doc.text('Pajak', 3, y); doc.text(fRpJ(tx.tax), pw - 3, y, { align: 'right' });
     y += font * 0.42;
   }
@@ -113,7 +127,9 @@ async function generateReceiptPDFBase64(tx:any, storeSettings:any): Promise<stri
     y += font * 0.42;
   }
   divider();
-  line(storeSettings?.receipt_footer || 'Terima kasih!', 'center', true);
+  line(settings.receipt_footer || 'Terima kasih!', 'center', true);
+  if (settings.receipt_custom_line1) line(settings.receipt_custom_line1, 'center');
+  if (settings.receipt_custom_line2) line(settings.receipt_custom_line2, 'center');
 
   return doc.output('datauristring').split(',')[1]; // base64 only
 }
@@ -175,18 +191,9 @@ export default function PrintActionSheet({
   const tx = transaction;
   const storeName = storeSettings?.store_name || 'KaffePOS';
 
-  const makePrintData = (): PrintData => ({
-    storeName,
-    address:      storeSettings?.address,
-    phone:        storeSettings?.whatsapp,
-    tagline:      storeSettings?.tagline,
-    footer:       storeSettings?.receipt_footer || 'Terima kasih!',
-    paperWidth:   (storeSettings?.paper_width || '58mm') as '58mm' | '80mm',
-    logoUrl:      storeSettings?.logo_url || storeSettings?.logo_base64 || '',
-    logoPosition: storeSettings?.logo_position || 'center',
-    logoSize:     storeSettings?.logo_size || 40,
-    transaction:  tx,
-  });
+  const makePrintData = (): PrintData => (
+    createReceiptPrintData(storeSettings, tx) as PrintData
+  );
 
   const doClose = () => { setLoading(null); onClose(); };
 

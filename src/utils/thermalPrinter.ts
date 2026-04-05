@@ -6,12 +6,19 @@
 // src/utils/thermalPrinter.ts
 import { registerPlugin } from '@capacitor/core';
 import { BluetoothPrinter as NativeBtPlugin } from '@kduma-autoid/capacitor-bluetooth-printer';
+import {
+  formatReceiptCurrency,
+  formatReceiptDate,
+  getReceiptCharWidth,
+  getReceiptDividerChar,
+} from '@/utils/receipt';
 
 export interface PrintData {
   storeName: string;
   tagline?: string;
   address?: string;
   phone?: string;
+  headerText?: string;
   footer?: string;
   paperWidth?: '58mm' | '80mm';
   fontSize?: 'small' | 'medium' | 'large';
@@ -21,6 +28,7 @@ export interface PrintData {
   showLogoOnReceipt?: boolean;
   showTrxId?: boolean;
   showCashier?: boolean;
+  showTax?: boolean;
   divider?: 'dash' | 'equal' | 'star' | 'dot';
   customLine1?: string;
   customLine2?: string;
@@ -54,11 +62,11 @@ const CMD = {
 };
 
 function fDate(d: string) {
-  return new Date(d).toLocaleString('id-ID', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return formatReceiptDate(d);
 }
 
 function fRp(n: number) {
-  return 'Rp' + new Intl.NumberFormat('id-ID').format(n || 0);
+  return formatReceiptCurrency(n);
 }
 
 /** Konversi logo ke grayscale sebelum print untuk hasil tajam (browser) */
@@ -91,13 +99,64 @@ export async function convertLogoForPrint(url: string, opts: { mode: 'grayscale'
   });
 }
 
+async function loadImageData(url: string, maxWidth: number, desiredWidth?: number) {
+  return new Promise<ImageData | null>((resolve) => {
+    if (!url) { resolve(null); return; }
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      const scaleWidth = Math.max(48, Math.min(maxWidth, desiredWidth || Math.round(maxWidth * 0.45)));
+      const ratio = img.height / Math.max(1, img.width);
+      const width = Math.max(8, Math.min(maxWidth, Math.round(scaleWidth)));
+      const height = Math.max(8, Math.round(width * ratio));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) { resolve(null); return; }
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(ctx.getImageData(0, 0, width, height));
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+function imageDataToEscPosRaster(imageData: ImageData): number[] {
+  const { width, height, data } = imageData;
+  const widthBytes = Math.ceil(width / 8);
+  const raster = [
+    0x1D, 0x76, 0x30, 0x00,
+    widthBytes & 0xff, (widthBytes >> 8) & 0xff,
+    height & 0xff, (height >> 8) & 0xff,
+  ];
+
+  for (let y = 0; y < height; y += 1) {
+    for (let xb = 0; xb < widthBytes; xb += 1) {
+      let byte = 0;
+      for (let bit = 0; bit < 8; bit += 1) {
+        const x = xb * 8 + bit;
+        if (x >= width) continue;
+        const idx = (y * width + x) * 4;
+        const grey = data[idx] * 0.3 + data[idx + 1] * 0.59 + data[idx + 2] * 0.11;
+        if (grey < 190) byte |= (0x80 >> bit);
+      }
+      raster.push(byte);
+    }
+  }
+
+  return raster;
+}
+
 /** Membentuk bytes ESC/POS untuk thermal printer */
-export function buildReceiptBytes(data: PrintData): Uint8Array {
+export async function buildReceiptBytes(data: PrintData): Promise<Uint8Array> {
   const bytes: number[] = [];
   const add = (...b:any[]) => { b.forEach(v => { if (Array.isArray(v)) add(...v); else bytes.push(v); }); };
   const line = (txt: string) => { for (let i = 0; i < txt.length; i++) bytes.push(txt.charCodeAt(i)); add(0x0A); };
-  const W = data.paperWidth === '80mm' ? 42 : 32;
-  const dc = data.divider === 'star' ? '*' : data.divider === 'equal' ? '=' : data.divider === 'dot' ? '·' : '-';
+  const W = getReceiptCharWidth(data.paperWidth);
+  const dc = getReceiptDividerChar(data.divider);
   const divLine = () => line(dc.repeat(W));
   const twoCol = (l: string, r: string, w: number) => {
     const space = w - l.length - r.length;
@@ -106,17 +165,31 @@ export function buildReceiptBytes(data: PrintData): Uint8Array {
 
   add(CMD.INIT);
   add(CMD.ALIGN_CENTER);
+  if (data.showLogoOnReceipt !== false && data.logoUrl) {
+    const maxWidth = data.paperWidth === '80mm' ? 576 : 384;
+    const desiredWidth = Math.round((data.logoSize || 40) * 3);
+    const imageData = await loadImageData(data.logoUrl, maxWidth, desiredWidth);
+    if (imageData) {
+      if (data.logoPosition === 'left') add(CMD.ALIGN_LEFT);
+      else if (data.logoPosition === 'right') add(CMD.ALIGN_RIGHT);
+      else add(CMD.ALIGN_CENTER);
+      add(imageDataToEscPosRaster(imageData));
+      add(0x0A);
+      add(CMD.ALIGN_CENTER);
+    }
+  }
   add(CMD.BOLD_ON);
   line(data.storeName);
   add(CMD.BOLD_OFF);
   if (data.tagline) line(data.tagline);
   if (data.address) line(data.address);
   if (data.phone) line('WA: ' + data.phone);
+  if (data.headerText) line(data.headerText);
   divLine();
   add(CMD.ALIGN_LEFT);
   if (data.showTrxId !== false) line('No: ' + data.transaction.id);
   line('Tgl: ' + fDate(data.transaction.date));
-  if (data.showCashier !== false) line('Kasir: @' + data.transaction.cashier);
+  if (data.showCashier !== false) line('Kasir: ' + data.transaction.cashier);
   divLine();
   data.transaction.items.forEach(i => {
     line(i.name);
@@ -124,7 +197,7 @@ export function buildReceiptBytes(data: PrintData): Uint8Array {
   });
   divLine();
   if (data.transaction.discount > 0) line(twoCol('Diskon', '-' + fRp(data.transaction.discount), W));
-  if (data.transaction.tax > 0) line(twoCol('Pajak', fRp(data.transaction.tax), W));
+  if (data.showTax !== false && data.transaction.tax > 0) line(twoCol('Pajak', fRp(data.transaction.tax), W));
   add(CMD.BOLD_ON);
   line(twoCol('TOTAL', fRp(data.transaction.total), W));
   add(CMD.BOLD_OFF);
@@ -202,7 +275,7 @@ export async function disconnectClassicBt(): Promise<void> {
 
 export async function printReceiptClassicBt(data: PrintData): Promise<void> {
   if (!_nativeBtConnected) await connectClassicBt();
-  const bytes = buildReceiptBytes(data);
+  const bytes = await buildReceiptBytes(data);
   let bin = ''; bytes.forEach(b => { bin += String.fromCharCode(b); });
   await NativeBt.print({ data: btoa(bin) });
 }
@@ -250,7 +323,7 @@ export function startPrinterWatchdog(): void {}
 export function stopPrinterWatchdog(): void {}
 
 export async function printReceipt(data: PrintData): Promise<void> {
-  const bytes = buildReceiptBytes(data);
+  const bytes = await buildReceiptBytes(data);
   if (!_char) throw new Error('Not connected');
   await _char.writeValue(bytes);
 }
@@ -286,7 +359,7 @@ export async function disconnectUsbPrinter(): Promise<void> {
   _usbConnected = false;
 }
 export async function printReceiptUsb(data: PrintData): Promise<void> {
-  const bytes = buildReceiptBytes(data);
+  const bytes = await buildReceiptBytes(data);
   let bin = ''; bytes.forEach(b => { bin += String.fromCharCode(b); });
   await UsbPrinter.print({ data: btoa(bin) });
 }
@@ -298,7 +371,81 @@ export function setSavedPrintMethod(m: PrintMethod) { localStorage.setItem('kpos
 
 // ── Fallback Browser Print ─────────────────────────────────────────
 export async function printReceiptBrowser(data: PrintData): Promise<void> {
-  const html = `<!DOCTYPE html><html><body><h1>${data.storeName}</h1><script>window.print();setTimeout(()=>window.close(),1000);</script></body></html>`;
+  const W = data.paperWidth === '80mm' ? 300 : 210;
+  const fontSize = data.fontSize === 'large' ? 12 : data.fontSize === 'small' ? 9 : 10.5;
+  const divider = getReceiptDividerChar(data.divider).repeat(Math.floor(W / 7));
+  const esc = (value = '') =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  const itemHtml = data.transaction.items.map((item) => `
+    <div class="item">
+      <div class="item-name">${esc(item.name)}</div>
+      <div class="row">
+        <span>${item.qty}x ${esc(fRp(item.price))}</span>
+        <span>${esc(fRp(item.subtotal))}</span>
+      </div>
+    </div>
+  `).join('');
+  const html = `<!DOCTYPE html>
+  <html>
+    <head>
+      <meta charset="utf-8" />
+      <title>${esc(data.storeName)}</title>
+      <style>
+        body { margin: 0; padding: 16px; background: #f8fafc; }
+        .receipt {
+          width: ${W}px; margin: 0 auto; background: #fff; border: 1px solid #e2e8f0;
+          border-radius: 8px; padding: 10px 8px; color: #1e293b; line-height: 1.6;
+          font-family: 'Courier New', monospace; font-size: ${fontSize}px;
+        }
+        .center { text-align: center; }
+        .left { text-align: left; }
+        .right { text-align: right; }
+        .title { font-weight: bold; font-size: ${fontSize + 3}px; }
+        .muted { color: #64748b; }
+        .divider { color: #94a3b8; margin: 4px 0; white-space: pre-wrap; }
+        .row { display: flex; justify-content: space-between; }
+        .bold { font-weight: bold; }
+        .total { font-weight: bold; font-size: ${fontSize + 1}px; }
+        .logo img { display: inline-block; object-fit: contain; height: ${Math.max(20, data.logoSize || 40)}px; }
+        @media print {
+          body { padding: 0; background: #fff; }
+          .receipt { border: 0; width: 100%; max-width: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="receipt">
+        ${data.showLogoOnReceipt !== false && data.logoUrl ? `<div class="logo ${data.logoPosition || 'center'}"><img src="${data.logoUrl}" alt="logo" /></div>` : ''}
+        <div class="center title">${esc(data.storeName)}</div>
+        ${data.tagline ? `<div class="center muted">${esc(data.tagline)}</div>` : ''}
+        ${data.address ? `<div class="center muted">${esc(data.address)}</div>` : ''}
+        ${data.phone ? `<div class="center muted">WA: ${esc(data.phone)}</div>` : ''}
+        ${data.headerText ? `<div class="center">${esc(data.headerText)}</div>` : ''}
+        <div class="divider">${esc(divider)}</div>
+        ${data.showTrxId !== false ? `<div class="muted">No: ${esc(data.transaction.id)}</div>` : ''}
+        <div class="muted">Tgl: ${esc(fDate(data.transaction.date))}</div>
+        ${data.showCashier !== false ? `<div class="muted">Kasir: ${esc(data.transaction.cashier)}</div>` : ''}
+        <div class="divider">${esc(divider)}</div>
+        ${itemHtml}
+        <div class="divider">${esc(divider)}</div>
+        ${data.transaction.discount > 0 ? `<div class="row"><span>Diskon</span><span>-${esc(fRp(data.transaction.discount))}</span></div>` : ''}
+        ${data.showTax !== false && data.transaction.tax > 0 ? `<div class="row"><span>Pajak</span><span>${esc(fRp(data.transaction.tax))}</span></div>` : ''}
+        <div class="row total"><span>TOTAL</span><span>${esc(fRp(data.transaction.total))}</span></div>
+        <div class="divider">${esc(divider)}</div>
+        <div class="row"><span>Bayar (${esc(data.transaction.method)})</span><span>${esc(fRp(data.transaction.paid))}</span></div>
+        ${data.transaction.method === 'Tunai' ? `<div class="row bold"><span>Kembali</span><span>${esc(fRp(data.transaction.change))}</span></div>` : ''}
+        <div class="divider">${esc(divider)}</div>
+        <div class="center bold">${esc(data.footer || 'Terima kasih!')}</div>
+        ${data.customLine1 ? `<div class="center muted">${esc(data.customLine1)}</div>` : ''}
+        ${data.customLine2 ? `<div class="center muted">${esc(data.customLine2)}</div>` : ''}
+      </div>
+      <script>window.print();setTimeout(()=>window.close(),1000);</script>
+    </body>
+  </html>`;
   const w = window.open('', '_blank');
   if (w) { w.document.write(html); w.document.close(); }
 }

@@ -12,6 +12,7 @@
 // - Tidak ada sessionApplied guard yang bisa memblokir login
 import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { Preferences } from '@capacitor/preferences';
 import { AUTH_REDIRECT_URL, PASSWORD_RESET_REDIRECT_URL, SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from '@/lib/supabase';
 import type { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import type { Profile } from '@/types';
@@ -20,15 +21,30 @@ import { loginSchema, signUpSchema } from '@/utils/validation';
 // Removed unused getAppPlugin
 
 const SESSION_CACHE_KEY = 'kaffepos_session_cache';
-function cacheSession(session: Session | null) {
+const EXPLICIT_SIGNOUT_KEY = 'kaffepos_explicit_signout';
+
+async function cacheSession(session: Session | null) {
   try {
+    if (Capacitor.isNativePlatform()) {
+      if (session) await Preferences.set({ key: SESSION_CACHE_KEY, value: JSON.stringify(session) });
+      else await Preferences.remove({ key: SESSION_CACHE_KEY });
+      return;
+    }
     if (session) localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session));
     else localStorage.removeItem(SESSION_CACHE_KEY);
   } catch { /* ignore */ }
 }
-function getCachedSession(): Session | null {
-  try { const raw = localStorage.getItem(SESSION_CACHE_KEY); return raw ? JSON.parse(raw) as Session : null; }
-  catch { return null; }
+async function getCachedSession(): Promise<Session | null> {
+  try {
+    if (Capacitor.isNativePlatform()) {
+      const { value } = await Preferences.get({ key: SESSION_CACHE_KEY });
+      return value ? JSON.parse(value) as Session : null;
+    }
+    const raw = localStorage.getItem(SESSION_CACHE_KEY);
+    return raw ? JSON.parse(raw) as Session : null;
+  } catch {
+    return null;
+  }
 }
 
 async function fetchProfile(uid: string): Promise<Profile | null> {
@@ -138,6 +154,26 @@ async function nativeAuthPost(path: string, data: Record<string, unknown>, extra
   };
 }
 
+async function nativeFunctionPost(functionName: string, body: Record<string, unknown>) {
+  const response = await CapacitorHttp.post({
+    url: `${SUPABASE_URL}/functions/v1/${functionName}`,
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    data: body,
+    connectTimeout: 12000,
+    readTimeout: 12000,
+  });
+
+  return {
+    status: response.status,
+    data: (response.data ?? null) as Record<string, unknown> | null,
+  };
+}
+
 interface AuthCtx {
   user: Session['user'] | null;
   profile: Profile | null;
@@ -179,14 +215,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!session?.user) {
       setUser(null);
       setProfile(null);
-      cacheSession(null);
+      void cacheSession(null);
       setLoading(false);
       return;
     }
 
     localStorage.removeItem('kaffepos_pending_verification');
     localStorage.removeItem('kaffepos_registered_email');
-    cacheSession(session);
+    void cacheSession(session);
     setUser(session.user);
     setLoading(false);
     const dn = session.user.user_metadata?.full_name || session.user.user_metadata?.name;
@@ -223,13 +259,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (event === 'SIGNED_OUT') {
           setUser(null);
           setProfile(null);
-          cacheSession(null);
+          void cacheSession(null);
           setLoading(false);
           return;
         }
 
         if (event === 'TOKEN_REFRESHED' && session?.user) {
-          cacheSession(session);
+          void cacheSession(session);
           return;
         }
 
@@ -242,7 +278,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const init = async () => {
       if (!mounted.current) return;
 
-      const cached = getCachedSession();
+      const cached = await getCachedSession();
       if (cached?.user && !signedOut.current) {
         setUser(cached.user);
         setLoading(false);
@@ -445,15 +481,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             'Pengiriman email verifikasi terlalu lama. Coba lagi sebentar.'
           );
         } catch (mailError: any) {
-          console.error('[SignUp] Custom verification send failed, falling back to Supabase:', mailError);
-          const { error: resendErr } = await supabase.auth.resend({
-            type: 'signup',
-            email: cleanEmail,
-            options: { emailRedirectTo: AUTH_REDIRECT_URL }
-          });
-          if (resendErr) {
-            return { error: `Akun dibuat, tapi email verifikasi gagal dikirim: ${resendErr.message}` };
-          }
+          console.error('[SignUp] Custom verification send failed:', mailError);
+          return { error: `Akun dibuat, tapi email verifikasi gagal dikirim: ${mailError?.message || 'Coba lagi sebentar.'}` };
         }
       }
 
@@ -507,36 +536,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
         return { error: null };
       } catch (edgeErr: any) {
-        console.error('[Auth] Custom resend failed, fallback to Supabase:', edgeErr);
-        const { error: resendErr } = await withTimeout(
-          supabase.auth.resend({
-            type: 'signup',
-            email: cleanEmail,
-            options: { emailRedirectTo: AUTH_REDIRECT_URL }
-          }),
-          9000,
-          'Pengiriman email verifikasi terlalu lama. Coba lagi sebentar.'
-        );
-
-        if (resendErr) {
-          console.error('[Auth] Supabase Resend Error:', resendErr.message);
-          if (resendErr.message.toLowerCase().includes('rate limit')) return { error: 'Tunggu 1 menit sebelum mencoba lagi (Limit).' };
-          return { error: resendErr.message };
-        }
-
-        return { error: null };
+        console.error('[Auth] Custom resend failed:', edgeErr);
+        return { error: edgeErr?.message || 'Gagal mengirim ulang email.' };
       }
     } catch (e:any) {
       console.error('[Auth] Resend process failed:', e);
       if (isNativeRuntime() && isNetworkLikeError(e?.message || '')) {
         try {
-          const { status, data } = await nativeAuthPost(
-            '/auth/v1/resend',
-            { type: 'signup', email: email.trim().toLowerCase() },
-            { redirect_to: AUTH_REDIRECT_URL }
+          const { status, data } = await nativeFunctionPost(
+            'send-notification',
+            {
+              type: 'verification',
+              email: email.trim().toLowerCase(),
+              redirectTo: AUTH_REDIRECT_URL,
+            }
           );
           if (status < 400) return { error: null };
-          return { error: normalizeAuthError(data, 'Gagal mengirim ulang email.') };
+          return { error: (data as any)?.error || 'Gagal mengirim ulang email.' };
         } catch (nativeError: any) {
           console.error('[Auth] Native resend fallback failed:', nativeError);
         }
@@ -587,7 +603,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     signedOut.current = true;
     try { const mod = await import('@/hooks/useStore'); mod.useStore.getState().cleanup?.(); } catch { /* ignore */ }
-    cacheSession(null);
+    try {
+      localStorage.setItem(EXPLICIT_SIGNOUT_KEY, '1');
+    } catch { /* ignore */ }
+    await cacheSession(null);
     try { await supabase.auth.signOut(); } catch { /* ignore */ }
     if (mounted.current) { setUser(null); setProfile(null); setLoading(false); }
   }, [], /* eslint-disable-next-line react-hooks/exhaustive-deps */ );
@@ -596,28 +615,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const resetPassword = useCallback(async (email: string) => {
     try {
       const { error } = await withTimeout(
-        supabase.auth.resetPasswordForEmail(
-          email.trim().toLowerCase(), { redirectTo: PASSWORD_RESET_REDIRECT_URL }
-        ),
+        supabase.functions.invoke('send-notification', {
+          body: {
+            type: 'password_reset',
+            email: email.trim().toLowerCase(),
+            redirectTo: PASSWORD_RESET_REDIRECT_URL,
+          },
+        }),
         9000,
         'Pengiriman email reset terlalu lama. Coba lagi sebentar.'
       );
-      if (error) {
-        if (error.message.includes('network') || error.message.includes('fetch'))
-          return { error: 'Tidak ada koneksi internet. Cek jaringan kamu.' };
-        return { error: `Gagal mengirim email: ${error.message}` };
-      }
+      if (error) return { error: `Gagal mengirim email: ${error.message}` };
       return { error: null };
     } catch (e:any) {
       if (isNativeRuntime() && isNetworkLikeError(e?.message || '')) {
         try {
-          const { status, data } = await nativeAuthPost(
-            '/auth/v1/recover',
-            { email: email.trim().toLowerCase() },
-            { redirect_to: PASSWORD_RESET_REDIRECT_URL }
+          const { status, data } = await nativeFunctionPost(
+            'send-notification',
+            {
+              type: 'password_reset',
+              email: email.trim().toLowerCase(),
+              redirectTo: PASSWORD_RESET_REDIRECT_URL,
+            }
           );
           if (status < 400) return { error: null };
-          return { error: normalizeAuthError(data, 'Gagal mengirim email reset.') };
+          return { error: (data as any)?.error || 'Gagal mengirim email reset.' };
         } catch (nativeError) {
           console.error('[Auth] Native recover fallback failed:', nativeError);
         }
