@@ -11,16 +11,18 @@
 //   - Browser.open() menggantikan window.open(_system)
 //   - browserFinished event sebagai signal OAuth selesai
 //   - appUrlOpen (via onNewIntent) tetap handle PKCE code exchange
-import { Suspense, lazy, useState, useEffect, useRef } from 'react';
+import { Suspense, lazy, useState, useEffect, useRef, useCallback } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { App as CapApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { Network } from '@capacitor/network';
 import { supabase } from './lib/supabase';
 import { useLocation } from 'react-router-dom';
 import { useStore } from './hooks/useStore';
 import { autoConnectOnResume } from './utils/bluetoothPrinter';
+import { getAuthModeFromLocation, hasAuthCallbackParams, isAuthSurfacePath } from './utils/authFlow';
 import GlobalErrorBoundary from './components/ui/GlobalErrorBoundary';
 import type { EmailOtpType } from '@supabase/supabase-js';
 
@@ -130,17 +132,24 @@ function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
   const requiresPasswordReset = typeof window !== 'undefined' && localStorage.getItem('kaffepos_password_reset_required') === '1';
+  const currentAuthMode = getAuthModeFromLocation(location.pathname, location.search);
+  const onAuthSurface = isAuthSurfacePath(location.pathname);
   if (loading) return <AuthLoading />;
-  if (requiresPasswordReset && location.pathname !== '/auth') {
-    return <Navigate to="/auth?mode=reset" replace />;
+  if (requiresPasswordReset && currentAuthMode !== 'reset') {
+    return <Navigate to="/reset-password" replace />;
   }
-  if (isAuthenticated && location.pathname === '/auth' && !requiresPasswordReset) {
+  if (isAuthenticated && onAuthSurface && !requiresPasswordReset) {
     return <Navigate to="/" replace />;
   }
   return (
     <Routes>
       <Route path="/plan-confirmation" element={<PlanConfirmation />} />
       <Route path="/auth" element={<AuthPage />} />
+      <Route path="/auth/callback" element={<AuthPage />} />
+      <Route path="/login" element={<AuthPage />} />
+      <Route path="/register" element={<AuthPage />} />
+      <Route path="/forgot-password" element={<AuthPage />} />
+      <Route path="/reset-password" element={<AuthPage />} />
       <Route path="/admin" element={
         isAuthenticated ? <AdminPanel /> : <Navigate to="/auth" replace />
       } />
@@ -157,6 +166,84 @@ export default function App() {
   const [showExitDlg,  setShowExitDlg]  = useState(false);
   const backPressTime  = useRef<number>(0);
   const { loading: authLoading } = useAuth();
+
+  const handleAuthRedirect = useCallback(async (rawUrl: string) => {
+    const processedUrl = rawUrl
+      .replace('id.kaffeepos.app://', 'https://kaffepos.my.id/')
+      .replace('kaffepos://', 'https://kaffepos.my.id/')
+      .replace('kaffepos:/', 'https://kaffepos.my.id/');
+
+    const urlObj = new URL(processedUrl);
+    if (!hasAuthCallbackParams(urlObj)) return false;
+
+    try {
+      const code = getParamFromDeepLink(urlObj, 'code');
+      if (code) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) console.error('[OAuth] Exchange error:', error.message);
+        if (data?.session) {
+          localStorage.removeItem('kaffepos_pending_verification');
+          localStorage.removeItem('kaffepos_registered_email');
+          setSplashDone(true);
+        }
+      }
+
+      const tokenHash = getParamFromDeepLink(urlObj, 'token_hash');
+      const otpType = getParamFromDeepLink(urlObj, 'type') as EmailOtpType | null;
+      if (tokenHash && otpType) {
+        const { data, error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: otpType,
+        });
+        if (error) console.error('[DeepLink] verifyOtp error:', error.message);
+        if (data?.session) {
+          if (otpType === 'recovery') {
+            localStorage.setItem('kaffepos_password_reset_required', '1');
+            window.history.replaceState({}, '', '/reset-password');
+          } else {
+            localStorage.removeItem('kaffepos_pending_verification');
+            localStorage.removeItem('kaffepos_registered_email');
+          }
+          setSplashDone(true);
+        } else if (otpType === 'signup') {
+          localStorage.removeItem('kaffepos_pending_verification');
+          localStorage.removeItem('kaffepos_registered_email');
+          window.history.replaceState({}, '', '/login?verified=1');
+        }
+      }
+
+      const accessToken = getParamFromDeepLink(urlObj, 'access_token');
+      const refreshToken = getParamFromDeepLink(urlObj, 'refresh_token');
+      if (accessToken && refreshToken) {
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (error) console.error('[DeepLink] setSession error:', error.message);
+        if (data?.session) {
+          const type = getParamFromDeepLink(urlObj, 'type');
+          const looksLikeRecovery = type === 'recovery' || rawUrl.includes('reset-password');
+          if (looksLikeRecovery) {
+            localStorage.setItem('kaffepos_password_reset_required', '1');
+            window.history.replaceState({}, '', '/reset-password');
+          } else {
+            localStorage.removeItem('kaffepos_pending_verification');
+            localStorage.removeItem('kaffepos_registered_email');
+          }
+          setSplashDone(true);
+        }
+      }
+    } catch (e) {
+      console.error('[DeepLink] Global error:', e);
+    } finally {
+      setSplashDone(true);
+      if (Capacitor.isNativePlatform()) {
+        await Browser.close().catch(() => {});
+      }
+    }
+
+    return true;
+  }, []);
 
   // Splash singkat agar launch terasa responsif seperti aplikasi produksi.
   useEffect(() => {
@@ -202,81 +289,21 @@ export default function App() {
           url.includes('type=signup') ||
           url.includes('type=recovery') ||
           url.includes('code=')) {
-        
-        try {
-          const processedUrl = url
-            .replace('id.kaffeepos.app://', 'https://kaffepos.app/')
-            .replace('kaffepos://', 'https://kaffepos.app/')
-            .replace('kaffepos:/', 'https://kaffepos.app/');
-          const urlObj = new URL(processedUrl);
-
-          const code = getParamFromDeepLink(urlObj, 'code');
-          if (code) {
-            const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-            if (error) console.error('[OAuth] Exchange error:', error.message);
-            if (data?.session) {
-              localStorage.removeItem('kaffepos_pending_verification');
-              localStorage.removeItem('kaffepos_registered_email');
-              setSplashDone(true);
-            }
-          }
-
-          const tokenHash = getParamFromDeepLink(urlObj, 'token_hash');
-          const otpType = getParamFromDeepLink(urlObj, 'type') as EmailOtpType | null;
-          if (tokenHash && otpType) {
-            const { data, error } = await supabase.auth.verifyOtp({
-              token_hash: tokenHash,
-              type: otpType,
-            });
-            if (error) console.error('[DeepLink] verifyOtp error:', error.message);
-            if (data?.session) {
-              if (otpType === 'recovery') {
-                localStorage.setItem('kaffepos_password_reset_required', '1');
-                window.history.replaceState({}, '', '/auth?mode=reset');
-              } else {
-                localStorage.removeItem('kaffepos_pending_verification');
-                localStorage.removeItem('kaffepos_registered_email');
-              }
-              setSplashDone(true);
-            }
-          }
-
-          const accessToken = getParamFromDeepLink(urlObj, 'access_token');
-          const refreshToken = getParamFromDeepLink(urlObj, 'refresh_token');
-          if (accessToken && refreshToken) {
-            const { data, error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            if (error) console.error('[DeepLink] setSession error:', error.message);
-            if (data?.session) {
-              const type = getParamFromDeepLink(urlObj, 'type');
-              const looksLikeRecovery = type === 'recovery' || url.includes('reset-password');
-              if (looksLikeRecovery) {
-                localStorage.setItem('kaffepos_password_reset_required', '1');
-                window.history.replaceState({}, '', '/auth?mode=reset');
-              } else {
-                localStorage.removeItem('kaffepos_pending_verification');
-                localStorage.removeItem('kaffepos_registered_email');
-              }
-              setSplashDone(true);
-            }
-          }
-
-        } catch (e) {
-          console.error('[DeepLink] Global error:', e);
-        }
-        
-        // Finalize state and close browser
-        setSplashDone(true);
-        await Browser.close().catch(() => {});
+        await handleAuthRedirect(url);
       }
     });
 
     return () => {
       urlListener.then(l => l.remove());
     };
-  }, [],   );
+  }, [handleAuthRedirect],   );
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) return;
+    handleAuthRedirect(window.location.href).catch((error) => {
+      console.error('[WebAuthCallback] Failed to process auth callback:', error);
+    });
+  }, [handleAuthRedirect]);
 
   // ── FIX 4: APP Lifecycle & Network Status ──────────────────────
   useEffect(() => {

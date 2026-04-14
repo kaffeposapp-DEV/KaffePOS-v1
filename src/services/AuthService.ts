@@ -1,4 +1,5 @@
 import { AUTH_REDIRECT_URL, supabase } from '@/lib/supabase';
+import { isExistingSignupAttempt, normalizeSignupErrorMessage } from '@/utils/authFlow';
 
 export const registerWithEmail = async (
   username: string,
@@ -36,24 +37,21 @@ export const registerWithEmail = async (
       password,
       options: {
         data: { username },
-        emailRedirectTo: 'id.kaffeepos.app://email-confirmed',
+        emailRedirectTo: AUTH_REDIRECT_URL,
       }
     });
 
     if (error) {
-      // Handle error spesifik
-      if (error.message.includes('already registered')) {
-        return { success: false, error: 'Email ini sudah terdaftar. Coba login.' };
-      }
-      if (error.message.includes('invalid email')) {
-        return { success: false, error: 'Format email tidak valid' };
-      }
-      return { success: false, error: `Pendaftaran gagal: ${error.message}` };
+      const status = typeof error.status === 'number' ? error.status : undefined;
+      const normalizedError = normalizeSignupErrorMessage({
+        message: error.message,
+        status,
+      });
+      return { success: false, error: normalizedError || `Pendaftaran gagal: ${error.message}` };
     }
 
-    // Jika identities kosong = email sudah terdaftar
-    if (data.user?.identities?.length === 0) {
-      return { success: false, error: 'Email ini sudah terdaftar. Coba login.' };
+    if (isExistingSignupAttempt(data)) {
+      return { success: false, error: 'Email ini sudah terdaftar. Coba login atau kirim ulang verifikasi.' };
     }
 
     return { success: true };

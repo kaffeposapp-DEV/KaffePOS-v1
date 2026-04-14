@@ -17,6 +17,7 @@ import { AUTH_REDIRECT_URL, PASSWORD_RESET_REDIRECT_URL, SUPABASE_ANON_KEY, SUPA
 import type { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import type { Profile } from '@/types';
 import { clearUserCache, redirectToLogin, setActiveUserId, getActiveUserId } from '@/utils/sessionIsolation';
+import { isExistingSignupAttempt, normalizeSignupErrorMessage } from '@/utils/authFlow';
 import { loginSchema, signUpSchema } from '@/utils/validation';
 
 // Removed unused getAppPlugin
@@ -490,23 +491,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
 
       if (error) {
-        const m = error.message;
-        const s = (error as any).status;
-        console.error('[SignUp] API Error:', m, 'Status:', s);
+        const normalizedError = normalizeSignupErrorMessage({
+          message: error.message,
+          status: (error as any).status,
+        });
+        console.error('[SignUp] API Error:', error.message, 'Status:', (error as any).status);
+        return { error: normalizedError || 'Pendaftaran gagal. Coba lagi.' };
+      }
 
-        if (s === 404) {
-          return { error: 'Endpoint pendaftaran (404) tidak ditemukan. Periksa konfigurasi Supabase Anda.' };
-        }
-        if (m.includes('already registered') || m.includes('User already registered'))
-          return { error: 'Email sudah terdaftar. Silakan langsung login.' };
-        if (m.includes('profiles_username_key') || m.includes('duplicate key value violates unique constraint')) {
-          return { error: 'Nama toko / username sudah digunakan. Pakai nama lain ya.' };
-        }
-        if (m.includes('Password should be'))
-          return { error: 'Password terlalu lemah. Gunakan minimal 10 karakter dengan huruf besar, huruf kecil, dan angka.' };
-        if (m.includes('network') || m.includes('fetch'))
-          return { error: `Jaringan (SignUp): ${m}` };
-        return { error: m };
+      if (isExistingSignupAttempt(data)) {
+        return { error: 'Email sudah terdaftar. Silakan login atau kirim ulang email verifikasi.' };
+      }
+
+      if (!data.user && !data.session) {
+        return { error: 'Server pendaftaran tidak mengembalikan data akun. Coba lagi beberapa saat.' };
       }
 
       // Deteksi apakah verifikasi diperlukan:
@@ -542,13 +540,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           if (status >= 400 || !data) {
             const nativeError = normalizeAuthError(data, 'Pendaftaran gagal.');
-            if (nativeError.includes('already registered')) {
-              return { error: 'Email sudah terdaftar. Silakan langsung login.' };
-            }
-            if (nativeError.includes('profiles_username_key') || nativeError.includes('duplicate key value')) {
-              return { error: 'Nama toko / username sudah digunakan. Pakai nama lain ya.' };
-            }
-            return { error: nativeError };
+            const normalizedError = normalizeSignupErrorMessage({
+              message: nativeError,
+              status,
+            });
+            return { error: normalizedError || nativeError };
+          }
+
+          if (isExistingSignupAttempt(data)) {
+            return { error: 'Email sudah terdaftar. Silakan login atau kirim ulang email verifikasi.' };
           }
 
           return await finalizeNativeSignup(data);
@@ -556,7 +556,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error('[SignUp] Native fallback failed:', nativeError);
         }
       }
-      return { error: `Gagal mendaftar: ${e?.message || 'Check connection'}` }; 
+      const fallbackMessage = normalizeSignupErrorMessage({
+        message: e?.message || 'Check connection',
+        status: e?.status,
+      });
+      return { error: fallbackMessage || `Gagal mendaftar: ${e?.message || 'Check connection'}` };
     }
   }, [applyAuthenticatedSession],   );
 
