@@ -2,6 +2,51 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 
+const chunkGroups = [
+  {
+    name: 'react-core',
+    modules: ['react', 'react-dom', 'react-router-dom'],
+  },
+  {
+    name: 'supabase',
+    modules: ['@supabase/supabase-js'],
+  },
+  {
+    name: 'pdf',
+    modules: ['jspdf', 'jspdf-autotable'],
+  },
+  {
+    name: 'capacitor',
+    modules: [
+      '@capacitor/core',
+      '@capacitor/filesystem',
+      '@capacitor/share',
+      '@capacitor/haptics',
+      '@capacitor/status-bar',
+      '@capacitor/network',
+      '@capacitor/toast',
+    ],
+  },
+] as const;
+
+function manualChunks(id: string) {
+  if (!id.includes('node_modules')) {
+    return;
+  }
+
+  for (const group of chunkGroups) {
+    if (
+      group.modules.some(
+        (moduleName) =>
+          id.includes(`/node_modules/${moduleName}/`) ||
+          id.includes(`\\node_modules\\${moduleName}\\`)
+      )
+    ) {
+      return group.name;
+    }
+  }
+}
+
 export default defineConfig({
   plugins: [react()],
 
@@ -20,20 +65,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         // Split chunks for better caching
-        manualChunks: {
-          'react-core':  ['react', 'react-dom', 'react-router-dom'],
-          'supabase':    ['@supabase/supabase-js'],
-          'pdf':         ['jspdf', 'jspdf-autotable'],
-          'capacitor':   [
-            '@capacitor/core',
-            '@capacitor/filesystem',
-            '@capacitor/share',
-            '@capacitor/haptics',
-            '@capacitor/status-bar',
-            '@capacitor/network',
-            '@capacitor/toast',
-          ],
-        },
+        manualChunks,
       },
     },
   },
