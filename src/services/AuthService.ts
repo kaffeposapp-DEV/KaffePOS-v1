@@ -1,5 +1,27 @@
-import { AUTH_REDIRECT_URL, supabase } from '@/lib/supabase';
-import { isExistingSignupAttempt, normalizeSignupErrorMessage } from '@/utils/authFlow';
+import { AUTH_REDIRECT_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/supabase';
+import { normalizeRequestedUsername, normalizeSignupErrorMessage } from '@/utils/authFlow';
+
+async function invokeAuthEmail(body: Record<string, unknown>) {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/auth-email`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  let data: Record<string, unknown> | null = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  return { status: response.status, data };
+}
 
 export const registerWithEmail = async (
   username: string,
@@ -19,39 +41,29 @@ export const registerWithEmail = async (
     ) {
       return { success: false, error: 'Password minimal 10 karakter dan wajib mengandung huruf besar, huruf kecil, serta angka' };
     }
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanUsername = username.trim();
+    const normalizedUsername = normalizeRequestedUsername(cleanUsername);
 
-    // Cek username sudah dipakai
-    const { data: existing } = await supabase
-      .from('profiles')
-      .select('username')
-      .eq('username', username)
-      .maybeSingle();
-
-    if (existing) {
-      return { success: false, error: 'Username sudah digunakan' };
+    if (!normalizedUsername) {
+      return { success: false, error: 'Username minimal 3 karakter setelah dirapikan' };
     }
 
-    // Daftar ke Supabase
-    const { data, error } = await supabase.auth.signUp({
-      email,
+    const { status, data } = await invokeAuthEmail({
+      action: 'signup',
+      email: cleanEmail,
       password,
-      options: {
-        data: { username },
-        emailRedirectTo: AUTH_REDIRECT_URL,
-      }
+      username: cleanUsername,
+      displayName: cleanUsername,
+      redirectTo: AUTH_REDIRECT_URL,
     });
 
-    if (error) {
-      const status = typeof error.status === 'number' ? error.status : undefined;
+    if (status >= 400) {
       const normalizedError = normalizeSignupErrorMessage({
-        message: error.message,
+        message: String(data?.error || 'Pendaftaran gagal'),
         status,
       });
-      return { success: false, error: normalizedError || `Pendaftaran gagal: ${error.message}` };
-    }
-
-    if (isExistingSignupAttempt(data)) {
-      return { success: false, error: 'Email ini sudah terdaftar. Coba login atau kirim ulang verifikasi.' };
+      return { success: false, error: normalizedError || String(data?.error || 'Pendaftaran gagal') };
     }
 
     return { success: true };
@@ -66,14 +78,11 @@ export const resendVerificationEmail = async (
 ): Promise<{ success: boolean; error?: string }> => {
   try {
     const cleanEmail = email.trim().toLowerCase();
-    const { error } = await supabase.auth.resend({
-      type: 'signup',
+    const { status, data } = await invokeAuthEmail({
+      action: 'resend_signup',
       email: cleanEmail,
-      options: {
-        emailRedirectTo: AUTH_REDIRECT_URL,
-      },
     });
-    if (error) return { success: false, error: error.message };
+    if (status >= 400) return { success: false, error: String(data?.error || 'Gagal kirim ulang email') };
     return { success: true };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Coba lagi.';

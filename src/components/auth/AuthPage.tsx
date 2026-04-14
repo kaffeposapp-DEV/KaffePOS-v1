@@ -18,6 +18,7 @@ import {
   Store,
   User,
   WifiOff,
+  KeyRound,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthMode, getAuthModeFromLocation, getAuthPathForMode } from '@/utils/authFlow';
@@ -50,7 +51,7 @@ const brandStats = [
 ];
 
 export default function AuthPage() {
-  const { signIn, signUp, resetPassword, updatePassword, resendVerification, isAuthenticated, signOut } = useAuth();
+  const { signIn, signUp, resetPassword, updatePassword, resendVerification, verifyEmailCode, isAuthenticated, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -66,6 +67,7 @@ export default function AuthPage() {
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
   const [registered, setRegistered] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
   const [formErrors, setFormErrors] = useState<{ email?: string; pass?: string; uname?: string }>({});
   const [resendCooldown, setResendCooldown] = useState(0);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -148,6 +150,7 @@ export default function AuthPage() {
     setPass('');
     setConfirmPass('');
     setShow(false);
+    setVerificationCode('');
     setResendCooldown(0);
     setFormErrors({});
     setRegistered(false);
@@ -176,30 +179,39 @@ export default function AuthPage() {
       return;
     }
 
-    setOk('Email verifikasi baru sudah dikirim. Cek inbox atau folder spam lalu klik link terbarunya.');
+    setOk('Kode verifikasi baru sudah dikirim lewat email. Cek inbox atau folder spam lalu masukkan 6 digit kodenya.');
     setResendCooldown(60);
   }, [email, resendCooldown, resendVerification]);
 
   const handleVerificationCheck = useCallback(async () => {
+    if (verificationCode.replace(/\D/g, '').length !== 6) {
+      setErr('Masukkan kode verifikasi 6 digit dari email terlebih dahulu.');
+      return;
+    }
+
     setErr('');
     setOk('');
     setConfirming(true);
 
     try {
-      const result = await signIn(email.trim(), pass);
+      const result = await verifyEmailCode(email.trim(), verificationCode);
       if (result.error) {
-        if (result.error === 'email_not_confirmed') {
-          setErr('Akun belum diaktivasi. Pastikan link verifikasi dari email sudah dibuka.');
-        } else {
-          setErr(result.error);
-        }
+        setErr(result.error);
+        return;
       }
+
+      localStorage.removeItem('kaffepos_registered_email');
+      localStorage.removeItem('kaffepos_pending_verification');
+      setVerificationCode('');
+      setRegistered(false);
+      setOk('Email berhasil diverifikasi. Silakan login dengan akun yang baru dibuat.');
+      navigate('/login?verified=1', { replace: true });
     } catch (error: any) {
-      setErr(error?.message || 'Gagal mengecek status verifikasi.');
+      setErr(error?.message || 'Gagal memverifikasi kode.');
     } finally {
       setConfirming(false);
     }
-  }, [email, pass, signIn]);
+  }, [email, navigate, verificationCode, verifyEmailCode]);
 
   const openInbox = useCallback(() => {
     window.open('https://mail.google.com/mail/u/0/#inbox', '_blank', 'noopener,noreferrer');
@@ -292,7 +304,7 @@ export default function AuthPage() {
         if (result.needsVerification) {
           localStorage.setItem('kaffepos_registered_email', trimmedEmail);
           setRegistered(true);
-          setOk('Akun berhasil dibuat. Link verifikasi sudah dikirim ke inbox email bisnis kamu.');
+          setOk(result.message || 'Akun berhasil dibuat. Kode verifikasi sudah dikirim ke inbox email bisnis kamu.');
         }
         return;
       }
@@ -444,7 +456,7 @@ export default function AuthPage() {
                   </div>
                   <p className="mt-3 max-w-[44ch] text-sm leading-6 text-slate-600">
                     {registered
-                      ? `Link verifikasi akun sudah dikirim ke ${email}. Buka inbox lalu klik email terbaru dari ${EMAIL_SENDER}.`
+                      ? `Kode verifikasi akun sudah dikirim ke ${email}. Buka inbox lalu gunakan email terbaru dari ${EMAIL_SENDER}.`
                       : authDescription}
                   </p>
                 </div>
@@ -541,9 +553,28 @@ export default function AuthPage() {
                             <ol className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
                               <li>1. Buka inbox email bisnis yang dipakai saat registrasi.</li>
                               <li>2. Cari email terbaru dari <span className="font-semibold text-slate-900">{EMAIL_SENDER}</span>.</li>
-                              <li>3. Klik tombol verifikasi lalu kembali ke KaffePOS.</li>
+                              <li>3. Masukkan kode 6 digitnya di bawah ini untuk mengaktifkan akun.</li>
                             </ol>
                           </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="block text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                          Kode verifikasi email
+                        </label>
+                        <div className="relative">
+                          <KeyRound size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            maxLength={6}
+                            value={verificationCode}
+                            onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                            placeholder="Masukkan 6 digit kode"
+                            className="w-full border border-slate-200 bg-slate-50 py-3.5 pl-11 pr-4 text-sm font-black tracking-[0.35em] text-slate-900 outline-none transition focus:border-[#b66a1f] focus:bg-white"
+                          />
                         </div>
                       </div>
 
@@ -562,7 +593,7 @@ export default function AuthPage() {
                           onClick={handleVerificationCheck}
                           className="inline-flex items-center justify-center gap-2 border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-900 disabled:opacity-50"
                         >
-                          {confirming ? <RefreshCw size={15} className="animate-spin" /> : 'Cek status verifikasi'}
+                          {confirming ? <RefreshCw size={15} className="animate-spin" /> : 'Verifikasi kode'}
                         </button>
                       </div>
 

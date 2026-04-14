@@ -20,7 +20,15 @@ const corsHeaders = {
 };
 
 interface NotifPayload {
-  type: 'welcome' | 'verification' | 'password_reset' | 'daily_sales' | 'subscription_activated' | 'subscription_expiry_reminder';
+  type:
+    | 'welcome'
+    | 'verification'
+    | 'password_reset'
+    | 'daily_sales'
+    | 'subscription_activated'
+    | 'subscription_expiry_reminder'
+    | 'login_alert'
+    | 'password_changed';
   email: string;
   name?: string;
   otp?: string;
@@ -47,6 +55,8 @@ const ALLOWED_TYPES = new Set<NotifPayload['type']>([
   'daily_sales',
   'subscription_activated',
   'subscription_expiry_reminder',
+  'login_alert',
+  'password_changed',
 ]);
 
 const BRAND_COLOR = '#C2622A';
@@ -265,6 +275,42 @@ function getPasswordResetHtml(name: string, link: string): string {
   `, 'Permintaan reset password akun KaffePOS kamu.');
 }
 
+function getLoginAlertHtml(name: string): string {
+  const timestamp = new Date().toLocaleString('id-ID', {
+    dateStyle: 'full',
+    timeStyle: 'short',
+  });
+
+  return baseLayout(`
+    <p class="section-label">Security</p>
+    <h2>Login baru berhasil.</h2>
+    <p class="lede">Halo <strong>${name}</strong>, akun KaffePOS Anda baru saja dipakai masuk.</p>
+    <div class="summary-card">
+      <p class="micro" style="margin: 0;">Waktu login</p>
+      <p style="font-size: 24px; font-weight: 800; color: #241A14; margin: 6px 0 0;">${timestamp}</p>
+    </div>
+    <div class="helper-card">Kalau ini bukan Anda, segera ganti password akun dan cek akses perangkat yang masih aktif.</div>
+  `, 'Login baru terdeteksi pada akun KaffePOS kamu.');
+}
+
+function getPasswordChangedHtml(name: string): string {
+  const timestamp = new Date().toLocaleString('id-ID', {
+    dateStyle: 'full',
+    timeStyle: 'short',
+  });
+
+  return baseLayout(`
+    <p class="section-label">Security</p>
+    <h2>Password akun berhasil diperbarui.</h2>
+    <p class="lede">Halo <strong>${name}</strong>, password akun KaffePOS Anda sudah berhasil diganti.</p>
+    <div class="summary-card">
+      <p class="micro" style="margin: 0;">Waktu perubahan</p>
+      <p style="font-size: 24px; font-weight: 800; color: #241A14; margin: 6px 0 0;">${timestamp}</p>
+    </div>
+    <div class="helper-card">Kalau perubahan ini bukan dari Anda, segera lakukan reset password lagi dan hubungi admin.</div>
+  `, 'Password akun KaffePOS kamu baru saja diganti.');
+}
+
 function getDailySalesHtml(name: string, summary: any): string {
   return baseLayout(`
     <p class="section-label">Daily Report</p>
@@ -438,13 +484,18 @@ serve(async (req: Request) => {
       });
     }
 
-    if (payload.type === 'welcome' && !requestContext.isInternal) {
+    if (
+      (payload.type === 'welcome' || payload.type === 'login_alert' || payload.type === 'password_changed') &&
+      !requestContext.isInternal
+    ) {
       if (!requestContext.authEmail || requestContext.authEmail !== normalizedEmail) {
         return new Response(JSON.stringify({ error: 'Akses ditolak.' }), {
           status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      await enforceRateLimit(adminClient, `welcome:${normalizedEmail}`, requestContext.ip, 3, 60);
+      const rateKey = `${payload.type}:${normalizedEmail}`;
+      const maxHits = payload.type === 'login_alert' ? 20 : 5;
+      await enforceRateLimit(adminClient, rateKey, requestContext.ip, maxHits, 60);
     }
 
     let html    = '';
@@ -486,6 +537,14 @@ serve(async (req: Request) => {
         subject = payload.subject || 'Pengingat langganan KaffePOS';
         break;
       }
+      case 'login_alert':
+        html = getLoginAlertHtml(name);
+        subject = payload.subject || 'Login baru ke akun KaffePOS';
+        break;
+      case 'password_changed':
+        html = getPasswordChangedHtml(name);
+        subject = payload.subject || 'Password akun KaffePOS berhasil diubah';
+        break;
       case 'welcome':
       default:
         html = getWelcomeHtml(name);

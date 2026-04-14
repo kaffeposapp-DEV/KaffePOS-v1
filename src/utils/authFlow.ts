@@ -70,6 +70,17 @@ export function isAlreadyRegisteredMessage(message: string) {
   );
 }
 
+export function normalizeRequestedUsername(value: string) {
+  const base = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  if (base.length < 3) return '';
+  return base.slice(0, 30);
+}
+
 export function normalizeSignupErrorMessage(error: Pick<AuthError, 'message'> & { status?: number | undefined } | null | undefined) {
   if (!error) return null;
 
