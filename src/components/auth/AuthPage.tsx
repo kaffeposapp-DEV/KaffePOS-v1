@@ -380,12 +380,12 @@ export default function AuthPage() {
               <div className="mb-10 flex items-center gap-3">
                 <img src={logo} alt="KaffePOS" className="h-12 w-12 rounded-[8px] bg-white/10 p-2" />
                 <div>
-                  <p className="text-sm font-black uppercase tracking-[0.22em] text-[#d59a4b]">KaffePOS</p>
+                  <p className="text-sm font-black uppercase tracking-[0.22em] text-[#C2622A]">KaffePOS</p>
                   <p className="text-sm text-white/70">Backoffice untuk operasional harian</p>
                 </div>
               </div>
 
-              <p className="text-xs font-black uppercase tracking-[0.24em] text-[#d59a4b]">Web dan APK dalam satu alur</p>
+              <p className="text-xs font-black uppercase tracking-[0.24em] text-[#C2622A]">Web dan APK dalam satu alur</p>
               <h1 className="mt-4 max-w-xl text-5xl font-black leading-tight text-white">
                 Kas, stok, laporan, dan login pelanggan bisnis tetap rapi dari satu sumber data.
               </h1>
@@ -409,7 +409,7 @@ export default function AuthPage() {
                   return (
                     <div key={item.title} className="border border-white/10 bg-white/5 px-4 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center bg-white/10 text-[#d59a4b]">
+                        <div className="flex h-10 w-10 items-center justify-center bg-white/10 text-[#C2622A]">
                           <Icon size={18} />
                         </div>
                         <p className="text-sm font-black text-white">{item.title}</p>
@@ -434,7 +434,7 @@ export default function AuthPage() {
               <div className="flex items-center gap-3">
                 <img src={logo} alt="KaffePOS" className="h-12 w-12 rounded-[8px] bg-white/10 p-2" />
                 <div>
-                  <p className="text-sm font-black uppercase tracking-[0.2em] text-[#d59a4b]">KaffePOS</p>
+                  <p className="text-sm font-black uppercase tracking-[0.2em] text-[#C2622A]">KaffePOS</p>
                   <p className="text-sm text-white/72">Backoffice sinkron untuk web dan APK</p>
                 </div>
               </div>
@@ -483,7 +483,7 @@ export default function AuthPage() {
                     <button
                       type="button"
                       onClick={() => switchMode('login')}
-                      className="mb-5 flex items-center gap-2 text-sm font-bold text-[#b66a1f]"
+                      className="mb-5 flex items-center gap-2 text-sm font-bold text-[#C2622A]"
                     >
                       <ArrowLeft size={15} />
                       Kembali ke login
@@ -547,7 +547,7 @@ export default function AuthPage() {
                     <div className="space-y-5">
                       <div className="border border-slate-200 bg-slate-50 px-4 py-4">
                         <div className="flex items-start gap-3">
-                          <Inbox size={18} className="mt-0.5 shrink-0 text-[#b66a1f]" />
+                          <Inbox size={18} className="mt-0.5 shrink-0 text-[#C2622A]" />
                           <div>
                             <p className="text-sm font-black text-slate-900">Langkah verifikasi email</p>
                             <ol className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
@@ -573,7 +573,7 @@ export default function AuthPage() {
                             value={verificationCode}
                             onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
                             placeholder="Masukkan 6 digit kode"
-                            className="w-full border border-slate-200 bg-slate-50 py-3.5 pl-11 pr-4 text-sm font-black tracking-[0.35em] text-slate-900 outline-none transition focus:border-[#b66a1f] focus:bg-white"
+                            className="w-full border border-slate-200 bg-slate-50 py-3.5 pl-11 pr-4 text-sm font-black tracking-[0.35em] text-slate-900 outline-none transition focus:border-[#C2622A] focus:bg-white"
                           />
                         </div>
                       </div>
@@ -649,7 +649,7 @@ export default function AuthPage() {
                                   onChange={(event) => setUname(event.target.value)}
                                   placeholder="Nama toko / bisnis"
                                   className={`w-full border bg-slate-50 py-3.5 pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:bg-white ${
-                                    formErrors.uname ? 'border-red-300' : 'border-slate-200 focus:border-[#b66a1f]'
+                                    formErrors.uname ? 'border-red-300' : 'border-slate-200 focus:border-[#C2622A]'
                                   }`}
                                 />
                               </div>
@@ -671,7 +671,7 @@ export default function AuthPage() {
                                   onChange={(event) => setEmail(event.target.value)}
                                   placeholder="Email bisnis"
                                   className={`w-full border bg-slate-50 py-3.5 pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:bg-white ${
-                                    formErrors.email ? 'border-red-300' : 'border-slate-200 focus:border-[#b66a1f]'
+                                    formErrors.email ? 'border-red-300' : 'border-slate-200 focus:border-[#C2622A]'
                                   }`}
                                 />
                               </div>
@@ -691,7 +691,7 @@ export default function AuthPage() {
                                   onChange={(event) => setPass(event.target.value)}
                                   placeholder={mode === 'register' ? 'Password minimal 10 karakter' : 'Password'}
                                   className={`w-full border bg-slate-50 py-3.5 pl-11 pr-12 text-sm text-slate-900 outline-none transition focus:bg-white ${
-                                    formErrors.pass ? 'border-red-300' : 'border-slate-200 focus:border-[#b66a1f]'
+                                    formErrors.pass ? 'border-red-300' : 'border-slate-200 focus:border-[#C2622A]'
                                   }`}
                                 />
                                 <button
@@ -716,7 +716,7 @@ export default function AuthPage() {
                                 value={confirmPass}
                                 onChange={(event) => setConfirmPass(event.target.value)}
                                 placeholder="Ulangi password baru"
-                                className="w-full border border-slate-200 bg-slate-50 py-3.5 pl-11 pr-12 text-sm text-slate-900 outline-none transition focus:border-[#b66a1f] focus:bg-white"
+                                className="w-full border border-slate-200 bg-slate-50 py-3.5 pl-11 pr-12 text-sm text-slate-900 outline-none transition focus:border-[#C2622A] focus:bg-white"
                               />
                             </div>
                           )}
@@ -726,7 +726,7 @@ export default function AuthPage() {
                           <button
                             type="button"
                             onClick={() => switchMode('forgot')}
-                            className="mt-3 text-sm font-bold text-[#b66a1f]"
+                            className="mt-3 text-sm font-bold text-[#C2622A]"
                           >
                             Lupa password?
                           </button>
@@ -736,7 +736,7 @@ export default function AuthPage() {
                           type="submit"
                           id="btn-auth-submit"
                           disabled={busy || (mode === 'register' && isInvalid)}
-                          className="mt-5 inline-flex w-full items-center justify-center gap-2 border border-[#b66a1f] bg-[#b66a1f] px-4 py-3.5 text-sm font-black text-white disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-500"
+                          className="mt-5 inline-flex w-full items-center justify-center gap-2 border border-[#C2622A] bg-[#C2622A] px-4 py-3.5 text-sm font-black text-white disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-500"
                         >
                           {busy ? (
                             <>
