@@ -1,7 +1,5 @@
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-
+<?xml version="1.0" encoding="utf-8" ?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
@@ -12,7 +10,6 @@
         android:largeHeap="true"
         android:hardwareAccelerated="true"
         android:extractNativeLibs="false">
-
         <activity
             android:name=".SplashActivity"
             android:theme="@style/AppTheme.NoActionBarLaunch"
@@ -33,7 +30,6 @@
             android:exported="true"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
-
             <!-- Deep link OAuth: kaffepos://auth/callback -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -43,10 +39,10 @@
             </intent-filter>
 
             <intent-filter android:autoVerify="true">
-              <action android:name="android.intent.action.VIEW"/>
-              <category android:name="android.intent.category.DEFAULT"/>
-              <category android:name="android.intent.category.BROWSABLE"/>
-              <data android:scheme="id.kaffeepos.app"/>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="id.kaffeepos.app" />
             </intent-filter>
 
             <!-- Deep link reset password: kaffepos://reset-password -->
@@ -63,8 +59,8 @@
             </intent-filter>
             <meta-data
                 android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
-                android:resource="@xml/device_filter" />
-
+                android:resource="@xml/device_filter"
+            />
         </activity>
 
         <provider
@@ -72,24 +68,22 @@
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths"></meta-data>
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
     </application>
 
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- Bluetooth permissions (Android 6-11) -->
-    <uses-permission android:name="android.permission.BLUETOOTH"
-        android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
-        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
 
     <!-- Bluetooth permissions (Android 12+) -->
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation"
-        tools:targetApi="s" />
+        tools:targetApi="s"
+    />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
 
@@ -102,5 +96,4 @@
 
     <!-- USB Printing (OTG) -->
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
-
 </manifest>

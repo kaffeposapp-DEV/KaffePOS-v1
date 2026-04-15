@@ -2,7 +2,6 @@
 -- Replace self-service payment gateway flow with manual admin activation.
 
 DROP TABLE IF EXISTS public.pro_orders;
-
 ALTER TABLE public.subscriptions
   ADD COLUMN IF NOT EXISTS plan TEXT,
   ADD COLUMN IF NOT EXISTS billing_cycle TEXT,
@@ -10,11 +9,9 @@ ALTER TABLE public.subscriptions
   ADD COLUMN IF NOT EXISTS payment_method TEXT,
   ADD COLUMN IF NOT EXISTS payment_note TEXT,
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
-
 ALTER TABLE public.subscriptions
   DROP COLUMN IF EXISTS xendit_invoice_id,
   DROP COLUMN IF EXISTS xendit_external_id;
-
 UPDATE public.subscriptions
 SET
   plan = COALESCE(
@@ -38,7 +35,6 @@ SET
   payment_amount = COALESCE(payment_amount, amount_paid),
   updated_at = NOW()
 WHERE plan IS NULL OR billing_cycle IS NULL OR payment_amount IS NULL;
-
 DO $$
 BEGIN
   IF EXISTS (
@@ -54,7 +50,6 @@ BEGIN
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
-
 DO $$
 BEGIN
   IF EXISTS (
@@ -70,7 +65,6 @@ BEGIN
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
-
 DO $$
 BEGIN
   IF EXISTS (
@@ -86,7 +80,6 @@ BEGIN
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
-
 CREATE TABLE IF NOT EXISTS public.payment_history (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
@@ -101,16 +94,12 @@ CREATE TABLE IF NOT EXISTS public.payment_history (
   paid_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 ALTER TABLE public.payment_history
   DROP COLUMN IF EXISTS xendit_invoice_id,
   DROP COLUMN IF EXISTS xendit_external_id;
-
 CREATE INDEX IF NOT EXISTS idx_payment_history_user_paid_at
   ON public.payment_history(user_id, paid_at DESC);
-
 ALTER TABLE public.payment_history ENABLE ROW LEVEL SECURITY;
-
 CREATE OR REPLACE FUNCTION public.is_admin_email()
 RETURNS BOOLEAN
 LANGUAGE sql
@@ -120,7 +109,6 @@ AS $$
     ARRAY['kaffeposapp@gmail.com']
   );
 $$;
-
 CREATE OR REPLACE FUNCTION public.recompute_profile_subscription(target_user_id UUID)
 RETURNS VOID
 LANGUAGE plpgsql
@@ -175,7 +163,6 @@ BEGIN
   WHERE id = target_user_id;
 END;
 $$;
-
 CREATE OR REPLACE FUNCTION public.sync_profile_from_subscription()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -189,12 +176,10 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $$;
-
 DROP TRIGGER IF EXISTS sync_profile_from_subscription ON public.subscriptions;
 CREATE TRIGGER sync_profile_from_subscription
   AFTER INSERT OR UPDATE OR DELETE ON public.subscriptions
   FOR EACH ROW EXECUTE FUNCTION public.sync_profile_from_subscription();
-
 CREATE OR REPLACE FUNCTION public.create_free_subscription_for_new_profile()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -236,12 +221,10 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
 DROP TRIGGER IF EXISTS create_free_subscription_for_new_profile ON public.profiles;
 CREATE TRIGGER create_free_subscription_for_new_profile
   AFTER INSERT ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.create_free_subscription_for_new_profile();
-
 DO $$
 BEGIN
   IF EXISTS (
@@ -293,6 +276,25 @@ BEGIN
       USING (public.is_admin_email());
   END IF;
 END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'subscriptions'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.subscriptions;
+  END IF;
 
-ALTER PUBLICATION supabase_realtime ADD TABLE public.subscriptions;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.payment_history;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'payment_history'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.payment_history;
+  END IF;
+END $$;

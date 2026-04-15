@@ -26,7 +26,7 @@ export function getAuthRedirectUrl(path = '/auth/callback') {
     return `${window.location.origin}${path}`;
   }
   const normalizedPath = path.replace(/^\//, '');
-  return `kaffepos://${normalizedPath}`;
+  return `id.kaffeepos.app://${normalizedPath}`;
 }
 
 export const AUTH_REDIRECT_URL = getAuthRedirectUrl();
@@ -59,7 +59,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     flowType: 'pkce',
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,
+    detectSessionInUrl: !Capacitor.isNativePlatform(),
     storage: authStorage
   },
   realtime: {

@@ -4,6 +4,18 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
+const DEFAULT_PASSWORD_RESET_URL = 'https://kaffepos.my.id/reset-password';
+const ALLOWED_WEB_REDIRECT_ORIGINS = new Set([
+  'https://kaffepos.my.id',
+  'https://www.kaffepos.my.id',
+  'https://kaffepos.app',
+  'https://www.kaffepos.app',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+]);
+const ALLOWED_NATIVE_REDIRECT_PREFIXES = [
+  'id.kaffeepos.app://',
+];
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -37,6 +49,33 @@ function normalizeUsername(value: string) {
 
   if (base.length >= 3) return base.slice(0, 30);
   return '';
+}
+
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function sanitizeRedirectTo(rawValue?: string) {
+  const candidate = String(rawValue || '').trim();
+  if (!candidate) return DEFAULT_PASSWORD_RESET_URL;
+
+  if (ALLOWED_NATIVE_REDIRECT_PREFIXES.some((prefix) => candidate.startsWith(prefix))) {
+    return candidate;
+  }
+
+  try {
+    const parsed = new URL(candidate);
+    if (ALLOWED_WEB_REDIRECT_ORIGINS.has(parsed.origin)) {
+      return candidate;
+    }
+  } catch {
+    // Ignore invalid URLs and fall back to the trusted default.
+  }
+
+  return DEFAULT_PASSWORD_RESET_URL;
 }
 
 function buildPreview(html: string) {
@@ -163,10 +202,11 @@ async function storeSignupOtp(adminClient: ReturnType<typeof createClient>, emai
     .is('consumed_at', null);
 
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  const hashedCode = await sha256Hex(code);
   const { error } = await adminClient.from('email_verification_codes').insert({
     email,
     purpose: 'signup',
-    code,
+    code: hashedCode,
     expires_at: expiresAt,
   });
   if (error) throw error;
@@ -204,7 +244,7 @@ serve(async (req: Request) => {
     const cleanEmail = String(payload.email || '').trim().toLowerCase();
     const cleanUsername = String(payload.username || '').trim();
     const displayName = String(payload.displayName || cleanUsername || cleanEmail.split('@')[0]).trim();
-    const redirectTo = String(payload.redirectTo || 'https://kaffepos.my.id/reset-password').trim();
+    const redirectTo = sanitizeRedirectTo(payload.redirectTo);
     const ip =
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
       req.headers.get('cf-connecting-ip') ||
@@ -349,6 +389,7 @@ serve(async (req: Request) => {
 
     if (payload.action === 'resend_signup') {
       await enforceRateLimit(adminClient, `auth:resend:${cleanEmail}`, ip, 5, 30);
+      await enforceRateLimit(adminClient, `auth:resend-ip:${ip}`, ip, 20, 30);
       const user = await findUserByEmail(adminClient, cleanEmail);
       if (!user) {
         return new Response(JSON.stringify({ error: 'Akun tidak ditemukan untuk email ini.' }), {
@@ -385,6 +426,7 @@ serve(async (req: Request) => {
     }
 
     await enforceRateLimit(adminClient, `auth:password-reset:${cleanEmail}`, ip, 5, 30);
+    await enforceRateLimit(adminClient, `auth:password-reset-ip:${ip}`, ip, 20, 30);
     const user = await findUserByEmail(adminClient, cleanEmail);
 
     if (!user) {

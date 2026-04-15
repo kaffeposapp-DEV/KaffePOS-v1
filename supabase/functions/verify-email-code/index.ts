@@ -1,9 +1,17 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
+const SUPABASE_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+type VerificationPayload = {
+  email?: string;
+  code?: string;
 };
 
 async function findUserByEmail(adminClient: any, email: string) {
@@ -18,15 +26,75 @@ async function findUserByEmail(adminClient: any, email: string) {
   }
 }
 
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function enforceRateLimit(
+  adminClient: any,
+  key: string,
+  ip: string,
+  maxHits: number,
+  windowMinutes: number,
+) {
+  const now = new Date();
+  const windowStart = new Date(now.getTime() - windowMinutes * 60 * 1000).toISOString();
+
+  const { data: existing, error: fetchError } = await adminClient
+    .from('edge_rate_limits')
+    .select('id,hits')
+    .eq('rate_key', key)
+    .gte('window_started_at', windowStart)
+    .order('window_started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (fetchError) throw fetchError;
+
+  if (!existing) {
+    const { error } = await adminClient.from('edge_rate_limits').insert({
+      rate_key: key,
+      hits: 1,
+      last_ip: ip,
+      window_started_at: now.toISOString(),
+      updated_at: now.toISOString(),
+    });
+    if (error) throw error;
+    return;
+  }
+
+  if ((existing.hits ?? 0) >= maxHits) {
+    throw new Error('Terlalu banyak percobaan verifikasi. Tunggu beberapa menit lalu coba lagi.');
+  }
+
+  const { error } = await adminClient
+    .from('edge_rate_limits')
+    .update({
+      hits: (existing.hits ?? 0) + 1,
+      last_ip: ip,
+      updated_at: now.toISOString(),
+    })
+    .eq('id', existing.id);
+  if (error) throw error;
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const { email, code } = await req.json();
+    const payload = await req.json() as VerificationPayload;
+    const { email, code } = payload;
     const cleanEmail = String(email || '').trim().toLowerCase();
     const cleanCode = String(code || '').replace(/\D/g, '');
+    const ip =
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      req.headers.get('cf-connecting-ip') ||
+      'unknown';
 
     if (!cleanEmail || !cleanCode) {
       return new Response(JSON.stringify({ error: 'Email dan kode verifikasi wajib diisi.' }), {
@@ -42,25 +110,30 @@ serve(async (req: Request) => {
       });
     }
 
-    const adminClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
+    const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
 
-    const { data: otpRow, error: otpError } = await adminClient
+    await enforceRateLimit(adminClient, `verify-email:${cleanEmail}`, ip, 10, 10);
+    await enforceRateLimit(adminClient, `verify-email-ip:${ip}`, ip, 30, 10);
+
+    const hashedCode = await sha256Hex(cleanCode);
+    const candidateCodes = Array.from(new Set([hashedCode, cleanCode]));
+
+    const { data: otpRows, error: otpError } = await adminClient
       .from('email_verification_codes')
       .select('id, code, expires_at, consumed_at')
       .eq('email', cleanEmail)
       .eq('purpose', 'signup')
-      .eq('code', cleanCode)
+      .in('code', candidateCodes)
       .is('consumed_at', null)
       .gte('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(2);
 
     if (otpError) throw otpError;
+
+    const otpRow = otpRows?.[0] ?? null;
 
     if (!otpRow) {
       const { data: activeCode } = await adminClient
@@ -111,7 +184,7 @@ serve(async (req: Request) => {
       title: 'Email berhasil diverifikasi',
       message: 'Akun KaffePOS berhasil diaktifkan melalui kode verifikasi.',
       type: 'success',
-      metadata: { channel: 'email', method: 'otp', type: 'verification' }
+      metadata: { channel: 'email', method: 'otp', type: 'verification' },
     });
 
     return new Response(JSON.stringify({

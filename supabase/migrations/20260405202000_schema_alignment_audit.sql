@@ -16,7 +16,6 @@ ALTER TABLE public.stores
   ADD COLUMN IF NOT EXISTS receipt_divider TEXT DEFAULT 'dash',
   ADD COLUMN IF NOT EXISTS receipt_custom_line1 TEXT,
   ADD COLUMN IF NOT EXISTS receipt_custom_line2 TEXT;
-
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -46,7 +45,6 @@ BEGIN
       CHECK (receipt_divider IN ('dash', 'equal', 'star', 'dot'));
   END IF;
 END $$;
-
 -- ── PROFILES: legacy/pro columns yang masih dipakai frontend ──
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS is_pro BOOLEAN DEFAULT false,
@@ -54,7 +52,6 @@ ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS pro_order_id TEXT,
   ADD COLUMN IF NOT EXISTS pro_activated_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS pro_expires_at TIMESTAMPTZ;
-
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -63,10 +60,12 @@ BEGIN
   ) THEN
     ALTER TABLE public.profiles
       ADD CONSTRAINT profiles_pro_plan_check
-      CHECK (pro_plan IS NULL OR pro_plan IN ('monthly', 'yearly', 'lifetime'));
+      CHECK (
+        pro_plan IS NULL
+        OR pro_plan IN ('monthly', 'yearly', 'lifetime', 'secangkir', 'kopi_susu', 'signature', 'founder')
+      );
   END IF;
 END $$;
-
 UPDATE public.profiles
 SET
   is_pro = CASE
@@ -77,7 +76,6 @@ SET
   pro_expires_at = COALESCE(pro_expires_at, tier_expires_at),
   pro_activated_at = COALESCE(pro_activated_at, created_at)
 WHERE is_pro IS NULL OR pro_plan IS NULL OR pro_expires_at IS NULL OR pro_activated_at IS NULL;
-
 -- ── CASH REGISTER: dipakai untuk saldo buka kas harian ──
 CREATE TABLE IF NOT EXISTS public.cash_register (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -88,12 +86,9 @@ CREATE TABLE IF NOT EXISTS public.cash_register (
   opened_by TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 CREATE INDEX IF NOT EXISTS idx_cash_register_store_date
   ON public.cash_register(store_id, date DESC);
-
 ALTER TABLE public.cash_register ENABLE ROW LEVEL SECURITY;
-
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -106,7 +101,6 @@ BEGIN
       WITH CHECK (store_id IN (SELECT id FROM public.stores WHERE owner_id = auth.uid()));
   END IF;
 END $$;
-
 -- ── PERIOD checks: app mendukung yearly ──
 DO $$
 BEGIN
@@ -119,7 +113,7 @@ BEGIN
 
   ALTER TABLE public.subscriptions
     ADD CONSTRAINT subscriptions_period_check
-    CHECK (period IN ('monthly', 'yearly', 'lifetime'));
+    CHECK (period IN ('free', 'monthly', 'quarterly', 'yearly', 'lifetime'));
 
   IF EXISTS (
     SELECT 1 FROM pg_constraint
@@ -130,9 +124,8 @@ BEGIN
 
   ALTER TABLE public.license_keys
     ADD CONSTRAINT license_keys_period_check
-    CHECK (period IN ('monthly', 'yearly', 'lifetime'));
+    CHECK (period IN ('monthly', 'quarterly', 'yearly', 'lifetime'));
 END $$;
-
 -- ── Realtime publications yang dipakai frontend ──
 DO $$
 BEGIN

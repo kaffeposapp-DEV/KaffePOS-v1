@@ -30,10 +30,11 @@ const AuthPage = lazy(() => import('./components/auth/AuthPage'));
 const AppShell = lazy(() => import('./components/AppShell'));
 const PlanConfirmation = lazy(() => import('./pages/PlanConfirmation'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
+const LandingPage = lazy(() => import('./pages/LandingPage'));
 
 function SplashScreen() {
   return (
-    <div style={{ position:'fixed', inset:0, background:'#fff', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+    <div style={{ position:'fixed', inset:0, background:'#0b121e', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
       <style>{`
         @keyframes ws{0%{opacity:0;transform:translateY(28px);filter:blur(4px)}100%{opacity:1;transform:none;filter:none}}
         @keyframes lg{0%{width:0;opacity:0}100%{width:48px;opacity:1}}
@@ -51,19 +52,11 @@ function SplashScreen() {
       `}</style>
       <div style={{ textAlign:'center', padding:'0 36px' }}>
         <div style={{ marginBottom:6 }}>
-          <span className="s-w1" style={{ display:'inline-block', fontSize:38, fontWeight:900, color:'#1a0f0a', lineHeight:1.15 }}>Atur</span>
+          <span className="s-w1" style={{ display:'inline-block', fontSize:38, fontWeight:900, color:'#ffffff', lineHeight:1.15 }}>Atur</span>
           {' '}
-          <span className="s-w2" style={{ display:'inline-block', fontSize:38, fontWeight:900, color:'#C8843A', lineHeight:1.15 }}>Kafemu</span>
+          <span className="s-w2" style={{ display:'inline-block', fontSize:38, fontWeight:900, color:'#d8823b', lineHeight:1.15 }}>Kafemu</span>
         </div>
         <div style={{ marginBottom:20 }}>
-          <span className="s-w3" style={{ display:'inline-block', fontSize:38, fontWeight:900, color:'#1a0f0a', lineHeight:1.15 }}>Tanpa Ampas.</span>
-        </div>
-        <div style={{ display:'flex', justifyContent:'center', marginBottom:22 }}>
-          <div className="s-lg" style={{ height:2.5, backgroundColor:'#C8843A', borderRadius:2 }} />
-        </div>
-        <p className="s-st" style={{ color:'#b08060', fontSize:11, fontWeight:600, textTransform:'uppercase', marginBottom:52, letterSpacing:'2px' }}>
-          Dibuat dengan Secangkir Kopi
-        </p>
         <div className="s-dw" style={{ display:'flex', gap:9, justifyContent:'center' }}>
           <div className="s-d1" style={{ width:7, height:7, borderRadius:'50%', backgroundColor:'#C8843A' }} />
           <div className="s-d2" style={{ width:7, height:7, borderRadius:'50%', backgroundColor:'#C8843A' }} />
@@ -71,14 +64,15 @@ function SplashScreen() {
         </div>
       </div>
     </div>
+  </div>
   );
 }
 
 function AuthLoading() {
   return (
-    <div style={{ position:'fixed', inset:0, background:'#fff', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:16 }}>
+    <div style={{ position:'fixed', inset:0, background:'#0b121e', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:16 }}>
       <div style={{ fontSize:36 }}>☕</div>
-      <div style={{ width:32, height:32, border:'3px solid #f97316', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
+      <div style={{ width:32, height:32, border:'3px solid #d8823b', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
@@ -143,6 +137,8 @@ function AppRoutes() {
   }
   return (
     <Routes>
+      <Route path="/" element={isAuthenticated ? <AppShell /> : <LandingPage />} />
+      <Route path="/welcome" element={<LandingPage />} />
       <Route path="/plan-confirmation" element={<PlanConfirmation />} />
       <Route path="/auth" element={<AuthPage />} />
       <Route path="/auth/callback" element={<AuthPage />} />
@@ -151,10 +147,10 @@ function AppRoutes() {
       <Route path="/forgot-password" element={<AuthPage />} />
       <Route path="/reset-password" element={<AuthPage />} />
       <Route path="/admin" element={
-        isAuthenticated ? <AdminPanel /> : <Navigate to="/auth" replace />
+        isAuthenticated ? <AdminPanel /> : <Navigate to="/login" replace />
       } />
       <Route path="/*" element={
-        isAuthenticated ? <AppShell /> : <Navigate to="/auth" replace />
+        isAuthenticated ? <AppShell /> : <Navigate to="/" replace />
       } />
     </Routes>
   );
@@ -170,8 +166,7 @@ export default function App() {
   const handleAuthRedirect = useCallback(async (rawUrl: string) => {
     const processedUrl = rawUrl
       .replace('id.kaffeepos.app://', 'https://kaffepos.my.id/')
-      .replace('kaffepos://', 'https://kaffepos.my.id/')
-      .replace('kaffepos:/', 'https://kaffepos.my.id/');
+      .replace('kaffepos://', 'https://kaffepos.my.id/');
 
     const urlObj = new URL(processedUrl);
     if (!hasAuthCallbackParams(urlObj)) return false;

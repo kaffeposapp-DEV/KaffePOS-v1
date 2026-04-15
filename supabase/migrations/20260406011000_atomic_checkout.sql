@@ -1,8 +1,9 @@
+create extension if not exists "uuid-ossp";
+create extension if not exists "pgcrypto";
 alter table public.transactions
   add column if not exists customer_name text;
-
 create table if not exists public.transaction_inventory_audit (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   store_id uuid references public.stores(id) on delete cascade not null,
   transaction_id text references public.transactions(id) on delete cascade not null,
   inventory_id uuid references public.inventory(id) on delete cascade not null,
@@ -12,12 +13,9 @@ create table if not exists public.transaction_inventory_audit (
   stock_after numeric(12,3) not null,
   created_at timestamptz not null default now()
 );
-
 create index if not exists idx_transaction_inventory_audit_tx
   on public.transaction_inventory_audit(transaction_id, action, created_at desc);
-
 alter table public.transaction_inventory_audit enable row level security;
-
 do $$
 begin
   if not exists (
@@ -31,7 +29,6 @@ begin
       using (store_id in (select id from public.stores where owner_id = auth.uid()));
   end if;
 end $$;
-
 create or replace function public.process_checkout(
   p_store_id uuid,
   p_transaction_id text,
@@ -216,11 +213,9 @@ begin
   return v_transaction;
 end;
 $$;
-
 grant execute on function public.process_checkout(
   uuid, text, timestamptz, jsonb, integer, integer, text, integer, integer, integer, integer, integer, text, text, text, text
 ) to authenticated;
-
 create or replace function public.void_transaction_secure(
   p_store_id uuid,
   p_transaction_id text,
@@ -324,5 +319,4 @@ begin
   return v_transaction;
 end;
 $$;
-
 grant execute on function public.void_transaction_secure(uuid, text, text, text) to authenticated;

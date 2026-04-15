@@ -579,10 +579,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   //       → App.tsx appUrlOpen → exchangeCodeForSession → SIGNED_IN → masuk
   const signInWithGoogle = useCallback(async () => {
     try {
+      const redirectTo = isNativeRuntime()
+        ? 'id.kaffeepos.app://login-callback'
+        : `${window.location.origin}/auth/callback`;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: 'id.kaffeepos.app://login-callback',
+          redirectTo,
           skipBrowserRedirect: false,
           queryParams: { access_type: 'offline', prompt: 'consent' }
         }

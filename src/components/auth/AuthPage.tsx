@@ -5,53 +5,55 @@ import {
   AlertCircle,
   ArrowLeft,
   BarChart3,
+  Check,
   CheckCircle,
-  ChevronRight,
   ExternalLink,
   Eye,
   EyeOff,
-  Inbox,
   Lock,
   Mail,
   RefreshCw,
+  Shield,
   ShieldCheck,
   Store,
-  User,
-  WifiOff,
-  KeyRound,
+  Zap,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthMode, getAuthModeFromLocation, getAuthPathForMode } from '@/utils/authFlow';
-import logo from '@/assets/logo-kaffepos.png';
-
-const EMAIL_SENDER = 'noreply@kaffepos.my.id';
+import LOGO_WEB from '@/assets/logo-kaffeposweb.svg';
+import LOGO_ICON from '@/assets/logo-kaffeposappicon.svg';
 
 const brandHighlights = [
   {
-    title: 'Operasional tetap sinkron',
-    copy: 'Data akun, kas, stok, dan riwayat transaksi tetap terhubung antara web dan APK.',
-    icon: Store,
+    title: 'Operasional tetap cepat',
+    copy: 'Masuk dari web untuk backoffice, lalu lanjutkan transaksi dari APK tanpa pindah data.',
+    icon: Zap,
   },
   {
-    title: 'Laporan cepat dibaca',
-    copy: 'Ringkasan harian, penjualan, dan cashflow tampil dari sumber data yang sama.',
+    title: 'Laporan lebih mudah dibaca',
+    copy: 'Riwayat penjualan, stok, dan ringkasan bisnis tetap satu jalur dengan akun yang sama.',
     icon: BarChart3,
   },
   {
-    title: 'Keamanan verifikasi berlapis',
-    copy: 'Registrasi, reset password, dan resend email memakai alur auth Supabase yang konsisten.',
+    title: 'Akun bisnis tetap aman',
+    copy: 'Verifikasi email, reset password, dan akses pengguna berjalan pada domain yang sama.',
     icon: ShieldCheck,
+  },
+  {
+    title: 'Akses akun lebih terjaga',
+    copy: 'Verifikasi email, reset password, dan pembatasan akses berjalan pada jalur akun yang sama.',
+    icon: Shield,
   },
 ];
 
-const brandStats = [
-  { label: 'Akun bisnis', value: '1 akun' },
-  { label: 'Data toko', value: 'Terisolasi' },
-  { label: 'Sinkronisasi', value: 'Realtime' },
+const statsData = [
+  { label: 'Active Cafes', value: '1,000+' },
+  { label: 'Transactions', value: '2M+' },
+  { label: 'Uptime', value: '99.9%' },
 ];
 
 export default function AuthPage() {
-  const { signIn, signUp, resetPassword, updatePassword, resendVerification, verifyEmailCode, isAuthenticated, signOut } = useAuth();
+  const { signIn, signUp, resetPassword, updatePassword, resendVerification, verifyEmailCode, isAuthenticated } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -135,7 +137,7 @@ export default function AuthPage() {
         errors.uname = 'Nama toko minimal 3 karakter';
       }
       if (pass && (pass.length < 10 || !/[A-Z]/.test(pass) || !/[a-z]/.test(pass) || !/\d/.test(pass))) {
-        errors.pass = 'Password minimal 10 karakter, wajib ada huruf besar, huruf kecil, dan angka';
+        errors.pass = 'Password min 10 huruf, kombinasi besar, kecil & angka';
       }
       setFormErrors(errors);
       return;
@@ -179,7 +181,7 @@ export default function AuthPage() {
       return;
     }
 
-    setOk('Kode verifikasi baru sudah dikirim lewat email. Cek inbox atau folder spam lalu masukkan 6 digit kodenya.');
+    setOk('Kode verifikasi barusudah dikirim lewat email.');
     setResendCooldown(60);
   }, [email, resendCooldown, resendVerification]);
 
@@ -200,625 +202,492 @@ export default function AuthPage() {
         return;
       }
 
-      localStorage.removeItem('kaffepos_registered_email');
-      localStorage.removeItem('kaffepos_pending_verification');
-      setVerificationCode('');
-      setRegistered(false);
-      setOk('Email berhasil diverifikasi. Silakan login dengan akun yang baru dibuat.');
-      navigate('/login?verified=1', { replace: true });
-    } catch (error: any) {
-      setErr(error?.message || 'Gagal memverifikasi kode.');
+      setOk('Akun berhasil diverifikasi. Tunggu sebentar...');
+      setTimeout(() => {
+        setRegistered(false);
+        setVerificationCode('');
+        switchMode('login');
+      }, 2000);
+    } catch (e: any) {
+      setErr(e.message || 'Terjadi kesalahan sistem.');
     } finally {
       setConfirming(false);
     }
-  }, [email, navigate, verificationCode, verifyEmailCode]);
+  }, [email, verificationCode, verifyEmailCode, switchMode]);
 
-  const openInbox = useCallback(() => {
-    window.open('https://mail.google.com/mail/u/0/#inbox', '_blank', 'noopener,noreferrer');
-  }, []);
-
-  const submit = useCallback(async () => {
+  const submit = async () => {
     setErr('');
     setOk('');
-    setFormErrors({});
-
-    const trimmedEmail = email.trim().toLowerCase();
-
-    if (mode !== 'reset') {
-      if (!trimmedEmail) {
-        setErr('Email tidak boleh kosong');
-        return;
-      }
-      if (!/\S+@\S+\.\S+/.test(trimmedEmail)) {
-        setErr('Format email tidak valid');
-        return;
-      }
-    }
-
-    if (mode === 'reset') {
-      if (!pass) {
-        setErr('Password baru tidak boleh kosong');
-        return;
-      }
-      if (pass.length < 10 || !/[A-Z]/.test(pass) || !/[a-z]/.test(pass) || !/\d/.test(pass)) {
-        setErr('Password baru minimal 10 karakter dan wajib mengandung huruf besar, huruf kecil, serta angka');
-        return;
-      }
-      if (pass !== confirmPass) {
-        setErr('Konfirmasi password baru tidak cocok');
-        return;
-      }
-    } else if (mode !== 'forgot') {
-      if (!pass) {
-        setErr('Password tidak boleh kosong');
-        return;
-      }
-
-      if (mode === 'register') {
-        if (!uname.trim()) {
-          setErr('Nama toko tidak boleh kosong');
-          return;
-        }
-        if (uname.trim().length < 3) {
-          setErr('Nama toko minimal 3 karakter');
-          return;
-        }
-        if (pass.length < 10 || !/[A-Z]/.test(pass) || !/[a-z]/.test(pass) || !/\d/.test(pass)) {
-          setErr('Password minimal 10 karakter dan wajib mengandung huruf besar, huruf kecil, serta angka');
-          return;
-        }
-      }
+    if (!email || !pass) {
+      setErr('Email dan password wajib diisi.');
+      return;
     }
 
     setBusy(true);
 
     try {
       if (mode === 'login') {
-        const result = await signIn(trimmedEmail, pass);
+        const result = await signIn(email, pass);
         if (result.error) {
-          const wasRegistered = localStorage.getItem('kaffepos_registered_email') === trimmedEmail;
-          const lowerError = result.error.toLowerCase();
-          const isCredError = lowerError.includes('password salah') || lowerError.includes('credentials');
-
-          if (isCredError) {
-            if (wasRegistered) {
-              setErr('email_not_confirmed');
-            } else {
-              setErr('Email atau password salah. Jika baru mendaftar, pastikan link verifikasinya sudah dibuka.');
-            }
+          if (result.error === 'email_not_confirmed') {
+            setErr('email_not_confirmed');
           } else {
             setErr(result.error);
           }
-          return;
         }
-        return;
-      }
-
-      if (mode === 'register') {
-        const result = await signUp(trimmedEmail, pass, uname.trim());
-        if (result.error) {
-          setErr(result.error || 'Pendaftaran gagal.');
+      } else if (mode === 'register') {
+        if (!uname) {
+          setErr('Nama toko wajib diisi.');
+          setBusy(false);
           return;
         }
 
-        if (result.needsVerification) {
-          localStorage.setItem('kaffepos_registered_email', trimmedEmail);
-          setRegistered(true);
-          setOk(result.message || 'Akun berhasil dibuat. Kode verifikasi sudah dikirim ke inbox email bisnis kamu.');
-        }
-        return;
-      }
+        const result = await signUp(email, pass, uname);
 
-      if (mode === 'forgot') {
-        const result = await resetPassword(trimmedEmail);
         if (result.error) {
           setErr(result.error);
+        } else {
+          setRegistered(true);
+          localStorage.setItem('kaffepos_registered_email', email);
+        }
+      } else if (mode === 'forgot') {
+        const result = await resetPassword(email);
+        if (result.error) {
+          setErr(result.error);
+        } else {
+          setOk(`Tautan reset password berhasil dikirim ke ${email}`);
+          setEmail('');
+        }
+      } else if (mode === 'reset') {
+        if (pass !== confirmPass) {
+          setErr('Password baru dan konfirmasi tidak cocok.');
+          setBusy(false);
           return;
         }
-
-        setOk('Link reset password sudah dikirim. Cek inbox dan folder spam dari email bisnis kamu.');
-        return;
+        const result = await updatePassword(pass);
+        if (result.error) {
+          setErr(result.error);
+        } else {
+          setOk('Password berhasil diperbarui. Silakan kembali ke form masuk.');
+          setPass('');
+          setConfirmPass('');
+          localStorage.removeItem('kaffepos_password_reset_required');
+          setTimeout(() => switchMode('login'), 3000);
+        }
       }
-
-      const result = await updatePassword(pass);
-      if (result.error) {
-        setErr(result.error);
-        return;
-      }
-
-      setOk('Password baru berhasil disimpan. Silakan login ulang dengan password baru.');
-      localStorage.removeItem('kaffepos_password_reset_required');
-      await signOut();
-      navigate('/login', { replace: true });
-    } catch (error: any) {
-      setErr(error?.message || 'Terjadi kesalahan. Coba lagi.');
+    } catch (e: any) {
+      setErr(e.message || 'Terjadi kesalahan tidak terduga.');
     } finally {
       setBusy(false);
     }
-  }, [mode, email, pass, confirmPass, uname, signIn, signUp, resetPassword, updatePassword, signOut, navigate]);
+  };
 
-  const isNetworkErr = err.toLowerCase().includes('internet') || err.toLowerCase().includes('koneksi') || err.toLowerCase().includes('jaringan');
-  const duplicateRegistrationErr = mode === 'register' && err.toLowerCase().includes('email sudah terdaftar');
-  const isInvalid = mode === 'register' && (
-    !email.trim() ||
-    !/\S+@\S+\.\S+/.test(email.trim()) ||
-    !pass ||
-    pass.length < 10 ||
-    !uname.trim()
-  );
+  const openInbox = () => {
+    const domain = email.split('@')[1];
+    if (domain) {
+      if (domain.includes('gmail')) window.open('https://mail.google.com/mail/u/0/#search/KaffePOS', '_blank');
+      else if (domain.includes('yahoo')) window.open('https://mail.yahoo.com', '_blank');
+      else if (domain.includes('outlook') || domain.includes('hotmail')) window.open('https://outlook.live.com', '_blank');
+      else window.open(`http://${domain}`, '_blank');
+    }
+  };
+
+
+  const duplicateRegistrationErr = err.includes('sudah terdaftar');
+  const isInvalid = mode === 'register' && Object.keys(formErrors).length > 0;
 
   const authTitle = mode === 'login'
-    ? 'Masuk ke backoffice'
+    ? 'Masuk'
     : mode === 'register'
-      ? 'Buat akun bisnis'
+      ? 'Buat Akun Gratis'
       : mode === 'forgot'
-        ? 'Reset password'
-        : 'Atur password baru';
+        ? 'Lupa Password'
+        : 'Update Password';
 
   const authDescription = mode === 'login'
-    ? 'Gunakan akun KaffePOS yang sama untuk mengakses web dan aplikasi tanpa mencampur data toko.'
+    ? 'Lanjutkan operasional kafe Anda dengan akses backoffice yang mudah dan aman.'
     : mode === 'register'
-      ? 'Registrasi langsung membuat alur verifikasi email dan profil bisnis yang siap sinkron ke Supabase.'
+      ? 'Bergabunglah dengan ratusan pengusaha kafe lainnya dalam ekosistem KaffePOS.'
       : mode === 'forgot'
-        ? 'Kami kirim link reset ke inbox email bisnis yang terhubung dengan akun KaffePOS.'
-        : 'Demi keamanan, simpan password baru dulu sebelum masuk ke aplikasi.';
+        ? 'Tautan reset sandi akan segera dikirim ke alamat email terdaftar Anda.'
+        : 'Catat password baru Anda dengan aman.';
+
+  // Warna brand dari welcome page: navy/slate-950 background (#0b0f19), subtle grid, flat UI, terracotta CTA (#d8823b)
+  const BRAND_ACCENT = '#d8823b';
 
   return (
-    <div className="scroll-y min-h-full bg-[#f3f1ec] text-slate-950">
-      <div className="mx-auto min-h-full w-full max-w-[1360px] lg:grid lg:grid-cols-[minmax(0,1.06fr)_minmax(440px,520px)]">
-        <section className="relative hidden overflow-hidden bg-[#17171b] px-10 py-10 text-white lg:flex">
-          <div
-            className="absolute inset-0 opacity-[0.08]"
-            style={{
-              backgroundImage:
-                'linear-gradient(rgba(255,255,255,0.24) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.24) 1px, transparent 1px)',
-              backgroundSize: '34px 34px',
-            }}
-          />
-          <div className="relative flex min-h-full w-full flex-col justify-between">
-            <div>
-              <div className="mb-10 flex items-center gap-3">
-                <img src={logo} alt="KaffePOS" className="h-12 w-12 rounded-[8px] bg-white/10 p-2" />
-                <div>
-                  <p className="text-sm font-black uppercase tracking-[0.22em] text-[#C2622A]">KaffePOS</p>
-                  <p className="text-sm text-white/70">Backoffice untuk operasional harian</p>
-                </div>
+    <div className="min-h-screen bg-[#0b0f19] text-slate-200 selection:bg-[#d8823b]/30 font-sans relative">
+      <div
+        className="absolute inset-0 pointer-events-none opacity-[0.04]"
+        style={{
+          backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)',
+          backgroundSize: '40px 40px',
+        }}
+      />
+      
+      <div className="mx-auto min-h-screen w-full max-w-[1280px] lg:grid lg:grid-cols-2 relative z-10">
+        
+        {/* Left Side - Marketing Matching Welcome Page Tone */}
+        <section className="relative hidden lg:flex flex-col justify-between px-10 xl:px-16 py-16 animate-in" style={{ animationDuration: '0.6s' }}>
+          
+          <div className="max-w-xl">
+            <div className="flex items-center gap-3 mb-12 group cursor-pointer" onClick={() => navigate('/welcome')}>
+              <div className="h-10 md:h-12 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                <img 
+                  src={LOGO_WEB} 
+                  alt="KaffePOS" 
+                  className="h-full w-auto object-contain" 
+                  fetchPriority="high"
+                  loading="eager"
+                />
               </div>
+            </div>
 
-              <p className="text-xs font-black uppercase tracking-[0.24em] text-[#C2622A]">Web dan APK dalam satu alur</p>
-              <h1 className="mt-4 max-w-xl text-5xl font-black leading-tight text-white">
-                Kas, stok, laporan, dan login pelanggan bisnis tetap rapi dari satu sumber data.
-              </h1>
-              <p className="mt-5 max-w-2xl text-base leading-7 text-white/72">
-                Registrasi akun baru memicu verifikasi email bisnis, pembuatan profil pengguna di Supabase,
-                dan jalur sinkronisasi yang sama untuk web maupun aplikasi.
-              </p>
+            <h1 className="text-[56px] font-bold leading-[1.1] text-white tracking-tight mb-6">
+              Take Control of Your <br />
+              <span style={{ color: BRAND_ACCENT }}>Kafe Finances</span>
+            </h1>
+            <p className="text-[17px] text-slate-300 leading-relaxed font-normal mb-14 max-w-[520px]">
+              Join thousands of cafes who have transformed their business with our intuitive tracking and POS tools.
+            </p>
 
-              <div className="mt-10 grid gap-3 sm:grid-cols-3">
-                {brandStats.map((item) => (
-                  <div key={item.label} className="border border-white/10 bg-white/5 px-4 py-4">
-                    <p className="text-2xl font-black text-white">{item.value}</p>
-                    <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/55">{item.label}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-10 grid gap-3 sm:grid-cols-2">
-                {brandHighlights.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <div key={item.title} className="border border-white/10 bg-white/5 px-4 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center bg-white/10 text-[#C2622A]">
-                          <Icon size={18} />
-                        </div>
-                        <p className="text-sm font-black text-white">{item.title}</p>
-                      </div>
-                      <p className="mt-3 text-sm leading-6 text-white/68">{item.copy}</p>
+            <div className="grid grid-cols-2 gap-5">
+              {brandHighlights.map((item, idx) => {
+                const Icon = item.icon;
+                return (
+                  <div key={idx} className="group flex flex-col items-start gap-4 rounded-[20px] bg-slate-900/30 border border-slate-800/50 p-6 backdrop-blur-sm transition-all duration-300 hover:bg-slate-800/40 hover:border-slate-700/60 hover:-translate-y-1 shadow-sm hover:shadow-xl">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-950/80 border border-slate-800 transition-colors duration-300 group-hover:border-[#d8823b]" style={{ color: BRAND_ACCENT }}>
+                      <Icon size={18} strokeWidth={2} aria-hidden="true" />
                     </div>
-                  );
-                })}
-              </div>
+                    <div>
+                      <h3 className="text-[14px] font-bold text-white mb-2">{item.title}</h3>
+                      <p className="text-[12px] text-slate-400 leading-relaxed">{item.copy}</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+          </div>
 
-            <div className="border-t border-white/10 pt-6 text-sm leading-6 text-white/62">
-              Email bisnis terkirim dari <span className="font-semibold text-white">{EMAIL_SENDER}</span> dan jalur auth
-              tetap memakai callback yang sama di web maupun APK.
-            </div>
+          {/* Stats Footer */}
+          <div className="flex items-center gap-12 pt-8 border-t border-slate-800/40">
+            {statsData.map((stat, i) => (
+              <div key={i}>
+                <div className="text-2xl font-bold text-white mb-1">{stat.value}</div>
+                <div className="text-[12px] text-slate-500 font-medium uppercase tracking-wider">{stat.label}</div>
+              </div>
+            ))}
           </div>
         </section>
 
-        <section className="flex min-h-full items-stretch">
-          <div className="w-full px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
-            <div className="mx-auto mb-4 max-w-[520px] border border-black/10 bg-[#17171b] px-5 py-5 text-white lg:hidden">
-              <div className="flex items-center gap-3">
-                <img src={logo} alt="KaffePOS" className="h-12 w-12 rounded-[8px] bg-white/10 p-2" />
-                <div>
-                  <p className="text-sm font-black uppercase tracking-[0.2em] text-[#C2622A]">KaffePOS</p>
-                  <p className="text-sm text-white/72">Backoffice sinkron untuk web dan APK</p>
+        {/* Right Side - Auth Forms (Flat dark aesthetic) */}
+        <section className="relative flex min-h-screen items-center justify-center py-8 px-4 sm:px-6 lg:px-8">
+          <div className="w-full max-w-[420px] sm:max-w-[460px] lg:max-w-[420px] animate-in" style={{ animationDuration: '0.5s' }}>
+             
+            {/* Mobile Title */}
+            <div className="mb-10 text-center lg:hidden animate-in slide-up">
+              <div className="inline-flex items-center gap-3 mb-6">
+                <div className="w-14 h-14 rounded-2xl bg-[#d8823b] flex items-center justify-center shadow-lg overflow-hidden">
+                  <img src={LOGO_ICON} alt="KaffePOS" className="w-full h-full object-cover" />
                 </div>
               </div>
+              <p className="text-[14px] text-slate-400 px-4">Bergabung ke dalam ekosistem KaffePOS</p>
             </div>
 
-            <div className="mx-auto flex min-h-full max-w-[520px] flex-col justify-center">
-              <div className="border border-black/10 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
-                <div className="border-b border-slate-200 px-5 py-5 sm:px-6">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
-                        {registered ? 'Verifikasi email' : 'Akses bisnis'}
-                      </p>
-                      <h1 className="mt-2 text-[28px] font-black leading-tight text-slate-950">
-                        {registered ? 'Cek inbox pendaftaran' : authTitle}
-                      </h1>
-                    </div>
-                    <img src={logo} alt="KaffePOS" className="hidden h-12 w-12 rounded-[8px] border border-slate-200 p-2 sm:block" />
+            <div className="rounded-[24px] bg-[#111827] border border-slate-800/80 p-7 sm:p-10 shadow-2xl relative transition-all duration-500 hover:shadow-[#d8823b]/5 hover:border-slate-700/80">
+              {/* Trust Badges */}
+              {!registered && (
+                <div className="flex items-center justify-center gap-4 mb-8 opacity-80">
+                  <div className="flex items-center gap-1.5">
+                    <Check size={14} className="text-emerald-500" />
+                    <span className="text-[11px] font-medium text-slate-400 uppercase tracking-tight">Secure</span>
                   </div>
-                  <p className="mt-3 max-w-[44ch] text-sm leading-6 text-slate-600">
-                    {registered
-                      ? `Kode verifikasi akun sudah dikirim ke ${email}. Buka inbox lalu gunakan email terbaru dari ${EMAIL_SENDER}.`
-                      : authDescription}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <Check size={14} className="text-emerald-500" />
+                    <span className="text-[11px] font-medium text-slate-400 uppercase tracking-tight">Encrypted</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Check size={14} className="text-emerald-500" />
+                    <span className="text-[11px] font-medium text-slate-400 uppercase tracking-tight">Verified</span>
+                  </div>
                 </div>
+              )}
 
-                <div className="px-5 py-5 sm:px-6">
-                  {!registered && mode !== 'forgot' && mode !== 'reset' && (
-                    <div className="mb-5 grid grid-cols-2 gap-2 border border-slate-200 bg-slate-50 p-1">
-                      {(['login', 'register'] as AuthMode[]).map((value) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => switchMode(value)}
-                          className={`px-3 py-2.5 text-sm font-black transition ${
-                            mode === value ? 'bg-white text-slate-950 shadow-[0_8px_24px_rgba(15,23,42,0.08)]' : 'text-slate-500'
-                          }`}
-                        >
-                          {value === 'login' ? 'Masuk' : 'Daftar'}
-                        </button>
-                      ))}
+              <div className="text-center mb-10">
+                <h2 className="text-2xl font-bold text-white mb-2">
+                  {registered ? 'Verifikasi OTP' : authTitle}
+                </h2>
+                <p className="text-[13px] text-slate-400">
+                  {registered
+                    ? `6-digit kode OTP terkirim ke ${email}`
+                    : authDescription}
+                </p>
+              </div>
+
+              {!registered && mode !== 'forgot' && mode !== 'reset' && (
+                <div className="mb-8 flex overflow-hidden rounded-lg bg-[#1f2937] p-1 border border-slate-800">
+                  {(['login', 'register'] as AuthMode[]).map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => switchMode(value)}
+                      className={`flex-1 rounded-md py-2.5 text-[13px] font-bold focus-visible:ring-2 focus-visible:ring-[#d8823b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1f2937] outline-none transition-all ${
+                        mode === value
+                          ? 'bg-slate-800 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {value === 'login' ? 'Masuk' : 'Buat Akun'}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {!registered && mode === 'forgot' && (
+                <button
+                  type="button"
+                  onClick={() => switchMode('login')}
+                  aria-label="Kembali ke halaman login"
+                  className="mb-6 flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-2 text-[12px] font-bold text-slate-300 transition hover:bg-slate-700 hover:text-white focus-visible:ring-2 focus-visible:ring-[#d8823b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] outline-none"
+                >
+                  <ArrowLeft size={14} aria-hidden="true" />
+                  Kembali ke login
+                </button>
+              )}
+
+              {(err || ok) && (
+                <div className="mb-6">
+                  {err && (
+                    <div className="flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3.5 py-3 shake" role="alert" aria-live="assertive">
+                      <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-500" aria-hidden="true" />
+                      <div className="flex-1 space-y-2">
+                        <p className="text-[13px] leading-relaxed text-red-200">
+                          {err === 'email_not_confirmed'
+                            ? 'Email belum terkonfirmasi. Silakan periksa inbox OTP.'
+                            : err}
+                        </p>
+                        {(err === 'email_not_confirmed' || duplicateRegistrationErr) && (
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              disabled={resending || resendCooldown > 0}
+                              onClick={handleResendVerification}
+                              className="rounded bg-red-500/20 px-2 py-1 text-[11px] font-bold text-red-300 hover:bg-red-500/30 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] outline-none"
+                            >
+                              {resending ? '...' : (resendCooldown > 0 ? `Tunggu ${resendCooldown}s` : 'Kirim Ulang OTP')}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
+                  {ok && (
+                    <div className="flex items-start gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-3 animate-in slide-up" role="status" aria-live="polite">
+                      <CheckCircle size={16} className="mt-0.5 shrink-0 text-emerald-500" aria-hidden="true" />
+                      <p className="text-[13px] leading-relaxed text-emerald-200">{ok}</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
-                  {!registered && mode === 'forgot' && (
+              {registered ? (
+                <div className="space-y-6 animate-in slide-up">
+                  <div className="space-y-3 pb-2 pt-2">
+                    <div className="relative flex justify-center gap-3 mx-auto w-full max-w-[340px]">
+                      {[0, 1, 2, 3, 4, 5].map((idx) => {
+                        const val = verificationCode[idx] || '';
+                        const isActive = verificationCode.length === idx || (verificationCode.length === 6 && idx === 5);
+                        return (
+                          <div
+                            key={idx}
+                            className={`flex h-12 w-12 sm:h-14 sm:w-12 items-center justify-center rounded-lg border text-[22px] font-bold transition-all duration-300 ${
+                              isActive
+                                ? 'border-[#d8823b] bg-slate-900 ring-2 ring-[#d8823b]/20 text-white'
+                                : val
+                                  ? 'border-slate-700 bg-slate-800/80 text-white shadow-inner'
+                                  : 'border-slate-800 bg-slate-900/50 text-slate-500'
+                            }`}
+                          >
+                            {val || (isActive ? <span className="h-5 w-[2px] animate-pulse bg-[#d8823b] rounded-full" /> : '')}
+                          </div>
+                        );
+                      })}
+                      <input
+                        id="auth-otp"
+                        type="text"
+                        inputMode="numeric"
+                        aria-label="Kode verifikasi OTP 6 digit"
+                        autoComplete="one-time-code"
+                        maxLength={6}
+                        value={verificationCode}
+                        onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                        autoFocus
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-text z-20"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={confirming || verificationCode.length !== 6}
+                    onClick={handleVerificationCheck}
+                    className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 mt-2 text-[14px] font-bold text-slate-950 transition-all hover:opacity-90 disabled:opacity-50 disabled:pointer-events-none focus-visible:ring-2 focus-visible:ring-[#d8823b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] outline-none shadow-[0_0_15px_rgba(216,130,59,0.15)]"
+                    style={{ backgroundColor: BRAND_ACCENT }}
+                  >
+                    {confirming ? <RefreshCw size={18} className="animate-spin" aria-hidden="true" /> : 'Selesaikan Verifikasi'}
+                  </button>
+
+                  <div className="flex items-center justify-between gap-3 pt-5 border-t border-slate-800/60 mt-4">
                     <button
                       type="button"
-                      onClick={() => switchMode('login')}
-                      className="mb-5 flex items-center gap-2 text-sm font-bold text-[#C2622A]"
+                      onClick={openInbox}
+                      aria-label="Buka inbox email di tab baru"
+                      className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-slate-900 border border-slate-800 px-3 py-2.5 text-[12px] font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition focus-visible:ring-2 focus-visible:ring-[#d8823b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] outline-none"
                     >
-                      <ArrowLeft size={15} />
-                      Kembali ke login
+                      Buka Inbox <ExternalLink size={14} aria-hidden="true" className="opacity-70" />
                     </button>
-                  )}
-
-                  {(err || ok) && (
-                    <div className="mb-4 space-y-3">
-                      {err && (
-                        <div className={`border px-4 py-3 ${isNetworkErr ? 'border-blue-200 bg-blue-50' : 'border-red-200 bg-red-50'}`}>
-                          <div className="flex items-start gap-3">
-                            {isNetworkErr ? (
-                              <WifiOff size={16} className="mt-0.5 shrink-0 text-blue-600" />
-                            ) : (
-                              <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-600" />
-                            )}
-                            <div className="flex-1 space-y-3">
-                              <p className={`text-sm leading-6 ${isNetworkErr ? 'text-blue-800' : 'text-red-700'}`}>
-                                {err === 'email_not_confirmed'
-                                  ? 'Email belum dikonfirmasi. Cek inbox, spam, atau promosi lalu buka link verifikasinya.'
-                                  : err}
-                              </p>
-
-                              {(err === 'email_not_confirmed' || duplicateRegistrationErr) && (
-                                <div className="flex flex-col gap-2 sm:flex-row">
-                                  <button
-                                    type="button"
-                                    disabled={resending || resendCooldown > 0}
-                                    onClick={handleResendVerification}
-                                    className="inline-flex items-center justify-center gap-2 border border-red-600 bg-red-600 px-4 py-2.5 text-xs font-black uppercase tracking-[0.16em] text-white disabled:opacity-50"
-                                  >
-                                    <RefreshCw size={13} className={resending ? 'animate-spin' : ''} />
-                                    {resendCooldown > 0 ? `Tunggu ${resendCooldown}s` : 'Kirim ulang verifikasi'}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => switchMode('login')}
-                                    className="inline-flex items-center justify-center gap-2 border border-red-200 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.16em] text-red-700"
-                                  >
-                                    Masuk sekarang
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {ok && (
-                        <div className="border border-emerald-200 bg-emerald-50 px-4 py-3">
-                          <div className="flex items-start gap-3">
-                            <CheckCircle size={16} className="mt-0.5 shrink-0 text-emerald-600" />
-                            <p className="text-sm leading-6 text-emerald-800">{ok}</p>
-                          </div>
-                        </div>
-                      )}
+                    <button
+                      type="button"
+                      disabled={resending || resendCooldown > 0}
+                      onClick={handleResendVerification}
+                      className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-slate-900 border border-slate-800 px-3 py-2.5 text-[12px] font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[#d8823b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] outline-none"
+                    >
+                      <RefreshCw size={13} className={`${resending ? 'animate-spin' : ''} opacity-70`} aria-hidden="true" />
+                      {resendCooldown > 0 ? `Tunggu ${resendCooldown}s` : 'Kirim Ulang'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={(e) => { e.preventDefault(); submit(); }} className="space-y-4 animate-in slide-up">
+                  {mode === 'register' && (
+                    <div className="space-y-1.5">
+                      <label htmlFor="auth-uname" className="text-[12px] font-semibold text-slate-300 pl-0.5">Nama Bisnis</label>
+                      <div className="relative">
+                        <Store size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+                        <input
+                          id="auth-uname"
+                          ref={mode === 'register' ? emailRef : undefined}
+                          type="text"
+                          value={uname}
+                          onChange={(e) => setUname(e.target.value)}
+                          aria-invalid={!!formErrors.uname}
+                          className={`w-full rounded-lg bg-slate-900 border py-3 pl-10 pr-4 text-[13px] text-white placeholder-slate-400 outline-none transition focus-visible:ring-2 focus-visible:ring-[#d8823b] focus-visible:ring-offset-0 focus:bg-slate-950 ${
+                            formErrors.uname ? 'border-red-500/50' : 'border-slate-800 focus:border-[#d8823b]'
+                          }`}
+                          placeholder="Kopi Senja"
+                        />
+                      </div>
                     </div>
                   )}
 
-                  {registered ? (
-                    <div className="space-y-5">
-                      <div className="border border-slate-200 bg-slate-50 px-4 py-4">
-                        <div className="flex items-start gap-3">
-                          <Inbox size={18} className="mt-0.5 shrink-0 text-[#C2622A]" />
-                          <div>
-                            <p className="text-sm font-black text-slate-900">Langkah verifikasi email</p>
-                            <ol className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
-                              <li>1. Buka inbox email bisnis yang dipakai saat registrasi.</li>
-                              <li>2. Cari email terbaru dari <span className="font-semibold text-slate-900">{EMAIL_SENDER}</span>.</li>
-                              <li>3. Masukkan kode 6 digitnya di bawah ini untuk mengaktifkan akun.</li>
-                            </ol>
-                          </div>
-                        </div>
+                  {(mode === 'login' || mode === 'register' || mode === 'forgot') && (
+                    <div className="space-y-1.5">
+                      <label htmlFor="auth-email" className="text-[12px] font-semibold text-slate-300 pl-0.5">Alamat Email</label>
+                      <div className="relative">
+                        <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+                        <input
+                          id="auth-email"
+                          ref={mode === 'login' || mode === 'forgot' ? emailRef : undefined}
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          aria-invalid={!!formErrors.email}
+                          className={`w-full rounded-lg bg-slate-900 border py-3 pl-10 pr-4 text-[13px] text-white placeholder-slate-400 outline-none transition focus-visible:ring-2 focus-visible:ring-[#d8823b] focus-visible:ring-offset-0 focus:bg-slate-950 ${
+                            formErrors.email ? 'border-red-500/50' : 'border-slate-800 focus:border-[#d8823b]'
+                          }`}
+                          placeholder="admin@bisnis.com"
+                        />
                       </div>
-
-                      <div className="space-y-3">
-                        <label className="block text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-                          Kode verifikasi email
-                        </label>
-                        <div className="relative">
-                          <KeyRound size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            autoComplete="one-time-code"
-                            maxLength={6}
-                            value={verificationCode}
-                            onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-                            placeholder="Masukkan 6 digit kode"
-                            className="w-full border border-slate-200 bg-slate-50 py-3.5 pl-11 pr-4 text-sm font-black tracking-[0.35em] text-slate-900 outline-none transition focus:border-[#C2622A] focus:bg-white"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <button
-                          type="button"
-                          onClick={openInbox}
-                          className="inline-flex items-center justify-center gap-2 border border-slate-900 bg-slate-900 px-4 py-3 text-sm font-black text-white"
-                        >
-                          Buka inbox
-                          <ExternalLink size={15} />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={confirming}
-                          onClick={handleVerificationCheck}
-                          className="inline-flex items-center justify-center gap-2 border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-900 disabled:opacity-50"
-                        >
-                          {confirming ? <RefreshCw size={15} className="animate-spin" /> : 'Verifikasi kode'}
-                        </button>
-                      </div>
-
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <button
-                          type="button"
-                          disabled={resending || resendCooldown > 0}
-                          onClick={handleResendVerification}
-                          className="inline-flex items-center justify-center gap-2 border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-slate-700 disabled:opacity-50"
-                        >
-                          <RefreshCw size={14} className={resending ? 'animate-spin' : ''} />
-                          {resendCooldown > 0 ? `Kirim ulang ${resendCooldown}s` : 'Kirim ulang email'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            localStorage.removeItem('kaffepos_registered_email');
-                            setRegistered(false);
-                            setOk('');
-                            setErr('');
-                            setEmail('');
-                            switchMode('register');
-                          }}
-                          className="inline-flex items-center justify-center gap-2 border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-slate-700"
-                        >
-                          Ganti email
-                        </button>
-                      </div>
-
-                      <p className="text-xs leading-6 text-slate-500">
-                        Jika email belum terlihat di inbox, cek folder spam atau promosi. Gunakan email verifikasi paling baru
-                        agar status akun di Supabase tetap sinkron.
-                      </p>
                     </div>
-                  ) : (
-                    <>
-                      <form
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          submit();
-                        }}
-                        autoComplete="on"
-                      >
-                        <div className="space-y-3">
-                          {mode === 'register' && (
-                            <div>
-                              <div className="relative">
-                                <User size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                                <input
-                                  name="username"
-                                  autoComplete="organization"
-                                  value={uname}
-                                  onChange={(event) => setUname(event.target.value)}
-                                  placeholder="Nama toko / bisnis"
-                                  className={`w-full border bg-slate-50 py-3.5 pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:bg-white ${
-                                    formErrors.uname ? 'border-red-300' : 'border-slate-200 focus:border-[#C2622A]'
-                                  }`}
-                                />
-                              </div>
-                              {formErrors.uname && <p className="mt-1 text-xs font-semibold text-red-600">{formErrors.uname}</p>}
-                            </div>
-                          )}
+                  )}
 
-                          {mode !== 'reset' && (
-                            <div>
-                              <div className="relative">
-                                <Mail size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                                <input
-                                  ref={emailRef}
-                                  type="email"
-                                  name="email"
-                                  id="field-email"
-                                  autoComplete="email"
-                                  value={email}
-                                  onChange={(event) => setEmail(event.target.value)}
-                                  placeholder="Email bisnis"
-                                  className={`w-full border bg-slate-50 py-3.5 pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:bg-white ${
-                                    formErrors.email ? 'border-red-300' : 'border-slate-200 focus:border-[#C2622A]'
-                                  }`}
-                                />
-                              </div>
-                              {formErrors.email && <p className="mt-1 text-xs font-semibold text-red-600">{formErrors.email}</p>}
-                            </div>
-                          )}
-
-                          {mode !== 'forgot' && (
-                            <div>
-                              <div className="relative">
-                                <Lock size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                                <input
-                                  type={show ? 'text' : 'password'}
-                                  name="password"
-                                  autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
-                                  value={pass}
-                                  onChange={(event) => setPass(event.target.value)}
-                                  placeholder={mode === 'register' ? 'Password minimal 10 karakter' : 'Password'}
-                                  className={`w-full border bg-slate-50 py-3.5 pl-11 pr-12 text-sm text-slate-900 outline-none transition focus:bg-white ${
-                                    formErrors.pass ? 'border-red-300' : 'border-slate-200 focus:border-[#C2622A]'
-                                  }`}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setShow((current) => !current)}
-                                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"
-                                >
-                                  {show ? <EyeOff size={16} /> : <Eye size={16} />}
-                                </button>
-                              </div>
-                              {formErrors.pass && <p className="mt-1 text-xs font-semibold text-red-600">{formErrors.pass}</p>}
-                            </div>
-                          )}
-
-                          {mode === 'reset' && (
-                            <div className="relative">
-                              <Lock size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                              <input
-                                type={show ? 'text' : 'password'}
-                                name="confirm-password"
-                                autoComplete="new-password"
-                                value={confirmPass}
-                                onChange={(event) => setConfirmPass(event.target.value)}
-                                placeholder="Ulangi password baru"
-                                className="w-full border border-slate-200 bg-slate-50 py-3.5 pl-11 pr-12 text-sm text-slate-900 outline-none transition focus:border-[#C2622A] focus:bg-white"
-                              />
-                            </div>
-                          )}
-                        </div>
-
+                  {(mode === 'login' || mode === 'register' || mode === 'reset') && (
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex items-center justify-between pl-0.5">
+                        <label htmlFor="auth-pass" className="text-[12px] font-semibold text-slate-300">Kata Sandi</label>
                         {mode === 'login' && (
                           <button
                             type="button"
                             onClick={() => switchMode('forgot')}
-                            className="mt-3 text-sm font-bold text-[#C2622A]"
+                            className="text-[12px] font-semibold text-slate-400 hover:text-white transition focus-visible:ring-2 focus-visible:ring-[#d8823b] focus-visible:ring-offset-4 focus-visible:ring-offset-[#111827] outline-none rounded-sm px-1"
                           >
-                            Lupa password?
+                            Lupa sandi?
                           </button>
-                        )}
-
-                        <button
-                          type="submit"
-                          id="btn-auth-submit"
-                          disabled={busy || (mode === 'register' && isInvalid)}
-                          className="mt-5 inline-flex w-full items-center justify-center gap-2 border border-[#C2622A] bg-[#C2622A] px-4 py-3.5 text-sm font-black text-white disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-500"
-                        >
-                          {busy ? (
-                            <>
-                              <RefreshCw size={16} className="animate-spin" />
-                              {mode === 'login'
-                                ? 'Sedang masuk...'
-                                : mode === 'register'
-                                  ? 'Mendaftarkan akun...'
-                                  : mode === 'reset'
-                                    ? 'Menyimpan password...'
-                                    : 'Mengirim email...'}
-                            </>
-                          ) : (
-                            <>
-                              {mode === 'login'
-                                ? 'Masuk ke KaffePOS'
-                                : mode === 'register'
-                                  ? 'Buat akun gratis'
-                                  : mode === 'reset'
-                                    ? 'Simpan password baru'
-                                    : 'Kirim link reset'}
-                              <ChevronRight size={17} />
-                            </>
-                          )}
-                        </button>
-                      </form>
-
-                      <div className="mt-5 space-y-4">
-                        {mode === 'login' && (
-                          <button
-                            type="button"
-                            id="link-check-confirmation"
-                            onClick={() => {
-                              const registeredEmail = localStorage.getItem('kaffepos_registered_email');
-                              if (registeredEmail) {
-                                setEmail(registeredEmail);
-                                setRegistered(true);
-                                setErr('');
-                                return;
-                              }
-                              setErr('Belum ada pendaftaran yang tersimpan di browser ini. Jika sudah daftar, cek inbox email bisnis kamu.');
-                            }}
-                            className="text-sm font-semibold text-slate-500"
-                          >
-                            Sudah daftar tapi belum verifikasi?
-                          </button>
-                        )}
-
-                        {mode === 'register' && (
-                          <div className="border border-slate-200 bg-slate-50 px-4 py-4">
-                            <p className="text-sm font-black text-slate-900">Setelah daftar, cek inbox email</p>
-                            <p className="mt-2 text-sm leading-6 text-slate-600">
-                              Link verifikasi dikirim ke email bisnis kamu melalui jalur auth yang sama untuk web dan APK.
-                              Pengirim yang harus dicari adalah <span className="font-semibold text-slate-900">{EMAIL_SENDER}</span>.
-                            </p>
-                          </div>
-                        )}
-
-                        {mode === 'forgot' && !ok && (
-                          <p className="text-sm leading-6 text-slate-500">
-                            Jika email belum terlihat, cek folder spam atau promosi. Gunakan email bisnis yang sama saat registrasi.
-                          </p>
-                        )}
-
-                        {mode === 'reset' && (
-                          <div className="border border-slate-200 bg-slate-50 px-4 py-4">
-                            <p className="text-sm font-black text-slate-900">Password baru langsung dipakai di semua perangkat</p>
-                            <p className="mt-2 text-sm leading-6 text-slate-600">
-                              Setelah berhasil disimpan, sesi lama akan diminta login ulang agar web dan APK tetap sinkron.
-                            </p>
-                          </div>
                         )}
                       </div>
-                    </>
+                      <div className="relative">
+                        <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+                        <input
+                          id="auth-pass"
+                          ref={mode === 'reset' ? emailRef : undefined}
+                          type={show ? 'text' : 'password'}
+                          value={pass}
+                          onChange={(e) => setPass(e.target.value)}
+                          aria-invalid={!!formErrors.pass}
+                          className={`w-full rounded-lg bg-slate-900 border py-3 pl-10 pr-10 text-[13px] text-white placeholder-slate-400 outline-none transition focus-visible:ring-2 focus-visible:ring-[#d8823b] focus-visible:ring-offset-0 focus:bg-slate-950 ${
+                            formErrors.pass ? 'border-red-500/50' : 'border-slate-800 focus:border-[#d8823b]'
+                          }`}
+                          placeholder="••••••••••"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShow(!show)}
+                          aria-label={show ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 portrait:min-h-[44px] portrait:min-w-[44px] flex items-center justify-center hover:text-slate-200 transition focus-visible:ring-2 focus-visible:ring-[#d8823b] outline-none rounded-md"
+                        >
+                          {show ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+                        </button>
+                      </div>
+                    </div>
                   )}
-                </div>
-              </div>
 
-              <p className="px-1 pb-6 pt-4 text-center text-xs leading-6 text-slate-500">
-                KaffePOS memakai Supabase Auth untuk session dan verifikasi, dengan pengirim email bisnis di
-                <span className="font-semibold text-slate-700"> {EMAIL_SENDER}</span>.
-              </p>
+                  {mode === 'reset' && (
+                    <div className="space-y-1.5 pt-1">
+                      <label htmlFor="auth-confirm" className="text-[12px] font-semibold text-slate-300 pl-0.5">Konfirmasi Sandi Baru</label>
+                      <div className="relative">
+                        <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+                        <input
+                          id="auth-confirm"
+                          type={show ? 'text' : 'password'}
+                          value={confirmPass}
+                          onChange={(e) => setConfirmPass(e.target.value)}
+                          className="w-full rounded-lg bg-slate-900 border border-slate-800 py-3 pl-10 pr-10 text-[13px] text-white placeholder-slate-400 outline-none transition focus-visible:ring-2 focus-visible:ring-[#d8823b] focus-visible:ring-offset-0 focus:bg-slate-950"
+                          placeholder="••••••••••"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={busy || isInvalid}
+                    className="w-full mt-6 flex items-center justify-center gap-2 rounded-lg py-3.5 text-[14px] font-bold text-slate-950 transition-all hover:opacity-90 disabled:opacity-50 disabled:pointer-events-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] outline-none"
+                    style={{ backgroundColor: BRAND_ACCENT }}
+                  >
+                    {busy ? (
+                      <RefreshCw size={18} className="animate-spin" aria-hidden="true" />
+                    ) : (
+                      <>
+                        {mode === 'login' ? 'Masuk Sekarang' : mode === 'register' ? 'Buat Akun Gratis' : 'Verifikasi'}
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
+
+              {/* Branding Footer */}
+              {!registered && (
+                <div className="mt-8 pt-6 border-t border-slate-800/50 text-center space-y-4">
+                  <p className="text-[11px] text-slate-500 leading-relaxed max-w-[280px] mx-auto">
+                    By signing in, you agree to our <button type="button" className="text-slate-400 hover:text-white underline decoration-slate-600 underline-offset-2">Terms of Service</button> and <button type="button" className="text-slate-400 hover:text-white underline decoration-slate-600 underline-offset-2">Privacy Policy</button>
+                  </p>
+                  <div className="flex items-center justify-center gap-2 text-emerald-500/60">
+                    <Shield size={12} />
+                    <span className="text-[10px] font-bold uppercase tracking-widest">256-bit SSL Encryption</span>
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
         </section>

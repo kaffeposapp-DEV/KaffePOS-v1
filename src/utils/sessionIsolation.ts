@@ -79,8 +79,8 @@ export function clearUserCache(userId?: string | null, preserveKeys: string[] = 
 export function redirectToLogin(forceReload = true) {
   if (typeof window === 'undefined') return;
   if (forceReload) {
-    window.location.href = '/auth';
+    window.location.href = '/';
     return;
   }
-  window.location.assign('/auth');
+  window.location.assign('/');
 }

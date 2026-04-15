@@ -107,7 +107,7 @@ async function getRequestContext(req: Request): Promise<RequestContext> {
 }
 
 async function enforceRateLimit(
-  adminClient: ReturnType<typeof createClient>,
+  adminClient: any,
   key: string,
   ip: string,
   maxHits: number,
@@ -252,7 +252,7 @@ function getWelcomeHtml(name: string): string {
     </ul>
     
     <div style="text-align: center;">
-      <a href="https://kaffepos.app" class="btn">Masuk ke Dashboard</a>
+      <a href="https://kaffepos.my.id" class="btn">Masuk ke Dashboard</a>
     </div>
   `, 'Selamat datang di KaffePOS! Akun kamu sudah aktif.');
 }
@@ -339,7 +339,7 @@ function getDailySalesHtml(name: string, summary: any): string {
     <div class="helper-card"><strong style="color: ${TEXT_DARK};">Catatan:</strong> Penjualan hari ini cukup stabil. Pertimbangkan promo singkat pada jam sibuk untuk mendorong repeat order besok.</div>
     
     <div style="text-align: center;">
-      <a href="https://kaffepos.app" class="btn">Lihat Detail Laporan</a>
+      <a href="https://kaffepos.my.id" class="btn">Lihat Detail Laporan</a>
     </div>
   `, `Laporan penjualan harian: ${summary.totalIncome}`);
 }
@@ -374,7 +374,7 @@ function getSubscriptionActivatedHtml(
     </ul>
 
     <div style="text-align: center;">
-      <a href="https://kaffepos.app" class="btn">Buka KaffePOS</a>
+      <a href="https://kaffepos.my.id" class="btn">Buka KaffePOS</a>
     </div>
 
     <div class="helper-card">Ada pertanyaan? DM kami di Instagram @kaffepos</div>

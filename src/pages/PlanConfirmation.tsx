@@ -27,7 +27,7 @@ export default function PlanConfirmation() {
       <div className="mx-auto max-w-2xl">
         <div className="mb-5">
           <Link
-            to="/auth"
+            to="/login"
             className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/80 px-4 py-2 text-sm font-bold text-slate-600 shadow-sm backdrop-blur"
           >
             <ArrowLeft size={16} />
@@ -103,7 +103,7 @@ export default function PlanConfirmation() {
                 Chat Admin di Instagram
               </a>
               <Link
-                to="/auth"
+                to="/login"
                 className="inline-flex flex-1 items-center justify-center rounded-2xl border border-slate-200 px-5 py-4 text-sm font-bold text-slate-600"
               >
                 Kembali pilih paket

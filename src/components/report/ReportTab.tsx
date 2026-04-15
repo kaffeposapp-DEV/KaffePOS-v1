@@ -467,14 +467,7 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
                 <p className="text-xs text-red-600 font-bold">⚠️ {aiError}</p>
                 {aiError.includes('Kuota') || aiError.includes('quota') || aiError.includes('billing') ? (
                   <p className="text-[10px] text-red-400">
-                    Aktifkan billing di{' '}
-                    <span
-                      className="underline font-bold cursor-pointer"
-                      onClick={() => window.open('https://console.cloud.google.com/billing', '_system')}
-                    >
-                      console.cloud.google.com/billing
-                    </span>
-                    {' '}lalu coba lagi.
+                    Layanan AI sedang tidak tersedia. Coba lagi beberapa saat lagi atau hubungi admin internal.
                   </p>
                 ) : null}
               </div>
