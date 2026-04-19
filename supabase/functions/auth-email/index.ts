@@ -212,6 +212,42 @@ async function storeSignupOtp(adminClient: ReturnType<typeof createClient>, emai
   if (error) throw error;
 }
 
+async function ensureProfileRecord(
+  adminClient: ReturnType<typeof createClient>,
+  params: {
+    userId: string;
+    email: string;
+    normalizedUsername: string;
+    displayName: string;
+  },
+) {
+  const { error } = await adminClient.from('profiles').upsert({
+    id: params.userId,
+    email: params.email,
+    username: params.normalizedUsername,
+    display_name: params.displayName,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'id' });
+  if (error) throw error;
+}
+
+async function insertEmailNotification(
+  adminClient: ReturnType<typeof createClient>,
+  userId: string,
+  title: string,
+  message: string,
+  metadata: Record<string, unknown>,
+) {
+  const { error } = await adminClient.from('notifications').insert({
+    user_id: userId,
+    title,
+    message,
+    type: 'success',
+    metadata,
+  });
+  if (error) throw error;
+}
+
 async function sendResendEmail(to: string, subject: string, html: string) {
   if (!RESEND_API_KEY) throw new Error('RESEND_API_KEY missing');
 
@@ -337,6 +373,12 @@ serve(async (req: Request) => {
         }
 
         user = data.user;
+        await ensureProfileRecord(adminClient, {
+          userId: user.id,
+          email: cleanEmail,
+          normalizedUsername,
+          displayName,
+        });
       } else {
         message = 'Akun dengan email ini sudah ada tetapi belum aktif. Kode verifikasi baru sudah kami kirim.';
         const { error: updateUserError } = await adminClient.auth.admin.updateUserById(user.id, {
@@ -349,16 +391,12 @@ serve(async (req: Request) => {
         });
         if (updateUserError) throw updateUserError;
 
-        const { error: updateProfileError } = await adminClient
-          .from('profiles')
-          .update({
-            username: normalizedUsername,
-            display_name: displayName,
-            email: cleanEmail,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', user.id);
-        if (updateProfileError) throw updateProfileError;
+        await ensureProfileRecord(adminClient, {
+          userId: user.id,
+          email: cleanEmail,
+          normalizedUsername,
+          displayName,
+        });
       }
 
       const otp = generateOtp();
@@ -369,13 +407,13 @@ serve(async (req: Request) => {
         signupEmailHtml(displayName || cleanEmail.split('@')[0], otp),
       );
 
-      await adminClient.from('notifications').insert({
-        user_id: user.id,
-        title: 'Kode verifikasi dikirim',
-        message: 'Kode verifikasi akun KaffePOS telah dikirim ke email bisnis.',
-        type: 'success',
-        metadata: { channel: 'email', provider: 'resend', type: 'verification' },
-      });
+      await insertEmailNotification(
+        adminClient,
+        user.id,
+        'Kode verifikasi dikirim',
+        'Kode verifikasi akun KaffePOS telah dikirim ke email bisnis.',
+        { channel: 'email', provider: 'resend', type: 'verification' },
+      );
 
       return new Response(JSON.stringify({
         ok: true,
@@ -413,6 +451,13 @@ serve(async (req: Request) => {
         cleanEmail,
         'Kode verifikasi baru KaffePOS',
         signupEmailHtml(String(name), otp),
+      );
+      await insertEmailNotification(
+        adminClient,
+        user.id,
+        'Kode verifikasi baru dikirim',
+        'Kode verifikasi terbaru telah dikirim ulang ke email bisnis.',
+        { channel: 'email', provider: 'resend', type: 'verification_resend' },
       );
 
       return new Response(JSON.stringify({
@@ -459,13 +504,13 @@ serve(async (req: Request) => {
       passwordResetHtml(String(name), data.properties.action_link),
     );
 
-    await adminClient.from('notifications').insert({
-      user_id: user.id,
-      title: 'Email reset password dikirim',
-      message: 'Link reset password telah dikirim ke email bisnis.',
-      type: 'success',
-      metadata: { channel: 'email', provider: 'resend', type: 'password_reset' },
-    });
+    await insertEmailNotification(
+      adminClient,
+      user.id,
+      'Email reset password dikirim',
+      'Link reset password telah dikirim ke email bisnis.',
+      { channel: 'email', provider: 'resend', type: 'password_reset' },
+    );
 
     return new Response(JSON.stringify({
       ok: true,

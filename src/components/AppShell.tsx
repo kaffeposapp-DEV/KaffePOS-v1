@@ -87,16 +87,39 @@ function setCachedStoreId(userId: string, id: string) {
   try { localStorage.setItem(getStoreCacheKey(userId), id); } catch { /* ignore */ }
 }
 
+function getLastTabStorageKey(userId?: string) {
+  return userId ? `${LS_LAST_TAB}:${userId}` : LS_LAST_TAB;
+}
+
+function getValidTab(value: string | null): Tab | null {
+  if (!value) return null;
+  return NAV.some((entry) => entry.id === value) ? (value as Tab) : null;
+}
+
+function createLoadedTabsState(initialTab: Tab): Record<Tab, boolean> {
+  return {
+    dashboard: initialTab === 'dashboard',
+    pos: initialTab === 'pos',
+    warehouse: initialTab === 'warehouse',
+    menu: initialTab === 'menu',
+    history: initialTab === 'history',
+    report: initialTab === 'report',
+    settings: initialTab === 'settings',
+  };
+}
+
 export default function AppShell() {
   const { user, profile, isPro } = useAuth();
   const { loadAll, cleanup, syncing, cashRegister, isOnline, saveCashRegister } = useStore();
 
   const [tab, setTab] = useState<Tab>(() => {
     try {
-      const s = localStorage.getItem(LS_LAST_TAB) as Tab;
-      return NAV.some(n => n.id === s) ? s : 'dashboard';
-    } catch { return 'dashboard'; }
+      return getValidTab(localStorage.getItem(LS_LAST_TAB)) ?? 'dashboard';
+    } catch {
+      return 'dashboard';
+    }
   });
+  const [loadedTabs, setLoadedTabs] = useState<Record<Tab, boolean>>(() => createLoadedTabsState(tab));
 
   const [ready,   setReady]   = useState(false);
   const [message, setMessage] = useState('Memuat...');
@@ -235,21 +258,63 @@ export default function AppShell() {
     }
   }, [user?.id]);
 
+  useEffect(() => {
+    const userId = user?.id || profile?.id;
+    if (!userId) return;
+    try {
+      const scopedTab = getValidTab(localStorage.getItem(getLastTabStorageKey(userId)));
+      const fallbackTab = getValidTab(localStorage.getItem(LS_LAST_TAB));
+      const nextTab = scopedTab ?? fallbackTab ?? 'dashboard';
+      setTab(nextTab);
+      setLoadedTabs(createLoadedTabsState(nextTab));
+    } catch {
+      setTab('dashboard');
+      setLoadedTabs(createLoadedTabsState('dashboard'));
+    }
+  }, [user?.id, profile?.id]);
+
+  useEffect(() => {
+    setLoadedTabs((current) => {
+      if (current[tab]) return current;
+      return { ...current, [tab]: true };
+    });
+  }, [tab]);
+
   const changeTab = useCallback(async (t: Tab) => {
     setTab(t);
-    try { localStorage.setItem(LS_LAST_TAB, t); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(LS_LAST_TAB, t);
+      const userId = user?.id || profile?.id;
+      if (userId) {
+        localStorage.setItem(getLastTabStorageKey(userId), t);
+      }
+    } catch { /* ignore */ }
     if (Capacitor.isNativePlatform()) {
       try {
         const { Haptics, ImpactStyle } = await import('@capacitor/haptics');
         await Haptics.impact({ style: ImpactStyle.Light });
       } catch { /* ignore */ }
     }
-  }, [],   );
+  }, [user?.id, profile?.id],   );
 
   const toast = { 
     showToast: (m: string, t?: ToastType) => showToast(m, t),
     showDownloadSuccess, 
     showDownloadError 
+  };
+
+  const renderTabPanel = (tabId: Tab, name: string, node: React.ReactNode) => {
+    if (!loadedTabs[tabId]) return null;
+    const isActive = tab === tabId;
+    return (
+      <section
+        key={tabId}
+        className={isActive ? 'flex-1 min-h-0 flex flex-col' : 'hidden'}
+        aria-hidden={!isActive}
+      >
+        <TabError name={name}>{node}</TabError>
+      </section>
+    );
   };
 
   if (!ready) return <AppLoading message={message} />;
@@ -269,13 +334,13 @@ export default function AppShell() {
       <main className="flex-1 overflow-hidden flex flex-col"
         style={{ paddingBottom: 'calc(60px + env(safe-area-inset-bottom,0px))' }}>
         <Suspense fallback={<TabSpinner />}>
-          {tab === 'dashboard' && <TabError name="Beranda">   <DashboardTab /></TabError>}
-          {tab === 'pos'       && <TabError name="POS">       <POSTab       toast={toast} profile={profile} /></TabError>}
-          {tab === 'warehouse' && <TabError name="Gudang">    <WarehouseTab toast={toast} /></TabError>}
-          {tab === 'menu'      && <TabError name="Menu">      <MenuTab      toast={toast} /></TabError>}
-          {tab === 'history'   && <TabError name="Riwayat">   <HistoryTab   toast={toast} /></TabError>}
-          {tab === 'report'    && <TabError name="Laporan">   <ReportTab    toast={toast} isPro={isPro} /></TabError>}
-          {tab === 'settings'  && <TabError name="Pengaturan"><SettingsTab  toast={toast} isPro={isPro} profile={profile} /></TabError>}
+          {renderTabPanel('dashboard', 'Beranda', <DashboardTab />)}
+          {renderTabPanel('pos', 'POS', <POSTab toast={toast} profile={profile} />)}
+          {renderTabPanel('warehouse', 'Gudang', <WarehouseTab toast={toast} />)}
+          {renderTabPanel('menu', 'Menu', <MenuTab toast={toast} />)}
+          {renderTabPanel('history', 'Riwayat', <HistoryTab toast={toast} />)}
+          {renderTabPanel('report', 'Laporan', <ReportTab toast={toast} isPro={isPro} />)}
+          {renderTabPanel('settings', 'Pengaturan', <SettingsTab toast={toast} isPro={isPro} profile={profile} />)}
         </Suspense>
       </main>
 

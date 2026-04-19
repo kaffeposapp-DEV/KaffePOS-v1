@@ -53,6 +53,42 @@ function loadSettingsFromLS(storeId: string): StoreSettings | null {
   } catch { return null; }
 }
 
+function getCartCacheKey(storeId: string) {
+  return `kpos_cart_${storeId}`;
+}
+
+function getDiscountCacheKey(storeId: string) {
+  return `kpos_discount_${storeId}`;
+}
+
+function persistCheckoutDraft(storeId: string | null, cart: CartItem[], discount: string) {
+  if (!storeId) return;
+  try {
+    if (cart.length > 0) {
+      localStorage.setItem(getCartCacheKey(storeId), JSON.stringify(cart));
+    } else {
+      localStorage.removeItem(getCartCacheKey(storeId));
+    }
+
+    if (discount) {
+      localStorage.setItem(getDiscountCacheKey(storeId), discount);
+    } else {
+      localStorage.removeItem(getDiscountCacheKey(storeId));
+    }
+  } catch { /* ignore */ }
+}
+
+function loadCheckoutDraft(storeId: string) {
+  try {
+    return {
+      cart: JSON.parse(localStorage.getItem(getCartCacheKey(storeId)) || '[]') as CartItem[],
+      discount: localStorage.getItem(getDiscountCacheKey(storeId)) || '',
+    };
+  } catch {
+    return { cart: [] as CartItem[], discount: '' };
+  }
+}
+
 // ── Persist seluruh state ke localStorage setelah setiap perubahan ─
 function persistCache(
   storeId: string,
@@ -260,6 +296,7 @@ const initialState: Pick<
 };
 
 const activeChannels: string[] = [];
+const loadAllPromises = new Map<string, Promise<void>>();
 
 export const useStore = create<AppStore>((set, get) => ({
   ...initialState,
@@ -282,17 +319,19 @@ export const useStore = create<AppStore>((set, get) => ({
     recentlyInserted.clear();
     clearSessionStorage();
     clearIndexedDbCache();
+    loadAllPromises.clear();
     set({ ...initialState, isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true });
   },
 
   loadAll: async (storeId: string) => {
-    const cache = loadCache(storeId);
-    let cachedCart: CartItem[] = [];
-    let cachedDiscount = '';
-    try {
-      cachedCart = JSON.parse(localStorage.getItem(`kpos_cart_${storeId}`) || '[]');
-      cachedDiscount = localStorage.getItem(`kpos_discount_${storeId}`) || '';
-    } catch { /* ignore */ }
+    const existingLoad = loadAllPromises.get(storeId);
+    if (existingLoad) {
+      return existingLoad;
+    }
+
+    const run = (async () => {
+      const cache = loadCache(storeId);
+      const { cart: cachedCart, discount: cachedDiscount } = loadCheckoutDraft(storeId);
 
     if (cache.settings || cache.menu.length > 0) {
       const stdCats = ['Coffee', 'Non-Coffee', 'Snack'];
@@ -621,6 +660,12 @@ export const useStore = create<AppStore>((set, get) => ({
         return {};
       });
     });
+    })().finally(() => {
+      loadAllPromises.delete(storeId);
+    });
+
+    loadAllPromises.set(storeId, run);
+    return run;
   },
 
   addToCart: (item, variant) => {
@@ -629,21 +674,36 @@ export const useStore = create<AppStore>((set, get) => ({
       : { ...item, qty: 1 };
     set(s => {
       const existing = s.cart.find(c => c.id === cartItem.id);
-      if (existing) {
-        return { cart: s.cart.map(c => c.id === cartItem.id ? { ...c, qty: c.qty + 1 } : c) };
-      }
-      return { cart: [...s.cart, { ...cartItem, qty: 1 }] };
+      const nextCart = existing
+        ? s.cart.map(c => c.id === cartItem.id ? { ...c, qty: c.qty + 1 } : c)
+        : [...s.cart, { ...cartItem, qty: 1 }];
+      persistCheckoutDraft(s.storeId, nextCart, s.discount);
+      return { cart: nextCart };
     });
   },
 
-  removeFromCart: (id) => set(s => ({ cart: s.cart.filter(c => c.id !== id) })),
+  removeFromCart: (id) => set(s => {
+    const nextCart = s.cart.filter(c => c.id !== id);
+    persistCheckoutDraft(s.storeId, nextCart, s.discount);
+    return { cart: nextCart };
+  }),
 
-  updateQty: (id, qty) => set(s => ({
-    cart: qty <= 0 ? s.cart.filter(c => c.id !== id) : s.cart.map(c => c.id === id ? { ...c, qty } : c)
-  })),
+  updateQty: (id, qty) => set(s => {
+    const nextCart = qty <= 0
+      ? s.cart.filter(c => c.id !== id)
+      : s.cart.map(c => c.id === id ? { ...c, qty } : c);
+    persistCheckoutDraft(s.storeId, nextCart, s.discount);
+    return { cart: nextCart };
+  }),
 
-  clearCart: () => set({ cart: [], discount: '' }),
-  setDiscount: (d) => set({ discount: d }),
+  clearCart: () => set(s => {
+    persistCheckoutDraft(s.storeId, [], '');
+    return { cart: [], discount: '' };
+  }),
+  setDiscount: (d) => set(s => {
+    persistCheckoutDraft(s.storeId, s.cart, d);
+    return { discount: d };
+  }),
 
   saveMenuItem: async (item) => {
     // ── Input Sanitization ──

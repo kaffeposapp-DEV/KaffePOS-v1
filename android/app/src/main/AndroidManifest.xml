@@ -38,11 +38,20 @@
                 <data android:scheme="kaffepos" android:host="auth" android:pathPrefix="/callback" />
             </intent-filter>
 
+            <!-- Deep link Google OAuth: id.kaffeepos.app://login-callback -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="id.kaffeepos.app" />
+                <data android:scheme="id.kaffeepos.app" android:host="login-callback" />
+            </intent-filter>
+
+            <!-- Deep link Email Auth: id.kaffeepos.app://auth/callback -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="id.kaffeepos.app" android:host="auth" android:pathPrefix="/callback" />
             </intent-filter>
 
             <!-- Deep link reset password: kaffepos://reset-password -->

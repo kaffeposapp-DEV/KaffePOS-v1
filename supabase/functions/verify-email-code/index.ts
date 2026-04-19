@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -31,6 +32,85 @@ async function sha256Hex(value: string) {
   return Array.from(new Uint8Array(digest))
     .map((byte) => byte.toString(16).padStart(2, '0'))
     .join('');
+}
+
+function normalizeUsername(value: string) {
+  const base = value
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  if (base.length >= 3) return base.slice(0, 30);
+  return '';
+}
+
+async function ensureProfileRecord(adminClient: any, user: any, email: string) {
+  const displayName = String(
+    user.user_metadata?.display_name ||
+    user.user_metadata?.username ||
+    email.split('@')[0],
+  ).trim();
+  const normalizedUsername = normalizeUsername(
+    String(user.user_metadata?.username || displayName || email.split('@')[0]),
+  ) || normalizeUsername(email.split('@')[0]) || `user_${user.id.slice(0, 8)}`;
+
+  const { error } = await adminClient.from('profiles').upsert({
+    id: user.id,
+    email,
+    username: normalizedUsername,
+    display_name: displayName,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'id' });
+
+  if (error) throw error;
+}
+
+function getWelcomeHtml(name: string) {
+  return `
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Selamat datang di KaffePOS</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f4efe8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1f2937;">
+    <div style="max-width:620px;margin:24px auto;background:#fff;border:1px solid #eadfce;">
+      <div style="padding:24px 28px;background:#17171b;color:#fff;">
+        <div style="font-size:13px;font-weight:800;letter-spacing:0.2em;text-transform:uppercase;color:#d59a4b;">KaffePOS</div>
+        <div style="margin-top:10px;font-size:28px;font-weight:800;line-height:1.2;">Akunmu sudah aktif.</div>
+      </div>
+      <div style="padding:28px;">
+        <p style="margin:0 0 12px;font-size:16px;line-height:1.7;color:#374151;">Halo <strong>${name}</strong>, verifikasi email berhasil dan akun KaffePOS kamu sudah siap dipakai.</p>
+        <p style="margin:0 0 20px;font-size:14px;line-height:1.7;color:#6b7280;">Sekarang kamu bisa login dari web maupun APK dan data akan tetap sinkron dengan database Supabase.</p>
+        <a href="https://kaffepos.my.id/login" style="display:inline-block;padding:14px 22px;background:#b66a1f;color:#fff;text-decoration:none;font-weight:800;">Masuk ke KaffePOS</a>
+      </div>
+    </div>
+  </body>
+</html>
+`;
+}
+
+async function sendResendEmail(to: string, subject: string, html: string) {
+  if (!RESEND_API_KEY) throw new Error('RESEND_API_KEY missing');
+
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: 'KaffePOS <noreply@kaffepos.my.id>',
+      to: [to],
+      subject,
+      html,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Resend API failed: ${await response.text()}`);
+  }
 }
 
 async function enforceRateLimit(
@@ -170,6 +250,7 @@ serve(async (req: Request) => {
       { email_confirm: true }
     );
     if (confirmError) throw confirmError;
+    await ensureProfileRecord(adminClient, user, cleanEmail);
 
     const now = new Date().toISOString();
     await adminClient
@@ -186,6 +267,24 @@ serve(async (req: Request) => {
       type: 'success',
       metadata: { channel: 'email', method: 'otp', type: 'verification' },
     });
+
+    const name = user.user_metadata?.display_name || user.user_metadata?.username || cleanEmail.split('@')[0];
+    try {
+      await sendResendEmail(
+        cleanEmail,
+        'Selamat datang di KaffePOS',
+        getWelcomeHtml(String(name)),
+      );
+      await adminClient.from('notifications').insert({
+        user_id: user.id,
+        title: 'Email welcome dikirim',
+        message: 'Email welcome berhasil dikirim setelah verifikasi akun.',
+        type: 'success',
+        metadata: { channel: 'email', provider: 'resend', type: 'welcome' },
+      });
+    } catch (emailError) {
+      console.error('welcome-email error:', emailError);
+    }
 
     return new Response(JSON.stringify({
       ok: true,

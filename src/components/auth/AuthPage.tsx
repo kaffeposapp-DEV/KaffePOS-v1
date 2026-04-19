@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
 import {
   AlertCircle,
   ArrowLeft,
@@ -56,6 +58,7 @@ export default function AuthPage() {
   const { signIn, signUp, resetPassword, updatePassword, resendVerification, verifyEmailCode, isAuthenticated } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const isNative = Capacitor.isNativePlatform();
 
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
@@ -181,7 +184,7 @@ export default function AuthPage() {
       return;
     }
 
-    setOk('Kode verifikasi barusudah dikirim lewat email.');
+    setOk('Kode verifikasi baru sudah dikirim lewat email.');
     setResendCooldown(60);
   }, [email, resendCooldown, resendVerification]);
 
@@ -282,13 +285,22 @@ export default function AuthPage() {
     }
   };
 
-  const openInbox = () => {
+  const openInbox = async () => {
     const domain = email.split('@')[1];
     if (domain) {
-      if (domain.includes('gmail')) window.open('https://mail.google.com/mail/u/0/#search/KaffePOS', '_blank');
-      else if (domain.includes('yahoo')) window.open('https://mail.yahoo.com', '_blank');
-      else if (domain.includes('outlook') || domain.includes('hotmail')) window.open('https://outlook.live.com', '_blank');
-      else window.open(`http://${domain}`, '_blank');
+      const targetUrl = domain.includes('gmail')
+        ? 'https://mail.google.com/mail/u/0/#search/KaffePOS'
+        : domain.includes('yahoo')
+          ? 'https://mail.yahoo.com'
+          : domain.includes('outlook') || domain.includes('hotmail')
+            ? 'https://outlook.live.com'
+            : `https://${domain}`;
+
+      if (Capacitor.isNativePlatform()) {
+        await Browser.open({ url: targetUrl });
+        return;
+      }
+      window.open(targetUrl, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -331,7 +343,10 @@ export default function AuthPage() {
         <section className="relative hidden lg:flex flex-col justify-between px-10 xl:px-16 py-16 animate-in" style={{ animationDuration: '0.6s' }}>
           
           <div className="max-w-xl">
-            <div className="flex items-center gap-3 mb-12 group cursor-pointer" onClick={() => navigate('/welcome')}>
+            <div
+              className="flex items-center gap-3 mb-12 group cursor-pointer"
+              onClick={() => navigate(isNative ? '/login' : '/welcome')}
+            >
               <div className="h-10 md:h-12 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
                 <img 
                   src={LOGO_WEB} 

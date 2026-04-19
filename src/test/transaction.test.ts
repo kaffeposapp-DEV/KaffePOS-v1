@@ -38,6 +38,7 @@ vi.mock('@/lib/supabase', () => ({
 describe('Transaction Flow (useStore)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     useStore.getState().clearCart();
     useStore.setState({ 
       storeId: 'store_123',
@@ -90,6 +91,23 @@ describe('Transaction Flow (useStore)', () => {
     
     expect(subtotal).toBe(10000);
     expect(total).toBe(5000);
+  });
+
+  it('menyimpan draft POS ke cache lokal saat keranjang berubah', () => {
+    const item = { id: 'item_1', name: 'Coffee', price: 10000, category: 'Coffee' };
+    useStore.getState().addToCart(item as any);
+    useStore.getState().updateQty('item_1', 2);
+    useStore.getState().setDiscount('10%');
+
+    expect(JSON.parse(localStorage.getItem('kpos_cart_store_123') || '[]')).toEqual([
+      expect.objectContaining({ id: 'item_1', qty: 2 }),
+    ]);
+    expect(localStorage.getItem('kpos_discount_store_123')).toBe('10%');
+
+    useStore.getState().clearCart();
+
+    expect(localStorage.getItem('kpos_cart_store_123')).toBeNull();
+    expect(localStorage.getItem('kpos_discount_store_123')).toBeNull();
   });
 
   it('transaksi tersimpan ke Supabase', async () => {

@@ -46,6 +46,11 @@ npm run dev
 
 ## 📱 Build Android APK
 
+### Build Target Policy
+- **Web target** (`build:web`) menyertakan landing page (`/welcome`) untuk marketing/public site.
+- **Mobile target** (`build:mobile`) mengecualikan flow landing page agar APK fokus ke auth + POS app.
+- Semua script APK sudah otomatis memakai target `mobile`.
+
 ### Prerequisites
 - **Java 17+**: `java -version`
 - **Android Studio** + SDK 34
@@ -100,7 +105,9 @@ npm run build-apk
 | Command | Deskripsi |
 |---------|-----------|
 | `npm run dev` | Start dev server (localhost:5173) |
-| `npm run build` | Build untuk production (output: `dist/`) |
+| `npm run build` | Alias ke `npm run build:web` |
+| `npm run build:web` | Build target web (dengan landing page) |
+| `npm run build:mobile` | Build target mobile (tanpa landing page) |
 | `npm run typecheck` | TypeScript type checking |
 | `npm run build-apk` | Build + sync + buka Android Studio |
 | `npm run build-apk-debug` | Build debug APK langsung |
@@ -319,7 +326,7 @@ export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/tools
 **"Gradle build failed"**
 ```bash
 cd android && ./gradlew clean
-npm run build && npx cap sync android
+npm run build:mobile && npx cap sync android
 ```
 
 **"File not saved to Downloads"**

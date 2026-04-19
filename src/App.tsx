@@ -30,7 +30,10 @@ const AuthPage = lazy(() => import('./components/auth/AuthPage'));
 const AppShell = lazy(() => import('./components/AppShell'));
 const PlanConfirmation = lazy(() => import('./pages/PlanConfirmation'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
-const LandingPage = lazy(() => import('./pages/LandingPage'));
+const IS_MOBILE_TARGET_BUILD = import.meta.env.VITE_APP_TARGET === 'mobile';
+const LandingPage = IS_MOBILE_TARGET_BUILD
+  ? (() => null)
+  : lazy(() => import('./pages/LandingPage'));
 
 function SplashScreen() {
   return (
@@ -125,6 +128,7 @@ function ExitConfirmDialog({ show, onConfirm, onCancel }: { show: boolean; onCon
 function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
+  const isNative = Capacitor.isNativePlatform() || IS_MOBILE_TARGET_BUILD;
   const requiresPasswordReset = typeof window !== 'undefined' && localStorage.getItem('kaffepos_password_reset_required') === '1';
   const currentAuthMode = getAuthModeFromLocation(location.pathname, location.search);
   const onAuthSurface = isAuthSurfacePath(location.pathname);
@@ -137,8 +141,10 @@ function AppRoutes() {
   }
   return (
     <Routes>
-      <Route path="/" element={isAuthenticated ? <AppShell /> : <LandingPage />} />
-      <Route path="/welcome" element={<LandingPage />} />
+      <Route path="/" element={
+        isAuthenticated ? <AppShell /> : (isNative ? <Navigate to="/login" replace /> : <LandingPage />)
+      } />
+      <Route path="/welcome" element={isNative ? <Navigate to="/login" replace /> : <LandingPage />} />
       <Route path="/plan-confirmation" element={<PlanConfirmation />} />
       <Route path="/auth" element={<AuthPage />} />
       <Route path="/auth/callback" element={<AuthPage />} />
@@ -161,7 +167,34 @@ export default function App() {
   const [isOffline,    setIsOffline]    = useState(false);
   const [showExitDlg,  setShowExitDlg]  = useState(false);
   const backPressTime  = useRef<number>(0);
+  const reloadInFlightRef = useRef(false);
+  const lastReloadAtRef = useRef(0);
   const { loading: authLoading } = useAuth();
+
+  const reloadStoreData = useCallback(async (reason: 'network-online' | 'app-active') => {
+    const now = Date.now();
+    // Hindari storm request saat event lifecycle menembak beruntun di Android.
+    if (reloadInFlightRef.current || now - lastReloadAtRef.current < 5000) return;
+
+    const { storeId, loadAll } = useStore.getState();
+    if (!storeId) return;
+
+    reloadInFlightRef.current = true;
+    lastReloadAtRef.current = now;
+    try {
+      await loadAll(storeId);
+      if (reason === 'network-online') {
+        import('./hooks/useStore').then((mod) => {
+          const state = mod.useStore.getState() as any;
+          if (state.flushPending) state.flushPending();
+        }).catch(() => {});
+      }
+    } catch {
+      // no-op: flow existing tetap berjalan meski reload gagal.
+    } finally {
+      reloadInFlightRef.current = false;
+    }
+  }, []);
 
   const handleAuthRedirect = useCallback(async (rawUrl: string) => {
     const processedUrl = rawUrl
@@ -306,23 +339,14 @@ export default function App() {
     const statusListener = Network.addListener('networkStatusChange', async (status) => {
       setIsOffline(!status.connected);
       if (status.connected) {
-        // syncOfflineQueue equivalent: flushPending writes
-        import('./hooks/useStore').then(mod => {
-          const state = mod.useStore.getState() as any;
-          if (state.flushPending) state.flushPending();
-        }).catch(() => {});
-        // resubscribeRealtime equivalent: reload data (includes channel setup)
-        const { storeId, loadAll } = useStore.getState();
-        if (storeId) loadAll(storeId);
+        await reloadStoreData('network-online');
       }
     });
 
     // App state listener (Active/Background)
     const stateListener = CapApp.addListener('appStateChange', async ({ isActive }) => {
       if (isActive) {
-        // syncDataFromSupabase equivalent: reload everything
-        const { storeId, loadAll } = useStore.getState();
-        if (storeId) loadAll(storeId);
+        await reloadStoreData('app-active');
         // printerService.autoReconnect equivalent
         autoConnectOnResume().catch(() => {});
       }
@@ -335,7 +359,7 @@ export default function App() {
       statusListener.then(l => l.remove());
       stateListener.then(l => l.remove());
     };
-  }, [],   );
+  }, [reloadStoreData],   );
 
   if (!splashDone) return <SplashScreen />;
 
