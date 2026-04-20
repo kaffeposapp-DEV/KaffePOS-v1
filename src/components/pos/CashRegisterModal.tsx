@@ -5,9 +5,10 @@
  
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/pos/CashRegisterModal.tsx
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, Wallet } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
+import type { CashRegister } from '@/types';
 
 const fRp = (n: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
 
@@ -15,12 +16,19 @@ interface Props {
   onClose: () => void;
   cashierName: string;
   toast: { showToast: (m: string, t?:any) => void };
+  existingEntry?: CashRegister | null;
 }
 
-export default function CashRegisterModal({ onClose, cashierName, toast }: Props) {
-  const { saveCashRegister, cashRegister } = useStore();
+export default function CashRegisterModal({ onClose, cashierName, toast, existingEntry = null }: Props) {
+  const { saveCashRegister, updateCashRegister, cashRegister } = useStore();
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
+
+  useEffect(() => {
+    if (!existingEntry) return;
+    setAmount(String(existingEntry.amount || ''));
+    setNote(existingEntry.note || '');
+  }, [existingEntry]);
 
   const todayTotal = cashRegister
     .filter(c => new Date(c.date).toDateString() === new Date().toDateString())
@@ -29,6 +37,15 @@ export default function CashRegisterModal({ onClose, cashierName, toast }: Props
   const handleSave = () => {
     const amt = parseInt(amount.replace(/\D/g, '')) || 0;
     if (amt <= 0) { toast.showToast('Masukkan jumlah saldo', 'warning'); return; }
+
+    if (existingEntry) {
+      toast.showToast('Saldo kasir berhasil diperbarui!', 'success');
+      onClose();
+      updateCashRegister(existingEntry.id, { amount: amt, note: note.trim() || null, opened_by: cashierName })
+        .catch((e:any) => toast.showToast('⚠ Gagal simpan: ' + (e?.message || ''), 'warning'));
+      return;
+    }
+
     toast.showToast('Saldo kasir disimpan!', 'success');
     onClose();
     saveCashRegister({ amount: amt, note: note.trim() || null, opened_by: cashierName })
@@ -46,8 +63,8 @@ export default function CashRegisterModal({ onClose, cashierName, toast }: Props
               <Wallet size={18} className="text-orange-500" />
             </div>
             <div>
-              <h3 className="font-black text-slate-800">Saldo Awal Kasir</h3>
-              <p className="text-xs text-slate-400">Uang tunai saat buka kasir</p>
+              <h3 className="font-black text-slate-800">{existingEntry ? 'Edit Saldo Kasir Awal' : 'Saldo Awal Kasir'}</h3>
+              <p className="text-xs text-slate-400">{existingEntry ? 'Ubah uang tunai saat buka kasir' : 'Uang tunai saat buka kasir'}</p>
             </div>
           </div>
           <button onClick={onClose}><X size={20} className="text-slate-400" /></button>
@@ -55,8 +72,8 @@ export default function CashRegisterModal({ onClose, cashierName, toast }: Props
 
         {todayTotal > 0 && (
           <div className="bg-orange-50 border border-orange-200 rounded-2xl p-3 mb-4">
-            <p className="text-xs text-orange-600 font-bold">Saldo hari ini sudah diisi</p>
-            <p className="text-orange-700 font-black text-lg">{fRp(todayTotal)}</p>
+            <p className="text-xs text-orange-600 font-bold">{existingEntry ? 'Saldo kasir hari ini saat ini' : 'Saldo hari ini sudah diisi'}</p>
+            <p className="text-orange-700 font-black text-lg">{fRp(existingEntry?.amount || todayTotal)}</p>
           </div>
         )}
 
@@ -96,7 +113,7 @@ export default function CashRegisterModal({ onClose, cashierName, toast }: Props
 
         <button onClick={handleSave}
           className="w-full py-4 bg-orange-500 text-white font-black text-base rounded-2xl active:scale-95 flex items-center justify-center gap-2">
-          Simpan Saldo Kasir
+          {existingEntry ? 'Update Saldo Kasir' : 'Simpan Saldo Kasir'}
         </button>
       </div>
     </div>

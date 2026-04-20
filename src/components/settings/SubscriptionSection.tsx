@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Check, ChevronRight, ExternalLink, History, Instagram, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { getSubscriptions } from '@/lib/backendApi';
 import {
   BILLING_CYCLE_LABELS,
   INSTAGRAM_ADMIN_URL,
@@ -70,23 +70,9 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
     if (!user?.id) return;
     setLoading(true);
     try {
-      const [{ data: subscriptions }, { data: history }] = await Promise.all([
-        supabase
-          .from('subscriptions')
-          .select('id,plan,billing_cycle,status,activated_at,expires_at,payment_amount')
-          .eq('user_id', user.id)
-          .order('activated_at', { ascending: false })
-          .limit(20),
-        supabase
-          .from('payment_history')
-          .select('id,plan,billing_cycle,amount,payment_method,paid_at,status,payment_note')
-          .eq('user_id', user.id)
-          .order('paid_at', { ascending: false })
-          .limit(20),
-      ]);
-
-      setCurrentSubscription((subscriptions || [])[0] || null);
-      setPaymentHistory(history || []);
+      const response = await getSubscriptions();
+      setCurrentSubscription(response.currentSubscription || null);
+      setPaymentHistory(response.paymentHistory || []);
     } catch {
       toast.showToast('Gagal memuat data langganan.', 'error');
     } finally {
@@ -100,12 +86,10 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
 
   useEffect(() => {
     if (!user?.id) return;
-    const channel = supabase
-      .channel(`subscription-settings-${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions', filter: `user_id=eq.${user.id}` }, loadSubscriptionData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_history', filter: `user_id=eq.${user.id}` }, loadSubscriptionData)
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    const poll = setInterval(() => {
+      loadSubscriptionData().catch(() => {});
+    }, 30_000);
+    return () => { clearInterval(poll); };
   }, [user?.id]);
 
   const resolvedPlan = getPlanDefinition(currentSubscription?.plan || profile?.pro_plan || 'secangkir');

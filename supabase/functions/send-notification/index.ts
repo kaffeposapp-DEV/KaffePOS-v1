@@ -4,6 +4,9 @@
 // deno-lint-ignore-file no-explicit-any
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { sendResendEmailWithRetry } from '../_shared/resend.ts';
+import { maybeSendEdgeFailureAlert, recordEdgeEvent } from '../_shared/edge-monitor.ts';
+import { enforceRateLimit } from '../_shared/rate-limit.ts';
 
 const SUPABASE_URL      = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -13,6 +16,8 @@ const ADMIN_EMAILS      = (Deno.env.get('ADMIN_EMAILS') ?? 'kaffeposapp@gmail.co
   .split(',')
   .map((email) => email.trim().toLowerCase())
   .filter(Boolean);
+const RESEND_API_KEY    = Deno.env.get('RESEND_API_KEY') ?? '';
+const EDGE_ALERT_EMAIL  = Deno.env.get('EDGE_ALERT_EMAIL') ?? '';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -104,54 +109,6 @@ async function getRequestContext(req: Request): Promise<RequestContext> {
     isInternal: !!INTERNAL_SECRET && internalHeader === INTERNAL_SECRET,
     ip,
   };
-}
-
-async function enforceRateLimit(
-  adminClient: any,
-  key: string,
-  ip: string,
-  maxHits: number,
-  windowMinutes: number,
-) {
-  const now = new Date();
-  const windowStart = new Date(now.getTime() - windowMinutes * 60 * 1000).toISOString();
-
-  const { data: existing, error: fetchError } = await adminClient
-    .from('edge_rate_limits')
-    .select('id,hits')
-    .eq('rate_key', key)
-    .gte('window_started_at', windowStart)
-    .order('window_started_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (fetchError) throw fetchError;
-
-  if (!existing) {
-    const { error } = await adminClient.from('edge_rate_limits').insert({
-      rate_key: key,
-      hits: 1,
-      last_ip: ip,
-      window_started_at: now.toISOString(),
-      updated_at: now.toISOString(),
-    });
-    if (error) throw error;
-    return;
-  }
-
-  if ((existing.hits ?? 0) >= maxHits) {
-    throw new Error('Terlalu banyak permintaan. Tunggu beberapa menit lalu coba lagi.');
-  }
-
-  const { error } = await adminClient
-    .from('edge_rate_limits')
-    .update({
-      hits: (existing.hits ?? 0) + 1,
-      last_ip: ip,
-      updated_at: now.toISOString(),
-    })
-    .eq('id', existing.id);
-  if (error) throw error;
 }
 
 function baseLayout(content: string, previewText: string = ''): string {
@@ -449,8 +406,14 @@ serve(async (req: Request) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  let adminClient: any = null;
+  let requestContext: RequestContext | null = null;
+  let normalizedEmail = '';
+  let payloadType = '';
+
   try {
     const payload: NotifPayload = await req.json();
+    payloadType = payload.type;
 
     if (!payload.email || typeof payload.email !== 'string') {
       return new Response(JSON.stringify({ error: 'invalid payload' }), {
@@ -464,11 +427,11 @@ serve(async (req: Request) => {
     }
 
     const name    = payload.name || payload.email.split('@')[0];
-    const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE, {
+    adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    const requestContext = await getRequestContext(req);
-    const normalizedEmail = payload.email.trim().toLowerCase();
+    requestContext = await getRequestContext(req);
+    normalizedEmail = payload.email.trim().toLowerCase();
 
     if (payload.type === 'verification' || payload.type === 'password_reset') {
       return new Response(JSON.stringify({
@@ -552,21 +515,12 @@ serve(async (req: Request) => {
         break;
     }
 
-    const RESEND_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
-    if (!RESEND_KEY) throw new Error('RESEND_API_KEY missing');
-
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: 'KaffePOS <noreply@kaffepos.my.id>',
-        to: [normalizedEmail],
-        subject,
-        html,
-      }),
+    await sendResendEmailWithRetry({
+      apiKey: RESEND_API_KEY,
+      to: normalizedEmail,
+      subject,
+      html,
     });
-
-    if (!res.ok) throw new Error(`Resend API failed: ${await res.text()}`);
 
     // Log to notifications table if user exists
     const user = await findUserByEmail(adminClient, normalizedEmail);
@@ -579,6 +533,14 @@ serve(async (req: Request) => {
         metadata: { channel: 'email', provider: 'resend', type: payload.type }
       });
     }
+    await recordEdgeEvent(adminClient, {
+      functionName: 'send-notification',
+      status: 'success',
+      message: `Notifikasi ${payload.type} sukses dikirim ke ${normalizedEmail}`,
+      requestEmail: normalizedEmail,
+      requestIp: requestContext?.ip || null,
+      metadata: { type: payload.type },
+    });
 
     return new Response(JSON.stringify({ 
       ok: true, 
@@ -589,6 +551,28 @@ serve(async (req: Request) => {
     });
   } catch (e: any) {
     console.error('send-notification error:', e);
+    if (!adminClient && SUPABASE_URL && SUPABASE_SERVICE) {
+      adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+    }
+    if (adminClient) {
+      await recordEdgeEvent(adminClient, {
+        functionName: 'send-notification',
+        status: 'failure',
+        message: String(e?.message ?? e),
+        requestEmail: normalizedEmail || null,
+        requestIp: requestContext?.ip || null,
+        metadata: { type: payloadType || null },
+      });
+      await maybeSendEdgeFailureAlert({
+        adminClient,
+        functionName: 'send-notification',
+        requestIp: requestContext?.ip || null,
+        resendApiKey: RESEND_API_KEY,
+        alertEmail: EDGE_ALERT_EMAIL,
+      });
+    }
     return new Response(JSON.stringify({ 
       error: String(e?.message ?? e),
     }), {

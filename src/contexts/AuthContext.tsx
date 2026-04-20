@@ -13,12 +13,14 @@
 import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
+import { getProfileMe } from '@/lib/backendApi';
 import { AUTH_REDIRECT_URL, PASSWORD_RESET_REDIRECT_URL, SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from '@/lib/supabase';
 import type { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import type { Profile } from '@/types';
 import { clearUserCache, redirectToLogin, setActiveUserId, getActiveUserId } from '@/utils/sessionIsolation';
 import { normalizeRequestedUsername, normalizeSignupErrorMessage } from '@/utils/authFlow';
 import { loginSchema, signUpSchema } from '@/utils/validation';
+import { trackOpsEvent } from '@/lib/opsMetrics';
 
 // Removed unused getAppPlugin
 
@@ -50,23 +52,16 @@ async function getCachedSession(): Promise<Session | null> {
 }
 
 async function fetchProfile(uid: string): Promise<Profile | null> {
-  try { const { data } = await supabase.from('profiles').select('*').eq('id', uid).single(); return data ?? null; }
+  if (!uid) return null;
+  try { return await getProfileMe() as Profile; }
   catch { return null; }
 }
 
 async function ensureProfileBg(uid: string, email: string, displayName?: string) {
-  try {
-    const existing = await fetchProfile(uid);
-    if (existing) return existing;
-    const name = displayName || email.split('@')[0];
-    const { data } = await supabase.from('profiles').upsert(
-      { id: uid, email, username: name, display_name: name },
-      { onConflict: 'id', ignoreDuplicates: true }
-    ).select().single();
-    // Welcome email fire-and-forget
-    supabase.functions.invoke('send-notification', { body: { type: 'welcome', email, name } }).catch(() => {});
-    return data ?? null;
-  } catch { return null; }
+  if (!uid || !email || !displayName) {
+    // Parameters remain to minimize churn with callers.
+  }
+  try { return await getProfileMe() as Profile; } catch { return null; }
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
@@ -263,8 +258,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const uid = user?.id;
     if (!uid) return;
     try {
-      const { data } = await supabase.from('profiles').select('*').eq('id', uid).single();
-      if (data && mounted.current) setProfile(data);
+      const data = await getProfileMe();
+      if (data && mounted.current) setProfile(data as Profile);
     } catch { /* ignore */ }
   }, [user?.id]);
 
@@ -300,20 +295,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  // Realtime + polling PRO status
+  // Polling profile status from the new backend API.
   useEffect(() => {
     if (!user?.id) return;
-    const ch = supabase.channel(`kfp_profile_${user.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
-        ({ new: n }) => { if (mounted.current) setProfile((p:any) => ({ ...p, ...n })); })
-      .subscribe();
     const poll = setInterval(() => {
-      supabase.from('profiles').select('tier,tier_expires_at,is_pro,pro_plan,pro_expires_at,pro_activated_at')
-        .eq('id', user.id).single()
-        .then(({ data }) => { if (data && mounted.current) setProfile((p:any) => p ? { ...p, ...data } : p); });
+      refreshProfile().catch(() => {});
     }, 30_000);
-    return () => { supabase.removeChannel(ch); clearInterval(poll); };
-  }, [user?.id]);
+    return () => { clearInterval(poll); };
+  }, [refreshProfile, user?.id]);
 
   // ─── INTI: onAuthStateChange + init ───────────────────────────
   useEffect(() => {
@@ -395,6 +384,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const notifySuccessfulLogin = (name?: string) => {
       void notifyUserEmail('login_alert', cleanEmail, name);
     };
+    const logLoginEvent = (status: 'success' | 'failure', reason?: string) => {
+      void trackOpsEvent({
+        event_name: 'login',
+        status,
+        email: cleanEmail,
+        ...(reason ? { error_message: reason } : {}),
+        metadata: { channel: 'password' },
+      });
+    };
 
     const applyNativeSession = async (payload: NativeAuthPayload) => {
       if (!payload.access_token || !payload.refresh_token) {
@@ -407,6 +405,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) return { error: error.message };
       if (data.session) applyAuthenticatedSession(data.session);
       notifySuccessfulLogin(getUserDisplayName(payload.user, cleanEmail));
+      logLoginEvent('success');
       return { error: null };
     };
 
@@ -423,21 +422,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const s = (error as any).status;
         console.error('[SignIn] Supabase Error:', m, 'Status:', s);
 
-        if (m.toLowerCase().includes('email not confirmed') || m.toLowerCase().includes('email_not_confirmed') || m.toLowerCase().includes('email not verified') || m.toLowerCase().includes('not confirmed'))
+        if (m.toLowerCase().includes('email not confirmed') || m.toLowerCase().includes('email_not_confirmed') || m.toLowerCase().includes('email not verified') || m.toLowerCase().includes('not confirmed')) {
+          logLoginEvent('failure', 'email_not_confirmed');
           return { error: 'email_not_confirmed' };
-        if (s === 401 || m.includes('Invalid login credentials') || m.includes('invalid_credentials'))
+        }
+        if (s === 401 || m.includes('Invalid login credentials') || m.includes('invalid_credentials')) {
+          logLoginEvent('failure', 'invalid_credentials');
           return { error: 'Email atau password salah. Periksa kembali.' };
-        if (m.includes('Too many requests') || s === 429 || m.includes('rate limit') || m.includes('too many attempts'))
+        }
+        if (m.includes('Too many requests') || s === 429 || m.includes('rate limit') || m.includes('too many attempts')) {
+          logLoginEvent('failure', 'rate_limited');
           return { error: 'Akun terkunci sementara (lockout). Tunggu 1 menit lalu coba lagi demi keamanan.' };
-        if (m.toLowerCase().includes('locked') || m.includes('locked_at'))
+        }
+        if (m.toLowerCase().includes('locked') || m.includes('locked_at')) {
+          logLoginEvent('failure', 'locked');
           return { error: 'Akun Anda terkunci (Locked). Silakan hubungi admin atau reset password.' };
-        if (m.toLowerCase().includes('network') || m.toLowerCase().includes('fetch') || m.toLowerCase().includes('failed') || m.toLowerCase().includes('internet')) 
+        }
+        if (m.toLowerCase().includes('network') || m.toLowerCase().includes('fetch') || m.toLowerCase().includes('failed') || m.toLowerCase().includes('internet')) {
+          logLoginEvent('failure', 'network_error');
           return { error: 'Masalah Jaringan: Periksa koneksi internet Anda.' };
+        }
+        logLoginEvent('failure', m);
         return { error: `Login gagal: ${m} (${s})` };
       }
       // onAuthStateChange SIGNED_IN akan handle setUser + setLoading
       if (data?.session) applyAuthenticatedSession(data.session);
       notifySuccessfulLogin(getUserDisplayName(data?.user, cleanEmail));
+      logLoginEvent('success');
       return { error: null };
     } catch (e:any) {
       console.error('[SignIn] Error:', e);
@@ -452,11 +463,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (status >= 400 || !data) {
             const nativeError = normalizeAuthError(data, 'Login gagal.');
             if (nativeError.toLowerCase().includes('invalid login credentials')) {
+              logLoginEvent('failure', 'invalid_credentials');
               return { error: 'Email atau password salah. Periksa kembali.' };
             }
             if (nativeError.toLowerCase().includes('email not confirmed')) {
+              logLoginEvent('failure', 'email_not_confirmed');
               return { error: 'email_not_confirmed' };
             }
+            logLoginEvent('failure', nativeError);
             return { error: nativeError };
           }
           return await applyNativeSession(data);
@@ -464,7 +478,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error('[SignIn] Native fallback failed:', nativeError);
         }
       }
-      if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed')) return { error: `Jaringan (SignIn): ${msg}` };
+      if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed')) {
+        logLoginEvent('failure', 'network_error');
+        return { error: `Jaringan (SignIn): ${msg}` };
+      }
+      logLoginEvent('failure', msg || 'unknown_error');
       return { error: 'Gagal login: ' + msg };
     }
   }, [applyAuthenticatedSession],   );

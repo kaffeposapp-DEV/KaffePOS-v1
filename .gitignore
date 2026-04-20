@@ -3,10 +3,15 @@ dist/
 .env
 .env.*
 .agent/
+supabase/.temp/
 android/
 ios/
 *.jks
 *.keystore
+keystore.properties
+android/keystore.properties
+google-services.json
+android/app/google-services.json
 .DS_Store
 coverage/
 # Optional: Keep these for convenience

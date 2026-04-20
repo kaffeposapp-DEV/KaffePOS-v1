@@ -2,6 +2,13 @@
 
 Gunakan dokumen ini sebagai gerbang rilis sebelum APK dipublikasikan ke pengguna komersial.
 
+Baseline operasional yang dipakai saat ini:
+- Domain + hosting aktif di `kaffepos.my.id`
+- Backend utama di Supabase
+- Email auth / transactional memakai Resend
+- APK Android dibangun dari Capacitor
+- Monitoring APK yang direkomendasikan: Firebase Crashlytics
+
 Skala prioritas:
 - `P0` = wajib beres sebelum rilis.
 - `P1` = sangat disarankan beres di batch rilis yang sama.
@@ -25,10 +32,10 @@ Status:
 ## 2) Security & Data Protection
 
 - [x] **P0** Service role key hanya digunakan di Supabase Edge Functions (bukan client app).
-- [~] **P0** Audit RLS per tabel kritikal (`stores`, `transactions`, `inventory`, `profiles`, `notifications`).
-- [ ] **P0** Uji akses lintas akun: akun A tidak bisa baca/ubah data akun B.
-- [ ] **P1** Rate limit abuse test untuk endpoint auth email / verify otp / notifications.
-- [ ] **P1** Review data retention policy (log notifikasi, OTP, audit trail).
+- [x] **P0** Audit RLS per tabel kritikal (`stores`, `transactions`, `inventory`, `profiles`, `notifications`) sudah diverifikasi + `FORCE RLS` diterapkan.
+- [x] **P0** Uji akses lintas akun: akun A tidak bisa baca/ubah data akun B.
+- [~] **P1** Rate limit abuse test untuk endpoint auth email / verify otp / notifications (unit test helper + shared enforcement sudah ada, tinggal uji burst live di staging/device).
+- [x] **P1** Review data retention policy (log notifikasi, OTP, audit trail) sudah terdokumentasi + ada SQL cleanup operasional.
 
 ## 3) Authentication & Email Reliability
 
@@ -36,7 +43,7 @@ Status:
 - [x] **P0** OTP verifikasi email bekerja dan mengaktifkan akun.
 - [x] **P0** Welcome email dan security email menggunakan Resend.
 - [ ] **P0** Uji deliverability inbox utama (Gmail, Outlook, Yahoo) + cek spam rate.
-- [ ] **P1** Fallback handling saat Resend timeout (retry policy terukur).
+- [x] **P1** Fallback handling saat Resend timeout (retry policy + timeout + backoff) sudah ada di edge function email.
 
 ## 4) Core Transaction Reliability
 
@@ -56,26 +63,51 @@ Status:
 
 ## 6) Observability & Operations
 
-- [ ] **P0** Crash reporting aktif (Sentry/Firebase Crashlytics).
-- [ ] **P0** Alerting untuk error rate edge function (auth-email, verify-email-code, send-notification).
-- [ ] **P1** Dashboard metrik bisnis minimal: login success rate, checkout success rate, OTP success rate.
-- [ ] **P1** Incident playbook (siapa on-call, respon pertama, rollback plan).
+- [~] **P0** Crash reporting sudah terpasang di APK Android (Firebase Crashlytics) dan tinggal verifikasi event crash pertama masuk dashboard.
+- [x] **P0** Alerting untuk error rate edge function sudah aktif di project (`edge_function_events` remote + env `EDGE_ALERT_EMAIL` + deploy function terbaru).
+- [x] **P1** Dashboard metrik bisnis minimal tersedia via `public.ops_daily_metrics` untuk login success rate, checkout success rate, dan OTP success rate.
+- [x] **P1** Incident playbook dasar sudah terdokumentasi.
 
 ## 7) Build, Release, and Store Readiness
 
 - [x] **P0** Build target web vs mobile sudah dipisah (`build:web`, `build:mobile`).
 - [x] **P0** Script APK (`build-apk*`) memakai target mobile.
-- [ ] **P0** Signing release key, backup key, dan recovery procedure terdokumentasi aman.
+- [x] **P0** Build APK debug terbaru berhasil pada `2026-04-19` dan menghasilkan `android/app/build/outputs/apk/debug/app-debug.apk`.
+- [x] **P0** Signing release key, backup key, dan recovery procedure terdokumentasi aman.
 - [ ] **P0** Internal testing track Google Play + closed testing minimal 20 tester.
 - [ ] **P1** Listing Play Store siap (screenshot, deskripsi, kebijakan privasi, kontak support).
-- [ ] **P1** Versioning & changelog strategy untuk update rutin.
+- [x] **P1** Versioning & changelog strategy untuk update rutin.
 
-## 8) Legal, Billing, and Support
+## 8) Thermal Printer Readiness
 
-- [ ] **P0** Terms of Service & Privacy Policy final dan link valid di app.
-- [ ] **P0** SOP support pelanggan (jam respon, kanal WA/Email, eskalasi bug).
-- [ ] **P1** Kebijakan refund / dispute untuk langganan berbayar.
-- [ ] **P1** Template komunikasi gangguan layanan.
+- [x] **P0** APK sudah punya 3 jalur print: `Bluetooth Classic (SPP)`, `USB OTG ESC/POS`, dan fallback browser print.
+- [x] **P0** Pengaturan printer di app sudah ada: scan, connect, auto reconnect, test print, dan pilihan kertas `58mm` / `80mm`.
+- [x] **P0** Bug method print USB sudah diperbaiki agar sinkron dengan plugin native Android.
+- [ ] **P0** Uji langsung minimal 3 printer nyata: `1 printer Bluetooth 58mm`, `1 printer Bluetooth/USB 80mm`, `1 printer USB-only`.
+- [ ] **P0** Verifikasi hasil print untuk: logo, nama menu panjang, diskon, pajak, tunai, non-tunai, dan auto cut.
+- [x] **P1** Daftar model printer yang dinyatakan "approved" untuk tim support.
+- [x] **P1** SOP pairing untuk kasir non-teknis: cara pair ulang, ganti printer, dan reset printer.
+
+### Rekomendasi praktis untuk kompatibilitas
+
+- **Paling mudah untuk launch cepat:** printer thermal `ESC/POS` dengan `Bluetooth Classic SPP` dan kertas `58mm`.
+- **Paling stabil untuk toko ramai:** printer thermal `ESC/POS` dengan `USB` atau `USB + Bluetooth`, lebih aman dibanding Bluetooth-only.
+- **Yang wajib dicari saat beli printer:** tertulis `ESC/POS compatible`, mendukung `Android`, ada `Bluetooth Classic` atau `USB`, dan bila perlu `auto cutter`.
+- **Yang sebaiknya dihindari untuk batch awal:** printer yang hanya `BLE`, printer yang butuh aplikasi vendor khusus, atau printer label-only yang bukan receipt mode.
+
+### Status teknis saat ini
+
+- Jalur `Bluetooth Classic SPP` sudah ada dan cocok untuk printer thermal generik.
+- Jalur `USB OTG` sudah ada di APK Android dan sekarang method print-nya sudah sinkron dengan plugin native.
+- Jalur fallback browser tetap ada untuk web / darurat, tapi bukan jalur utama kasir Android.
+- Secara teknis app **sudah siap diuji** dengan berbagai printer thermal receipt, tetapi status "siap 100%" baru layak diberikan setelah matrix test printer nyata selesai.
+
+## 9) Legal, Billing, and Support
+
+- [x] **P0** Terms of Service & Privacy Policy final dan link valid di app.
+- [x] **P0** SOP support pelanggan (jam respon, kanal WA/Email, eskalasi bug) sudah terdokumentasi.
+- [x] **P1** Kebijakan refund / dispute untuk langganan berbayar.
+- [x] **P1** Template komunikasi gangguan layanan.
 
 ---
 
@@ -84,6 +116,7 @@ Status:
 ### Syarat minimal "GO"
 - Semua item `P0` status `[x]`.
 - Tidak ada bug blocker di auth, checkout, dan sinkronisasi data.
+- Tidak ada bug blocker di pairing / reconnect / test print / cetak struk final.
 - Crash-free session pada pilot test internal >= 99%.
 
 ### Skor kesiapan komersial (praktis)
@@ -96,6 +129,25 @@ Status:
 
 ## Catatan Status Saat Ini (estimasi cepat)
 
-- **Nilai saat ini: 7.5 / 10**
+- **Nilai saat ini: 9.0 / 10**
 - Kekuatan: arsitektur auth + database + pemisahan mobile/web build sudah bagus.
-- Gap utama: QA lapangan, monitoring produksi, dan release operation/compliance.
+- Gap utama: QA lapangan, deliverability inbox nyata, monitoring produksi pertama, matrix test printer nyata, dan closed testing distribusi.
+
+---
+
+## Rutinitas Operasional Ringkas
+
+Untuk panduan maintenance non-programmer yang lebih detail, lihat:
+
+- [MAINTENANCE_ROADMAP.md](/Users/macbook/kaffepos-new/kaffepos-v2/MAINTENANCE_ROADMAP.md)
+- [FIREBASE_CRASHLYTICS_SETUP.md](/Users/macbook/kaffepos-new/kaffepos-v2/FIREBASE_CRASHLYTICS_SETUP.md)
+- [INCIDENT_PLAYBOOK.md](/Users/macbook/kaffepos-new/kaffepos-v2/INCIDENT_PLAYBOOK.md)
+- [SUPPORT_SOP.md](/Users/macbook/kaffepos-new/kaffepos-v2/SUPPORT_SOP.md)
+- [PRINTER_APPROVED_MATRIX.md](/Users/macbook/kaffepos-new/kaffepos-v2/PRINTER_APPROVED_MATRIX.md)
+- [OPS_METRICS_DASHBOARD.md](/Users/macbook/kaffepos-new/kaffepos-v2/OPS_METRICS_DASHBOARD.md)
+
+Versi singkat:
+
+- **Harian:** cek web `kaffepos.my.id`, login, dan komplain user
+- **Mingguan:** cek Supabase logs, Resend delivery, dan stabilitas APK
+- **Bulanan:** backup, review billing, uji APK di device nyata, dan review komplain

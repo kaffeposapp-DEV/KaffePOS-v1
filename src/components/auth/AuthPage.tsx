@@ -694,11 +694,26 @@ export default function AuthPage() {
               {!registered && (
                 <div className="mt-8 pt-6 border-t border-slate-800/50 text-center space-y-4">
                   <p className="text-[11px] text-slate-500 leading-relaxed max-w-[280px] mx-auto">
-                    By signing in, you agree to our <button type="button" className="text-slate-400 hover:text-white underline decoration-slate-600 underline-offset-2">Terms of Service</button> and <button type="button" className="text-slate-400 hover:text-white underline decoration-slate-600 underline-offset-2">Privacy Policy</button>
+                    Dengan masuk ke KaffePOS, kamu menyetujui{' '}
+                    <button
+                      type="button"
+                      onClick={() => navigate('/terms')}
+                      className="text-slate-400 hover:text-white underline decoration-slate-600 underline-offset-2"
+                    >
+                      Terms of Service
+                    </button>
+                    {' '}dan{' '}
+                    <button
+                      type="button"
+                      onClick={() => navigate('/privacy')}
+                      className="text-slate-400 hover:text-white underline decoration-slate-600 underline-offset-2"
+                    >
+                      Privacy Policy
+                    </button>
                   </p>
                   <div className="flex items-center justify-center gap-2 text-emerald-500/60">
                     <Shield size={12} />
-                    <span className="text-[10px] font-bold uppercase tracking-widest">256-bit SSL Encryption</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest">Koneksi Aman & Verifikasi OTP</span>
                   </div>
                 </div>
               )}

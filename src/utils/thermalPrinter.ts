@@ -337,7 +337,7 @@ export async function testPrintMP58(): Promise<void> {
 interface UsbPrinterPlugin {
   listUsbPrinters(): Promise<{ devices:any[] }>;
   connectUsb(opts: { vendorId: number; productId: number }): Promise<any>;
-  print(opts: { data: string }): Promise<any>;
+  printUsb(opts: { data: string }): Promise<any>;
   disconnectUsb(): Promise<any>;
 }
 const UsbPrinter = registerPlugin<UsbPrinterPlugin>('UsbPrinter');
@@ -361,7 +361,7 @@ export async function disconnectUsbPrinter(): Promise<void> {
 export async function printReceiptUsb(data: PrintData): Promise<void> {
   const bytes = await buildReceiptBytes(data);
   let bin = ''; bytes.forEach(b => { bin += String.fromCharCode(b); });
-  await UsbPrinter.print({ data: btoa(bin) });
+  await UsbPrinter.printUsb({ data: btoa(bin) });
 }
 
 // ── Config ─────────────────────────────────────────────────────────

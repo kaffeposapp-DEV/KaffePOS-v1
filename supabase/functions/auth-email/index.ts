@@ -1,9 +1,13 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { sendResendEmailWithRetry } from '../_shared/resend.ts';
+import { maybeSendEdgeFailureAlert, recordEdgeEvent } from '../_shared/edge-monitor.ts';
+import { enforceRateLimit } from '../_shared/rate-limit.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
+const EDGE_ALERT_EMAIL = Deno.env.get('EDGE_ALERT_EMAIL') ?? '';
 const DEFAULT_PASSWORD_RESET_URL = 'https://kaffepos.my.id/reset-password';
 const ALLOWED_WEB_REDIRECT_ORIGINS = new Set([
   'https://kaffepos.my.id',
@@ -141,54 +145,6 @@ async function findUserByEmail(adminClient: ReturnType<typeof createClient>, ema
   }
 }
 
-async function enforceRateLimit(
-  adminClient: ReturnType<typeof createClient>,
-  key: string,
-  ip: string,
-  maxHits: number,
-  windowMinutes: number,
-) {
-  const now = new Date();
-  const windowStart = new Date(now.getTime() - windowMinutes * 60 * 1000).toISOString();
-
-  const { data: existing, error: fetchError } = await adminClient
-    .from('edge_rate_limits')
-    .select('id,hits')
-    .eq('rate_key', key)
-    .gte('window_started_at', windowStart)
-    .order('window_started_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (fetchError) throw fetchError;
-
-  if (!existing) {
-    const { error } = await adminClient.from('edge_rate_limits').insert({
-      rate_key: key,
-      hits: 1,
-      last_ip: ip,
-      window_started_at: now.toISOString(),
-      updated_at: now.toISOString(),
-    });
-    if (error) throw error;
-    return;
-  }
-
-  if ((existing.hits ?? 0) >= maxHits) {
-    throw new Error('Terlalu banyak permintaan. Tunggu beberapa menit lalu coba lagi.');
-  }
-
-  const { error } = await adminClient
-    .from('edge_rate_limits')
-    .update({
-      hits: (existing.hits ?? 0) + 1,
-      last_ip: ip,
-      updated_at: now.toISOString(),
-    })
-    .eq('id', existing.id);
-  if (error) throw error;
-}
-
 function generateOtp() {
   return `${Math.floor(100000 + Math.random() * 900000)}`;
 }
@@ -249,25 +205,12 @@ async function insertEmailNotification(
 }
 
 async function sendResendEmail(to: string, subject: string, html: string) {
-  if (!RESEND_API_KEY) throw new Error('RESEND_API_KEY missing');
-
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: 'KaffePOS <noreply@kaffepos.my.id>',
-      to: [to],
-      subject,
-      html,
-    }),
+  await sendResendEmailWithRetry({
+    apiKey: RESEND_API_KEY,
+    to,
+    subject,
+    html,
   });
-
-  if (!response.ok) {
-    throw new Error(`Resend API failed: ${await response.text()}`);
-  }
 }
 
 serve(async (req: Request) => {
@@ -275,16 +218,22 @@ serve(async (req: Request) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  let adminClient: ReturnType<typeof createClient> | null = null;
+  let cleanEmail = '';
+  let ip = 'unknown';
+  let action = '';
+
   try {
     const payload = await req.json() as AuthEmailPayload;
-    const cleanEmail = String(payload.email || '').trim().toLowerCase();
+    cleanEmail = String(payload.email || '').trim().toLowerCase();
     const cleanUsername = String(payload.username || '').trim();
     const displayName = String(payload.displayName || cleanUsername || cleanEmail.split('@')[0]).trim();
     const redirectTo = sanitizeRedirectTo(payload.redirectTo);
-    const ip =
+    ip =
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
       req.headers.get('cf-connecting-ip') ||
       'unknown';
+    action = String(payload.action || '');
 
     if (!payload.action || !['signup', 'resend_signup', 'password_reset'].includes(payload.action)) {
       return new Response(JSON.stringify({ error: 'Aksi auth email tidak valid.' }), {
@@ -300,7 +249,7 @@ serve(async (req: Request) => {
       });
     }
 
-    const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE, {
+    adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
@@ -414,6 +363,14 @@ serve(async (req: Request) => {
         'Kode verifikasi akun KaffePOS telah dikirim ke email bisnis.',
         { channel: 'email', provider: 'resend', type: 'verification' },
       );
+      await recordEdgeEvent(adminClient, {
+        functionName: 'auth-email',
+        status: 'success',
+        message: `Auth signup sukses untuk ${cleanEmail}`,
+        requestEmail: cleanEmail,
+        requestIp: ip,
+        metadata: { action: payload.action },
+      });
 
       return new Response(JSON.stringify({
         ok: true,
@@ -459,6 +416,14 @@ serve(async (req: Request) => {
         'Kode verifikasi terbaru telah dikirim ulang ke email bisnis.',
         { channel: 'email', provider: 'resend', type: 'verification_resend' },
       );
+      await recordEdgeEvent(adminClient, {
+        functionName: 'auth-email',
+        status: 'success',
+        message: `Resend signup sukses untuk ${cleanEmail}`,
+        requestEmail: cleanEmail,
+        requestIp: ip,
+        metadata: { action: payload.action },
+      });
 
       return new Response(JSON.stringify({
         ok: true,
@@ -511,6 +476,14 @@ serve(async (req: Request) => {
       'Link reset password telah dikirim ke email bisnis.',
       { channel: 'email', provider: 'resend', type: 'password_reset' },
     );
+    await recordEdgeEvent(adminClient, {
+      functionName: 'auth-email',
+      status: 'success',
+      message: `Password reset email sukses untuk ${cleanEmail}`,
+      requestEmail: cleanEmail,
+      requestIp: ip,
+      metadata: { action: payload.action, redirectTo },
+    });
 
     return new Response(JSON.stringify({
       ok: true,
@@ -521,6 +494,28 @@ serve(async (req: Request) => {
     });
   } catch (error: any) {
     console.error('auth-email error:', error);
+    if (!adminClient && SUPABASE_URL && SUPABASE_SERVICE) {
+      adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+    }
+    if (adminClient) {
+      await recordEdgeEvent(adminClient, {
+        functionName: 'auth-email',
+        status: 'failure',
+        message: String(error?.message || error || 'Auth email gagal diproses.'),
+        requestEmail: cleanEmail || null,
+        requestIp: ip,
+        metadata: { action },
+      });
+      await maybeSendEdgeFailureAlert({
+        adminClient,
+        functionName: 'auth-email',
+        requestIp: ip,
+        resendApiKey: RESEND_API_KEY,
+        alertEmail: EDGE_ALERT_EMAIL,
+      });
+    }
     return new Response(JSON.stringify({ error: error?.message || 'Auth email gagal diproses.' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

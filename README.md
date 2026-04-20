@@ -1,5 +1,40 @@
 # ☕ KaffePOS v2.0
-**Modern POS System** — Vite + React 18 + TypeScript + Tailwind + Capacitor v6 + Supabase
+**Modern POS System** — Vite + React 18 + TypeScript + Tailwind + Capacitor v6 + Supabase Auth + PostgreSQL API
+
+---
+
+## Production Baseline
+
+Repositori ini sekarang diasumsikan berjalan dengan baseline produksi berikut:
+
+- **Domain + web hosting aktif:** `https://kaffepos.my.id`
+- **Backend data inti:** Express API + PostgreSQL
+- **Auth:** Supabase Auth (sementara dipertahankan)
+- **Email transaksi & auth:** Resend
+- **APK Android:** Capacitor
+- **Monitoring APK yang direkomendasikan:** Firebase Crashlytics
+
+Catatan penting:
+
+- Project **tidak bergantung pada Netlify** untuk produksi saat ini.
+- File seperti `netlify.toml` boleh ada sebagai artefak lama / opsi cadangan, tetapi **bukan jalur operasional utama**.
+- Fokus maintenance saat ini adalah menjaga **Supabase + Resend + hosting aktif + kestabilan APK**.
+
+Dokumen operasional non-programmer tersedia di:
+
+- [GO_LIVE_CHECKLIST.md](/Users/macbook/kaffepos-new/kaffepos-v2/GO_LIVE_CHECKLIST.md)
+- [MAINTENANCE_ROADMAP.md](/Users/macbook/kaffepos-new/kaffepos-v2/MAINTENANCE_ROADMAP.md)
+- [FIREBASE_CRASHLYTICS_SETUP.md](/Users/macbook/kaffepos-new/kaffepos-v2/FIREBASE_CRASHLYTICS_SETUP.md)
+- [INCIDENT_PLAYBOOK.md](/Users/macbook/kaffepos-new/kaffepos-v2/INCIDENT_PLAYBOOK.md)
+- [SUPPORT_SOP.md](/Users/macbook/kaffepos-new/kaffepos-v2/SUPPORT_SOP.md)
+- [PRINTER_APPROVED_MATRIX.md](/Users/macbook/kaffepos-new/kaffepos-v2/PRINTER_APPROVED_MATRIX.md)
+- [ANDROID_RELEASE_SIGNING.md](/Users/macbook/kaffepos-new/kaffepos-v2/ANDROID_RELEASE_SIGNING.md)
+- [CHANGELOG.md](/Users/macbook/kaffepos-new/kaffepos-v2/CHANGELOG.md)
+- [DATA_RETENTION_POLICY.md](/Users/macbook/kaffepos-new/kaffepos-v2/DATA_RETENTION_POLICY.md)
+- [REFUND_POLICY.md](/Users/macbook/kaffepos-new/kaffepos-v2/REFUND_POLICY.md)
+- [SERVICE_COMMUNICATION_TEMPLATES.md](/Users/macbook/kaffepos-new/kaffepos-v2/SERVICE_COMMUNICATION_TEMPLATES.md)
+- [RLS_AUDIT_REPORT.md](/Users/macbook/kaffepos-new/kaffepos-v2/RLS_AUDIT_REPORT.md)
+- [OPS_METRICS_DASHBOARD.md](/Users/macbook/kaffepos-new/kaffepos-v2/OPS_METRICS_DASHBOARD.md)
 
 ---
 
@@ -20,23 +55,45 @@ Edit `.env`:
 ```env
 VITE_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+VITE_API_BASE_URL=
 ```
 
-### 3. Setup Supabase Database
+Resolusi API frontend:
+
+- web dev `localhost:5173` memakai proxy Vite ke `localhost:8787`
+- web production `kaffepos.my.id` otomatis ke `https://api.kaffepos.my.id`
+- Capacitor/mobile otomatis ke `https://api.kaffepos.my.id`
+- isi `VITE_API_BASE_URL` hanya kalau memang perlu override
+
+### 3. Setup Backend API
+```bash
+cd backend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+### 4. Setup Supabase Database
 1. Buka [supabase.com](https://supabase.com) → New Project
 2. Buka **SQL Editor** → **New Query**
 3. Copy isi `supabase/migrations/001_initial_schema.sql` → Run
 4. Copy `VITE_SUPABASE_URL` dan `VITE_SUPABASE_ANON_KEY` dari **Settings → API**
 
-### 4. Deploy Edge Functions
+### 5. Deploy Edge Functions
 ```bash
 npx supabase login
 npx supabase link --project-ref YOUR_PROJECT_REF
-npx supabase functions deploy activate-subscription
+npx supabase functions deploy auth-email
 npx supabase functions deploy send-notification
+npx supabase functions deploy verify-email-code
 ```
 
-### 5. Run Development
+Catatan:
+
+- `activate-subscription` dan `track-ops-event` sudah dipindah ke backend API.
+- Supabase edge functions yang masih dipertahankan sekarang fokus ke auth/email.
+
+### 6. Run Development
 ```bash
 npm run dev
 # Buka http://localhost:5173
@@ -73,24 +130,24 @@ APK tersimpan di: `android/app/build/outputs/apk/debug/app-debug.apk`
 
 ### 📦 Build Release APK (untuk distribusi / Play Store)
 ```bash
-# 1. Generate keystore (sekali saja)
-keytool -genkeypair -v \
-  -keystore release.keystore \
-  -alias kaffepos \
-  -keyalg RSA -keysize 2048 \
-  -validity 10000 \
-  -storepass YOUR_PASSWORD \
-  -keypass YOUR_PASSWORD \
-  -dname "CN=KaffePOS,OU=App,O=KaffePOS,L=Jakarta,S=DKI,C=ID"
+# 1. Ikuti panduan aman di ANDROID_RELEASE_SIGNING.md
 
-# 2. Set environment
-export KEYSTORE_PASSWORD=YOUR_PASSWORD
-export KEYSTORE_ALIAS_PASSWORD=YOUR_PASSWORD
+# 2. Set environment sesuai Gradle
+export KPOS_RELEASE_STORE_FILE="/ABSOLUTE/PATH/kaffepos-release.keystore"
+export KPOS_RELEASE_STORE_PASSWORD="YOUR_STORE_PASSWORD"
+export KPOS_RELEASE_KEY_ALIAS="kaffepos"
+export KPOS_RELEASE_KEY_PASSWORD="YOUR_KEY_PASSWORD"
 
 # 3. Build release
 npm run build-apk-release
 ```
 APK di: `android/app/build/outputs/apk/release/app-release.apk`
+
+Setiap rilis publik wajib:
+
+1. Naikkan `versionCode`
+2. Cek `versionName`
+3. Tambahkan catatan perubahan ke `CHANGELOG.md`
 
 ### 🚀 One Command (buka Android Studio)
 ```bash
@@ -114,6 +171,33 @@ npm run build-apk
 | `npm run build-apk-release` | Build signed release APK |
 | `npm run cap:sync` | Sync web assets ke Android |
 | `npm run cap:run` | Run di Android device/emulator |
+
+---
+
+## Arsitektur Yang Dipakai
+
+Untuk kebutuhan sekarang, arsitektur yang dipakai sengaja dibuat sederhana agar tetap mudah dirawat:
+
+1. **User membuka web atau APK**
+2. **Auth** tetap berjalan di **Supabase**
+3. **Data inti POS** lewat **backend API Express** ke **PostgreSQL**
+4. **Email OTP / reset / welcome** dikirim melalui **Resend**
+5. **APK Android** dibangun dari codebase yang sama lewat **Capacitor**
+6. **Error APK** direkomendasikan dipantau lewat **Firebase Crashlytics**
+
+Yang **tidak perlu ditambahkan dulu** jika belum benar-benar dibutuhkan:
+
+- Netlify
+- Vercel
+- Turso
+- Drizzle
+- Trigger.dev
+- Upstash
+- PostHog
+- OneSignal
+- RevenueCat
+
+Tujuannya supaya maintenance tetap realistis untuk owner non-programmer.
 
 ---
 
@@ -148,7 +232,8 @@ kaffepos/
 │   ├── migrations/
 │   │   └── 001_initial_schema.sql  ← Full DB schema + RLS
 │   └── functions/
-│       ├── activate-subscription/ ← Manual subscription activation
+│       ├── auth-email/ ← OTP / auth email flow
+│       ├── verify-email-code/ ← Email verification
 │       └── send-notification/ ← Email notifications
 │
 ├── android/                 ← Capacitor Android project
@@ -280,8 +365,8 @@ CREATE POLICY "Store owner can CRUD transactions"
 **Flow Langganan Manual:**
 1. User pilih paket lalu chat admin di Instagram
 2. Admin verifikasi transfer secara manual
-3. Edge Function `activate-subscription` mengaktifkan langganan
-4. Profile dan subscription sync otomatis di Supabase
+3. Backend API admin mengaktifkan langganan di PostgreSQL production
+4. Profile dan subscription sync otomatis di database production
 5. Email konfirmasi dikirim otomatis
 
 ---

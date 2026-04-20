@@ -9,10 +9,11 @@ import { useState, useMemo, useCallback } from 'react';
 import { Download, TrendingUp, ShoppingBag, DollarSign, CreditCard, Wallet, Receipt, Sparkles, RefreshCw, ChevronDown, ChevronUp, Scale, Mail } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import { useAuth } from '@/contexts/AuthContext';
-import { generateProfessionalPDF, shareProfessionalPDF, type ReportData } from '@/utils/pdfReport';
+import { generateProfessionalPDF, type ReportData } from '@/utils/pdfReport';
 import { getAIInsightCached, type InsightContext, type AIInsight } from '@/lib/aiInsight';
 import KasDailyPanel from './KasDailyPanel';
 import ExpenseModal from '@/components/pos/ExpenseModal';
+import CashRegisterModal from '@/components/pos/CashRegisterModal';
 
 
 const fRp  = (n: number) => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
@@ -115,7 +116,6 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
   const [period, setPeriod]     = useState<Period>('bulanan');
   const [activeChart, setChart] = useState<'trend'|'menu'|'payment'|'stock'>('trend');
   const [downloading, setDl]    = useState(false);
-  const [sharingWA, setSharingWA] = useState(false);
 
   // ── AI Insight state ──────────────────────────────────────────
   const [aiData,    setAiData]    = useState<AIInsight | null>(null);
@@ -123,6 +123,7 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
   const [aiError,   setAiError]   = useState('');
   const [aiOpen,    setAiOpen]    = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [showCashRegisterModal, setShowCashRegisterModal] = useState(false);
 
   const filtered = useMemo(()=>{
     const now=new Date();
@@ -173,6 +174,12 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
   );
   const totalCashRegister = filteredCR.reduce((s:number,c:any)=>s+c.amount,0);
   const totalExpOps       = filteredExpOps.reduce((s:number,e:any)=>s+e.amount,0);
+  const todayCashRegisterEntry = useMemo(() => {
+    const today = new Date().toDateString();
+    return [...cashRegister]
+      .filter((entry:any) => new Date(entry.date).toDateString() === today)
+      .sort((a:any, b:any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0] || null;
+  }, [cashRegister]);
 
   // ── Kalkulasi Kas Operasional ────────────────────────────────
   const kasSelisih     = totalCashRegister - totalExpOps;          // sisa saldo kasir
@@ -335,34 +342,6 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
     }
   };
 
-  const handleShareWhatsApp = async () => {
-    setSharingWA(true);
-    try {
-      const payload = buildReportPayload();
-      const shareText = [
-        `Halo, berikut laporan ${payload.periodLabel} untuk ${payload.storeName}.`,
-        `Pendapatan: ${fRp(payload.totalRevenue)}`,
-        `Laba bersih: ${fRp(payload.netProfit)}`,
-        `Transaksi: ${fNum(payload.txCount)}`,
-        'File PDF terlampir pada pesan ini.',
-      ].join('\n');
-
-      const result = await shareProfessionalPDF(payload, shareText);
-
-      if (!result?.ok) {
-        throw new Error(result?.error || 'Gagal membuka WhatsApp/share');
-      }
-
-      toast.showToast('PDF laporan siap dikirim lewat WhatsApp.', 'success');
-    } catch (e:any) {
-      toast.showToast(`Gagal membagikan PDF: ${e?.message || 'Error'}`, 'error');
-      console.error(e);
-    } finally {
-      setSharingWA(false);
-    }
-  };
-
-
   const PERIODS=[{id:'harian',l:'Hari Ini'},{id:'mingguan',l:'7 Hari'},{id:'bulanan',l:'Bulan Ini'},{id:'semua',l:'Semua'}];
   const hasAnyReportData = filtered.length > 0 || filteredExp.length > 0 || filteredCR.length > 0;
 
@@ -373,13 +352,12 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
           <h2 className="font-black text-slate-800 text-lg">Laporan & Analitik</h2>
           <div className="flex items-center gap-2">
             <button
-              onClick={handleShareWhatsApp}
-              disabled={sharingWA || downloading}
-              title="Kirim PDF ke WhatsApp"
-              aria-label="Kirim PDF ke WhatsApp"
-              className="flex items-center gap-1.5 px-3 py-2 bg-green-500 text-white rounded-xl text-xs font-bold active:scale-95 disabled:opacity-50 shrink-0"
+              onClick={() => setShowCashRegisterModal(true)}
+              title="Edit saldo kasir awal"
+              aria-label="Edit saldo kasir awal"
+              className="flex items-center justify-center w-9 h-9 bg-white border border-slate-200 text-slate-700 rounded-xl active:scale-95 shrink-0"
             >
-              {sharingWA ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"/> : 'WA'}
+              <Wallet size={13} />
             </button>
             <button
               onClick={() => setShowExpenseModal(true)}
@@ -738,6 +716,14 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
           onClose={() => setShowExpenseModal(false)}
           cashierName={profile?.display_name || profile?.username || 'Kasir'}
           toast={toast}
+        />
+      )}
+      {showCashRegisterModal && (
+        <CashRegisterModal
+          onClose={() => setShowCashRegisterModal(false)}
+          cashierName={profile?.display_name || profile?.username || user?.email || 'Kasir'}
+          toast={toast}
+          existingEntry={todayCashRegisterEntry}
         />
       )}
     </div>

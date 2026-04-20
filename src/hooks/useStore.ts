@@ -7,6 +7,31 @@
 // src/hooks/useStore.ts — KaffePOS v5 — Full localStorage cache (menu+inv+trx)
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
+import {
+  ApiError,
+  checkoutTransaction,
+  createCashFlow,
+  createCashRegister,
+  createExpense,
+  createInventoryItem,
+  createMenuItem,
+  getCashFlow,
+  getCashRegister,
+  getExpenses,
+  getInventory,
+  getMenuItems,
+  getStores,
+  getTransactions,
+  removeExpense,
+  removeInventoryItem,
+  removeMenuItem,
+  updateCashRegisterEntry,
+  updateInventoryItem,
+  updateMenuItem,
+  updateStore,
+  voidTransactionRequest,
+} from '@/lib/backendApi';
+import { trackOpsEvent } from '@/lib/opsMetrics';
 import { menuItemSchema } from '@/utils/validation';
 import {
   clearIndexedDbCache,
@@ -19,21 +44,6 @@ import type {
   CashFlowEntry, StoreSettings, CartItem, CashRegister,
   InventoryItemUpdate,
 } from '@/types';
-
-const STORE_SELECT =
-  'id,owner_id,store_name,address,whatsapp,tax_percent,receipt_header,receipt_footer,logo_url,logo_base64,logo_position,logo_size,show_logo_on_receipt,currency,tagline,email,website,paper_width,receipt_font_size,receipt_show_address,receipt_show_whatsapp,receipt_show_tax,receipt_show_cashier,receipt_show_trx_id,receipt_divider,receipt_custom_line1,receipt_custom_line2,created_at,updated_at';
-const MENU_SELECT =
-  'id,store_id,name,price,category,image_url,description,is_available,sort_order,recipe,variants,created_at,updated_at';
-const INVENTORY_SELECT =
-  'id,store_id,name,stock,unit,min_stock,cost_per_unit,created_at,updated_at';
-const TRANSACTION_SELECT =
-  'id,store_id,date,items,subtotal,discount,discount_label,tax,total,cogs,paid,change,method,customer_name,cashier,note,is_void,void_reason,void_at,void_by,created_at';
-const EXPENSE_SELECT =
-  'id,store_id,date,description,amount,category,cashier,source,created_at';
-const CASH_FLOW_SELECT =
-  'id,store_id,date,type,amount,description,cashier,created_at';
-const CASH_REGISTER_SELECT =
-  'id,store_id,date,amount,note,opened_by,created_at';
 
 function makeClientId(prefix: string) {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -192,15 +202,24 @@ async function flushPending() {
   const remaining: PendingWrite[] = [];
   for (const pw of writes) {
     try {
-      if (pw.op === 'insert') {
-        const { error } = await supabase.from(pw.table).insert(pw.data);
-        if (error) throw error;
-      } else if (pw.op === 'update') {
-        const { error } = await supabase.from(pw.table).update(pw.data).eq('id', pw.id!);
-        if (error) throw error;
-      } else if (pw.op === 'delete') {
-        const { error } = await supabase.from(pw.table).delete().eq('id', pw.id!);
-        if (error) throw error;
+      if (pw.table === 'menu_items') {
+        if (pw.op === 'insert') await createMenuItem(pw.data);
+        if (pw.op === 'update' && pw.id) await updateMenuItem(pw.id, pw.data);
+        if (pw.op === 'delete' && pw.id) await removeMenuItem(pw.id);
+      } else if (pw.table === 'inventory') {
+        if (pw.op === 'insert') await createInventoryItem(pw.data);
+        if (pw.op === 'update' && pw.id) await updateInventoryItem(pw.id, pw.data);
+        if (pw.op === 'delete' && pw.id) await removeInventoryItem(pw.id);
+      } else if (pw.table === 'expenses') {
+        if (pw.op === 'insert') await createExpense(pw.data);
+        if (pw.op === 'delete' && pw.id) await removeExpense(pw.id);
+      } else if (pw.table === 'cash_flow') {
+        if (pw.op === 'insert') await createCashFlow(pw.data);
+      } else if (pw.table === 'cash_register') {
+        if (pw.op === 'insert') await createCashRegister(pw.data);
+        if (pw.op === 'update' && pw.id) await updateCashRegisterEntry(pw.id, pw.data);
+      } else if (pw.table === 'stores') {
+        if (pw.op === 'update' && pw.id) await updateStore(pw.id, pw.data);
       }
     } catch {
       remaining.push(pw);
@@ -271,6 +290,7 @@ interface AppStore {
   deleteExpense:       (id: string) => Promise<void>;
   saveCashFlow:        (entry: Partial<CashFlowEntry>) => Promise<void>;
   saveCashRegister:    (entry: Partial<CashRegister>) => Promise<void>;
+  updateCashRegister:  (id: string, entry: Partial<CashRegister>) => Promise<void>;
   saveStoreSettings:   (settings: Partial<StoreSettings>) => Promise<void>;
   saveCustomCats:      (cats: string[]) => void;
   resetState:          () => void;
@@ -295,7 +315,6 @@ const initialState: Pick<
   syncing: false,
 };
 
-const activeChannels: string[] = [];
 const loadAllPromises = new Map<string, Promise<void>>();
 
 export const useStore = create<AppStore>((set, get) => ({
@@ -305,13 +324,7 @@ export const useStore = create<AppStore>((set, get) => ({
   setStoreId: (id) => set({ storeId: id }),
 
   cleanup: () => {
-    supabase.getChannels().forEach(ch => {
-      if (activeChannels.includes(ch.topic)) {
-        supabase.removeChannel(ch);
-      }
-    });
-    activeChannels.length = 0;
-    try { supabase.removeAllChannels(); } catch { /* ignore */ }
+    // Main data layer no longer depends on Supabase realtime.
   },
 
   resetState: () => {
@@ -357,21 +370,20 @@ export const useStore = create<AppStore>((set, get) => ({
     get().cleanup();
 
     try {
-      const [store, menu, inv] = await Promise.all([
-        supabase.from('stores').select(STORE_SELECT).eq('id', storeId).single(),
-        supabase.from('menu_items').select(MENU_SELECT).eq('store_id', storeId).order('sort_order'),
-        supabase.from('inventory').select(INVENTORY_SELECT).eq('store_id', storeId).order('name'),
+      const [storesResponse, menuResponse, inventoryResponse] = await Promise.all([
+        getStores(storeId),
+        getMenuItems(storeId),
+        getInventory(storeId),
       ]);
 
-      if (store.error) throw store.error;
-      if (menu.error) throw menu.error;
-      if (inv.error) throw inv.error;
+      const store = storesResponse.items[0];
+      if (!store) throw new Error('Store tidak ditemukan');
 
-      const menuData = (menu.data || []) as MenuItem[];
-      const invData  = (inv.data  || []) as InventoryItem[];
+      const menuData = (menuResponse.items || []) as MenuItem[];
+      const invData  = (inventoryResponse.items  || []) as InventoryItem[];
       const stdCats  = ['Coffee', 'Non-Coffee', 'Snack'];
       const freshCats = [...new Set(menuData.map(m => m.category))].filter(c => c && !stdCats.includes(c));
-      const freshSettings = (store.data as StoreSettings) || cache.settings;
+      const freshSettings = (store as StoreSettings) || cache.settings;
       if (freshSettings) saveSettingsToLS(storeId, freshSettings);
 
       set(s => ({
@@ -398,17 +410,20 @@ export const useStore = create<AppStore>((set, get) => ({
         set({ storeId, loading: false, syncing: false });
         return;
       }
-      if (e?.code === 'PGRST301' || String(e?.message || '').toLowerCase().includes('row-level security')) {
-        import('@/utils/toast').then(m => m.showToast('Sesi kamu berakhir. Silakan login ulang.', 'error'));
-        await supabase.auth.signOut().catch(() => {});
-        return;
-      }
-      if (String(e?.message || '').toLowerCase().includes('jwt') && String(e?.message || '').toLowerCase().includes('expired')) {
+      if (e instanceof ApiError && e.status === 401) {
         const { data } = await supabase.auth.refreshSession();
         if (data.session) {
           await get().loadAll(storeId);
           return;
         }
+        import('@/utils/toast').then(m => m.showToast('Sesi kamu berakhir. Silakan login ulang.', 'error'));
+        await supabase.auth.signOut().catch(() => {});
+        return;
+      }
+      if (e instanceof ApiError && e.status === 403) {
+        import('@/utils/toast').then(m => m.showToast('Akses ke data toko ditolak.', 'error'));
+        await supabase.auth.signOut().catch(() => {});
+        return;
       }
       const msg = e instanceof Error ? e.message : 'Koneksi bermasalah. Coba lagi.';
       import('@/utils/toast').then(m => m.showToast(msg, 'error'));
@@ -418,20 +433,16 @@ export const useStore = create<AppStore>((set, get) => ({
     const loadSecondary = async () => {
       try {
         const [trx, exp, cf, cr] = await Promise.all([
-          supabase.from('transactions').select(TRANSACTION_SELECT).eq('store_id', storeId)
-            .order('date', { ascending: false }),
-          supabase.from('expenses').select(EXPENSE_SELECT).eq('store_id', storeId)
-            .order('date', { ascending: false }),
-          supabase.from('cash_flow').select(CASH_FLOW_SELECT).eq('store_id', storeId)
-            .order('date', { ascending: false }),
-          supabase.from('cash_register').select(CASH_REGISTER_SELECT).eq('store_id', storeId)
-            .order('date', { ascending: false }),
+          getTransactions(storeId),
+          getExpenses(storeId),
+          getCashFlow(storeId),
+          getCashRegister(storeId),
         ]);
 
-        const trxData = mergeById((trx.data || []) as Transaction[], get().transactions);
-        const expData = mergeById((exp.data || []) as Expense[], get().expenses);
-        const cfData = mergeById((cf.data || []) as CashFlowEntry[], get().cashFlow);
-        const crData = mergeById((cr.data || []) as CashRegister[], get().cashRegister);
+        const trxData = mergeById((trx.items || []) as Transaction[], get().transactions);
+        const expData = mergeById((exp.items || []) as Expense[], get().expenses);
+        const cfData = mergeById((cf.items || []) as CashFlowEntry[], get().cashFlow);
+        const crData = mergeById((cr.items || []) as CashRegister[], get().cashRegister);
         set({
           transactions: trxData,
           expenses:     expData,
@@ -455,211 +466,6 @@ export const useStore = create<AppStore>((set, get) => ({
 
     set({ syncing: true });
     loadSecondary();
-
-    const storeId_ = storeId;
-    const channelMap = new Map<string, any>();
-
-    const setupChannel = (name: string, table: string, filter: string, handler: (p: { eventType: string; new:any; old:any }) => void) => {
-      const topic = `kaffepos_${name}`;
-      if (!activeChannels.includes(`realtime:${topic}`)) {
-        activeChannels.push(`realtime:${topic}`);
-      }
-      const existing = channelMap.get(topic);
-      if (existing) { supabase.removeChannel(existing); channelMap.delete(topic); }
-
-      const ch = supabase.channel(topic)
-        .on('postgres_changes' as any, { event: '*', schema: 'public', table, filter }, handler)
-        .subscribe((status: string) => {
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            setTimeout(() => {
-              if (get().storeId !== storeId_) return;
-              if (!activeChannels.includes(`realtime:${topic}`)) return;
-              try { supabase.removeChannel(ch); } catch { /* ignore */ }
-              channelMap.delete(topic);
-              setupChannel(name, table, filter, handler);
-            }, 3000);
-          }
-        });
-      channelMap.set(topic, ch);
-      return ch;
-    };
-
-    setupChannel('menu', 'menu_items', `store_id=eq.${storeId_}`, (payload) => {
-      const payloadNew = payload.new as MenuItem;
-      const payloadOld = payload.old as MenuItem;
-      set(s => {
-        let newMenu = s.menu;
-        if (payload.eventType === 'INSERT') {
-          if (recentlyInserted.has(payloadNew.id)) {
-            recentlyInserted.delete(payloadNew.id);
-            return {};
-          }
-          const exists = s.menu.some(m => m.id === payloadNew.id);
-          newMenu = exists ? s.menu : [...s.menu, payloadNew];
-        } else if (payload.eventType === 'UPDATE') {
-          newMenu = s.menu.map(m => m.id === payloadNew.id ? { ...m, ...payloadNew } : m);
-        } else if (payload.eventType === 'DELETE') {
-          newMenu = s.menu.filter(m => m.id !== payloadOld.id);
-        }
-        const stdCats = ['Coffee', 'Non-Coffee', 'Snack'];
-        const freshCats = [...new Set(newMenu.map(m => m.category))].filter(c => c && !stdCats.includes(c));
-        persistCache(storeId_, newMenu, s.inventory, s.transactions, s.expenses, s.cashFlow, s.cashRegister);
-        return { menu: newMenu, customCats: freshCats };
-      });
-    });
-
-    setupChannel('inventory', 'inventory', `store_id=eq.${storeId_}`, (payload) => {
-      const payloadNew = payload.new as InventoryItem;
-      const payloadOld = payload.old as InventoryItem;
-      set(s => {
-        if (payload.eventType === 'INSERT') {
-          if (recentlyInserted.has(payloadNew.id)) {
-            recentlyInserted.delete(payloadNew.id);
-            return {};
-          }
-          const exists = s.inventory.some(i => i.id === payloadNew.id);
-          if (exists) return {};
-          const newInventory = [...s.inventory, payloadNew].sort((a,b)=>a.name.localeCompare(b.name));
-          persistCache(storeId_, s.menu, newInventory, s.transactions, s.expenses, s.cashFlow, s.cashRegister);
-          return { inventory: newInventory };
-        }
-        if (payload.eventType === 'UPDATE') {
-          const newInventory = s.inventory.map(i => i.id === payloadNew.id ? { ...i, ...payloadNew } : i);
-          persistCache(storeId_, s.menu, newInventory, s.transactions, s.expenses, s.cashFlow, s.cashRegister);
-          return { inventory: newInventory };
-        }
-        if (payload.eventType === 'DELETE') {
-          const newInventory = s.inventory.filter(i => i.id !== payloadOld.id);
-          persistCache(storeId_, s.menu, newInventory, s.transactions, s.expenses, s.cashFlow, s.cashRegister);
-          return { inventory: newInventory };
-        }
-        return {};
-      });
-    });
-
-    setupChannel('transactions', 'transactions', `store_id=eq.${storeId_}`, (payload) => {
-      const payloadNew = payload.new as Transaction;
-      const payloadOld = payload.old as Transaction;
-      set(s => {
-        if (payload.eventType === 'INSERT') {
-          if (recentlyInserted.has(payloadNew.id)) {
-            recentlyInserted.delete(payloadNew.id);
-            return {};
-          }
-          const exists = s.transactions.some(t => t.id === payloadNew.id);
-          if (exists) return {};
-          const newTransactions = [payloadNew, ...s.transactions];
-          persistCache(storeId_, s.menu, s.inventory, newTransactions, s.expenses, s.cashFlow, s.cashRegister);
-          return { transactions: newTransactions };
-        }
-        if (payload.eventType === 'UPDATE') {
-          const newTransactions = s.transactions.map(t => t.id === payloadNew.id ? { ...t, ...payloadNew } : t);
-          persistCache(storeId_, s.menu, s.inventory, newTransactions, s.expenses, s.cashFlow, s.cashRegister);
-          return { transactions: newTransactions };
-        }
-        if (payload.eventType === 'DELETE') {
-          const newTransactions = s.transactions.filter(t => t.id !== payloadOld.id);
-          persistCache(storeId_, s.menu, s.inventory, newTransactions, s.expenses, s.cashFlow, s.cashRegister);
-          return { transactions: newTransactions };
-        }
-        return {};
-      });
-    });
-
-    setupChannel('store', 'stores', `id=eq.${storeId_}`, (payload) => {
-      if (payload.eventType === 'UPDATE') {
-        const payloadNew = payload.new as StoreSettings;
-        set({ storeSettings: payloadNew });
-        saveSettingsToLS(storeId_, payloadNew);
-      }
-    });
-
-    setupChannel('expenses', 'expenses', `store_id=eq.${storeId_}`, (payload) => {
-      const payloadNew = payload.new as Expense;
-      const payloadOld = payload.old as Expense;
-      set(s => {
-        if (payload.eventType === 'INSERT') {
-          if (recentlyInserted.has(payloadNew.id)) {
-            recentlyInserted.delete(payloadNew.id);
-            return {};
-          }
-          const exists = s.expenses.some(e => e.id === payloadNew.id);
-          if (exists) return {};
-          const newExpenses = [payloadNew, ...s.expenses];
-          persistCache(storeId_, s.menu, s.inventory, s.transactions, newExpenses, s.cashFlow, s.cashRegister);
-          return { expenses: newExpenses };
-        }
-        if (payload.eventType === 'UPDATE') {
-          const newExpenses = s.expenses.map(e => e.id === payloadNew.id ? { ...e, ...payloadNew } : e);
-          persistCache(storeId_, s.menu, s.inventory, s.transactions, newExpenses, s.cashFlow, s.cashRegister);
-          return { expenses: newExpenses };
-        }
-        if (payload.eventType === 'DELETE') {
-          const newExpenses = s.expenses.filter(e => e.id !== payloadOld.id);
-          persistCache(storeId_, s.menu, s.inventory, s.transactions, newExpenses, s.cashFlow, s.cashRegister);
-          return { expenses: newExpenses };
-        }
-        return {};
-      });
-    });
-
-    setupChannel('cash_flow', 'cash_flow', `store_id=eq.${storeId_}`, (payload) => {
-      const payloadNew = payload.new as CashFlowEntry;
-      const payloadOld = payload.old as CashFlowEntry;
-      set(s => {
-        if (payload.eventType === 'INSERT') {
-          if (recentlyInserted.has(payloadNew.id)) {
-            recentlyInserted.delete(payloadNew.id);
-            return {};
-          }
-          const exists = s.cashFlow.some(entry => entry.id === payloadNew.id);
-          if (exists) return {};
-          const newCashFlow = [payloadNew, ...s.cashFlow];
-          persistCache(storeId_, s.menu, s.inventory, s.transactions, s.expenses, newCashFlow, s.cashRegister);
-          return { cashFlow: newCashFlow };
-        }
-        if (payload.eventType === 'UPDATE') {
-          const newCashFlow = s.cashFlow.map(entry => entry.id === payloadNew.id ? { ...entry, ...payloadNew } : entry);
-          persistCache(storeId_, s.menu, s.inventory, s.transactions, s.expenses, newCashFlow, s.cashRegister);
-          return { cashFlow: newCashFlow };
-        }
-        if (payload.eventType === 'DELETE') {
-          const newCashFlow = s.cashFlow.filter(entry => entry.id !== payloadOld.id);
-          persistCache(storeId_, s.menu, s.inventory, s.transactions, s.expenses, newCashFlow, s.cashRegister);
-          return { cashFlow: newCashFlow };
-        }
-        return {};
-      });
-    });
-
-    setupChannel('cash_register', 'cash_register', `store_id=eq.${storeId_}`, (payload) => {
-      const payloadNew = payload.new as CashRegister;
-      const payloadOld = payload.old as CashRegister;
-      set(s => {
-        if (payload.eventType === 'INSERT') {
-          if (recentlyInserted.has(payloadNew.id)) {
-            recentlyInserted.delete(payloadNew.id);
-            return {};
-          }
-          const exists = s.cashRegister.some(r => r.id === payloadNew.id);
-          if (exists) return {};
-          const newCashRegister = [payloadNew, ...s.cashRegister];
-          persistCache(storeId_, s.menu, s.inventory, s.transactions, s.expenses, s.cashFlow, newCashRegister);
-          return { cashRegister: newCashRegister };
-        }
-        if (payload.eventType === 'UPDATE') {
-          const newCashRegister = s.cashRegister.map(r => r.id === payloadNew.id ? { ...r, ...payloadNew } : r);
-          persistCache(storeId_, s.menu, s.inventory, s.transactions, s.expenses, s.cashFlow, newCashRegister);
-          return { cashRegister: newCashRegister };
-        }
-        if (payload.eventType === 'DELETE') {
-          const newCashRegister = s.cashRegister.filter(r => r.id !== payloadOld.id);
-          persistCache(storeId_, s.menu, s.inventory, s.transactions, s.expenses, s.cashFlow, newCashRegister);
-          return { cashRegister: newCashRegister };
-        }
-        return {};
-      });
-    });
     })().finally(() => {
       loadAllPromises.delete(storeId);
     });
@@ -723,13 +529,14 @@ export const useStore = create<AppStore>((set, get) => ({
         const freshCats = [...new Set(updated.map(m => m.category))].filter(c => c && !stdCats.includes(c));
         set({ menu: updated, customCats: freshCats });
         persistCache(storeId, updated, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
-        const { error } = await supabase.from('menu_items').update({
-          name: item.name, price: item.price, category: item.category,
-          image_url: item.image_url || '', description: item.description || '',
-          recipe: item.recipe || [], variants: item.variants || [],
-          is_available: item.is_available ?? true,
-        }).eq('id', item.id);
-        if (error) {
+        try {
+          await updateMenuItem(item.id, {
+            name: item.name, price: item.price, category: item.category,
+            image_url: item.image_url || '', description: item.description || '',
+            recipe: item.recipe || [], variants: item.variants || [],
+            is_available: item.is_available ?? true,
+          });
+        } catch (error) {
           set({ menu, customCats });
           persistCache(storeId, menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
           throw error;
@@ -749,15 +556,17 @@ export const useStore = create<AppStore>((set, get) => ({
         set({ menu: newMenu, customCats: freshCats });
         persistCache(storeId, newMenu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
 
-        const { data, error } = await supabase.from('menu_items').insert({
-          id: tempId,
-          store_id: storeId, name: item.name, price: item.price || 0,
-          category: item.category || 'Coffee', image_url: item.image_url || '',
-          description: item.description || '', recipe: item.recipe || [],
-          variants: item.variants || [], sort_order: menu.length,
-        }).select().single();
-
-        if (error) {
+        let data: MenuItem | null = null;
+        try {
+          data = await createMenuItem({
+            id: tempId,
+            store_id: storeId, name: item.name, price: item.price || 0,
+            category: item.category || 'Coffee', image_url: item.image_url || '',
+            description: item.description || '', recipe: item.recipe || [],
+            variants: item.variants || [], sort_order: menu.length,
+            is_available: item.is_available ?? true,
+          });
+        } catch {
           addPendingWrite(storeId, {
             table: 'menu_items',
             op: 'insert',
@@ -790,8 +599,9 @@ export const useStore = create<AppStore>((set, get) => ({
     if (!storeId) return;
     set(s => ({ menu: s.menu.filter(m => m.id !== id) }));
     persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
-    const { error } = await supabase.from('menu_items').delete().eq('id', id);
-    if (error) {
+    try {
+      await removeMenuItem(id);
+    } catch {
       addPendingWrite(storeId, { table: 'menu_items', op: 'delete', id, data: {} });
       import('@/utils/toast').then(m => m.showToast('Penghapusan menu dijadwalkan saat online kembali', 'success'));
     }
@@ -822,13 +632,14 @@ export const useStore = create<AppStore>((set, get) => ({
       set({ inventory: newInv });
       persistCache(storeId, get().menu, newInv, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
 
-      const { data, error } = await supabase.from('inventory').insert({
-        id: tempId,
-        store_id: storeId, name: item.name, stock: qty,
-        unit: item.unit || 'pcs', min_stock: minStock, cost_per_unit: unitCost,
-      }).select().single();
-
-      if (error) {
+      let data: InventoryItem | null = null;
+      try {
+        data = await createInventoryItem({
+          id: tempId,
+          store_id: storeId, name: item.name, stock: qty,
+          unit: item.unit || 'pcs', min_stock: minStock, cost_per_unit: unitCost,
+        });
+      } catch {
         addPendingWrite(storeId, {
           table: 'inventory',
           op: 'insert',
@@ -847,12 +658,14 @@ export const useStore = create<AppStore>((set, get) => ({
         persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
         if (totalCost > 0) {
           const expId = makeClientId('exp');
-          const { data: expData, error: expError } = await supabase.from('expenses').insert({
-            id: expId,
-            store_id: storeId, date: new Date().toISOString(),
-            description: `Beli ${item.name}`, amount: totalCost, category: 'Bahan Baku', source: 'inventory',
-          }).select().single();
-          if (expError) {
+          let expData: Expense | null = null;
+          try {
+            expData = await createExpense({
+              id: expId,
+              store_id: storeId, date: new Date().toISOString(),
+              description: `Beli ${item.name}`, amount: totalCost, category: 'Bahan Baku', source: 'inventory',
+            });
+          } catch {
             addPendingWrite(storeId, {
               table: 'expenses',
               op: 'insert',
@@ -878,15 +691,16 @@ export const useStore = create<AppStore>((set, get) => ({
         : i
       )}));
       persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
-      const { error } = await supabase.from('inventory').update({
-        name: item.name, stock: qty, unit: item.unit, min_stock: minStock, cost_per_unit: newCost,
-      }).eq('id', item.id);
-      if (error) {
+      try {
+        await updateInventoryItem(item.id!, {
+          name: item.name, stock: qty, unit: item.unit, min_stock: minStock, cost_per_unit: newCost,
+        });
+      } catch (error) {
         if (existing) {
           set(s => ({ inventory: s.inventory.map(i => i.id === item.id ? existing : i) }));
           persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
         }
-        throw new Error(error.message);
+        throw error;
       }
 
     } else {
@@ -900,22 +714,25 @@ export const useStore = create<AppStore>((set, get) => ({
         ? { ...i, stock: newStock, cost_per_unit: newCost } : i
       )}));
       persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
-      const { error } = await supabase.from('inventory').update({
-        stock: newStock, cost_per_unit: newCost,
-      }).eq('id', item.id);
-      if (error) {
+      try {
+        await updateInventoryItem(item.id!, {
+          stock: newStock, cost_per_unit: newCost,
+        });
+      } catch (error) {
         set(s => ({ inventory: s.inventory.map(i => i.id === item.id ? existing : i) }));
         persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
-        throw new Error(error.message);
+        throw error;
       }
       if (totalCost > 0) {
         const expId = makeClientId('exp');
-        const { data: expData, error: expError } = await supabase.from('expenses').insert({
-          id: expId,
-          store_id: storeId, date: new Date().toISOString(),
-          description: `Restock ${item.name}`, amount: totalCost, category: 'Bahan Baku', source: 'inventory',
-        }).select().single();
-        if (expError) {
+        let expData: Expense | null = null;
+        try {
+          expData = await createExpense({
+            id: expId,
+            store_id: storeId, date: new Date().toISOString(),
+            description: `Restock ${item.name}`, amount: totalCost, category: 'Bahan Baku', source: 'inventory',
+          });
+        } catch {
           addPendingWrite(storeId, {
             table: 'expenses',
             op: 'insert',
@@ -940,8 +757,9 @@ export const useStore = create<AppStore>((set, get) => ({
     try {
       set(s => ({ inventory: s.inventory.filter(i => i.id !== id) }));
       persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
-      const { error } = await supabase.from('inventory').delete().eq('id', id);
-      if (error) {
+      try {
+        await removeInventoryItem(id);
+      } catch {
         addPendingWrite(storeId, { table: 'inventory', op: 'delete', id, data: {} });
         import('@/utils/toast').then(m => m.showToast('Penghapusan stok dijadwalkan saat online kembali', 'success'));
       }
@@ -985,39 +803,39 @@ export const useStore = create<AppStore>((set, get) => ({
       cogs: Math.max(0, txWithId.cogs || 0),
     };
 
-    const { data, error } = await supabase.rpc('process_checkout', {
-      p_store_id: storeId,
-      p_transaction_id: normalizedTx.id,
-      p_date: normalizedTx.date,
-      p_items: normalizedTx.items,
-      p_subtotal: normalizedTx.subtotal,
-      p_discount: normalizedTx.discount,
-      p_discount_label: normalizedTx.discount_label ?? null,
-      p_tax: normalizedTx.tax,
-      p_total: normalizedTx.total,
-      p_cogs: normalizedTx.cogs,
-      p_paid: normalizedTx.paid,
-      p_change: normalizedTx.change,
-      p_method: normalizedTx.method,
-      p_cashier: normalizedTx.cashier,
-      p_note: normalizedTx.note ?? null,
-      p_customer_name: normalizedTx.customer_name ?? null,
-    });
-
-    if (error || !data) {
-      throw new Error(error?.message || 'Checkout gagal diproses.');
+    try {
+      const data = await checkoutTransaction({
+        ...normalizedTx,
+        store_id: storeId,
+      });
+      const savedTx = data as Transaction;
+      void trackOpsEvent({
+        event_name: 'checkout',
+        status: 'success',
+        store_id: storeId,
+        transaction_id: savedTx.id,
+        metadata: { total: savedTx.total, method: savedTx.method },
+      });
+      markInserted(savedTx.id);
+      set(s => ({
+        transactions: s.transactions.some(t => t.id === savedTx.id)
+          ? s.transactions.map(t => t.id === savedTx.id ? savedTx : t)
+          : [savedTx, ...s.transactions]
+      }));
+      persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
+      await get().loadAll(storeId);
+      return savedTx;
+    } catch (error: any) {
+      void trackOpsEvent({
+        event_name: 'checkout',
+        status: 'failure',
+        store_id: storeId,
+        transaction_id: normalizedTx.id,
+        error_message: error?.message || 'Checkout gagal diproses.',
+        metadata: { total: normalizedTx.total, method: normalizedTx.method },
+      });
+      throw error;
     }
-
-    const savedTx = data as Transaction;
-    markInserted(savedTx.id);
-    set(s => ({
-      transactions: s.transactions.some(t => t.id === savedTx.id)
-        ? s.transactions.map(t => t.id === savedTx.id ? savedTx : t)
-        : [savedTx, ...s.transactions]
-    }));
-    persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
-    await get().loadAll(storeId);
-    return savedTx;
   },
 
   voidTransaction: async (id, reason, by) => {
@@ -1025,13 +843,11 @@ export const useStore = create<AppStore>((set, get) => ({
       const storeId = get().storeId;
       if (!storeId) throw new Error('Store belum dimuat.');
       if (!get().isOnline) throw new Error('Void transaksi butuh koneksi internet agar stok kembali dengan benar.');
-      const { data, error } = await supabase.rpc('void_transaction_secure', {
-        p_store_id: storeId,
-        p_transaction_id: id,
-        p_reason: reason,
-        p_void_by: by,
+      const data = await voidTransactionRequest(id, {
+        store_id: storeId,
+        reason,
+        void_by: by,
       });
-      if (error || !data) throw new Error(error?.message || 'Gagal membatalkan transaksi');
       const voidedTx = data as Transaction;
       set(s => ({
         transactions: s.transactions.map(t => t.id === id ? voidedTx : t)
@@ -1065,19 +881,20 @@ export const useStore = create<AppStore>((set, get) => ({
       set(s => ({ expenses: [{ ...payload } as Expense, ...s.expenses] }));
       persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
 
-      const { data, error } = await supabase.from('expenses').insert({
-        ...payload,
-      }).select().single();
-      if (error) {
+      try {
+        const data = await createExpense({
+          ...payload,
+        });
+        if (data) {
+          set(s => ({
+            expenses: s.expenses.map(existing => existing.id === optimisticId ? data as Expense : existing)
+          }));
+          persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
+        }
+      } catch {
         addPendingWrite(storeId, { table: 'expenses', op: 'insert', data: payload as unknown as Record<string, unknown> });
         import('@/utils/toast').then(m => m.showToast('Pengeluaran disimpan offline dan akan disinkronkan otomatis', 'success'));
         return;
-      }
-      if (data) {
-        set(s => ({
-          expenses: s.expenses.map(existing => existing.id === optimisticId ? data as Expense : existing)
-        }));
-        persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
       }
     } catch (e:any) {
       const msg = e?.message || 'Gagal mencatat pengeluaran';
@@ -1091,8 +908,9 @@ export const useStore = create<AppStore>((set, get) => ({
     if (get().storeId) {
       persistCache(get().storeId!, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
     }
-    const { error } = await supabase.from('expenses').delete().eq('id', id);
-    if (error) {
+    try {
+      await removeExpense(id);
+    } catch {
       addPendingWrite(get().storeId, { table: 'expenses', op: 'delete', id, data: {} });
       import('@/utils/toast').then(m => m.showToast('Penghapusan pengeluaran dijadwalkan saat online kembali', 'success'));
     }
@@ -1115,19 +933,20 @@ export const useStore = create<AppStore>((set, get) => ({
       set(s => ({ cashFlow: [{ ...payload } as CashFlowEntry, ...s.cashFlow] }));
       persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
 
-      const { data, error } = await supabase.from('cash_flow').insert({
-        ...payload,
-      }).select().single();
-      if (error) {
+      try {
+        const data = await createCashFlow({
+          ...payload,
+        });
+        if (data) {
+          set(s => ({
+            cashFlow: s.cashFlow.map(existing => existing.id === optimisticId ? data as CashFlowEntry : existing)
+          }));
+          persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
+        }
+      } catch {
         addPendingWrite(storeId, { table: 'cash_flow', op: 'insert', data: payload as unknown as Record<string, unknown> });
         import('@/utils/toast').then(m => m.showToast('Arus kas disimpan offline dan akan disinkronkan otomatis', 'success'));
         return;
-      }
-      if (data) {
-        set(s => ({
-          cashFlow: s.cashFlow.map(existing => existing.id === optimisticId ? data as CashFlowEntry : existing)
-        }));
-        persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
       }
     } catch (e:any) {
       const msg = e?.message || 'Gagal menyimpan arus kas';
@@ -1153,22 +972,78 @@ export const useStore = create<AppStore>((set, get) => ({
       set(s => ({ cashRegister: [{ ...payload } as CashRegister, ...s.cashRegister] }));
       persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
 
-      const { data, error } = await supabase.from('cash_register').insert({
-        ...payload,
-      }).select().single();
-      if (error) {
+      try {
+        const data = await createCashRegister({
+          ...payload,
+        });
+        if (data) {
+          set(s => ({
+            cashRegister: s.cashRegister.map(existing => existing.id === optimisticId ? data as CashRegister : existing)
+          }));
+          persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
+        }
+      } catch {
         addPendingWrite(storeId, { table: 'cash_register', op: 'insert', data: payload as unknown as Record<string, unknown> });
         import('@/utils/toast').then(m => m.showToast('Register kasir disimpan offline dan akan disinkronkan otomatis', 'success'));
         return;
       }
-      if (data) {
-        set(s => ({
-          cashRegister: s.cashRegister.map(existing => existing.id === optimisticId ? data as CashRegister : existing)
-        }));
-        persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
-      }
     } catch (e:any) {
       const msg = e?.message || 'Gagal menyimpan register kasir';
+      import('@/utils/toast').then(m => m.showToast(msg, 'error'));
+      throw e;
+    }
+  },
+
+  updateCashRegister: async (id, entry) => {
+    const { storeId, cashRegister } = get();
+    if (!storeId) return;
+
+    const existingEntry = cashRegister.find((item) => item.id === id);
+    if (!existingEntry) throw new Error('Saldo kasir tidak ditemukan');
+
+    const nextEntry = {
+      ...existingEntry,
+      ...entry,
+      id,
+      store_id: existingEntry.store_id || storeId,
+    } as CashRegister;
+
+    try {
+      set((s) => ({
+        cashRegister: s.cashRegister.map((item) => (item.id === id ? nextEntry : item)),
+      }));
+      persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
+
+      try {
+        const data = await updateCashRegisterEntry(id, {
+          amount: nextEntry.amount,
+          note: nextEntry.note ?? null,
+          opened_by: nextEntry.opened_by,
+          date: nextEntry.date,
+        });
+        if (data) {
+          set((s) => ({
+            cashRegister: s.cashRegister.map((item) => (item.id === id ? data as CashRegister : item)),
+          }));
+          persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
+        }
+      } catch {
+        addPendingWrite(storeId, {
+          table: 'cash_register',
+          op: 'update',
+          id,
+          data: {
+            amount: nextEntry.amount,
+            note: nextEntry.note ?? null,
+            opened_by: nextEntry.opened_by,
+            date: nextEntry.date,
+          },
+        });
+        import('@/utils/toast').then(m => m.showToast('Perubahan saldo kasir disimpan offline dan akan disinkronkan otomatis', 'success'));
+        return;
+      }
+    } catch (e:any) {
+      const msg = e?.message || 'Gagal memperbarui register kasir';
       import('@/utils/toast').then(m => m.showToast(msg, 'error'));
       throw e;
     }
@@ -1188,8 +1063,9 @@ export const useStore = create<AppStore>((set, get) => ({
       if (toSave.logo_base64 && (toSave.logo_base64?.length ?? 0) > 100_000) {
         delete toSave.logo_base64;
       }
-      const { error } = await supabase.from('stores').update(toSave).eq('id', storeId);
-      if (error) {
+      try {
+        await updateStore(storeId, toSave);
+      } catch {
         addPendingWrite(storeId, { table: 'stores', op: 'update', id: storeId, data: toSave as Record<string, unknown> });
         import('@/utils/toast').then(m => m.showToast('Pengaturan disimpan offline dan akan disinkronkan otomatis', 'success'));
       }

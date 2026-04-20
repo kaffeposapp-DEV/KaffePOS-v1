@@ -12,7 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/hooks/useStore';
 import { usePrinter } from '@/hooks/usePrinter';
 import { printReceiptBrowser, printReceiptClassicBt } from '@/utils/thermalPrinter';
-import { supabase } from '@/lib/supabase';
+import { getNotifications, updateProfileMe } from '@/lib/backendApi';
 import { getStoreSettingsKey } from '@/utils/sessionIsolation';
 import NotificationCenter from './NotificationCenter';
 import {
@@ -170,28 +170,19 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
     setKasirName(profile?.display_name || profile?.username || '');
     if (!profile?.id) return;
 
-    const loadUnread = () => {
-      supabase.from('notifications')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', profile.id)
-        .eq('is_read', false)
-        .then(({ count }) => { if (count !== null) setUnreadNotifs(count); });
+    const loadUnread = async () => {
+      try {
+        const response = await getNotifications(1);
+        setUnreadNotifs(response.unreadCount || 0);
+      } catch { /* ignore */ }
     };
 
-    loadUnread();
+    loadUnread().catch(() => {});
+    const poll = setInterval(() => {
+      loadUnread().catch(() => {});
+    }, 30_000);
 
-    const channel = supabase.channel(`notifications_badge_${profile.id}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'notifications',
-        filter: `user_id=eq.${profile.id}`,
-      }, () => loadUnread())
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => clearInterval(poll);
   }, [profile]);
 
   const doSave = async (data:any) => {
@@ -252,13 +243,7 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
     if (!kasirName.trim()) return;
     setSavingKasir(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Belum login');
-      const { error } = await supabase
-        .from('profiles')
-        .update({ display_name: kasirName.trim() })
-        .eq('id', user.id);
-      if (error) throw error;
+      await updateProfileMe({ display_name: kasirName.trim() });
       await refreshProfile();
       setKasirSaved(true); setTimeout(() => setKasirSaved(false), 2500);
       toast.showToast('Nama kasir disimpan!', 'success');

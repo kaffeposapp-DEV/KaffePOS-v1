@@ -5,9 +5,9 @@
  
  
 // src/services/SubscriptionManager.ts — KaffePOS Subscription Engine
-// Device-based subscription dengan Supabase sync + offline fallback
+// Device-based subscription dengan backend API sync + offline fallback
 
-import { supabase } from '@/lib/supabase';
+import { getProfileMe } from '@/lib/backendApi';
 export type PlanType = 'secangkir' | 'kopi_susu' | 'signature' | 'founder';
 
 export interface SubscriptionStatus {
@@ -140,16 +140,7 @@ class SubscriptionManagerClass {
   }
 
   private async syncWithSupabase(): Promise<SubscriptionStatus> {
-    // Cek dari profiles tabel (sudah ada di app)
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return defaultStatus();
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('tier, tier_expires_at, is_pro, pro_plan, pro_expires_at, pro_activated_at')
-      .eq('id', user.id)
-      .single();
-
+    const profile = await getProfileMe();
     if (!profile) return defaultStatus();
 
     const hasPro = profile.tier === 'pro' || !!profile.is_pro;

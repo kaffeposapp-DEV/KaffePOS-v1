@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import {
+  activateAdminSubscription,
+  cancelAdminSubscription,
+  getAdminSubscriptionOverview,
+} from '@/lib/backendApi';
 import { ADMIN_EMAILS, isAdminEmail } from '@/lib/admin';
 import {
   BILLING_CYCLE_LABELS,
@@ -66,15 +70,10 @@ export default function AdminPanel() {
   const refreshData = async () => {
     setLoading(true);
     try {
-      const [{ data: profileRows }, { data: subscriptionRows }, { data: historyRows }] = await Promise.all([
-        supabase.from('profiles').select('id,email,display_name,username').order('created_at', { ascending: false }),
-        supabase.from('subscriptions').select('id,user_id,plan,billing_cycle,activated_at,expires_at,status,payment_amount').order('activated_at', { ascending: false }),
-        supabase.from('payment_history').select('id,user_id,plan,billing_cycle,amount,payment_method,paid_at,status,payment_note').order('paid_at', { ascending: false }),
-      ]);
-
-      setProfiles(profileRows || []);
-      setSubscriptions(subscriptionRows || []);
-      setPaymentHistory(historyRows || []);
+      const data = await getAdminSubscriptionOverview();
+      setProfiles(data.profiles || []);
+      setSubscriptions(data.subscriptions || []);
+      setPaymentHistory(data.paymentHistory || []);
     } finally {
       setLoading(false);
     }
@@ -85,12 +84,10 @@ export default function AdminPanel() {
   }, []);
 
   useEffect(() => {
-    const channel = supabase
-      .channel('admin-subscriptions-panel')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions' }, refreshData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_history' }, refreshData)
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    const poll = setInterval(() => {
+      refreshData().catch(() => {});
+    }, 30_000);
+    return () => { clearInterval(poll); };
   }, []);
 
   const profileMap = useMemo(() => {
@@ -140,16 +137,13 @@ export default function AdminPanel() {
   }
 
   const activateSubscription = async (userId: string, plan: string, billingCycle: string, amount: number, note: string) => {
-    const { error } = await supabase.functions.invoke('activate-subscription', {
-      body: {
-        userId,
-        plan,
-        billingCycle,
-        paymentAmount: amount,
-        paymentNote: note,
-      },
+    await activateAdminSubscription({
+      userId,
+      plan,
+      billingCycle,
+      paymentAmount: amount,
+      paymentNote: note,
     });
-    if (error) throw error;
   };
 
   const handleActivate = async () => {
@@ -201,15 +195,7 @@ export default function AdminPanel() {
     setSaving(true);
     setFeedback(null);
     try {
-      const { error } = await supabase
-        .from('subscriptions')
-        .update({
-          status: 'cancelled',
-          expires_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', row.id);
-      if (error) throw error;
+      await cancelAdminSubscription(row.id);
       setFeedback({ type: 'success', message: 'Langganan dibatalkan.' });
       await refreshData();
     } catch (error) {

@@ -1,9 +1,13 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { sendResendEmailWithRetry } from '../_shared/resend.ts';
+import { maybeSendEdgeFailureAlert, recordEdgeEvent } from '../_shared/edge-monitor.ts';
+import { enforceRateLimit } from '../_shared/rate-limit.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
+const EDGE_ALERT_EMAIL = Deno.env.get('EDGE_ALERT_EMAIL') ?? '';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -92,73 +96,12 @@ function getWelcomeHtml(name: string) {
 }
 
 async function sendResendEmail(to: string, subject: string, html: string) {
-  if (!RESEND_API_KEY) throw new Error('RESEND_API_KEY missing');
-
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: 'KaffePOS <noreply@kaffepos.my.id>',
-      to: [to],
-      subject,
-      html,
-    }),
+  await sendResendEmailWithRetry({
+    apiKey: RESEND_API_KEY,
+    to,
+    subject,
+    html,
   });
-
-  if (!response.ok) {
-    throw new Error(`Resend API failed: ${await response.text()}`);
-  }
-}
-
-async function enforceRateLimit(
-  adminClient: any,
-  key: string,
-  ip: string,
-  maxHits: number,
-  windowMinutes: number,
-) {
-  const now = new Date();
-  const windowStart = new Date(now.getTime() - windowMinutes * 60 * 1000).toISOString();
-
-  const { data: existing, error: fetchError } = await adminClient
-    .from('edge_rate_limits')
-    .select('id,hits')
-    .eq('rate_key', key)
-    .gte('window_started_at', windowStart)
-    .order('window_started_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (fetchError) throw fetchError;
-
-  if (!existing) {
-    const { error } = await adminClient.from('edge_rate_limits').insert({
-      rate_key: key,
-      hits: 1,
-      last_ip: ip,
-      window_started_at: now.toISOString(),
-      updated_at: now.toISOString(),
-    });
-    if (error) throw error;
-    return;
-  }
-
-  if ((existing.hits ?? 0) >= maxHits) {
-    throw new Error('Terlalu banyak percobaan verifikasi. Tunggu beberapa menit lalu coba lagi.');
-  }
-
-  const { error } = await adminClient
-    .from('edge_rate_limits')
-    .update({
-      hits: (existing.hits ?? 0) + 1,
-      last_ip: ip,
-      updated_at: now.toISOString(),
-    })
-    .eq('id', existing.id);
-  if (error) throw error;
 }
 
 serve(async (req: Request) => {
@@ -166,12 +109,16 @@ serve(async (req: Request) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  let adminClient: any = null;
+  let cleanEmail = '';
+  let ip = 'unknown';
+
   try {
     const payload = await req.json() as VerificationPayload;
     const { email, code } = payload;
-    const cleanEmail = String(email || '').trim().toLowerCase();
+    cleanEmail = String(email || '').trim().toLowerCase();
     const cleanCode = String(code || '').replace(/\D/g, '');
-    const ip =
+    ip =
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
       req.headers.get('cf-connecting-ip') ||
       'unknown';
@@ -190,12 +137,28 @@ serve(async (req: Request) => {
       });
     }
 
-    const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE, {
+    adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    await enforceRateLimit(adminClient, `verify-email:${cleanEmail}`, ip, 10, 10);
-    await enforceRateLimit(adminClient, `verify-email-ip:${ip}`, ip, 30, 10);
+    await enforceRateLimit(
+      adminClient,
+      `verify-email:${cleanEmail}`,
+      ip,
+      10,
+      10,
+      new Date(),
+      'Terlalu banyak percobaan verifikasi. Tunggu beberapa menit lalu coba lagi.',
+    );
+    await enforceRateLimit(
+      adminClient,
+      `verify-email-ip:${ip}`,
+      ip,
+      30,
+      10,
+      new Date(),
+      'Terlalu banyak percobaan verifikasi. Tunggu beberapa menit lalu coba lagi.',
+    );
 
     const hashedCode = await sha256Hex(cleanCode);
     const candidateCodes = Array.from(new Set([hashedCode, cleanCode]));
@@ -285,6 +248,13 @@ serve(async (req: Request) => {
     } catch (emailError) {
       console.error('welcome-email error:', emailError);
     }
+    await recordEdgeEvent(adminClient, {
+      functionName: 'verify-email-code',
+      status: 'success',
+      message: `Verifikasi email sukses untuk ${cleanEmail}`,
+      requestEmail: cleanEmail,
+      requestIp: ip,
+    });
 
     return new Response(JSON.stringify({
       ok: true,
@@ -294,6 +264,27 @@ serve(async (req: Request) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e: any) {
+    if (!adminClient && SUPABASE_URL && SUPABASE_SERVICE) {
+      adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+    }
+    if (adminClient) {
+      await recordEdgeEvent(adminClient, {
+        functionName: 'verify-email-code',
+        status: 'failure',
+        message: String(e?.message || e || 'Verifikasi gagal.'),
+        requestEmail: cleanEmail || null,
+        requestIp: ip,
+      });
+      await maybeSendEdgeFailureAlert({
+        adminClient,
+        functionName: 'verify-email-code',
+        requestIp: ip,
+        resendApiKey: RESEND_API_KEY,
+        alertEmail: EDGE_ALERT_EMAIL,
+      });
+    }
     return new Response(JSON.stringify({ error: e?.message || 'Verifikasi gagal.' }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

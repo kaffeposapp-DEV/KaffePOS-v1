@@ -74,6 +74,16 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true, // expose to network for Capacitor live reload
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8787',
+        changeOrigin: true,
+      },
+      '/health': {
+        target: 'http://localhost:8787',
+        changeOrigin: true,
+      },
+    },
   },
 
   // Ensure env vars are available

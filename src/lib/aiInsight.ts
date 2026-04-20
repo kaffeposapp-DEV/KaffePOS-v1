@@ -5,12 +5,10 @@
  
  
 // src/lib/aiInsight.ts — KaffePOS v6
-// Panggil AI via Supabase Edge Function (API key aman di server, tidak expose di APK)
+// Panggil AI via backend API (API key aman di server, tidak expose di APK)
 // SECURITY: JANGAN pakai VITE_GEMINI_API_KEY — akan ter-bundle di APK dan bisa dicuri!
 
-import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
-
-const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/ai-insight`;
+import { requestAiInsight } from '@/lib/backendApi';
 
 // ── Tipe data untuk konteks analisis ─────────────────────────────
 export interface InsightContext {
@@ -147,43 +145,9 @@ function shouldUseLocalFallback(message: string): boolean {
   ].some(keyword => normalized.includes(keyword));
 }
 
-// ── Panggil via Supabase Edge Function (UTAMA — API key aman) ─────
-async function callViaEdgeFunction(prompt: string): Promise<AIInsight> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) {
-    throw new Error('Sesi tidak ditemukan. Silakan login ulang.');
-  }
-
-  const controller = new AbortController();
-  const timeout = globalThis.setTimeout(() => controller.abort(), 15000);
-
-  let res: Response;
-  try {
-    res = await fetch(EDGE_FUNCTION_URL, {
-      method:  'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
-        'apikey':        SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({ prompt }),
-      signal: controller.signal,
-    });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error('Permintaan AI timeout. Menjalankan analisis cadangan.');
-    }
-    throw error;
-  } finally {
-    globalThis.clearTimeout(timeout);
-  }
-
-  const data = await res.json() as AIInsight & { error?: string };
-
-  if (!res.ok || data.error) {
-    throw new Error(data.error || `Edge Function error ${res.status}`);
-  }
-
+// ── Panggil via backend API (UTAMA — API key aman) ───────────────
+async function callViaBackend(prompt: string): Promise<AIInsight> {
+  const data = await requestAiInsight({ prompt });
   return { ...data, source: 'gemini' };
 }
 
@@ -206,7 +170,7 @@ export async function getAIInsight(ctx: InsightContext): Promise<AIInsight> {
 
   const prompt = buildPrompt(ctx);
   try {
-    return await callViaEdgeFunction(prompt);
+    return await callViaBackend(prompt);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (shouldUseLocalFallback(message)) {

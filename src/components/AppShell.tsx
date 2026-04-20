@@ -14,7 +14,7 @@ import { ShoppingBag, Package, Tag, History, BarChart3, Settings, WifiOff, Layou
 import { Capacitor } from '@capacitor/core';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/hooks/useStore';
-import { supabase } from '@/lib/supabase';
+import { createStore, getStores } from '@/lib/backendApi';
 import { getStoreCacheKey } from '@/utils/sessionIsolation';
 import { ToastContainer, useToast } from './ui/Toast';
 import DailyOpeningModal, { useNeedsOpeningCash } from './pos/DailyOpeningModal';
@@ -189,17 +189,14 @@ export default function AppShell() {
         
         // Background verify
         try {
-          const { data, error } = await supabase.from('stores')
-            .select('id').eq('id', cachedId).eq('owner_id', uid).maybeSingle();
-          if (error || !data) {
-             console.warn('[AppShell] Cache mismatch or RLS error:', error);
-             // Don't reset if it's just a network error
-             if (error && !error.message.includes('fetch')) {
-                localStorage.removeItem(getStoreCacheKey(uid!));
-                initDone.current = false;
-                if (isMounted.current) setReady(false);
-                setTimeout(init, 500);
-             }
+          const response = await getStores();
+          const exists = response.items.some((entry) => entry.id === cachedId);
+          if (!exists) {
+             console.warn('[AppShell] Cached store no longer exists for user');
+             localStorage.removeItem(getStoreCacheKey(uid!));
+             initDone.current = false;
+             if (isMounted.current) setReady(false);
+             setTimeout(init, 500);
           }
         } catch { /* ignore */ }
         return;
@@ -207,28 +204,14 @@ export default function AppShell() {
 
       setMessage('Menyiapkan toko...');
       try {
-        const { data: store, error: fetchError } = await supabase
-          .from('stores').select('id').eq('owner_id', uid).maybeSingle();
-
-        if (fetchError) {
-           console.error('[AppShell] fetchStore error:', fetchError);
-           throw new Error(`Gagal memuat data toko: ${fetchError.message}`);
-        }
-
-        let activeStore = store;
+        const response = await getStores();
+        let activeStore = response.items[0] || null;
 
         if (!activeStore) {
           setMessage('Membuat toko baru...');
-          const { data: ns, error: insError } = await supabase.from('stores').insert({
-            owner_id:   uid,
+          activeStore = await createStore({
             store_name: `Kedai ${profile?.username || user?.email?.split('@')[0] || 'Kopi'}`,
-          }).select('id').single();
-          
-          if (insError) {
-             console.error('[AppShell] createStore error:', insError);
-             throw new Error(`Gagal membuat toko baru: ${insError.message}`);
-          }
-          activeStore = ns;
+          });
         }
 
         if (!activeStore?.id) throw new Error('ID toko tidak ditemukan');
@@ -325,13 +308,13 @@ export default function AppShell() {
 
       {/* ── Offline Banner ───────────────────────────── */}
       {!isOnline && (
-        <div className="bg-amber-500 px-4 py-1.5 flex items-center justify-center gap-2 flex-shrink-0">
+        <div className="bg-amber-500 px-3 py-2 flex items-center justify-center gap-2 flex-shrink-0 text-center">
           <WifiOff size={13} className="text-white" />
-          <p className="text-white text-xs font-bold">Offline — data disimpan lokal, sync otomatis saat online</p>
+          <p className="text-white text-xs font-bold leading-tight">Offline — data disimpan lokal, sync otomatis saat online</p>
         </div>
       )}
 
-      <main className="flex-1 overflow-hidden flex flex-col"
+      <main className="flex-1 min-h-0 overflow-hidden flex flex-col"
         style={{ paddingBottom: 'calc(60px + env(safe-area-inset-bottom,0px))' }}>
         <Suspense fallback={<TabSpinner />}>
           {renderTabPanel('dashboard', 'Beranda', <DashboardTab />)}
@@ -344,13 +327,13 @@ export default function AppShell() {
         </Suspense>
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 flex items-start justify-around bg-white border-t border-slate-100 z-40"
+      <nav className="fixed bottom-0 left-0 right-0 flex items-stretch justify-around bg-white border-t border-slate-100 z-40"
         style={{ height: 'calc(60px + env(safe-area-inset-bottom,0px))', paddingBottom: 'env(safe-area-inset-bottom,0px)' }}>
         {NAV.map(({ id, label, icon: Icon }) => {
           const active = tab === id;
           return (
             <button key={id} onClick={() => changeTab(id)}
-              className={`flex flex-col items-center justify-center flex-1 h-full pt-1.5 pb-1 gap-0.5 transition-all active:scale-90 active:bg-orange-50 rounded-lg mx-0.5 ${
+              className={`flex flex-col items-center justify-center flex-1 min-w-0 h-full pt-1.5 pb-1 gap-0.5 transition-all active:scale-90 active:bg-orange-50 rounded-lg mx-0.5 overflow-hidden ${
                 active ? 'text-orange-500' : 'text-slate-400'
               }`}>
               <div className="relative">
@@ -364,7 +347,7 @@ export default function AppShell() {
                   </span>
                 )}
               </div>
-              <span className={`text-[10px] font-bold tracking-tight ${active ? 'text-orange-500' : 'text-slate-400'}`}>{label}</span>
+              <span className={`text-[10px] font-bold tracking-tight truncate max-w-full px-1 ${active ? 'text-orange-500' : 'text-slate-400'}`}>{label}</span>
               {active && <div className="w-4 h-0.5 rounded-full bg-orange-500" />}
             </button>
           );

@@ -3,6 +3,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useStore } from '@/hooks/useStore';
 import { supabase } from '@/lib/supabase';
 
+vi.mock('@/lib/opsMetrics', () => ({
+  trackOpsEvent: vi.fn(),
+}));
+
 // Mock Supabase
 vi.mock('@/lib/supabase', () => ({
   supabase: {

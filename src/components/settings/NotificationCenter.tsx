@@ -7,7 +7,7 @@
 // src/components/settings/NotificationCenter.tsx
 import { useState, useEffect } from 'react';
 import { Bell, X, Check, Mail, Info, Clock, Ghost } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { getNotifications, markAllNotificationsRead } from '@/lib/backendApi';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
@@ -18,14 +18,8 @@ export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolea
   const fetchNotifs = async () => {
     if (!user) return;
     try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('id,title,message,type,is_read,created_at,metadata')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(20);
-      if (error) throw error;
-      setNotifs(data || [],   );
+      const response = await getNotifications(20);
+      setNotifs(response.items || [],   );
     } catch (e) {
       console.error('[Notif] fetch error:', e);
     } finally {
@@ -36,44 +30,39 @@ export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolea
   const markAllRead = async () => {
     if (!user || notifs.length === 0) return;
     try {
-      await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('user_id', user.id)
-        .eq('is_read', false);
+      await markAllNotificationsRead();
       setNotifs(prev => prev.map(n => ({ ...n, is_read: true })));
     } catch { /* ignore */ }
   };
 
   useEffect(() => {
     if (!isOpen) return;
+    setLoading(true);
     fetchNotifs();
-    if (!user?.id) return;
     // Mark as read after 2 seconds of viewing
     const timer = setTimeout(() => markAllRead(), 2000);
-    const channel = supabase.channel(`notifications_${user.id}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'notifications',
-        filter: `user_id=eq.${user.id}`,
-      }, () => {
-        fetchNotifs().catch(() => {});
-      })
-      .subscribe();
+    const poll = setInterval(() => {
+      fetchNotifs().catch(() => {});
+    }, 30_000);
 
     return () => {
       clearTimeout(timer);
-      supabase.removeChannel(channel);
+      clearInterval(poll);
     };
   }, [isOpen, user?.id]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-slate-50 animate-in slide-in-from-right duration-300">
+    <div
+      className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-slate-50 animate-in slide-in-from-right duration-300"
+      style={{
+        paddingTop: 'env(safe-area-inset-top,0px)',
+        paddingBottom: 'env(safe-area-inset-bottom,0px)',
+      }}
+    >
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 px-4 py-4 flex items-center justify-between shadow-sm">
+      <div className="bg-white border-b border-slate-100 px-4 py-4 flex items-center justify-between shadow-sm shrink-0">
         <div className="flex items-center gap-2.5">
           <div className="w-10 h-10 bg-orange-100 rounded-2xl flex items-center justify-center">
             <Bell size={20} className="text-orange-600" />
@@ -89,7 +78,7 @@ export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolea
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3 grayscale opacity-50">
             <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
@@ -146,7 +135,7 @@ export default function NotificationCenter({ isOpen, onClose }: { isOpen: boolea
       </div>
 
       {/* Footer Info */}
-      <div className="p-6 bg-slate-100 border-t border-slate-200">
+      <div className="p-4 sm:p-6 bg-slate-100 border-t border-slate-200 shrink-0">
         <div className="bg-white rounded-2xl p-4 flex items-center gap-4">
           <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center shrink-0">
             <Bell size={20} className="text-white" />

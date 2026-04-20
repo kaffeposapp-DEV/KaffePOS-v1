@@ -30,6 +30,7 @@ const AuthPage = lazy(() => import('./components/auth/AuthPage'));
 const AppShell = lazy(() => import('./components/AppShell'));
 const PlanConfirmation = lazy(() => import('./pages/PlanConfirmation'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
+const LegalPage = lazy(() => import('./pages/LegalPage'));
 const IS_MOBILE_TARGET_BUILD = import.meta.env.VITE_APP_TARGET === 'mobile';
 const LandingPage = IS_MOBILE_TARGET_BUILD
   ? (() => null)
@@ -152,6 +153,10 @@ function AppRoutes() {
       <Route path="/register" element={<AuthPage />} />
       <Route path="/forgot-password" element={<AuthPage />} />
       <Route path="/reset-password" element={<AuthPage />} />
+      <Route path="/terms" element={<LegalPage kind="terms" />} />
+      <Route path="/terms-of-service" element={<LegalPage kind="terms" />} />
+      <Route path="/privacy" element={<LegalPage kind="privacy" />} />
+      <Route path="/privacy-policy" element={<LegalPage kind="privacy" />} />
       <Route path="/admin" element={
         isAuthenticated ? <AdminPanel /> : <Navigate to="/login" replace />
       } />
