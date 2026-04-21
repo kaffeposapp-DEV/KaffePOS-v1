@@ -4,7 +4,7 @@
 Perform a comprehensive cleanup and modernization of the KaffePOS codebase to ensure type safety, remove technical debt (Python files, debug logs), and enforce strict TypeScript rules.
 
 ## Constraints
-- React 18 + TypeScript + Capacitor 6 + Supabase + Zustand stack.
+- React 18 + TypeScript + Capacitor 6 + backend API + Zustand stack.
 - Do not change business logic.
 - Target: 0 errors in `tsc` and `eslint`.
 - No `any` types unless absolutely unavoidable.
@@ -16,7 +16,7 @@ Perform a comprehensive cleanup and modernization of the KaffePOS codebase to en
 - Codebase likely contains `console.log` and `any` types that need addressing.
 
 ## Risks
-- Removing `any` might reveal hidden bugs or require complex typing for external libraries or Supabase schemas.
+- Removing `any` might reveal hidden bugs or require complex typing for external libraries or database schemas.
 - Strict TS might cause a large number of errors that need manual fixing.
 - Mass deletion of `console.log` might remove useful debugging information in catch blocks (though the user specified catch blocks are exempt).
 - Automated cleanup might accidentally break something if not careful.

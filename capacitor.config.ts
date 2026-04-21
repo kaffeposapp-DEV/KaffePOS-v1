@@ -36,13 +36,6 @@ const config: CapacitorConfig = {
       style: 'DARK',
       resizeOnFullScreen: true,
     },
-    GoogleAuth: {
-      scopes: ['profile', 'email'],
-      // serverClientId = Web Client ID dari Supabase
-      // Android Client ID (772175003609-cdbe7lane...) sudah terdaftar di Google Cloud dgn SHA-1
-      serverClientId: '772175003609-pmecpcf33sr7kk8l270f0mh534pceh20.apps.googleusercontent.com',
-      forceCodeForRefreshToken: false,
-    },
     CapacitorCookies: { enabled: true }
   },
 };

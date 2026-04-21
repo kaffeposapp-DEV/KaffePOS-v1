@@ -8,10 +8,6 @@ const chunkGroups = [
     modules: ['react', 'react-dom', 'react-router-dom'],
   },
   {
-    name: 'supabase',
-    modules: ['@supabase/supabase-js'],
-  },
-  {
     name: 'pdf',
     modules: ['jspdf', 'jspdf-autotable'],
   },

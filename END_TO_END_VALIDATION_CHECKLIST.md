@@ -7,8 +7,8 @@ Checklist ini dipakai untuk memastikan Web, APK, backend API, Coolify, VPS, dan 
 - [ ] Frontend Web memakai `backendApi` untuk data inti POS
 - [ ] APK memakai asset build yang sama dari `dist/`
 - [ ] Backend API membaca/menulis langsung ke PostgreSQL VPS
-- [ ] Supabase hanya dipakai untuk auth dan flow email/auth sementara
-- [ ] Tidak ada query langsung dari runtime app ke tabel bisnis Supabase
+- [ ] Auth, email, dan data bisnis semuanya berjalan dari backend API sendiri
+- [ ] Tidak ada query langsung dari runtime app ke database tanpa lewat backend API
 
 ## 2. Validasi Backend
 

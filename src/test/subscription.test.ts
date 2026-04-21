@@ -1,25 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { subscriptionManager } from '@/services/SubscriptionManager';
-import { supabase } from '@/lib/supabase';
+import { getProfileMe } from '@/lib/backendApi';
 
-// Mock Supabase
-vi.mock('@/lib/supabase', () => ({
-  supabase: {
-    auth: {
-      getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user_123' } }, error: null }),
-    },
-    from: vi.fn(() => ({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ 
-        data: { tier: 'pro', is_pro: true, pro_plan: 'kopi_susu', pro_expires_at: new Date(Date.now() + 86400000).toISOString() }, 
-        error: null 
-      }),
-      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-      update: vi.fn().mockReturnThis(),
-    })),
-  },
+vi.mock('@/lib/backendApi', () => ({
+  getProfileMe: vi.fn().mockResolvedValue({
+    tier: 'pro',
+    is_pro: true,
+    pro_plan: 'kopi_susu',
+    pro_expires_at: new Date(Date.now() + 86400000).toISOString(),
+  }),
 }));
 
 describe('Subscription Service', () => {
@@ -30,15 +20,11 @@ describe('Subscription Service', () => {
   });
 
   it('incrementTransaction secangkir -> blocked setelah 50', async () => {
-    // Mock free profile
-    (supabase.from as any).mockImplementation(() => ({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ 
-        data: { tier: 'basic', is_pro: false, pro_plan: 'secangkir' }, 
-        error: null 
-      }),
-    }));
+    vi.mocked(getProfileMe).mockResolvedValue({
+      tier: 'basic',
+      is_pro: false,
+      pro_plan: 'secangkir',
+    } as any);
 
     // Reset tx count
     localStorage.setItem('kaffepos_tx_month', JSON.stringify({ count: 50, month: new Date().toISOString().substring(0, 7) }));
@@ -48,20 +34,12 @@ describe('Subscription Service', () => {
   });
 
   it('isPro() return benar sesuai plan', async () => {
-    // Force set cached status for pro
-    (supabase.from as any).mockImplementation(() => ({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ 
-        data: { 
-          tier: 'pro', 
-          is_pro: true, 
-          pro_plan: 'kopi_susu',
-          pro_expires_at: new Date(Date.now() + 86400000).toISOString()
-        }, 
-        error: null 
-      }),
-    }));
+    vi.mocked(getProfileMe).mockResolvedValue({
+      tier: 'pro',
+      is_pro: true,
+      pro_plan: 'kopi_susu',
+      pro_expires_at: new Date(Date.now() + 86400000).toISOString(),
+    } as any);
 
     const status = await subscriptionManager.getStatus(true);
     expect(status.plan).toBe('kopi_susu');

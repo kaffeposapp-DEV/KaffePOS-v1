@@ -1,5 +1,3 @@
-import type { AuthError } from '@supabase/supabase-js';
-
 export type AuthMode = 'login' | 'register' | 'forgot' | 'reset';
 
 const AUTH_MODE_BY_PATH: Record<string, AuthMode> = {
@@ -39,17 +37,11 @@ export function isAuthSurfacePath(pathname: string) {
   return pathname in AUTH_MODE_BY_PATH || pathname === '/auth/callback';
 }
 
-export function hasAuthCallbackParams(url: URL) {
-  const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
-  return Boolean(
-    url.searchParams.get('code') ||
-      url.searchParams.get('token_hash') ||
-      url.searchParams.get('access_token') ||
-      hashParams.get('access_token') ||
-      hashParams.get('refresh_token') ||
-      hashParams.get('token_hash') ||
-      hashParams.get('type')
-  );
+export function getPasswordResetParams(url: URL) {
+  return {
+    email: url.searchParams.get('email'),
+    token: url.searchParams.get('token'),
+  };
 }
 
 export function isExistingSignupAttempt(data: {
@@ -81,14 +73,14 @@ export function normalizeRequestedUsername(value: string) {
   return base.slice(0, 30);
 }
 
-export function normalizeSignupErrorMessage(error: Pick<AuthError, 'message'> & { status?: number | undefined } | null | undefined) {
+export function normalizeSignupErrorMessage(error: { message?: string; status?: number | undefined } | null | undefined) {
   if (!error) return null;
 
   const message = error.message || '';
   const lower = message.toLowerCase();
 
   if (error.status === 404) {
-    return 'Endpoint pendaftaran tidak ditemukan. Periksa konfigurasi Supabase.';
+    return 'Endpoint pendaftaran tidak ditemukan. Periksa konfigurasi backend.';
   }
 
   if (isAlreadyRegisteredMessage(message)) {

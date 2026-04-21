@@ -4,7 +4,7 @@
 
 Versi dokumen: 1.0  
 Tanggal: 20 April 2026  
-Basis dokumen: codebase `kaffepos-v2`, konfigurasi aplikasi, migrasi Supabase, dan implementasi UI/flow yang ada saat ini.
+Basis dokumen: codebase `kaffepos-v2`, konfigurasi aplikasi, migrasi database, dan implementasi UI/flow yang ada saat ini.
 
 ---
 
@@ -21,7 +21,7 @@ Karakter utama produk saat ini:
 - Insight bisnis berbasis AI
 - Dukungan printer thermal browser, Bluetooth, dan USB
 - Mode web dan Android dari satu codebase
-- Backend cloud menggunakan Supabase
+- Backend cloud menggunakan API self-hosted
 - Pendekatan offline-first terbatas untuk cache dan sinkronisasi ulang
 
 ---
@@ -196,7 +196,7 @@ Kebutuhan:
 
 ### Implementasi saat ini
 
-- Supabase Auth
+- Auth backend internal
 - PKCE auth flow
 - Capacitor Preferences untuk native session cache
 - Edge Function `verify-email-code`
@@ -539,16 +539,16 @@ Kebutuhan:
 - Capacitor v6
 - Android platform via `@capacitor/android`
 - Capacitor plugins: App, Browser, Filesystem, Haptics, Keyboard, Network, Preferences, Share, Splash Screen, Status Bar, Toast
-- `@codetrix-studio/capacitor-google-auth`
+- auth email/password internal berbasis backend API
 - `@kduma-autoid/capacitor-bluetooth-printer`
 
 ## 11.3 Backend / Cloud
 
-- Supabase Auth
-- Supabase Postgres
-- Supabase Realtime
-- Supabase Edge Functions
-- Supabase Storage pattern planned, tetapi upload client direct ke R2 currently disabled
+- Auth backend internal
+- PostgreSQL production
+- API polling / refresh terjadwal
+- Backend route internal
+- Upload storage saat ini masih nonaktif
 
 ## 11.4 Reporting & Documents
 
@@ -557,7 +557,7 @@ Kebutuhan:
 
 ## 11.5 AI
 
-- Google Gemini 2.0 Flash Lite via Supabase Edge Function proxy
+- Google Gemini 2.0 Flash Lite via backend API proxy
 - Local fallback insight generator di frontend
 
 ## 11.6 Email / Notifications
@@ -584,9 +584,9 @@ Kebutuhan:
 ## 12.1 High-level architecture
 
 1. User mengakses web app atau APK Android.
-2. Frontend React berinteraksi dengan Supabase client.
-3. Auth dikelola oleh Supabase Auth.
-4. Data inti disimpan di Supabase Postgres.
+2. Frontend React berinteraksi dengan backend API internal.
+3. Auth dikelola oleh backend API internal.
+4. Data inti disimpan di PostgreSQL production.
 5. Realtime dipakai untuk sebagian sinkronisasi dan badge update.
 6. Edge Functions menangani logic server-side seperti:
    - verifikasi email
@@ -607,7 +607,7 @@ Kebutuhan:
 
 ## 13. Database Overview
 
-Berikut ringkasan entitas utama berdasarkan migrasi aktif di folder `supabase/migrations`.
+Berikut ringkasan entitas utama berdasarkan SQL schema aktif di folder `database/`.
 
 ## 13.1 Core business tables
 
@@ -1027,10 +1027,9 @@ KaffePOS v2 saat ini sudah berada pada tahap produk operasional yang cukup lengk
 Secara teknis, fondasi produk sudah kuat:
 
 - frontend modern dan ringan
-- backend managed di Supabase
+- backend managed di Coolify
 - kontrol keamanan berbasis RLS
 - server-side function untuk flow sensitif
 - dukungan Android melalui Capacitor
 
 Fokus pengembangan berikutnya paling masuk akal adalah konsolidasi model subscription, penyempurnaan offline/reliability, alignment marketing-product, dan ekspansi ke fitur operasional owner yang lebih dalam.
-

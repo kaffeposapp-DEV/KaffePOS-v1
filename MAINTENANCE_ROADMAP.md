@@ -5,7 +5,7 @@ Dokumen ini dibuat untuk owner / operator yang tidak punya background programmer
 ## Stack yang Dipakai Saat Ini
 
 - **Website + domain aktif:** `kaffepos.my.id`
-- **Database + Auth + backend ringan:** Supabase
+- **Database + Auth + backend ringan:** PostgreSQL + backend API internal
 - **Email OTP / reset / welcome:** Resend
 - **APK Android:** Capacitor
 - **Monitoring error APK yang direkomendasikan:** Firebase Crashlytics
@@ -45,9 +45,9 @@ Kalau semua normal, tidak perlu tindakan lain.
 
 Waktu ideal: 20-40 menit.
 
-### 1. Cek Supabase
+### 1. Cek backend dan database
 
-Masuk ke dashboard Supabase lalu cek:
+Masuk ke Coolify dan PostgreSQL monitoring lalu cek:
 
 - jumlah user baru terlihat normal
 - tabel penting tetap bertambah normal
@@ -111,7 +111,7 @@ Waktu ideal: 1-2 jam.
 
 Cek dashboard layanan:
 
-- Supabase
+- Backend API
 - Resend
 - hosting/domain
 - Firebase jika dipakai
@@ -165,7 +165,7 @@ Cek:
 
 Cek:
 
-- Supabase Auth
+- Auth internal backend
 - apakah email sudah verified
 - apakah ada error di function auth
 
@@ -182,7 +182,7 @@ Cek:
 
 Cek:
 
-- Supabase database
+- PostgreSQL production
 - koneksi internet device
 - apakah masalah terjadi di 1 akun atau banyak akun
 
@@ -243,7 +243,7 @@ Urutan upgrade yang paling masuk akal nanti:
 - cek komplain
 
 ### Tiap minggu
-- cek Supabase logs
+- cek Coolify logs
 - cek Resend delivery
 - cek stabilitas APK
 - test 4 flow utama

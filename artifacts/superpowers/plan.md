@@ -5,7 +5,7 @@ Comprehensive cleanup, type hardening, and technical debt removal in KaffePOS.
 
 ## Assumptions
 - Codebase is React 18 + TS + Capacitor 6.
-- Supabase types are accessible or can be generated.
+- Domain and API types are accessible or can be generated.
 - `any` types can be replaced with more specific types or and `unknown` where needed.
 
 ## Plan
@@ -32,7 +32,7 @@ Comprehensive cleanup, type hardening, and technical debt removal in KaffePOS.
 
 ### 5. Eliminate `any` Types
 - **Files**: `src/**/*`
-- **Change**: Replace `any` with specific types or interface-based types. Use Supabase generated types if available.
+- **Change**: Replace `any` with specific types or interface-based types. Use API or database-generated types if available.
 - **Verify**: `grep -r ": any" src/`, `grep -r "as any" src/`, `grep -r "<any>" src/` should return no matches.
 
 ### 6. Final Validation

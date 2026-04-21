@@ -102,7 +102,7 @@ const LEGAL_CONTENT: Record<LegalKind, LegalDocument> = {
       {
         title: '4. Penyedia pihak ketiga',
         paragraphs: [
-          'KaffePOS saat ini menggunakan penyedia infrastruktur pihak ketiga seperti Supabase untuk backend, Resend untuk email transaksional, dan Firebase Crashlytics untuk pemantauan crash APK ketika fitur tersebut diaktifkan.',
+          'KaffePOS saat ini menggunakan penyedia infrastruktur pihak ketiga seperti Contabo, Coolify, Cloudflare, Resend, dan Firebase Crashlytics ketika fitur pemantauan APK diaktifkan.',
           'Pemrosesan oleh pihak ketiga mengikuti kebutuhan operasional layanan dan kebijakan mereka masing-masing sejauh relevan dengan fungsi KaffePOS.',
         ],
       },

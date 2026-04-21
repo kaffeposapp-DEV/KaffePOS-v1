@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getAuthModeFromLocation,
   getAuthPathForMode,
-  hasAuthCallbackParams,
+  getPasswordResetParams,
   isExistingSignupAttempt,
   normalizeSignupErrorMessage,
 } from '@/utils/authFlow';
@@ -15,10 +15,17 @@ describe('authFlow helpers', () => {
     expect(getAuthPathForMode('login')).toBe('/login');
   });
 
-  it('detects callback params from search and hash fragments', () => {
-    expect(hasAuthCallbackParams(new URL('https://kaffepos.my.id/auth/callback?code=abc123'))).toBe(true);
-    expect(hasAuthCallbackParams(new URL('https://kaffepos.my.id/auth/callback#access_token=token'))).toBe(true);
-    expect(hasAuthCallbackParams(new URL('https://kaffepos.my.id/login'))).toBe(false);
+  it('reads password reset params from the URL', () => {
+    expect(
+      getPasswordResetParams(new URL('https://kaffepos.my.id/reset-password?email=test@example.com&token=abc123'))
+    ).toEqual({
+      email: 'test@example.com',
+      token: 'abc123',
+    });
+    expect(getPasswordResetParams(new URL('https://kaffepos.my.id/login'))).toEqual({
+      email: null,
+      token: null,
+    });
   });
 
   it('recognizes obfuscated duplicate signup responses', () => {

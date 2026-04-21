@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Check, ChevronRight, ExternalLink, History, Instagram, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { getSubscriptions } from '@/lib/backendApi';
+import { createSubscriptionPayment, getSubscriptions } from '@/lib/backendApi';
 import {
   BILLING_CYCLE_LABELS,
   INSTAGRAM_ADMIN_URL,
@@ -48,6 +48,17 @@ type PaymentHistoryRow = {
   payment_note: string | null;
 };
 
+type PendingPaymentRow = {
+  id: string;
+  plan: string;
+  billing_cycle: string;
+  amount: number;
+  redirect_url: string | null;
+  transaction_status: string;
+  expires_at: string | null;
+  created_at: string;
+};
+
 const DEFAULT_SELECTIONS = [
   { plan: 'secangkir', billingCycle: 'free' },
   { plan: 'kopi_susu', billingCycle: 'monthly' },
@@ -60,9 +71,11 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
   const { user } = useAuth();
   const [currentSubscription, setCurrentSubscription] = useState<SubscriptionRow | null>(null);
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryRow[]>([]);
+  const [pendingPayments, setPendingPayments] = useState<PendingPaymentRow[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('signature');
   const [selectedCycle, setSelectedCycle] = useState('quarterly');
 
@@ -73,6 +86,7 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
       const response = await getSubscriptions();
       setCurrentSubscription(response.currentSubscription || null);
       setPaymentHistory(response.paymentHistory || []);
+      setPendingPayments(response.pendingPayments || []);
     } catch {
       toast.showToast('Gagal memuat data langganan.', 'error');
     } finally {
@@ -99,6 +113,10 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
   const isExpired = currentSubscription?.status === 'expired' || (!!expiryDate && expiryDate.getTime() <= Date.now());
   const expiringSoon = !isExpired && daysRemaining !== null && daysRemaining <= 7;
   const paidHistory = useMemo(() => paymentHistory.filter((entry) => entry.amount > 0), [paymentHistory]);
+  const activePendingPayment = useMemo(
+    () => pendingPayments.find((entry) => ['pending', 'capture'].includes(entry.transaction_status)) || null,
+    [pendingPayments],
+  );
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -115,6 +133,33 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
 
   const goToConfirmation = (plan: string, billingCycle: string) => {
     navigate(`/plan-confirmation?plan=${plan}&billingCycle=${billingCycle}`);
+  };
+
+  const handlePayOnline = async () => {
+    if (selectedPlan === 'secangkir') {
+      toast.showToast('Paket gratis tidak membutuhkan pembayaran.', 'info');
+      return;
+    }
+
+    setPaying(true);
+    try {
+      const result = await createSubscriptionPayment({
+        plan: selectedPlan as 'kopi_susu' | 'signature' | 'founder',
+        billingCycle: selectedCycle as 'monthly' | 'quarterly' | 'yearly',
+      });
+
+      if (!result.payment?.redirect_url) {
+        throw new Error('Link pembayaran Midtrans tidak tersedia.');
+      }
+
+      toast.showToast(result.reused ? 'Melanjutkan pembayaran yang masih pending.' : 'Mengarahkan ke Midtrans...', 'success');
+      window.location.assign(result.payment.redirect_url);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Gagal membuat pembayaran Midtrans.';
+      toast.showToast(message, 'error');
+    } finally {
+      setPaying(false);
+    }
   };
 
   return (
@@ -188,6 +233,27 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
               Lihat Riwayat Pembayaran
             </button>
           </div>
+
+          {activePendingPayment && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+              <p className="font-black">Ada pembayaran yang masih pending.</p>
+              <p className="mt-1">
+                Paket {getPlanDefinition(activePendingPayment.plan).name} · {BILLING_CYCLE_LABELS[(activePendingPayment.billing_cycle as keyof typeof BILLING_CYCLE_LABELS) || 'monthly']} · {formatRupiah(activePendingPayment.amount)}
+              </p>
+              {activePendingPayment.expires_at && (
+                <p className="mt-1 text-xs text-amber-700">Berlaku sampai {formatDateId(activePendingPayment.expires_at)}</p>
+              )}
+              {activePendingPayment.redirect_url && (
+                <a
+                  href={activePendingPayment.redirect_url}
+                  className="mt-3 inline-flex items-center gap-2 rounded-xl bg-amber-600 px-3 py-2 text-xs font-black text-white"
+                >
+                  Lanjutkan Pembayaran
+                  <ExternalLink size={14} />
+                </a>
+              )}
+            </div>
+          )}
 
           {isAdminEmail(profile?.email) && (
             <button
@@ -284,10 +350,18 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
         </div>
 
         <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-          Mau unlock fitur ini? Tinggal chat admin kami. Aktivasi maksimal 1x24 jam setelah transfer dikonfirmasi.
+          Mau upgrade lebih cepat? Kamu bisa bayar otomatis via Midtrans untuk paket berbayar. Kalau butuh bantuan manual, admin tetap siap bantu.
         </div>
 
         <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <button
+            onClick={() => { void handlePayOnline(); }}
+            disabled={paying || selectedPlan === 'secangkir'}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {paying ? 'Membuat pembayaran...' : 'Bayar via Midtrans'}
+            <ChevronRight size={16} />
+          </button>
           <button
             onClick={() => goToConfirmation(selectedPlan, selectedCycle)}
             className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white"
@@ -311,9 +385,9 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
           <div className="mt-3 space-y-2">
             {[
               'Pilih paket yang paling cocok untuk kebutuhan tokomu.',
-              'Klik tombol konfirmasi paket atau langsung chat admin di Instagram.',
-              'Transfer sesuai nominal yang diberikan admin.',
-              'Kirim bukti transfer, lalu tunggu aktivasi maksimal 1x24 jam.',
+              'Klik Bayar via Midtrans untuk membuka halaman pembayaran otomatis.',
+              'Selesaikan pembayaran dengan metode yang tersedia, termasuk QRIS bila aktif di akun Midtrans.',
+              'Setelah settlement, status langganan akan sinkron otomatis ke akun Web dan APK.',
             ].map((step, index) => (
               <div key={step} className="flex items-start gap-3 text-sm text-slate-600">
                 <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-black text-white">

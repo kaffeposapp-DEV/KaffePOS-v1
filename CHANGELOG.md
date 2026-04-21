@@ -22,7 +22,7 @@ Semua perubahan penting KaffePOS dicatat di dokumen ini.
 
 - Alur build release Android kini terdokumentasi dengan env `KPOS_RELEASE_*`
 - Footer auth mengarah ke link legal yang valid
-- README diperbarui agar sesuai baseline operasi Supabase, Resend, dan APK Android
+- README diperbarui agar sesuai baseline operasi API self-hosted, Resend, dan APK Android
 
 ### Fixed
 

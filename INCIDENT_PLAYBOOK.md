@@ -14,7 +14,7 @@ Dokumen ini dipakai saat ada gangguan produksi.
 
 1. Buka `kaffepos.my.id`
 2. Coba login dengan akun uji
-3. Cek log Supabase Edge Function:
+3. Cek log backend API di Coolify:
    - `auth-email`
    - `verify-email-code`
    - `send-notification`
@@ -33,7 +33,7 @@ Dokumen ini dipakai saat ada gangguan produksi.
 
 1. Tes akun kasir baru
 2. Tes buat transaksi kecil
-3. Cek Supabase table:
+3. Cek tabel PostgreSQL production:
    - `transactions`
    - `inventory`
    - `cash_register`

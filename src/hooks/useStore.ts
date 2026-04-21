@@ -6,7 +6,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/hooks/useStore.ts — KaffePOS v5 — Full localStorage cache (menu+inv+trx)
 import { create } from 'zustand';
-import { supabase } from '@/lib/supabase';
+import { clearStoredAuthSession, markExplicitSignOut } from '@/lib/authSession';
 import {
   ApiError,
   checkoutTransaction,
@@ -38,6 +38,7 @@ import {
   clearSessionStorage,
   getPendingWritesKey,
   getStoreSettingsKey,
+  redirectToLogin,
 } from '@/utils/sessionIsolation';
 import type {
   MenuItem, InventoryItem, Transaction, Expense,
@@ -324,7 +325,7 @@ export const useStore = create<AppStore>((set, get) => ({
   setStoreId: (id) => set({ storeId: id }),
 
   cleanup: () => {
-    // Main data layer no longer depends on Supabase realtime.
+    // Main data layer now uses backend API polling and explicit refresh.
   },
 
   resetState: () => {
@@ -411,18 +412,17 @@ export const useStore = create<AppStore>((set, get) => ({
         return;
       }
       if (e instanceof ApiError && e.status === 401) {
-        const { data } = await supabase.auth.refreshSession();
-        if (data.session) {
-          await get().loadAll(storeId);
-          return;
-        }
         import('@/utils/toast').then(m => m.showToast('Sesi kamu berakhir. Silakan login ulang.', 'error'));
-        await supabase.auth.signOut().catch(() => {});
+        await markExplicitSignOut().catch(() => {});
+        await clearStoredAuthSession().catch(() => {});
+        redirectToLogin(true);
         return;
       }
       if (e instanceof ApiError && e.status === 403) {
         import('@/utils/toast').then(m => m.showToast('Akses ke data toko ditolak.', 'error'));
-        await supabase.auth.signOut().catch(() => {});
+        await markExplicitSignOut().catch(() => {});
+        await clearStoredAuthSession().catch(() => {});
+        redirectToLogin(true);
         return;
       }
       const msg = e instanceof Error ? e.message : 'Koneksi bermasalah. Coba lagi.';

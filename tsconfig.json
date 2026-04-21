@@ -37,7 +37,5 @@
       "path": "./tsconfig.node.json"
     }
   ],
-  "exclude": [
-    "supabase/**/*"
-  ]
+  "exclude": []
 }

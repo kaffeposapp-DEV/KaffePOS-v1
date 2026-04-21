@@ -1,0 +1,146 @@
+-- KaffePOS production bootstrap for self-hosted stack
+-- Target: PostgreSQL on Contabo VPS
+-- Run against kaffepos_production before cutting over fully from legacy auth.
+
+create extension if not exists pgcrypto;
+
+do $$
+declare
+  profiles_auth_fk text;
+  insight_auth_fk text;
+begin
+  select con.conname
+  into profiles_auth_fk
+  from pg_constraint con
+  join pg_class rel on rel.oid = con.conrelid
+  join pg_namespace nsp on nsp.oid = rel.relnamespace
+  join pg_class ref on ref.oid = con.confrelid
+  join pg_namespace refnsp on refnsp.oid = ref.relnamespace
+  where con.contype = 'f'
+    and nsp.nspname = 'public'
+    and rel.relname = 'profiles'
+    and refnsp.nspname = 'auth'
+    and ref.relname = 'users'
+  limit 1;
+
+  if profiles_auth_fk is not null then
+    execute format('alter table public.profiles drop constraint %I', profiles_auth_fk);
+  end if;
+
+  select con.conname
+  into insight_auth_fk
+  from pg_constraint con
+  join pg_class rel on rel.oid = con.conrelid
+  join pg_namespace nsp on nsp.oid = rel.relnamespace
+  join pg_class ref on ref.oid = con.confrelid
+  join pg_namespace refnsp on refnsp.oid = ref.relnamespace
+  where con.contype = 'f'
+    and nsp.nspname = 'public'
+    and rel.relname = 'ai_insight_logs'
+    and refnsp.nspname = 'auth'
+    and ref.relname = 'users'
+  limit 1;
+
+  if insight_auth_fk is not null then
+    execute format('alter table public.ai_insight_logs drop constraint %I', insight_auth_fk);
+  end if;
+end $$;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'public'
+      and table_name = 'ai_insight_logs'
+  ) and not exists (
+    select 1
+    from pg_constraint
+    where conname = 'ai_insight_logs_user_id_profiles_fk'
+  ) then
+    alter table public.ai_insight_logs
+      add constraint ai_insight_logs_user_id_profiles_fk
+      foreign key (user_id) references public.profiles(id) on delete cascade;
+  end if;
+end $$;
+
+create table if not exists public.app_auth_credentials (
+  user_id uuid primary key references public.profiles(id) on delete cascade,
+  email text not null unique,
+  password_hash text,
+  email_verified_at timestamptz,
+  last_login_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.app_auth_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  token_hash text not null unique,
+  ip_address text,
+  user_agent text,
+  expires_at timestamptz not null,
+  last_seen_at timestamptz not null default now(),
+  revoked_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists app_auth_sessions_user_id_idx
+  on public.app_auth_sessions (user_id, expires_at desc)
+  where revoked_at is null;
+
+create table if not exists public.app_password_reset_tokens (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  email text not null,
+  token_hash text not null unique,
+  expires_at timestamptz not null,
+  consumed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists app_password_reset_tokens_email_idx
+  on public.app_password_reset_tokens (email, created_at desc)
+  where consumed_at is null;
+
+create table if not exists public.subscription_payment_sessions (
+  id uuid primary key,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  store_id uuid references public.stores(id) on delete set null,
+  subscription_id uuid references public.subscriptions(id) on delete set null,
+  plan text not null,
+  billing_cycle text not null,
+  amount integer not null,
+  currency_code text not null default 'IDR',
+  midtrans_order_id text not null unique,
+  midtrans_transaction_id text,
+  snap_token text,
+  redirect_url text,
+  payment_type text,
+  transaction_status text not null default 'pending',
+  fraud_status text,
+  status_code text,
+  expires_at timestamptz,
+  paid_at timestamptz,
+  settled_at timestamptz,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists subscription_payment_sessions_user_id_idx
+  on public.subscription_payment_sessions (user_id, created_at desc);
+
+create index if not exists subscription_payment_sessions_order_id_idx
+  on public.subscription_payment_sessions (midtrans_order_id);
+
+insert into public.app_auth_credentials (user_id, email, email_verified_at, created_at, updated_at)
+select p.id, lower(trim(p.email)), now(), now(), now()
+from public.profiles p
+where p.email is not null
+  and trim(p.email) <> ''
+on conflict (user_id) do update
+set
+  email = excluded.email,
+  updated_at = now();

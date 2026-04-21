@@ -4,33 +4,25 @@
  
  
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// src/App.tsx — KaffePOS v13 PKCE CODE VERIFIER RESTORE FIX
-// FIX v13: Restore PKCE code verifier dari Preferences sebelum exchangeCodeForSession
-// ROOT CAUSE: Android kill WebView sandboxed process saat Custom Tab aktif → localStorage hilang
-// SOLUSI: Backup code verifier ke Capacitor Preferences (persisten) sebelum Browser.open()
-//   - Browser.open() menggantikan window.open(_system)
-//   - browserFinished event sebagai signal OAuth selesai
-//   - appUrlOpen (via onNewIntent) tetap handle PKCE code exchange
 import { Suspense, lazy, useState, useEffect, useRef, useCallback } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
-import { Browser } from '@capacitor/browser';
 import { Network } from '@capacitor/network';
-import { supabase } from './lib/supabase';
 import { useLocation } from 'react-router-dom';
 import { useStore } from './hooks/useStore';
 import { autoConnectOnResume } from './utils/bluetoothPrinter';
-import { getAuthModeFromLocation, hasAuthCallbackParams, isAuthSurfacePath } from './utils/authFlow';
+import { getAuthModeFromLocation, isAuthSurfacePath } from './utils/authFlow';
+import { initAnalytics, trackPageView } from '@/lib/analytics';
 import GlobalErrorBoundary from './components/ui/GlobalErrorBoundary';
-import type { EmailOtpType } from '@supabase/supabase-js';
 
 const AuthPage = lazy(() => import('./components/auth/AuthPage'));
 const AppShell = lazy(() => import('./components/AppShell'));
 const PlanConfirmation = lazy(() => import('./pages/PlanConfirmation'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 const LegalPage = lazy(() => import('./pages/LegalPage'));
+const SystemStatusPage = lazy(() => import('./pages/SystemStatusPage'));
 const IS_MOBILE_TARGET_BUILD = import.meta.env.VITE_APP_TARGET === 'mobile';
 const LandingPage = IS_MOBILE_TARGET_BUILD
   ? (() => null)
@@ -82,10 +74,6 @@ function AuthLoading() {
   );
 }
 
-function getParamFromDeepLink(url: URL, key: string) {
-  return url.searchParams.get(key) || new URLSearchParams(url.hash.replace(/^#/, '')).get(key);
-}
-
 // ── Offline Banner ─────────────────────────────────────────────
 function OfflineBanner({ show }: { show: boolean }) {
   if (!show) return null;
@@ -130,14 +118,15 @@ function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
   const isNative = Capacitor.isNativePlatform() || IS_MOBILE_TARGET_BUILD;
-  const requiresPasswordReset = typeof window !== 'undefined' && localStorage.getItem('kaffepos_password_reset_required') === '1';
   const currentAuthMode = getAuthModeFromLocation(location.pathname, location.search);
   const onAuthSurface = isAuthSurfacePath(location.pathname);
+
+  useEffect(() => {
+    trackPageView(`${location.pathname}${location.search}`);
+  }, [location.pathname, location.search]);
+
   if (loading) return <AuthLoading />;
-  if (requiresPasswordReset && currentAuthMode !== 'reset') {
-    return <Navigate to="/reset-password" replace />;
-  }
-  if (isAuthenticated && onAuthSurface && !requiresPasswordReset) {
+  if (isAuthenticated && onAuthSurface && currentAuthMode !== 'reset') {
     return <Navigate to="/" replace />;
   }
   return (
@@ -157,6 +146,7 @@ function AppRoutes() {
       <Route path="/terms-of-service" element={<LegalPage kind="terms" />} />
       <Route path="/privacy" element={<LegalPage kind="privacy" />} />
       <Route path="/privacy-policy" element={<LegalPage kind="privacy" />} />
+      <Route path="/system-status" element={<SystemStatusPage />} />
       <Route path="/admin" element={
         isAuthenticated ? <AdminPanel /> : <Navigate to="/login" replace />
       } />
@@ -175,6 +165,10 @@ export default function App() {
   const reloadInFlightRef = useRef(false);
   const lastReloadAtRef = useRef(0);
   const { loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    initAnalytics();
+  }, []);
 
   const reloadStoreData = useCallback(async (reason: 'network-online' | 'app-active') => {
     const now = Date.now();
@@ -199,83 +193,6 @@ export default function App() {
     } finally {
       reloadInFlightRef.current = false;
     }
-  }, []);
-
-  const handleAuthRedirect = useCallback(async (rawUrl: string) => {
-    const processedUrl = rawUrl
-      .replace('id.kaffeepos.app://', 'https://kaffepos.my.id/')
-      .replace('kaffepos://', 'https://kaffepos.my.id/');
-
-    const urlObj = new URL(processedUrl);
-    if (!hasAuthCallbackParams(urlObj)) return false;
-
-    try {
-      const code = getParamFromDeepLink(urlObj, 'code');
-      if (code) {
-        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) console.error('[OAuth] Exchange error:', error.message);
-        if (data?.session) {
-          localStorage.removeItem('kaffepos_pending_verification');
-          localStorage.removeItem('kaffepos_registered_email');
-          setSplashDone(true);
-        }
-      }
-
-      const tokenHash = getParamFromDeepLink(urlObj, 'token_hash');
-      const otpType = getParamFromDeepLink(urlObj, 'type') as EmailOtpType | null;
-      if (tokenHash && otpType) {
-        const { data, error } = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type: otpType,
-        });
-        if (error) console.error('[DeepLink] verifyOtp error:', error.message);
-        if (data?.session) {
-          if (otpType === 'recovery') {
-            localStorage.setItem('kaffepos_password_reset_required', '1');
-            window.history.replaceState({}, '', '/reset-password');
-          } else {
-            localStorage.removeItem('kaffepos_pending_verification');
-            localStorage.removeItem('kaffepos_registered_email');
-          }
-          setSplashDone(true);
-        } else if (otpType === 'signup') {
-          localStorage.removeItem('kaffepos_pending_verification');
-          localStorage.removeItem('kaffepos_registered_email');
-          window.history.replaceState({}, '', '/login?verified=1');
-        }
-      }
-
-      const accessToken = getParamFromDeepLink(urlObj, 'access_token');
-      const refreshToken = getParamFromDeepLink(urlObj, 'refresh_token');
-      if (accessToken && refreshToken) {
-        const { data, error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-        if (error) console.error('[DeepLink] setSession error:', error.message);
-        if (data?.session) {
-          const type = getParamFromDeepLink(urlObj, 'type');
-          const looksLikeRecovery = type === 'recovery' || rawUrl.includes('reset-password');
-          if (looksLikeRecovery) {
-            localStorage.setItem('kaffepos_password_reset_required', '1');
-            window.history.replaceState({}, '', '/reset-password');
-          } else {
-            localStorage.removeItem('kaffepos_pending_verification');
-            localStorage.removeItem('kaffepos_registered_email');
-          }
-          setSplashDone(true);
-        }
-      }
-    } catch (e) {
-      console.error('[DeepLink] Global error:', e);
-    } finally {
-      setSplashDone(true);
-      if (Capacitor.isNativePlatform()) {
-        await Browser.close().catch(() => {});
-      }
-    }
-
-    return true;
   }, []);
 
   // Splash singkat agar launch terasa responsif seperti aplikasi produksi.
@@ -309,34 +226,6 @@ export default function App() {
     });
     return () => { handler.then(h => h.remove()); };
   }, [],   );
-
-  // ── Deep link: Google OAuth PKCE callback & Email Confirmation ────────────────────────
-  useEffect(() => {
-    const urlListener = CapApp.addListener('appUrlOpen', async ({ url }) => {
-      // Handle deep links for both Google OAuth and Email confirmation
-      if (url.includes('login-callback') || 
-          url.includes('email-confirmed') ||
-          url.includes('reset-password') ||
-          url.includes('access_token') ||
-          url.includes('token_hash=') ||
-          url.includes('type=signup') ||
-          url.includes('type=recovery') ||
-          url.includes('code=')) {
-        await handleAuthRedirect(url);
-      }
-    });
-
-    return () => {
-      urlListener.then(l => l.remove());
-    };
-  }, [handleAuthRedirect],   );
-
-  useEffect(() => {
-    if (Capacitor.isNativePlatform()) return;
-    handleAuthRedirect(window.location.href).catch((error) => {
-      console.error('[WebAuthCallback] Failed to process auth callback:', error);
-    });
-  }, [handleAuthRedirect]);
 
   // ── FIX 4: APP Lifecycle & Network Status ──────────────────────
   useEffect(() => {

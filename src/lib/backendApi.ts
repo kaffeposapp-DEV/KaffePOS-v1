@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { supabase } from '@/lib/supabase';
+import { getStoredAccessToken } from '@/lib/authSession';
 
 const API_DEFAULT_PROD_ORIGIN = 'https://api.kaffepos.my.id';
 const EXPLICIT_API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
@@ -24,7 +24,7 @@ function isLocalHostname(hostname: string) {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.local');
 }
 
-function resolveApiBaseUrl() {
+export function resolveApiBaseUrl() {
   if (EXPLICIT_API_BASE_URL) {
     return EXPLICIT_API_BASE_URL;
   }
@@ -56,8 +56,7 @@ function buildUrl(path: string) {
 }
 
 async function getAccessToken() {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? null;
+  return getStoredAccessToken();
 }
 
 async function readErrorMessage(response: Response) {
@@ -105,6 +104,67 @@ export async function apiFetch<T>(path: string, init: RequestInitWithJson = {}):
 
   return response.json() as Promise<T>;
 }
+
+export type AuthSessionResponse = {
+  accessToken: string;
+  expiresAt: string;
+  user: {
+    id: string;
+    email: string | null;
+    email_verified_at?: string | null;
+    user_metadata?: Record<string, unknown> | null;
+  };
+  profile: ProfileResponse;
+};
+
+export const loginRequest = (payload: { email: string; password: string }) =>
+  apiFetch<AuthSessionResponse>('/api/auth/login', {
+    method: 'POST',
+    auth: false,
+    json: payload,
+  });
+
+export const registerRequest = (payload: { email: string; password: string; username: string }) =>
+  apiFetch<{ success: boolean; needsVerification: boolean; message: string }>('/api/auth/register', {
+    method: 'POST',
+    auth: false,
+    json: payload,
+  });
+
+export const resendVerificationRequest = (payload: { email: string }) =>
+  apiFetch<{ success: boolean; message: string }>('/api/auth/verification/resend', {
+    method: 'POST',
+    auth: false,
+    json: payload,
+  });
+
+export const verifyEmailCodeRequest = (payload: { email: string; code: string }) =>
+  apiFetch<{ success: boolean; message: string }>('/api/auth/verification/confirm', {
+    method: 'POST',
+    auth: false,
+    json: payload,
+  });
+
+export const forgotPasswordRequest = (payload: { email: string }) =>
+  apiFetch<{ success: boolean; message: string }>('/api/auth/password/forgot', {
+    method: 'POST',
+    auth: false,
+    json: payload,
+  });
+
+export const resetPasswordRequest = (payload: { email: string; token: string; password: string }) =>
+  apiFetch<{ success: boolean; message: string }>('/api/auth/password/reset', {
+    method: 'POST',
+    auth: false,
+    json: payload,
+  });
+
+export const getAuthSession = () => apiFetch<{ user: AuthSessionResponse['user']; profile: ProfileResponse; sessionExpiresAt: string }>('/api/auth/session');
+export const logoutRequest = () => apiFetch<{ success: boolean }>('/api/auth/logout', {
+  method: 'POST',
+  json: {},
+});
+export const getSystemStatus = () => apiFetch<any>('/system-status', { auth: false });
 
 export type ProfileResponse = {
   id: string;
@@ -172,7 +232,15 @@ export const updateCashRegisterEntry = (id: string, payload: Record<string, unkn
   apiFetch<any>(`/api/cash-register/${id}`, { method: 'PATCH', json: payload });
 
 export const getSubscriptions = () =>
-  apiFetch<{ currentSubscription: any | null; subscriptions: any[]; paymentHistory: any[] }>('/api/subscriptions');
+  apiFetch<{ currentSubscription: any | null; subscriptions: any[]; paymentHistory: any[]; pendingPayments: any[] }>('/api/subscriptions');
+
+export const createSubscriptionPayment = (payload: {
+  plan: 'kopi_susu' | 'signature' | 'founder';
+  billingCycle: 'monthly' | 'quarterly' | 'yearly';
+}) => apiFetch<{ reused: boolean; payment: any }>('/api/subscriptions/payments/create', {
+  method: 'POST',
+  json: payload,
+});
 
 export const trackOpsEventRequest = (payload: {
   event_name: 'login' | 'checkout';

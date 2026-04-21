@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { enforceRateLimit } from '../supabase/functions/_shared/rate-limit.ts';
+import { enforceRateLimit } from '../backend/src/lib/rateLimit.ts';
 
 type RateLimitRow = {
   id: string;

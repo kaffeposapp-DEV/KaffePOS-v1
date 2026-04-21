@@ -88,7 +88,7 @@ export interface CashRegister {
 export interface Profile {
   id: string; username?: string; display_name?: string;
   email?: string; avatar_url?: string;
-  tier?: string;       // 'pro' | 'basic' — kolom utama di Supabase
+  tier?: string;       // 'pro' | 'basic' — kolom utama subscription state
   tier_expires_at?: string;
   is_pro?: boolean;    // kolom legacy (fallback)
   pro_plan?: string; pro_order_id?: string;

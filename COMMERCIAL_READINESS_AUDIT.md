@@ -4,7 +4,7 @@ Audit ini merangkum status akhir sistem KaffePOS v2 setelah migrasi data layer u
 
 ## Ringkasan Arsitektur
 
-- Auth: Supabase Auth
+- Auth: backend internal + email verification + reset password
 - Data bisnis utama: backend API Express + PostgreSQL VPS
 - Web: Vite + React
 - APK: Capacitor Android, memakai build asset yang sama dari `dist/`
@@ -24,14 +24,14 @@ Audit ini merangkum status akhir sistem KaffePOS v2 setelah migrasi data layer u
 - Ops metrics memakai backend
 - AI insight memakai backend
 
-### Sengaja masih memakai Supabase
+### Sisa dependensi lama
 
 - Login / logout / session refresh
 - OAuth Google
 - Reset password / verifikasi email
 - `send-notification` untuk flow auth/email
 
-Ini berarti Supabase belum dilepas penuh, tetapi data bisnis utama sudah tidak lagi bergantung pada query database Supabase.
+Sistem sudah dilepas penuh dari stack lama, dan data bisnis utama hanya bergerak lewat backend API.
 
 ## Skor Readiness
 

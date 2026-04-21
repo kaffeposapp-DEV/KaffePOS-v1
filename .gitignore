@@ -3,7 +3,6 @@ dist/
 .env
 .env.*
 .agent/
-supabase/.temp/
 android/
 ios/
 *.jks

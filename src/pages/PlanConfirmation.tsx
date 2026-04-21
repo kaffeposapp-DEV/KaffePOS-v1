@@ -9,11 +9,11 @@ import {
 } from '@/lib/subscriptionPlans';
 
 const STEPS = [
-  'Chat admin kami di Instagram @kaffepos',
-  'Beritahu paket dan periode yang kamu pilih',
-  'Admin akan kirimkan nomor rekening',
-  'Transfer sesuai nominal dan kirim bukti',
-  'Akun kamu akan aktif dalam 1x24 jam',
+  'Masuk ke dashboard langganan KaffePOS',
+  'Pilih paket dan periode yang kamu mau',
+  'Klik Bayar via Midtrans untuk membuka halaman pembayaran',
+  'Selesaikan pembayaran dengan metode yang tersedia',
+  'Status langganan akan sinkron otomatis setelah settlement',
 ];
 
 export default function PlanConfirmation() {
@@ -40,7 +40,7 @@ export default function PlanConfirmation() {
             <p className="text-xs font-black uppercase tracking-[0.24em] text-white/70">Konfirmasi Paket</p>
             <h1 className="mt-3 text-3xl font-black text-white">Paket yang kamu pilih</h1>
             <p className="mt-2 max-w-xl text-sm text-white/80">
-              Cek detail paketmu dulu, lalu lanjut chat admin untuk proses pembayaran manual.
+              Cek detail paketmu dulu, lalu lanjutkan pembayaran otomatis dari halaman langganan akunmu.
             </p>
           </div>
 
@@ -100,7 +100,7 @@ export default function PlanConfirmation() {
                 className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 py-4 text-sm font-black text-white shadow-lg shadow-slate-900/15"
               >
                 <Instagram size={18} />
-                Chat Admin di Instagram
+                Hubungi Admin
               </a>
               <Link
                 to="/login"
@@ -111,7 +111,7 @@ export default function PlanConfirmation() {
             </div>
 
             <p className="text-center text-xs text-slate-500">
-              Butuh bantuan? DM kami di @kaffepos — kami response dalam jam kerja 09.00-21.00 WIB
+              Pembayaran online diproses otomatis. Kalau ada kendala, admin kami tetap standby di jam kerja 09.00-21.00 WIB.
             </p>
           </div>
         </div>

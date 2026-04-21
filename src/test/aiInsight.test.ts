@@ -6,18 +6,11 @@
  
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/supabase', () => ({
-  SUPABASE_URL: 'https://example.supabase.co',
-  SUPABASE_ANON_KEY: 'anon-key',
-  supabase: {
-    auth: {
-      getSession: vi.fn().mockResolvedValue({
-        data: { session: { access_token: 'token-123' } },
-      }),
-    },
-  },
+vi.mock('@/lib/backendApi', () => ({
+  requestAiInsight: vi.fn(),
 }));
 
+import { requestAiInsight } from '@/lib/backendApi';
 import { getAIInsight, type InsightContext } from '@/lib/aiInsight';
 
 const baseContext: InsightContext = {
@@ -54,13 +47,7 @@ describe('AI Insight fallback', () => {
   });
 
   it('mengembalikan fallback lokal saat billing/quota Gemini gagal', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false,
-      status: 502,
-      json: vi.fn().mockResolvedValue({
-        error: 'Billing Gemini belum aktif. Sistem akan memakai analisis cadangan.',
-      }),
-    }));
+    vi.mocked(requestAiInsight).mockRejectedValue(new Error('Billing Gemini belum aktif. Sistem akan memakai analisis cadangan.'));
 
     const result = await getAIInsight(baseContext);
 
@@ -71,16 +58,13 @@ describe('AI Insight fallback', () => {
   });
 
   it('menandai hasil Gemini saat request berhasil', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: vi.fn().mockResolvedValue({
-        summary: 'Ringkasan dari Gemini',
-        bestMenu: 'Fokus ke Cappuccino',
-        stockAlert: 'Stok aman',
-        prediction: 'Pendapatan naik',
-        tips: ['Tip 1', 'Tip 2', 'Tip 3'],
-      }),
-    }));
+    vi.mocked(requestAiInsight).mockResolvedValue({
+      summary: 'Ringkasan dari Gemini',
+      bestMenu: 'Fokus ke Cappuccino',
+      stockAlert: 'Stok aman',
+      prediction: 'Pendapatan naik',
+      tips: ['Tip 1', 'Tip 2', 'Tip 3'],
+    });
 
     const result = await getAIInsight(baseContext);
 

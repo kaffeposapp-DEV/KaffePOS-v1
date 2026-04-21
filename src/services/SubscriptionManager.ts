@@ -126,7 +126,7 @@ class SubscriptionManagerClass {
 
   private async doSync(): Promise<SubscriptionStatus> {
     try {
-      const status = await this.syncWithSupabase();
+      const status = await this.syncWithBackend();
       this.cachedStatus = status;
       this.lastSyncTime = Date.now();
       saveLocal(status);
@@ -139,7 +139,7 @@ class SubscriptionManagerClass {
     }
   }
 
-  private async syncWithSupabase(): Promise<SubscriptionStatus> {
+  private async syncWithBackend(): Promise<SubscriptionStatus> {
     const profile = await getProfileMe();
     if (!profile) return defaultStatus();
 

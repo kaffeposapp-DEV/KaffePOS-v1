@@ -1,89 +1,32 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { supabase } from '@/lib/supabase';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { clearStoredAuthSession, getStoredAuthSession, isSessionExpired, saveStoredAuthSession } from '@/lib/authSession';
 
-// Mock Supabase
-vi.mock('@/lib/supabase', () => ({
-  supabase: {
-    auth: {
-      signInWithPassword: vi.fn(),
-      signOut: vi.fn(),
-      getSession: vi.fn(),
-      getUser: vi.fn(),
-      onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
-    },
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn(() => Promise.resolve({ data: { id: '123', email: 'test@example.com' }, error: null })),
-        })),
-      })),
-      upsert: vi.fn(() => ({
-        select: vi.fn(() => ({
-          single: vi.fn(() => Promise.resolve({ data: { id: '123', email: 'test@example.com' }, error: null })),
-        })),
-      })),
-    })),
-    channel: vi.fn(() => ({
-      on: vi.fn().mockReturnThis(),
-      subscribe: vi.fn().mockReturnThis(),
-    })),
-    removeChannel: vi.fn(),
-  },
-}));
-
-describe('Auth Service', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+describe('Auth session storage', () => {
+  beforeEach(async () => {
     localStorage.clear();
+    await clearStoredAuthSession();
   });
 
-  it('signIn berhasil -> session tersimpan', async () => {
-    const mockSession = { user: { id: '123', email: 'test@example.com' }, access_token: 'abc' };
-    (supabase.auth.signInWithPassword as any).mockResolvedValue({
-      data: { session: mockSession },
-      error: null,
-    });
+  it('menyimpan dan membaca session auth lokal', async () => {
+    const session = {
+      accessToken: 'token-123',
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      user: { id: '123', email: 'test@example.com' },
+    };
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: 'test@example.com',
-      password: 'password123',
-    });
+    await saveStoredAuthSession(session);
+    const cached = await getStoredAuthSession();
 
-    expect(error).toBeNull();
-    expect(data.session).toEqual(mockSession);
-    expect(supabase.auth.signInWithPassword).toHaveBeenCalledWith({
-      email: 'test@example.com',
-      password: 'password123',
-    });
+    expect(cached).toEqual(session);
   });
 
-  it('signIn gagal -> error ditampilkan', async () => {
-    (supabase.auth.signInWithPassword as any).mockResolvedValue({
-      data: { session: null },
-      error: { message: 'Invalid login credentials', status: 401 },
-    });
+  it('mengenali session yang sudah kedaluwarsa', async () => {
+    const expiredSession = {
+      accessToken: 'token-123',
+      expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      user: { id: '123', email: 'test@example.com' },
+    };
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: 'wrong@example.com',
-      password: 'wrongpassword',
-    });
-
-    expect(error).not.toBeNull();
-    expect(error?.message).toBe('Invalid login credentials');
-    expect(data.session).toBeNull();
-  });
-
-  it('signOut -> session terhapus', async () => {
-    await supabase.auth.signOut();
-    expect(supabase.auth.signOut).toHaveBeenCalled();
-  });
-
-  it('session persist setelah reload (mock context logic)', async () => {
-    const mockSession = { user: { id: '123', email: 'test@example.com' } };
-    localStorage.setItem('kaffepos_session_cache', JSON.stringify(mockSession));
-    
-    const cached = JSON.parse(localStorage.getItem('kaffepos_session_cache') || 'null');
-    expect(cached).toEqual(mockSession);
+    expect(isSessionExpired(expiredSession)).toBe(true);
   });
 });

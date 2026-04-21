@@ -1,5 +1,5 @@
 export async function enforceRateLimit(
-  adminClient: any,
+  client: any,
   key: string,
   ip: string,
   maxHits: number,
@@ -9,7 +9,7 @@ export async function enforceRateLimit(
 ) {
   const windowStart = new Date(now.getTime() - windowMinutes * 60 * 1000).toISOString();
 
-  const { data: existing, error: fetchError } = await adminClient
+  const { data: existing, error: fetchError } = await client
     .from('edge_rate_limits')
     .select('id,hits')
     .eq('rate_key', key)
@@ -21,7 +21,7 @@ export async function enforceRateLimit(
   if (fetchError) throw fetchError;
 
   if (!existing) {
-    const { error } = await adminClient.from('edge_rate_limits').insert({
+    const { error } = await client.from('edge_rate_limits').insert({
       rate_key: key,
       hits: 1,
       last_ip: ip,
@@ -36,7 +36,7 @@ export async function enforceRateLimit(
     throw new Error(limitMessage);
   }
 
-  const { error } = await adminClient
+  const { error } = await client
     .from('edge_rate_limits')
     .update({
       hits: (existing.hits ?? 0) + 1,

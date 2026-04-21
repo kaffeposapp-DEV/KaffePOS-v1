@@ -4,7 +4,7 @@ Gunakan dokumen ini sebagai gerbang rilis sebelum APK dipublikasikan ke pengguna
 
 Baseline operasional yang dipakai saat ini:
 - Domain + hosting aktif di `kaffepos.my.id`
-- Backend utama di Supabase
+- Backend utama di API KaffePOS self-hosted
 - Email auth / transactional memakai Resend
 - APK Android dibangun dari Capacitor
 - Monitoring APK yang direkomendasikan: Firebase Crashlytics
@@ -31,7 +31,7 @@ Status:
 
 ## 2) Security & Data Protection
 
-- [x] **P0** Service role key hanya digunakan di Supabase Edge Functions (bukan client app).
+- [x] **P0** Secret sensitif hanya hidup di backend API, bukan di client app.
 - [x] **P0** Audit RLS per tabel kritikal (`stores`, `transactions`, `inventory`, `profiles`, `notifications`) sudah diverifikasi + `FORCE RLS` diterapkan.
 - [x] **P0** Uji akses lintas akun: akun A tidak bisa baca/ubah data akun B.
 - [~] **P1** Rate limit abuse test untuk endpoint auth email / verify otp / notifications (unit test helper + shared enforcement sudah ada, tinggal uji burst live di staging/device).
@@ -39,7 +39,7 @@ Status:
 
 ## 3) Authentication & Email Reliability
 
-- [x] **P0** Register menulis user + profile ke Supabase.
+- [x] **P0** Register menulis user + profile ke PostgreSQL production lewat backend API.
 - [x] **P0** OTP verifikasi email bekerja dan mengaktifkan akun.
 - [x] **P0** Welcome email dan security email menggunakan Resend.
 - [ ] **P0** Uji deliverability inbox utama (Gmail, Outlook, Yahoo) + cek spam rate.
@@ -149,5 +149,5 @@ Untuk panduan maintenance non-programmer yang lebih detail, lihat:
 Versi singkat:
 
 - **Harian:** cek web `kaffepos.my.id`, login, dan komplain user
-- **Mingguan:** cek Supabase logs, Resend delivery, dan stabilitas APK
+- **Mingguan:** cek Coolify logs, Resend delivery, dan stabilitas APK
 - **Bulanan:** backup, review billing, uji APK di device nyata, dan review komplain

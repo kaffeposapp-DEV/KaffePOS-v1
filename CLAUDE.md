@@ -1,7 +1,7 @@
 # Kaffee POS — AI Context
 
 ## Stack
-React 18 + TypeScript + TailwindCSS v3 + Capacitor 6 + Supabase + Zustand
+React 18 + TypeScript + TailwindCSS v3 + Capacitor 6 + Express API + PostgreSQL + Zustand
 
 ## Konvensi Wajib
 - State: Zustand only

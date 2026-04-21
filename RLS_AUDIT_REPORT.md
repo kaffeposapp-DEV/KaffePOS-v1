@@ -47,4 +47,4 @@ User B:
 
 - Tabel internal `email_verification_codes`, `edge_rate_limits`, dan `edge_function_events` dipertahankan sebagai tabel backend-only
 - Policy service-role-only ditambahkan agar advisor security lebih eksplisit membaca intent akses
-- Untuk uji regresi berikutnya, gunakan `supabase db query --linked` dengan role `authenticated` dan set claim `request.jwt.claim.sub`
+- Untuk uji regresi berikutnya, gunakan query SQL langsung ke PostgreSQL production dengan role aplikasi yang sesuai dan set user id uji secara eksplisit.

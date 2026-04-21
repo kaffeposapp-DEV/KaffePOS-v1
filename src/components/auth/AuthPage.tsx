@@ -78,8 +78,7 @@ export default function AuthPage() {
   const emailRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const requiresPasswordReset = localStorage.getItem('kaffepos_password_reset_required') === '1';
-    const resolvedMode = requiresPasswordReset ? 'reset' : getAuthModeFromLocation(location.pathname, location.search);
+    const resolvedMode = getAuthModeFromLocation(location.pathname, location.search);
     const params = new URLSearchParams(location.search);
     const verified = params.get('verified') === '1';
     const registeredEmail = localStorage.getItem('kaffepos_registered_email');
@@ -162,9 +161,6 @@ export default function AuthPage() {
 
     if (nextMode !== 'register') {
       localStorage.removeItem('kaffepos_registered_email');
-    }
-    if (nextMode !== 'reset') {
-      localStorage.removeItem('kaffepos_password_reset_required');
     }
 
     navigate(getAuthPathForMode(nextMode), { replace: true });
@@ -274,7 +270,6 @@ export default function AuthPage() {
           setOk('Password berhasil diperbarui. Silakan kembali ke form masuk.');
           setPass('');
           setConfirmPass('');
-          localStorage.removeItem('kaffepos_password_reset_required');
           setTimeout(() => switchMode('login'), 3000);
         }
       }

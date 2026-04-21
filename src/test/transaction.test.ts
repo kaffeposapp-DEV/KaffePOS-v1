@@ -1,43 +1,54 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useStore } from '@/hooks/useStore';
-import { supabase } from '@/lib/supabase';
+import { checkoutTransaction } from '@/lib/backendApi';
 
 vi.mock('@/lib/opsMetrics', () => ({
   trackOpsEvent: vi.fn(),
 }));
 
-// Mock Supabase
-vi.mock('@/lib/supabase', () => ({
-  supabase: {
-    rpc: vi.fn((fn: string) => {
-      if (fn === 'process_checkout') {
-        return Promise.resolve({ data: { id: 'tx_123', store_id: 'store_123', items: [], subtotal: 10000, discount: 0, tax: 0, total: 10000, cogs: 0, paid: 10000, change: 0, method: 'Tunai', is_void: false, date: new Date().toISOString() }, error: null });
-      }
-      if (fn === 'void_transaction_secure') {
-        return Promise.resolve({ data: { id: 'tx_123', store_id: 'store_123', is_void: true }, error: null });
-      }
-      return Promise.resolve({ data: null, error: null });
+vi.mock('@/lib/backendApi', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/backendApi')>();
+  return {
+    ...actual,
+    getStores: vi.fn().mockResolvedValue({
+      items: [{ id: 'store_123', store_name: 'Test Store' }],
     }),
-    from: vi.fn(() => ({
-      select: vi.fn().mockReturnThis(),
-      insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'tx_123' }, error: null }) }) }),
-      update: vi.fn().mockReturnThis(),
-      delete: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockReturnThis(),
-      order: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockReturnThis(),
-    })),
-    channel: vi.fn(() => ({
-      on: vi.fn().mockReturnThis(),
-      subscribe: vi.fn().mockReturnThis(),
-    })),
-    getChannels: vi.fn(() => []),
-    removeChannel: vi.fn(),
-    removeAllChannels: vi.fn(),
-  },
-}));
+    getMenuItems: vi.fn().mockResolvedValue({
+      items: [],
+    }),
+    getInventory: vi.fn().mockResolvedValue({
+      items: [],
+    }),
+    getTransactions: vi.fn().mockResolvedValue({
+      items: [],
+    }),
+    getExpenses: vi.fn().mockResolvedValue({
+      items: [],
+    }),
+    getCashFlow: vi.fn().mockResolvedValue({
+      items: [],
+    }),
+    getCashRegister: vi.fn().mockResolvedValue({
+      items: [],
+    }),
+    checkoutTransaction: vi.fn().mockResolvedValue({
+      id: 'tx_123',
+      store_id: 'store_123',
+      items: [],
+      subtotal: 10000,
+      discount: 0,
+      tax: 0,
+      total: 10000,
+      cogs: 0,
+      paid: 10000,
+      change: 0,
+      method: 'Tunai',
+      is_void: false,
+      date: new Date().toISOString(),
+    }),
+  };
+});
 
 describe('Transaction Flow (useStore)', () => {
   beforeEach(() => {
@@ -114,7 +125,7 @@ describe('Transaction Flow (useStore)', () => {
     expect(localStorage.getItem('kpos_discount_store_123')).toBeNull();
   });
 
-  it('transaksi tersimpan ke Supabase', async () => {
+  it('transaksi checkout terkirim ke backend API', async () => {
     const tx = {
       items: [{ name: 'Coffee', qty: 1, price: 10000, subtotal: 10000, menu_item_id: 'item_1' }],
       subtotal: 10000,
@@ -130,6 +141,9 @@ describe('Transaction Flow (useStore)', () => {
     };
 
     await useStore.getState().saveTransaction(tx as any);
-    expect(supabase.rpc).toHaveBeenCalledWith('process_checkout', expect.any(Object));
+    expect(checkoutTransaction).toHaveBeenCalledWith(expect.objectContaining({
+      store_id: 'store_123',
+      total: 10000,
+    }));
   });
 });
