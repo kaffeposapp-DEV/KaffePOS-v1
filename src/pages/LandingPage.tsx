@@ -78,26 +78,27 @@ type SafeContentItem = {
 
 const PRICING = [
   {
-    name: 'Starter',
-    price: '0',
-    desc: 'Untuk kafe baru yang ingin mencoba efisiensi digital.',
-    features: ['50 Transaksi / Bulan', 'Manajemen Stok Lokal', '1 Akun Kasir', 'Struk Digital'],
+    name: 'Kopi Susu',
+    price: '49rb',
+    period: '/bulan',
+    desc: 'Naik kelas dari catatan manual ke operasional yang lebih stabil.',
+    features: ['Transaksi unlimited', 'Export PDF & Excel', 'Laporan mingguan/bulanan', 'Cetak browser / WiFi'],
     color: 'border-white/5 bg-white/[0.01]'
   },
   {
-    name: 'Professional',
-    price: '149rb',
+    name: 'Signature',
+    price: '99rb',
     period: '/bulan',
-    desc: 'Fitur lengkap untuk bisnis yang sedang berkembang pesat.',
-    features: ['Transaksi Unlimited', 'Sinkronisasi Multi-Perangkat', 'Laporan Analitik PDF', 'Manajemen Resep & HPP'],
+    desc: 'Paket paling pas untuk bisnis yang ingin jalan lebih serius.',
+    features: ['Transaksi unlimited', 'Multi kasir & cashier session', 'Thermal Bluetooth/USB', 'AI Insight penjualan'],
     color: 'border-[#d8823b]/50 bg-[#d8823b]/5'
   },
   {
-    name: 'Enterprise',
-    price: '349rb',
+    name: 'Founder',
+    price: '199rb',
     period: '/bulan',
-    desc: 'Kekuatan penuh untuk jaringan kafe besar dan franchise.',
-    features: ['Dashboard Web Khusus', 'Manajemen Multi-Cabang', 'Prioritas Dukungan 24/7', 'Custom Integration'],
+    desc: 'Untuk outlet intensif yang butuh paket paling lengkap dan dukungan lebih cepat.',
+    features: ['Semua fitur Signature', 'Pendampingan setup prioritas', 'Review operasional berkala', 'Jalur bantuan lebih cepat'],
     color: 'border-white/5 bg-white/[0.01]'
   }
 ];
@@ -388,20 +389,6 @@ export default function LandingPage() {
         html {
           scroll-behavior: smooth;
         }
-        @keyframes marquee {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        @keyframes float {
-          0%, 100% { transform: translateY(0) rotate(0); }
-          50% { transform: translateY(-20px) rotate(10deg); }
-        }
-        .animate-marquee {
-          animation: marquee 60s linear infinite;
-        }
-        .animate-marquee:hover {
-          animation-play-state: paused;
-        }
         .animate-float {
           animation: float 6s ease-in-out infinite;
         }
@@ -414,8 +401,6 @@ export default function LandingPage() {
             backgroundSize: '40px 40px',
           }}
         />
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#d8823b]/10 blur-[150px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#d8823b]/5 blur-[120px] rounded-full" />
       </div>
 
       {/* Navbar */}
@@ -549,13 +534,13 @@ export default function LandingPage() {
               {/* Action Buttons Area */}
               <div className="flex flex-col border-t border-white/5 pt-10 pb-6 gap-8 text-center">
                 <button 
-                  onClick={() => navigate('/login')}
+                  onClick={() => { setMobileMenuOpen(false); navigate('/login'); }}
                   className="text-xl font-black text-[#d8823b] hover:text-white transition-colors uppercase italic tracking-widest"
                 >
                   MASUK AKUN
                 </button>
                 <button 
-                  onClick={() => navigate('/register')}
+                  onClick={() => { setMobileMenuOpen(false); navigate('/register'); }}
                   className="w-full bg-[#d8823b] text-[#0b0f19] py-6 rounded-[24px] font-black text-2xl shadow-2xl shadow-[#d8823b]/30 hover:scale-[1.02] active:scale-95 transition-all uppercase italic"
                 >
                   GABUNG GRATIS SEKARANG
@@ -566,40 +551,40 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <main id="main-content" className="relative z-10 pt-20">
+      <main id="main-content" className="relative z-10 pt-20 overflow-x-hidden">
         
         {/* Hero Section */}
-        <section className="relative pt-24 pb-20 md:pt-48 md:pb-40 px-6">
-          <div className="max-w-7xl mx-auto text-center relative z-10">
-            <div className="inline-flex items-center gap-3 bg-white/[0.03] border border-white/10 px-6 py-3 rounded-full mb-10 animate-in slide-up backdrop-blur-md">
+        <section className="relative pt-24 pb-20 md:pt-48 md:pb-40 px-4 sm:px-6 overflow-x-hidden">
+          <div className="w-full max-w-7xl mx-auto text-center relative z-10 min-w-0">
+            <div className="inline-flex max-w-[calc(100vw-32px)] items-center justify-center gap-2 sm:gap-3 bg-white/[0.03] border border-white/10 px-3 sm:px-6 py-3 rounded-full mb-10 animate-in slide-up backdrop-blur-md">
               <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse border-2 border-emerald-500/30" />
-              <span className="text-[12px] font-black text-slate-200 uppercase tracking-[0.3em]">AI-Powered Cloud POS v2.0</span>
+              <span className="min-w-0 text-center text-[10px] sm:text-[12px] font-black text-slate-200 uppercase tracking-[0.08em] sm:tracking-[0.3em] break-words">AI-Powered Cloud POS v2.0</span>
             </div>
 
-            <h1 className="text-[54px] md:text-[88px] lg:text-[110px] font-black leading-[0.9] text-white tracking-tighter mb-12 animate-in slide-up delay-100 italic">
-               <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-white/40">ATUR KAFE</span> <br />
-               <span style={{ color: BRAND_ACCENT }} className="text-transparent bg-clip-text bg-gradient-to-br from-[#d8823b] to-[#f5a363] drop-shadow-[0_10px_30px_rgba(216,130,59,0.3)]">TANPA AMPAS.</span> ☕
+            <h1 className="max-w-[calc(100vw-32px)] mx-auto text-[34px] sm:text-[48px] md:text-[64px] lg:text-[80px] font-black leading-[1.08] text-white tracking-normal mb-8 animate-in slide-up delay-100 break-words">
+               <span className="text-white">SISTEM POS</span> <br />
+               <span className="text-[#d8823b]">PROFESIONAL.</span>
             </h1>
             
-            <p className="max-w-[800px] mx-auto text-[18px] md:text-[24px] text-slate-300 font-medium leading-relaxed mb-20 animate-in slide-up delay-200">
+            <p className="max-w-[340px] sm:max-w-[800px] mx-auto text-[15px] sm:text-[18px] md:text-[24px] text-slate-300 font-medium leading-relaxed mb-16 sm:mb-20 animate-in slide-up delay-200 break-words">
               Solusi manajemen operasional paling cerdas untuk UMKM. Kelola stok, pantau transaksi, dan scale-up bisnis Anda dalam satu dashboard intuitif.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 animate-in slide-up delay-300">
+            <div className="w-full max-w-[350px] sm:max-w-none mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-5 sm:gap-6 animate-in slide-up delay-300">
               <button 
                 onClick={() => navigate('/register')}
-                className="w-full sm:w-auto bg-[#d8823b] hover:bg-[#ef934b] text-slate-950 px-14 py-7 rounded-[28px] text-[20px] font-black transition-all shadow-[0_30px_60px_rgba(216,130,59,0.4)] flex items-center justify-center gap-4 group hover:-translate-y-1.5 active:translate-y-0"
+                className="w-full sm:w-auto min-w-0 bg-[#d8823b] hover:bg-[#ef934b] text-slate-950 px-5 sm:px-14 py-5 sm:py-7 rounded-[22px] sm:rounded-[28px] text-[16px] sm:text-[20px] font-black transition-all shadow-[0_30px_60px_rgba(216,130,59,0.4)] flex items-center justify-center gap-3 sm:gap-4 group hover:-translate-y-1.5 active:translate-y-0"
               >
-                Mulai Gratis Sekarang
-                <ArrowRight size={24} strokeWidth={3} className="group-hover:translate-x-2 transition-transform" />
+                <span className="min-w-0 whitespace-nowrap">Mulai Gratis Sekarang</span>
+                <ArrowRight size={20} strokeWidth={3} className="shrink-0 group-hover:translate-x-2 transition-transform" />
               </button>
               <a 
                 href="#download"
                 onClick={handleDownload}
-                className="w-full sm:w-auto bg-white/[0.03] border border-white/10 hover:bg-white/[0.08] text-white px-14 py-7 rounded-[28px] text-[20px] font-black transition-all flex items-center justify-center gap-4 hover:-translate-y-1.5 active:translate-y-0 backdrop-blur-sm"
+                className="w-full sm:w-auto min-w-0 bg-white/[0.03] border border-white/10 hover:bg-white/[0.08] text-white px-5 sm:px-14 py-5 sm:py-7 rounded-[22px] sm:rounded-[28px] text-[16px] sm:text-[20px] font-black transition-all flex items-center justify-center gap-3 sm:gap-4 hover:-translate-y-1.5 active:translate-y-0 backdrop-blur-sm"
               >
-                <Smartphone size={24} />
-                Unduh Android APK
+                <Smartphone size={20} className="shrink-0" />
+                <span className="min-w-0 whitespace-nowrap">Unduh Android APK</span>
               </a>
             </div>
 
@@ -629,7 +614,7 @@ export default function LandingPage() {
                  <Counter end={99} suffix=".9%" />
                </div>
                <div className="text-[12px] md:text-[14px] text-slate-400 font-black uppercase tracking-[0.4em] mb-2 leading-none">Uptime</div>
-               <div className="text-[11px] text-[#d8823b] font-bold uppercase tracking-widest opacity-60">Enterprise Stability</div>
+               <div className="text-[11px] text-[#d8823b] font-bold uppercase tracking-widest opacity-60">Operasional Stabil</div>
              </div>
              <div className="text-center group p-6 rounded-[40px] bg-[#d8823b]/5 border border-[#d8823b]/10 transition-transform hover:-translate-y-2">
                <div className="text-4xl md:text-5xl lg:text-6xl font-black text-[#d8823b] mb-6 tracking-tighter flex justify-center items-center">
@@ -644,22 +629,22 @@ export default function LandingPage() {
         {/* Features Grid - WCAG Enhanced */}
         <section id="features" className="py-36 md:py-52 px-6 bg-[#0b0f19] relative z-10 scroll-mt-32">
           <div className="max-w-6xl mx-auto">
-            <div className="flex flex-col md:flex-row items-end justify-between gap-12 mb-32">
+            <div className="flex flex-col md:flex-row items-center md:items-end justify-between gap-12 mb-32 text-center md:text-left">
               <div className="max-w-3xl">
-                <span className="text-[#d8823b] font-black uppercase tracking-[0.6em] text-[13px] mb-8 block drop-shadow-sm">Mastering Scale</span>
-                <h2 className="text-[48px] md:text-[80px] font-black text-white leading-[0.9] tracking-tighter">
-                   FITUR LEVEL <br />
-                   <span style={{ color: BRAND_ACCENT }} className="drop-shadow-[0_0_20px_rgba(216,130,59,0.15)]">ENTERPRISE.</span> 🚀
+                <span className="text-[#d8823b] font-bold uppercase tracking-[0.2em] text-[13px] mb-4 block">Platform Terpadu</span>
+                <h2 className="text-[36px] md:text-[54px] font-black text-white leading-[1.1] tracking-tight">
+                   MANAJEMEN <br />
+                   <span className="text-[#d8823b]">OPERASIONAL</span>
                 </h2>
               </div>
-              <p className="text-slate-300 text-[18px] md:text-[22px] font-medium max-w-[420px] mb-4 leading-relaxed opacity-80">
+              <p className="text-slate-300 text-[18px] md:text-[22px] font-medium max-w-[420px] mx-auto md:mx-0 mb-4 leading-relaxed opacity-80">
                  Teknologi yang dibangun untuk menangani lonjakan transaksi tanpa cacat, memberikan stabilitas bagi bisnis Anda.
               </p>
             </div>
 
             <div className="grid md:grid-cols-2 gap-12">
               {FEATURES.map((feature, i) => (
-                <div key={i} className="group relative p-16 rounded-[60px] bg-white/[0.015] border border-white/5 hover:border-[#d8823b]/50 hover:bg-white/[0.04] transition-all duration-700 overflow-hidden shadow-2xl backdrop-blur-sm">
+                <div key={i} className="group relative p-10 md:p-16 rounded-[60px] bg-white/[0.015] border border-white/5 hover:border-[#d8823b]/50 hover:bg-white/[0.04] transition-all duration-700 overflow-hidden shadow-2xl backdrop-blur-sm flex flex-col items-center md:items-start text-center md:text-left">
                   <div className="absolute -right-20 -top-20 w-64 h-64 bg-[#d8823b]/5 blur-[100px] rounded-full group-hover:bg-[#d8823b]/15 transition-all duration-700" />
                   <div className="absolute top-0 right-0 p-12 opacity-5 group-hover:opacity-10 transition-opacity">
                      <feature.icon size={120} strokeWidth={1} />
@@ -681,12 +666,12 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Pricing Section - Clean & Professional */}
+        {/* Pricing Section */}
         <section id="pricing" className="py-36 md:py-52 px-6 bg-slate-950/30 relative z-10 scroll-mt-32">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-32">
-              <span className="text-[#d8823b] font-black uppercase tracking-[0.6em] text-[13px] mb-8 block">Transparent Investment</span>
-              <h2 className="text-[48px] md:text-[80px] font-black text-white tracking-tighter leading-none italic uppercase">PILIHAN PAKET. 🏷️</h2>
+              <span className="text-[#d8823b] font-bold uppercase tracking-[0.2em] text-[13px] mb-4 block">Investasi Transparan</span>
+              <h2 className="text-[36px] md:text-[54px] font-black text-white tracking-tight leading-tight uppercase">PILIHAN PAKET.</h2>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -725,15 +710,15 @@ export default function LandingPage() {
         <section id="testimonials" className="py-36 px-6 bg-slate-950/50 relative z-10 scroll-mt-32">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-32">
-              <span className="text-[#d8823b] font-black uppercase tracking-[0.6em] text-[13px] mb-8 block">Global Trust</span>
-              <h2 className="text-[48px] md:text-[80px] font-black text-white tracking-tighter leading-none italic">KATA MEREKA. 💎</h2>
+              <span className="text-[#d8823b] font-bold uppercase tracking-[0.2em] text-[13px] mb-4 block">Kepercayaan</span>
+              <h2 className="text-[36px] md:text-[54px] font-black text-white tracking-tight leading-tight uppercase">MITRA KAMI.</h2>
             </div>
 
             <div className="relative overflow-hidden group">
               {/* Testimonial Track */}
-              <div className="flex gap-4 md:gap-8 animate-marquee w-max">
-                 {[...TESTIMONIALS, ...TESTIMONIALS].map((t, i) => (
-                   <div key={i} className="w-[300px] md:w-[380px] bg-white/[0.01] border border-white/10 p-6 md:p-10 rounded-[30px] md:rounded-[40px] hover:bg-white/[0.04] transition-all duration-700 shadow-xl ring-1 ring-white/5 group/card">
+              <div className="flex gap-4 md:gap-8 overflow-x-auto pb-8 snap-x">
+                 {TESTIMONIALS.map((t, i) => (
+                   <div key={i} className="w-[300px] md:w-[380px] shrink-0 snap-center bg-white/[0.01] border border-white/10 p-6 md:p-10 rounded-[24px] hover:bg-white/[0.04] transition-all duration-300 shadow-xl ring-1 ring-white/5 group/card">
                      <div className="flex gap-1.5 mb-8">
                         {[...Array(t.rating)].map((_, i) => <Star key={i} size={16} fill="#d8823b" className="text-[#d8823b]" />)}
                      </div>
@@ -769,8 +754,8 @@ export default function LandingPage() {
                  <div className="w-24 h-24 bg-white/30 backdrop-blur-2xl rounded-[32px] flex items-center justify-center mb-10 mx-auto lg:mx-0 shadow-xl border border-white/20 overflow-hidden">
                    <img src={LOGO_ICON} alt="KaffePOS System Icon" className="w-full h-full object-cover scale-110" />
                  </div>
-                 <h2 className="text-[54px] md:text-[80px] font-black mb-8 leading-[0.9] tracking-tighter italic">KASIR <br />DI SAKU.</h2>
-                 <p className="text-slate-900 text-[18px] md:text-[22px] mb-12 font-black leading-tight opacity-90">Performa brutal dalam desain minimalis. Jualan offline, cetak struk instan, pantau stok kapanpun, dimanapun.</p>
+                 <h2 className="text-[42px] md:text-[64px] font-black mb-6 leading-[1.1] tracking-tight text-white">KASIR <br />DI SAKU.</h2>
+                 <p className="text-white/80 text-[18px] md:text-[20px] mb-12 font-medium leading-relaxed">Performa andal dalam desain minimalis. Jualan offline, cetak struk instan, pantau stok kapanpun, dimanapun.</p>
                  
                  <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-6">
                     <button 
@@ -783,25 +768,25 @@ export default function LandingPage() {
                </div>
 
                {/* Preview Side - Triple Fan */}
-               <div className="relative group/preview mt-12 lg:mt-0 flex-1 flex justify-center lg:justify-end scale-[0.65] sm:scale-75 md:scale-90 lg:scale-100 transition-transform">
+               <div className="relative group/preview mt-12 lg:mt-0 flex-1 flex justify-center lg:justify-end scale-[0.8] sm:scale-85 md:scale-95 lg:scale-100 transition-transform pt-12">
                   {/* Background Geometric Outline */}
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] md:w-[380px] aspect-[9/19] border-[2px] border-white/20 rounded-[80px] -rotate-12 pointer-events-none z-0" />
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] md:w-[420px] aspect-[9/18] border-[2px] border-white/10 rounded-[100px] rotate-0 pointer-events-none z-0 transition-all duration-1000 group-hover/preview:rotate-6" />
                   
-                  <div className="relative flex items-center justify-center animate-in zoom-in fade-in slide-in-from-bottom-20 duration-1000 ease-out z-10">
+                  <div className="relative flex items-end justify-center animate-in zoom-in fade-in slide-in-from-bottom-20 duration-1000 ease-out z-10">
                      {/* Phone Left */}
-                     <div className="relative w-[130px] md:w-[170px] aspect-[9/19.5] rounded-[30px] border-[5px] border-slate-950 bg-slate-900 overflow-hidden shadow-2xl -rotate-[15deg] -translate-x-10 translate-y-8 z-10 group-hover/preview:-rotate-[18deg] group-hover/preview:-translate-x-16 transition-all duration-700">
-                        <img src={PREVIEW_BRAND} alt="Settings" className="w-full h-full object-cover grayscale-[0.2]" />
+                     <div className="relative w-[150px] md:w-[200px] aspect-[9/19.5] rounded-[40px] border-[6px] border-slate-950 bg-slate-900 overflow-hidden shadow-2xl -rotate-[6deg] -translate-x-12 translate-y-8 z-10 group-hover/preview:-rotate-[10deg] group-hover/preview:-translate-x-20 transition-all duration-700">
+                        <img src={PREVIEW_BRAND} alt="Tampilan Pengaturan Brand KaffePOS" className="w-full h-full object-cover opacity-80 group-hover/preview:opacity-100 transition-opacity" />
                      </div>
 
                      {/* Phone Center */}
-                     <div className="relative w-[160px] md:w-[210px] aspect-[9/19.5] rounded-[35px] border-[7px] border-slate-950 bg-slate-900 overflow-hidden shadow-[0_40px_80px_rgba(0,0,0,0.4)] -rotate-[2deg] z-30 group-hover/preview:scale-105 transition-all duration-700">
-                        <img src={PREVIEW_REPORT} alt="Reports" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+                     <div className="relative w-[180px] md:w-[240px] aspect-[9/19.5] rounded-[45px] border-[8px] border-slate-950 bg-slate-900 overflow-hidden shadow-[0_50px_100px_rgba(0,0,0,0.5)] z-30 group-hover/preview:scale-105 transition-all duration-700">
+                        <img src={PREVIEW_REPORT} alt="Dashboard Laporan Penjualan KaffePOS" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
                      </div>
 
                      {/* Phone Right */}
-                     <div className="relative w-[130px] md:w-[170px] aspect-[9/19.5] rounded-[30px] border-[5px] border-slate-950 bg-slate-900 overflow-hidden shadow-2xl rotate-[12deg] translate-x-10 translate-y-8 z-10 group-hover/preview:rotate-[15deg] group-hover/preview:translate-x-16 transition-all duration-700">
-                        <img src={PREVIEW_LICENSE} alt="License" className="w-full h-full object-cover grayscale-[0.2]" />
+                     <div className="relative w-[150px] md:w-[200px] aspect-[9/19.5] rounded-[40px] border-[6px] border-slate-950 bg-slate-900 overflow-hidden shadow-2xl rotate-[6deg] translate-x-12 translate-y-8 z-10 group-hover/preview:rotate-[10deg] group-hover/preview:translate-x-20 transition-all duration-700">
+                        <img src={PREVIEW_LICENSE} alt="Manajemen Langganan KaffePOS" className="w-full h-full object-cover opacity-80 group-hover/preview:opacity-100 transition-opacity" />
                      </div>
                   </div>
                </div>
@@ -814,14 +799,14 @@ export default function LandingPage() {
           <h2 className="text-[60px] md:text-[120px] lg:text-[160px] font-black text-white mb-20 tracking-tighter italic leading-none opacity-90 drop-shadow-2xl">DOMINASI BI<br className="md:hidden" />SNIS ANDA. ⚡</h2>
           <div className="flex flex-wrap justify-center gap-8 mb-28">
              {['OTP Verification', 'Row-Level Security', 'Auto-Sync Ready'].map((badge, i) => (
-               <div key={i} className="flex items-center gap-4 px-10 py-5 rounded-[40px] border border-white/10 bg-white/5 text-[14px] font-black text-slate-200 uppercase tracking-[0.4em] shadow-lg">
+               <div key={i} className="flex items-center gap-4 px-6 md:px-10 py-3 md:py-5 rounded-[40px] border border-white/10 bg-white/5 text-[11px] md:text-[14px] font-black text-slate-200 uppercase tracking-[0.4em] shadow-lg whitespace-nowrap">
                  <ShieldCheck size={20} className="text-[#d8823b]" /> {badge}
                </div>
              ))}
           </div>
           <button 
             onClick={() => navigate('/register')}
-            className="bg-white text-slate-950 px-24 py-10 rounded-[40px] text-[28px] font-black hover:scale-[1.15] active:scale-100 transition-all shadow-[0_0_120px_rgba(255,255,255,0.3)] font-sans italic uppercase tracking-widest ring-8 ring-white/10"
+            className="bg-white text-slate-950 px-12 md:px-24 py-6 md:py-10 rounded-[30px] md:rounded-[40px] text-[18px] md:text-[28px] font-black hover:scale-[1.1] active:scale-100 transition-all shadow-[0_0_80px_rgba(255,255,255,0.2)] md:shadow-[0_0_120px_rgba(255,255,255,0.3)] font-sans italic uppercase tracking-widest ring-4 md:ring-8 ring-white/10"
           >
             SAYA MAU GABUNG!
           </button>
@@ -954,7 +939,7 @@ export default function LandingPage() {
                        <h3 className="text-4xl md:text-5xl font-black text-white italic tracking-tighter uppercase leading-none">
                           {selectedSafeItem}
                        </h3>
-                       <p className="text-[#d8823b] font-black text-[12px] uppercase tracking-[0.5em] mt-3 italic">Professional Compliance</p>
+                       <p className="text-[#d8823b] font-black text-[12px] uppercase tracking-[0.5em] mt-3 italic">Kebijakan & Keamanan</p>
                     </div>
                  </div>
 
@@ -1012,7 +997,7 @@ export default function LandingPage() {
                 <div className="h-16 md:h-20 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
                   <img 
                     src={LOGO_WEB} 
-                    alt="KaffePOS Enterprise" 
+                    alt="KaffePOS" 
                     className="h-full w-auto object-contain opacity-100" 
                     fetchPriority="high"
                     loading="eager"

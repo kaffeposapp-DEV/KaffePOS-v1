@@ -5,10 +5,10 @@
  
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Check, ChevronRight, ExternalLink, History, Instagram, Shield } from 'lucide-react';
+import { AlertTriangle, Check, ChevronRight, ExternalLink, History, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { createSubscriptionPayment, getSubscriptions } from '@/lib/backendApi';
+import { getSubscriptions, type SubscriptionPaymentConfig } from '@/lib/backendApi';
 import {
   BILLING_CYCLE_LABELS,
   INSTAGRAM_ADMIN_URL,
@@ -19,6 +19,7 @@ import {
   getPlanPrice,
 } from '@/lib/subscriptionPlans';
 import { isAdminEmail } from '@/lib/admin';
+import SubscriptionCheckoutFlow from './SubscriptionCheckoutFlow';
 
 interface SubscriptionSectionProps {
   isPro: boolean;
@@ -62,7 +63,7 @@ type PendingPaymentRow = {
 const DEFAULT_SELECTIONS = [
   { plan: 'secangkir', billingCycle: 'free' },
   { plan: 'kopi_susu', billingCycle: 'monthly' },
-  { plan: 'signature', billingCycle: 'quarterly' },
+  { plan: 'signature', billingCycle: 'monthly' },
   { plan: 'founder', billingCycle: 'yearly' },
 ];
 
@@ -72,10 +73,11 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
   const [currentSubscription, setCurrentSubscription] = useState<SubscriptionRow | null>(null);
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryRow[]>([]);
   const [pendingPayments, setPendingPayments] = useState<PendingPaymentRow[]>([]);
+  const [paymentConfig, setPaymentConfig] = useState<SubscriptionPaymentConfig | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [paying, setPaying] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('signature');
   const [selectedCycle, setSelectedCycle] = useState('quarterly');
 
@@ -87,6 +89,7 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
       setCurrentSubscription(response.currentSubscription || null);
       setPaymentHistory(response.paymentHistory || []);
       setPendingPayments(response.pendingPayments || []);
+      setPaymentConfig(response.paymentConfig || null);
     } catch {
       toast.showToast('Gagal memuat data langganan.', 'error');
     } finally {
@@ -117,6 +120,8 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
     () => pendingPayments.find((entry) => ['pending', 'capture'].includes(entry.transaction_status)) || null,
     [pendingPayments],
   );
+  const onlinePaymentAvailable = paymentConfig?.onlinePaymentAvailable === true;
+  const paymentModeMessage = paymentConfig?.message || 'Pembayaran online belum dibuka. Aktivasi langganan dilakukan manual oleh admin sampai Midtrans production aktif.';
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -135,31 +140,17 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
     navigate(`/plan-confirmation?plan=${plan}&billingCycle=${billingCycle}`);
   };
 
-  const handlePayOnline = async () => {
+  const handleOpenCheckout = () => {
     if (selectedPlan === 'secangkir') {
       toast.showToast('Paket gratis tidak membutuhkan pembayaran.', 'info');
       return;
     }
-
-    setPaying(true);
-    try {
-      const result = await createSubscriptionPayment({
-        plan: selectedPlan as 'kopi_susu' | 'signature' | 'founder',
-        billingCycle: selectedCycle as 'monthly' | 'quarterly' | 'yearly',
-      });
-
-      if (!result.payment?.redirect_url) {
-        throw new Error('Link pembayaran Midtrans tidak tersedia.');
-      }
-
-      toast.showToast(result.reused ? 'Melanjutkan pembayaran yang masih pending.' : 'Mengarahkan ke Midtrans...', 'success');
-      window.location.assign(result.payment.redirect_url);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Gagal membuat pembayaran Midtrans.';
-      toast.showToast(message, 'error');
-    } finally {
-      setPaying(false);
+    if (!onlinePaymentAvailable) {
+      toast.showToast('Pembayaran online belum aktif. Mengarahkan ke admin untuk aktivasi manual.', 'info');
+      window.open(INSTAGRAM_ADMIN_URL, '_blank', 'noopener,noreferrer');
+      return;
     }
+    setCheckoutOpen(true);
   };
 
   return (
@@ -211,20 +202,18 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
 
           {isExpired && (
             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
-              Langganan habis. Chat @kaffepos untuk perpanjang.
+              Langganan habis. Aktifkan lagi dari pembayaran online supaya fitur premium langsung kembali aktif.
             </div>
           )}
 
           <div className="flex flex-col gap-3 sm:flex-row">
-            <a
-              href={INSTAGRAM_ADMIN_URL}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              onClick={() => document.getElementById('subscription-purchase-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
               className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white"
             >
-              <Instagram size={16} />
+              <ChevronRight size={16} />
               Perpanjang / Upgrade
-            </a>
+            </button>
             <button
               onClick={() => setShowHistory((value) => !value)}
               className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600"
@@ -312,11 +301,13 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
         </div>
       )}
 
-      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div id="subscription-purchase-panel" className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Pilih Paket</p>
-            <p className="mt-1 text-sm text-slate-500">Semua paket berbayar diaktifkan manual oleh admin setelah pembayaran terkonfirmasi.</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Pilih paket yang paling pas untuk tahap bisnismu. {onlinePaymentAvailable ? 'Pembayaran diproses otomatis dan status akan sinkron ke Web maupun APK.' : 'Saat Midtrans production belum aktif, aktivasi diproses manual oleh admin.'}
+            </p>
           </div>
           {loading && <span className="text-xs font-bold text-slate-400">Memuat...</span>}
         </div>
@@ -349,17 +340,19 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
           })}
         </div>
 
-        <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-          Mau upgrade lebih cepat? Kamu bisa bayar otomatis via Midtrans untuk paket berbayar. Kalau butuh bantuan manual, admin tetap siap bantu.
+        <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${onlinePaymentAvailable ? 'border-blue-100 bg-blue-50 text-blue-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+          {onlinePaymentAvailable
+            ? 'Paket gratis cocok untuk mulai jalan. Saat transaksi makin ramai, upgrade ke Kopi Susu atau Signature supaya laporan, printing, dan operasional tim ikut naik kelas.'
+            : paymentModeMessage}
         </div>
 
         <div className="mt-4 flex flex-col gap-3 sm:flex-row">
           <button
-            onClick={() => { void handlePayOnline(); }}
-            disabled={paying || selectedPlan === 'secangkir'}
+            onClick={handleOpenCheckout}
+            disabled={selectedPlan === 'secangkir'}
             className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {paying ? 'Membuat pembayaran...' : 'Bayar via Midtrans'}
+            {onlinePaymentAvailable ? 'Langganan Online' : 'Aktivasi Manual'}
             <ChevronRight size={16} />
           </button>
           <button
@@ -376,7 +369,7 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
             className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600"
           >
             <ExternalLink size={16} />
-            Chat Admin untuk Upgrade
+            Hubungi Admin
           </a>
         </div>
 
@@ -385,9 +378,18 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
           <div className="mt-3 space-y-2">
             {[
               'Pilih paket yang paling cocok untuk kebutuhan tokomu.',
-              'Klik Bayar via Midtrans untuk membuka halaman pembayaran otomatis.',
-              'Selesaikan pembayaran dengan metode yang tersedia, termasuk QRIS bila aktif di akun Midtrans.',
-              'Setelah settlement, status langganan akan sinkron otomatis ke akun Web dan APK.',
+              onlinePaymentAvailable
+                ? 'Klik Langganan Online untuk memilih metode pembayaran yang paling nyaman.'
+                : 'Klik Aktivasi Manual atau Hubungi Admin untuk proses pembayaran sementara.',
+              onlinePaymentAvailable
+                ? 'Konfirmasi detail checkout, voucher, dan total pembayaran sebelum lanjut.'
+                : 'Admin akan mengonfirmasi paket, periode, nominal, dan instruksi pembayaran.',
+              onlinePaymentAvailable
+                ? 'Selesaikan pembayaran dengan QRIS atau Virtual Account yang kamu pilih.'
+                : 'Setelah pembayaran manual diterima, admin mengaktifkan lisensi dari panel internal.',
+              onlinePaymentAvailable
+                ? 'Setelah settlement, status langganan akan sinkron otomatis ke akun Web dan APK.'
+                : 'Status langganan tetap sinkron ke Web dan APK setelah aktivasi manual.',
             ].map((step, index) => (
               <div key={step} className="flex items-start gap-3 text-sm text-slate-600">
                 <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-black text-white">
@@ -411,6 +413,14 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
           </a>
         )}
       </div>
+
+      <SubscriptionCheckoutFlow
+        open={checkoutOpen}
+        plan={selectedPlan as 'kopi_susu' | 'signature' | 'founder'}
+        billingCycle={selectedCycle as 'monthly' | 'quarterly' | 'yearly'}
+        onClose={() => setCheckoutOpen(false)}
+        toast={toast}
+      />
     </div>
   );
 }

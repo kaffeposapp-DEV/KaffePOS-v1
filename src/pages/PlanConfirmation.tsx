@@ -11,9 +11,10 @@ import {
 const STEPS = [
   'Masuk ke dashboard langganan KaffePOS',
   'Pilih paket dan periode yang kamu mau',
-  'Klik Bayar via Midtrans untuk membuka halaman pembayaran',
-  'Selesaikan pembayaran dengan metode yang tersedia',
-  'Status langganan akan sinkron otomatis setelah settlement',
+  'Klik Langganan Online jika pembayaran otomatis sudah aktif',
+  'Jika pembayaran online belum aktif, hubungi admin untuk aktivasi manual',
+  'Admin akan mengonfirmasi nominal dan instruksi pembayaran',
+  'Status langganan tetap sinkron ke Web dan APK setelah aktivasi',
 ];
 
 export default function PlanConfirmation() {
@@ -40,7 +41,7 @@ export default function PlanConfirmation() {
             <p className="text-xs font-black uppercase tracking-[0.24em] text-white/70">Konfirmasi Paket</p>
             <h1 className="mt-3 text-3xl font-black text-white">Paket yang kamu pilih</h1>
             <p className="mt-2 max-w-xl text-sm text-white/80">
-              Cek detail paketmu dulu, lalu lanjutkan pembayaran otomatis dari halaman langganan akunmu.
+              Cek detail paketmu dulu, lalu lanjutkan dari halaman langganan akunmu. Jika pembayaran online belum aktif, admin bisa bantu aktivasi manual.
             </p>
           </div>
 
@@ -59,7 +60,7 @@ export default function PlanConfirmation() {
 
             <div className="grid gap-4 rounded-3xl border border-slate-100 bg-slate-50 p-5 sm:grid-cols-[1.1fr_0.9fr]">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Harga Transfer</p>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Harga Langganan</p>
                 <p className="mt-2 text-3xl font-black text-slate-900">{formatRupiah(amount)}</p>
                 <p className="mt-2 text-sm text-slate-500">{plan.description}</p>
               </div>
@@ -100,7 +101,7 @@ export default function PlanConfirmation() {
                 className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 py-4 text-sm font-black text-white shadow-lg shadow-slate-900/15"
               >
                 <Instagram size={18} />
-                Hubungi Admin
+                Butuh Bantuan Admin
               </a>
               <Link
                 to="/login"
@@ -111,7 +112,7 @@ export default function PlanConfirmation() {
             </div>
 
             <p className="text-center text-xs text-slate-500">
-              Pembayaran online diproses otomatis. Kalau ada kendala, admin kami tetap standby di jam kerja 09.00-21.00 WIB.
+              Pembayaran online akan diproses otomatis setelah Midtrans production aktif. Selama masa verifikasi, admin tetap standby untuk aktivasi manual pukul 09.00-21.00 WIB.
             </p>
           </div>
         </div>

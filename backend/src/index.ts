@@ -4,9 +4,17 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { type Server } from 'node:http';
 import bcrypt from 'bcryptjs';
 import cors from 'cors';
-import express, { type NextFunction, type Request, type Response } from 'express';
+import express, { type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import { Pool, type PoolClient } from 'pg';
 import { z } from 'zod';
+import { appendMidtransRedirectOptions, buildMidtransCreateTransactionPayload } from './lib/midtrans';
+import {
+  buildSubscriptionBillingQuote,
+  listSubscriptionPaymentMethods,
+  type BillingCycle,
+  type SubscriptionPaymentMethodId,
+  type SubscriptionPlanId,
+} from './lib/subscriptionBilling';
 
 type AuthenticatedUser = {
   id: string;
@@ -66,6 +74,14 @@ const envSchema = z.object({
   MIDTRANS_FINISH_URL: z.string().trim().url().optional(),
   MIDTRANS_UNFINISH_URL: z.string().trim().url().optional(),
   MIDTRANS_ERROR_URL: z.string().trim().url().optional(),
+  SUBSCRIPTION_PAYMENT_MODE: z
+    .enum(['auto', 'manual', 'disabled', 'midtrans_sandbox', 'midtrans_production'])
+    .default('auto'),
+  AUTH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
+  AUTH_LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
+  AUTH_EMAIL_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(5),
+  AUTH_VERIFY_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+  PAYMENT_CREATE_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(12),
   GEMINI_API_KEY: z.string().trim().optional(),
   CORS_ORIGIN: z.string().trim().optional(),
   ADMIN_EMAILS: z.string().trim().optional(),
@@ -85,6 +101,8 @@ const adminEmails = new Set(
 const defaultOrigins = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:4173',
   'https://kaffepos.my.id',
   'https://www.kaffepos.my.id',
   'https://api.kaffepos.my.id',
@@ -207,6 +225,100 @@ class ApiError extends Error {
     this.status = status;
   }
 }
+
+type RateLimitOptions = {
+  name: string;
+  max: number;
+  windowMs: number;
+  key: (req: Request) => string;
+  message: string;
+};
+
+type RateLimitEntry = {
+  count: number;
+  resetAt: number;
+};
+
+const rateLimitStore = new Map<string, RateLimitEntry>();
+
+function normalizeRateLimitPart(value: unknown) {
+  if (typeof value !== 'string') return '';
+  return value.trim().toLowerCase().slice(0, 160);
+}
+
+function getRateLimitIp(req: Request) {
+  return req.ip || req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+}
+
+function createRateLimiter(options: RateLimitOptions): RequestHandler {
+  return (req, res, next) => {
+    const now = Date.now();
+    const key = `${options.name}:${options.key(req) || getRateLimitIp(req)}`;
+    const current = rateLimitStore.get(key);
+
+    if (!current || current.resetAt <= now) {
+      rateLimitStore.set(key, { count: 1, resetAt: now + options.windowMs });
+      next();
+      return;
+    }
+
+    if (current.count >= options.max) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
+      res.setHeader('Retry-After', String(retryAfterSeconds));
+      next(new ApiError(429, options.message));
+      return;
+    }
+
+    current.count += 1;
+    next();
+  };
+}
+
+function authEmailRateKey(req: Request) {
+  const email = normalizeRateLimitPart((req.body as { email?: unknown } | undefined)?.email);
+  return `${getRateLimitIp(req)}:${email || 'no-email'}`;
+}
+
+const authLoginRateLimiter = createRateLimiter({
+  name: 'auth-login',
+  max: env.AUTH_LOGIN_RATE_LIMIT_MAX,
+  windowMs: env.AUTH_RATE_LIMIT_WINDOW_MS,
+  key: authEmailRateKey,
+  message: 'Terlalu banyak percobaan login. Tunggu sebentar lalu coba lagi.',
+});
+
+const authEmailRateLimiter = createRateLimiter({
+  name: 'auth-email',
+  max: env.AUTH_EMAIL_RATE_LIMIT_MAX,
+  windowMs: env.AUTH_RATE_LIMIT_WINDOW_MS,
+  key: authEmailRateKey,
+  message: 'Terlalu banyak permintaan email. Tunggu sebentar sebelum mencoba lagi.',
+});
+
+const authVerifyRateLimiter = createRateLimiter({
+  name: 'auth-verify',
+  max: env.AUTH_VERIFY_RATE_LIMIT_MAX,
+  windowMs: env.AUTH_RATE_LIMIT_WINDOW_MS,
+  key: authEmailRateKey,
+  message: 'Terlalu banyak percobaan verifikasi. Tunggu sebentar lalu coba lagi.',
+});
+
+const paymentCreateRateLimiter = createRateLimiter({
+  name: 'payment-create',
+  max: env.PAYMENT_CREATE_RATE_LIMIT_MAX,
+  windowMs: env.AUTH_RATE_LIMIT_WINDOW_MS,
+  key: (req) => `${req.authUser?.id ?? getRateLimitIp(req)}:${getRateLimitIp(req)}`,
+  message: 'Terlalu banyak percobaan membuat pembayaran. Tunggu sebentar lalu coba lagi.',
+});
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitStore) {
+    if (entry.resetAt <= now) {
+      rateLimitStore.delete(key);
+    }
+  }
+}, Math.min(env.AUTH_RATE_LIMIT_WINDOW_MS, 60_000)).unref();
 
 function toNumber(value: unknown): number {
   if (typeof value === 'number') return value;
@@ -357,6 +469,68 @@ function isMidtransConfigured() {
   return Boolean(env.MIDTRANS_SERVER_KEY && env.MIDTRANS_SNAP_ENABLED === 'true');
 }
 
+type SubscriptionPaymentMode = 'manual' | 'disabled' | 'midtrans_sandbox' | 'midtrans_production';
+
+function resolveSubscriptionPaymentConfig() {
+  const midtransConfigured = isMidtransConfigured();
+  const requestedMode = env.SUBSCRIPTION_PAYMENT_MODE;
+  const productionMidtrans = env.MIDTRANS_ENVIRONMENT === 'production';
+  let mode: SubscriptionPaymentMode;
+
+  if (requestedMode === 'auto') {
+    if (!midtransConfigured) {
+      mode = 'manual';
+    } else if (env.NODE_ENV === 'production' && !productionMidtrans) {
+      mode = 'manual';
+    } else {
+      mode = productionMidtrans ? 'midtrans_production' : 'midtrans_sandbox';
+    }
+  } else if (requestedMode === 'midtrans_production' && !productionMidtrans) {
+    mode = 'manual';
+  } else if (requestedMode === 'midtrans_sandbox' && productionMidtrans) {
+    mode = 'manual';
+  } else {
+    mode = requestedMode;
+  }
+
+  const onlinePaymentAvailable =
+    midtransConfigured &&
+    ((mode === 'midtrans_production' && productionMidtrans) ||
+      (mode === 'midtrans_sandbox' && !productionMidtrans));
+  const commerciallyReady = onlinePaymentAvailable && mode === 'midtrans_production' && productionMidtrans;
+  const manualActivationAvailable = mode === 'manual' || !onlinePaymentAvailable;
+
+  return {
+    mode,
+    provider: 'midtrans',
+    midtransEnvironment: env.MIDTRANS_ENVIRONMENT,
+    onlinePaymentAvailable,
+    manualActivationAvailable,
+    commerciallyReady,
+    message: onlinePaymentAvailable
+      ? mode === 'midtrans_production'
+        ? 'Pembayaran online Midtrans production aktif.'
+        : 'Pembayaran online Midtrans sandbox aktif untuk QA internal.'
+      : 'Pembayaran online belum dibuka. Aktivasi langganan dilakukan manual oleh admin sampai Midtrans production aktif.',
+    recommendedAction: onlinePaymentAvailable
+      ? 'Selesaikan pembayaran via checkout online.'
+      : 'Hubungi admin untuk aktivasi manual setelah pembayaran transfer/QR manual.',
+  };
+}
+
+function requireOnlineSubscriptionPayment() {
+  const paymentConfig = resolveSubscriptionPaymentConfig();
+  if (!paymentConfig.onlinePaymentAvailable) {
+    throw new ApiError(409, paymentConfig.message);
+  }
+
+  return paymentConfig;
+}
+
+function isCommercialPaymentReady() {
+  return resolveSubscriptionPaymentConfig().commerciallyReady;
+}
+
 function createMidtransOrderId(userId: string, plan: string, billingCycle: string) {
   return `SUB-${plan.toUpperCase()}-${billingCycle.toUpperCase()}-${userId.slice(0, 8)}-${Date.now()}`;
 }
@@ -489,47 +663,140 @@ function getResetLink(email: string, token: string) {
   return url.toString();
 }
 
-async function sendSignupOtpEmail(email: string, code: string, storeName: string) {
-  const subject = 'Kode verifikasi akun KaffePOS';
-  const text = `Halo, kode verifikasi untuk akun ${storeName} adalah ${code}. Kode ini berlaku ${env.EMAIL_CODE_TTL_MINUTES} menit.`;
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827">
-      <h2 style="margin:0 0 12px">Verifikasi akun KaffePOS</h2>
-      <p>Kode OTP untuk akun <strong>${storeName}</strong> adalah:</p>
-      <p style="font-size:28px;font-weight:700;letter-spacing:4px;margin:18px 0">${code}</p>
-      <p>Kode ini berlaku ${env.EMAIL_CODE_TTL_MINUTES} menit.</p>
-    </div>
+function buildEmailTemplate(title: string, preheader: string, contentHtml: string) {
+  return `
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f8fafc;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;">
+  <div style="display:none;font-size:1px;color:#f8fafc;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
+    ${preheader}
+  </div>
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color:#f8fafc;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width:600px;background-color:#ffffff;border-radius:24px;border:1px solid #e2e8f0;overflow:hidden;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+          <tr>
+            <td align="center" style="padding:32px 24px 24px;border-bottom:1px solid #f1f5f9;">
+              <h1 style="margin:0;font-size:24px;font-weight:900;color:#0f172a;letter-spacing:-0.5px;">KaffePOS</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px 32px;color:#334155;font-size:15px;line-height:1.6;">
+              ${contentHtml}
+            </td>
+          </tr>
+        </table>
+        <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width:600px;margin-top:32px;">
+          <tr>
+            <td align="center" style="color:#64748b;font-size:13px;line-height:1.5;">
+              <p style="margin:0 0 8px;">Butuh bantuan? Balas email ini atau hubungi tim KaffePOS.</p>
+              <p style="margin:0;">&copy; ${new Date().getFullYear()} KaffePOS Indonesia. Hak cipta dilindungi.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
   `;
+}
+
+async function sendSignupOtpEmail(email: string, code: string, storeName: string) {
+  const subject = `🔑 Kode Verifikasi KaffePOS: ${code}`;
+  const text = `Halo, kode verifikasi untuk akun ${storeName} adalah ${code}. Kode ini berlaku ${env.EMAIL_CODE_TTL_MINUTES} menit.`;
+  const preheader = 'Gunakan kode ini untuk masuk ke akun Anda. Berlaku selama 5 menit...';
+  const html = buildEmailTemplate(subject, preheader, `
+    <h2 style="margin:0 0 16px;color:#0f172a;font-size:20px;">Verifikasi akun Anda</h2>
+    <p style="margin:0 0 24px;">Halo <strong>${storeName}</strong>, ini kunci masuk sementara Anda. Jangan bagikan kode ini kepada kasir Anda atau siapapun.</p>
+    <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:24px;text-align:center;margin-bottom:24px;">
+      <p style="margin:0;font-size:36px;font-weight:900;letter-spacing:8px;color:#0f172a;">${code}</p>
+    </div>
+    <p style="margin:0;font-size:14px;color:#64748b;">Kode ini berlaku ${env.EMAIL_CODE_TTL_MINUTES} menit. Jika Anda tidak merasa melakukan pendaftaran, abaikan email ini.</p>
+  `);
 
   await sendEmail({ to: email, subject, text, html });
 }
 
 async function sendPasswordResetEmail(email: string, resetLink: string) {
-  const subject = 'Reset password KaffePOS';
-  const text = `Klik tautan berikut untuk reset password akun KaffePOS kamu: ${resetLink}`;
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827">
-      <h2 style="margin:0 0 12px">Reset password</h2>
-      <p>Kami menerima permintaan reset password untuk akun KaffePOS kamu.</p>
-      <p><a href="${resetLink}" style="display:inline-block;padding:12px 18px;background:#d8823b;color:#111827;text-decoration:none;border-radius:8px;font-weight:700">Reset Password</a></p>
-      <p>Jika tombol tidak bekerja, buka link ini:</p>
-      <p>${resetLink}</p>
-    </div>
-  `;
+  const subject = '🔐 Instruksi Reset Password KaffePOS';
+  const text = `Klik tautan berikut untuk mereset password akun KaffePOS Anda: ${resetLink}`;
+  const preheader = 'Kami menerima permintaan untuk mereset password akun Anda...';
+  const html = buildEmailTemplate(subject, preheader, `
+    <h2 style="margin:0 0 16px;color:#0f172a;font-size:20px;">Reset Password</h2>
+    <p style="margin:0 0 24px;">Kami menerima permintaan untuk melakukan perubahan password pada akun KaffePOS Anda.</p>
+    <a href="${resetLink}" style="display:block;width:100%;text-align:center;padding:16px 20px;background:#0f172a;color:#ffffff;border-radius:12px;font-weight:bold;text-decoration:none;box-sizing:border-box;">Ubah Password Sekarang</a>
+    <p style="margin:24px 0 0;font-size:14px;color:#64748b;">Jika tombol di atas tidak berfungsi, salin dan tempel tautan ini ke browser Anda: <br><a href="${resetLink}" style="color:#2563eb;word-break:break-all;">${resetLink}</a></p>
+    <p style="margin:24px 0 0;font-size:14px;color:#64748b;">Jika Anda tidak melakukan permintaan ini, abaikan email ini dan akun Anda akan tetap aman.</p>
+  `);
 
   await sendEmail({ to: email, subject, text, html });
 }
 
 async function sendWelcomeEmail(email: string, storeName: string) {
-  const subject = 'Selamat datang di KaffePOS';
+  const subject = '👋 Selamat datang di ekosistem KaffePOS!';
   const text = `Akun ${storeName} sudah aktif. Masuk ke ${env.WEB_BASE_URL} untuk mulai operasional.`;
-  const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827">
-      <h2 style="margin:0 0 12px">Selamat datang di KaffePOS</h2>
-      <p>Akun bisnis <strong>${storeName}</strong> sudah aktif dan siap dipakai.</p>
-      <p><a href="${env.WEB_BASE_URL}" style="display:inline-block;padding:12px 18px;background:#d8823b;color:#111827;text-decoration:none;border-radius:8px;font-weight:700">Buka Dashboard</a></p>
+  const preheader = 'Langkah pertama untuk manajemen kasir yang lebih profesional...';
+  const html = buildEmailTemplate(subject, preheader, `
+    <h2 style="margin:0 0 16px;color:#0f172a;font-size:20px;">Selamat datang di KaffePOS</h2>
+    <p style="margin:0 0 24px;">Akun bisnis <strong>${storeName}</strong> sudah aktif dan siap dipakai. Ini adalah langkah pertama menuju manajemen kasir yang lebih rapi dan terukur.</p>
+    <a href="${env.WEB_BASE_URL}" style="display:block;width:100%;text-align:center;padding:16px 20px;background:#0f172a;color:#ffffff;border-radius:12px;font-weight:bold;text-decoration:none;box-sizing:border-box;">Buka Dashboard KaffePOS</a>
+    <p style="margin:24px 0 0;font-size:14px;color:#64748b;">Langkah selanjutnya: Lengkapi profil toko Anda, tambahkan menu, dan Anda siap bertransaksi!</p>
+  `);
+
+  await sendEmail({ to: email, subject, text, html });
+}
+
+async function sendPasswordChangedEmail(email: string) {
+  const subject = '✅ Password KaffePOS Berhasil Diperbarui';
+  const text = `Password akun KaffePOS Anda sudah berhasil diperbarui. Jika ini bukan Anda, segera hubungi tim KaffePOS.`;
+  const preheader = 'Password akun KaffePOS Anda baru saja diganti...';
+  const html = buildEmailTemplate(subject, preheader, `
+    <h2 style="margin:0 0 16px;color:#0f172a;font-size:20px;">Password Berhasil Diperbarui</h2>
+    <p style="margin:0 0 24px;">Password akun KaffePOS Anda baru saja berhasil diganti.</p>
+    <a href="${env.WEB_BASE_URL}" style="display:block;width:100%;text-align:center;padding:16px 20px;background:#0f172a;color:#ffffff;border-radius:12px;font-weight:bold;text-decoration:none;box-sizing:border-box;">Buka KaffePOS</a>
+    <div style="margin:24px 0 0;padding:16px;background:#fff1f2;border-radius:12px;">
+      <p style="margin:0;font-size:14px;color:#be123c;"><strong>Penting:</strong> Jika Anda merasa tidak mengganti password ini, segera hubungi tim Support KaffePOS untuk mengamankan akun Anda.</p>
     </div>
-  `;
+  `);
+
+  await sendEmail({ to: email, subject, text, html });
+}
+
+async function sendPaymentSuccessEmail(email: string, storeName: string, planName: string, amount: number, orderId: string) {
+  const subject = `✅ Pembayaran Berhasil: KaffePOS ${planName} Aktif`;
+  const text = `Pembayaran langganan ${planName} sudah diterima. Akun ${storeName} sekarang aktif dan siap dipakai.`;
+  const preheader = 'Terima kasih! Pembayaran Anda telah kami terima dan fitur premium sudah aktif...';
+  
+  const formattedAmount = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
+  
+  const html = buildEmailTemplate(subject, preheader, `
+    <h2 style="margin:0 0 16px;color:#0f172a;font-size:20px;">Pembayaran Berhasil</h2>
+    <p style="margin:0 0 24px;">Terima kasih! Dana Anda sudah kami terima. Paket <strong>${planName}</strong> untuk outlet <strong>${storeName}</strong> resmi aktif.</p>
+    
+    <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:20px;margin-bottom:24px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+        <span style="color:#64748b;font-size:14px;">Nomor Order</span>
+        <span style="color:#0f172a;font-size:14px;font-weight:600;">${orderId}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+        <span style="color:#64748b;font-size:14px;">Paket</span>
+        <span style="color:#0f172a;font-size:14px;font-weight:600;">${planName}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding-top:12px;border-top:1px dashed #cbd5e1;">
+        <span style="color:#64748b;font-size:14px;font-weight:600;">Total Dibayar</span>
+        <span style="color:#0f172a;font-size:14px;font-weight:900;">${formattedAmount}</span>
+      </div>
+    </div>
+    
+    <p style="margin:0 0 24px;">Semua fitur premium seperti sinkronisasi cloud penuh dan koneksi printer pintar sudah dapat Anda nikmati sekarang.</p>
+    <a href="${env.WEB_BASE_URL}" style="display:block;width:100%;text-align:center;padding:16px 20px;background:#10b981;color:#ffffff;border-radius:12px;font-weight:bold;text-decoration:none;box-sizing:border-box;">Buka KaffePOS Sekarang</a>
+  `);
 
   await sendEmail({ to: email, subject, text, html });
 }
@@ -1047,6 +1314,8 @@ async function activatePaidSubscription(client: PoolClient, payload: {
     subscription,
     email: (profile.email as string | null) ?? null,
     displayName: (profile.display_name as string | null) ?? (profile.username as string | null) ?? 'KaffePOS',
+    plan: payload.plan,
+    paymentAmount: payload.paymentAmount,
   };
 }
 
@@ -1156,9 +1425,12 @@ const adminSubscriptionActionSchema = z.object({
   paymentAmount: z.number().nonnegative(),
   paymentNote: z.string().trim().optional().nullable(),
 });
-const subscriptionPaymentCreateSchema = z.object({
+const subscriptionPaymentMethodSchema = z.enum(['qris', 'bca_va', 'mandiri_bill', 'bni_va', 'bri_va']);
+const subscriptionPaymentRequestSchema = z.object({
   plan: z.enum(['kopi_susu', 'signature', 'founder']),
   billingCycle: z.enum(['monthly', 'quarterly', 'yearly']),
+  paymentMethod: subscriptionPaymentMethodSchema,
+  voucherCode: z.string().trim().max(64).optional().nullable(),
 });
 const midtransWebhookSchema = z.object({
   order_id: z.string().trim().min(1),
@@ -1223,23 +1495,22 @@ function calculateExpiryDate(billingCycle: 'free' | 'monthly' | 'quarterly' | 'y
   return expiresAt;
 }
 
-function getSubscriptionPlanPrice(
-  plan: 'secangkir' | 'kopi_susu' | 'signature' | 'founder',
-  billingCycle: 'free' | 'monthly' | 'quarterly' | 'yearly',
-) {
-  const pricing: Record<string, Partial<Record<'free' | 'monthly' | 'quarterly' | 'yearly', number>>> = {
-    secangkir: { free: 0 },
-    kopi_susu: { monthly: 49000, quarterly: 139000, yearly: 499000 },
-    signature: { monthly: 99000, quarterly: 279000, yearly: 999000 },
-    founder: { monthly: 199000, quarterly: 549000, yearly: 1999000 },
-  };
-
-  return pricing[plan]?.[billingCycle] ?? 0;
-}
-
 async function countRowsForStore(client: PoolClient, table: string, storeId: string) {
   const result = await client.query(`select count(*)::int as count from public.${table} where store_id = $1`, [storeId]);
   return result.rows[0]?.count ?? 0;
+}
+
+function buildSubscriptionQuoteOrThrow(payload: {
+  plan: SubscriptionPlanId;
+  billingCycle: BillingCycle;
+  paymentMethod: SubscriptionPaymentMethodId;
+  voucherCode?: string | null;
+}) {
+  try {
+    return buildSubscriptionBillingQuote(payload);
+  } catch (error) {
+    throw new ApiError(400, error instanceof Error ? error.message : 'Detail checkout tidak valid.');
+  }
 }
 
 function mapGeminiError(status: number, message: string) {
@@ -1326,16 +1597,44 @@ function buildReadinessScore(params: {
   databaseOk: boolean;
   emailOk: boolean;
   paymentOk?: boolean;
+  paymentCommercialReady?: boolean;
 }) {
   return {
     database: params.databaseOk ? 10 : 4,
     backend: params.databaseOk ? 9 : 5,
     auth: params.emailOk ? 9 : 7,
     sync_consistency: 9,
-    deployment: 9,
+    deployment: params.paymentCommercialReady === false ? 8 : 9,
     email_flow: params.emailOk ? 9 : 5,
-    payment_flow: params.paymentOk ? 8 : 4,
+    payment_flow: params.paymentCommercialReady
+      ? 9
+      : params.paymentOk
+      ? 6
+      : 4,
   };
+}
+
+function getOperationalWarnings() {
+  const warnings: string[] = [];
+  const paymentConfig = resolveSubscriptionPaymentConfig();
+
+  if (!env.RESEND_API_KEY || !env.RESEND_FROM_EMAIL) {
+    warnings.push('Email delivery belum dikonfigurasi penuh.');
+  }
+
+  if (!isMidtransConfigured()) {
+    warnings.push('Midtrans belum dikonfigurasi penuh di backend.');
+  } else if (!paymentConfig.onlinePaymentAvailable) {
+    warnings.push('Pembayaran online subscription dinonaktifkan. Gunakan aktivasi manual sampai Midtrans production siap.');
+  } else if (!paymentConfig.commerciallyReady) {
+    warnings.push('Pembayaran online belum commercial-ready karena masih memakai mode sandbox/QA.');
+  }
+
+  if (!allowedOrigins.has('https://kaffepos.my.id')) {
+    warnings.push('Origin production frontend belum ada di whitelist CORS.');
+  }
+
+  return warnings;
 }
 
 async function bootstrapAuthSchema() {
@@ -1536,10 +1835,14 @@ app.get('/system-status', async (_req, res) => {
     await pool.query('select 1');
     const emailReady = Boolean(env.RESEND_API_KEY && env.RESEND_FROM_EMAIL);
     const paymentReady = isMidtransConfigured();
+    const paymentConfig = resolveSubscriptionPaymentConfig();
+    const paymentCommercialReady = isCommercialPaymentReady();
+    const warnings = getOperationalWarnings();
     const readiness = buildReadinessScore({
       databaseOk: true,
       emailOk: emailReady,
       paymentOk: paymentReady,
+      paymentCommercialReady,
     });
 
     res.json({
@@ -1558,6 +1861,10 @@ app.get('/system-status', async (_req, res) => {
         },
         payment: {
           ok: paymentReady,
+          commerciallyReady: paymentCommercialReady,
+          mode: paymentConfig.mode,
+          onlinePaymentAvailable: paymentConfig.onlinePaymentAvailable,
+          manualActivationAvailable: paymentConfig.manualActivationAvailable,
           provider: 'midtrans',
           environment: env.MIDTRANS_ENVIRONMENT,
           merchantId: env.MIDTRANS_MERCHANT_ID ?? null,
@@ -1576,13 +1883,17 @@ app.get('/system-status', async (_req, res) => {
         checkout: true,
         cashier_sessions: true,
         cash_register: true,
-        subscription_payments: paymentReady,
+        subscription_payments: paymentCommercialReady,
         web: true,
         apk: true,
       },
+      warnings,
       readiness,
     });
   } catch (error) {
+    const paymentReady = isMidtransConfigured();
+    const paymentConfig = resolveSubscriptionPaymentConfig();
+    const paymentCommercialReady = isCommercialPaymentReady();
     res.status(503).json({
       ok: false,
       service: env.SERVICE_NAME,
@@ -1598,7 +1909,11 @@ app.get('/system-status', async (_req, res) => {
           fromEmail: env.RESEND_FROM_EMAIL ?? null,
         },
         payment: {
-          ok: isMidtransConfigured(),
+          ok: paymentReady,
+          commerciallyReady: paymentCommercialReady,
+          mode: paymentConfig.mode,
+          onlinePaymentAvailable: paymentConfig.onlinePaymentAvailable,
+          manualActivationAvailable: paymentConfig.manualActivationAvailable,
           provider: 'midtrans',
           environment: env.MIDTRANS_ENVIRONMENT,
           merchantId: env.MIDTRANS_MERCHANT_ID ?? null,
@@ -1621,10 +1936,12 @@ app.get('/system-status', async (_req, res) => {
         web: true,
         apk: true,
       },
+      warnings: getOperationalWarnings(),
       readiness: buildReadinessScore({
         databaseOk: false,
         emailOk: Boolean(env.RESEND_API_KEY && env.RESEND_FROM_EMAIL),
-        paymentOk: isMidtransConfigured(),
+        paymentOk: paymentReady,
+        paymentCommercialReady,
       }),
       error: serializeError(error),
     });
@@ -1738,12 +2055,13 @@ app.post('/api/payments/midtrans/webhook', async (req, res, next) => {
     });
 
     if (result.activationResult?.email) {
-      await sendEmail({
-        to: result.activationResult.email,
-        subject: 'Pembayaran KaffePOS berhasil',
-        text: `Pembayaran langganan kamu sudah diterima. Akun ${result.activationResult.displayName} sekarang aktif.`,
-        html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827"><h2>Pembayaran berhasil</h2><p>Pembayaran langganan kamu sudah diterima. Akun <strong>${result.activationResult.displayName}</strong> sekarang aktif dan siap dipakai.</p></div>`,
-      }).catch((error) => {
+      await sendPaymentSuccessEmail(
+        result.activationResult.email,
+        result.activationResult.displayName ?? 'KaffePOS User',
+        result.activationResult.plan.toUpperCase(),
+        result.activationResult.paymentAmount,
+        payload.order_id
+      ).catch((error) => {
         log('warn', 'email.midtrans_settlement_failed', { error: serializeError(error), orderId: payload.order_id });
       });
     }
@@ -1758,7 +2076,7 @@ app.post('/api/payments/midtrans/webhook', async (req, res, next) => {
   }
 });
 
-app.post('/api/auth/register', async (req, res, next) => {
+app.post('/api/auth/register', authEmailRateLimiter, async (req, res, next) => {
   try {
     const payload = authRegisterSchema.parse(req.body);
     const email = normalizeEmail(payload.email);
@@ -1869,7 +2187,7 @@ app.post('/api/auth/register', async (req, res, next) => {
   }
 });
 
-app.post('/api/auth/verification/resend', async (req, res, next) => {
+app.post('/api/auth/verification/resend', authEmailRateLimiter, async (req, res, next) => {
   try {
     const payload = emailOnlySchema.parse(req.body);
     const email = normalizeEmail(payload.email);
@@ -1919,7 +2237,7 @@ app.post('/api/auth/verification/resend', async (req, res, next) => {
   }
 });
 
-app.post('/api/auth/verification/confirm', async (req, res, next) => {
+app.post('/api/auth/verification/confirm', authVerifyRateLimiter, async (req, res, next) => {
   try {
     const payload = verifyEmailSchema.parse(req.body);
     const email = normalizeEmail(payload.email);
@@ -2004,7 +2322,7 @@ app.post('/api/auth/verification/confirm', async (req, res, next) => {
   }
 });
 
-app.post('/api/auth/login', async (req, res, next) => {
+app.post('/api/auth/login', authLoginRateLimiter, async (req, res, next) => {
   try {
     const payload = authLoginSchema.parse(req.body);
     const email = normalizeEmail(payload.email);
@@ -2117,7 +2435,7 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
-app.post('/api/auth/password/forgot', async (req, res, next) => {
+app.post('/api/auth/password/forgot', authEmailRateLimiter, async (req, res, next) => {
   try {
     const payload = emailOnlySchema.parse(req.body);
     const email = normalizeEmail(payload.email);
@@ -2183,7 +2501,7 @@ app.post('/api/auth/password/forgot', async (req, res, next) => {
   }
 });
 
-app.post('/api/auth/password/reset', async (req, res, next) => {
+app.post('/api/auth/password/reset', authEmailRateLimiter, async (req, res, next) => {
   try {
     const payload = resetPasswordSchema.parse(req.body);
     const email = normalizeEmail(payload.email);
@@ -2978,23 +3296,46 @@ app.get('/api/subscriptions', async (req, res, next) => {
       subscriptions: subscriptionItems,
       paymentHistory: paymentItems,
       pendingPayments: pendingPaymentItems,
+      paymentConfig: resolveSubscriptionPaymentConfig(),
     });
   } catch (error) {
     next(error);
   }
 });
 
-app.post('/api/subscriptions/payments/create', async (req, res, next) => {
+app.post('/api/subscriptions/payments/quote', async (req, res, next) => {
   try {
-    if (!isMidtransConfigured()) {
-      throw new ApiError(503, 'Midtrans belum siap dipakai di backend.');
-    }
+    const payload = subscriptionPaymentRequestSchema.parse(req.body);
+    const paymentConfig = resolveSubscriptionPaymentConfig();
+    const baseQuote = buildSubscriptionQuoteOrThrow(payload);
+    const quote = paymentConfig.onlinePaymentAvailable
+      ? baseQuote
+      : {
+          ...baseQuote,
+          trustLabel: 'Aktivasi manual diproses admin sampai Midtrans production aktif.',
+        };
 
-    const payload = subscriptionPaymentCreateSchema.parse(req.body);
-    const amount = getSubscriptionPlanPrice(payload.plan, payload.billingCycle);
-    if (!amount) {
-      throw new ApiError(400, 'Paket atau periode pembayaran tidak valid.');
+    res.json({
+      quote,
+      paymentMethods: listSubscriptionPaymentMethods(),
+      paymentConfig,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/subscriptions/payments/create', paymentCreateRateLimiter, async (req, res, next) => {
+  try {
+    const paymentConfig = requireOnlineSubscriptionPayment();
+
+    const payload = subscriptionPaymentRequestSchema.parse(req.body);
+    const quote = buildSubscriptionQuoteOrThrow(payload);
+    const amount = quote.total;
+    if (amount <= 0) {
+      throw new ApiError(400, 'Total pembayaran tidak valid untuk transaksi Midtrans.');
     }
+    const voucherCode = quote.voucher?.code ?? '';
 
     const existingPending = await pool.query(
       `
@@ -3017,18 +3358,22 @@ app.post('/api/subscriptions/payments/create', async (req, res, next) => {
         where user_id = $1
           and plan = $2
           and billing_cycle = $3
+          and amount = $4
+          and coalesce(metadata->>'selectedPaymentMethod', '') = $5
+          and coalesce(metadata->>'voucherCode', '') = $6
           and transaction_status = 'pending'
           and (expires_at is null or expires_at > now())
         order by created_at desc
         limit 1
       `,
-      [req.authUser!.id, payload.plan, payload.billingCycle],
+      [req.authUser!.id, payload.plan, payload.billingCycle, amount, payload.paymentMethod, voucherCode],
     );
 
     if (existingPending.rows[0]) {
       res.status(200).json({
         reused: true,
         payment: normalizeSubscriptionPaymentSession(existingPending.rows[0]),
+        quote,
       });
       return;
     }
@@ -3054,32 +3399,19 @@ app.post('/api/subscriptions/payments/create', async (req, res, next) => {
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
-      body: JSON.stringify({
-        transaction_details: {
-          order_id: orderId,
-          gross_amount: amount,
-        },
-        item_details: [
-          {
-            id: `${payload.plan}-${payload.billingCycle}`,
-            price: amount,
-            quantity: 1,
-            name: `Langganan ${payload.plan} (${payload.billingCycle})`,
-          },
-        ],
-        customer_details: {
-          first_name: (profile.display_name as string | null) ?? (profile.username as string | null) ?? 'KaffePOS User',
-          email: (profile.email as string | null) ?? req.authUser!.email ?? undefined,
-        },
-        callbacks: callbackUrls,
-        expiry: {
-          unit: 'minutes',
-          duration: 30,
-        },
-        custom_field1: payload.plan,
-        custom_field2: payload.billingCycle,
-        custom_field3: store?.id ?? '',
-      }),
+      body: JSON.stringify(buildMidtransCreateTransactionPayload({
+        orderId,
+        amount,
+        itemId: `${payload.plan}-${payload.billingCycle}`,
+        itemName: `Langganan ${quote.planName} (${payload.billingCycle})`,
+        enabledPayments: quote.selectedPaymentMethod.midtransPayments,
+        customerName: (profile.display_name as string | null) ?? (profile.username as string | null) ?? 'KaffePOS User',
+        customerEmail: (profile.email as string | null) ?? req.authUser!.email ?? undefined,
+        plan: payload.plan,
+        billingCycle: payload.billingCycle,
+        storeId: store?.id ?? null,
+        callbackUrls,
+      })),
     });
 
     if (!response.ok) {
@@ -3091,6 +3423,7 @@ app.post('/api/subscriptions/payments/create', async (req, res, next) => {
     if (!paymentPayload.token || !paymentPayload.redirect_url) {
       throw new ApiError(502, 'Respons Midtrans tidak lengkap.');
     }
+    const redirectUrl = appendMidtransRedirectOptions(paymentPayload.redirect_url, quote.selectedPaymentMethod.redirectMode);
 
     const sessionId = randomUUID();
     const inserted = await pool.query(
@@ -3138,10 +3471,15 @@ app.post('/api/subscriptions/payments/create', async (req, res, next) => {
         amount,
         orderId,
         paymentPayload.token,
-        paymentPayload.redirect_url,
+        redirectUrl,
         JSON.stringify({
           env: env.MIDTRANS_ENVIRONMENT,
+          paymentMode: paymentConfig.mode,
           callbackUrls,
+          selectedPaymentMethod: payload.paymentMethod,
+          enabledPayments: quote.selectedPaymentMethod.midtransPayments,
+          voucherCode,
+          quote,
           storeName: store?.store_name ?? null,
         }),
       ],
@@ -3150,6 +3488,7 @@ app.post('/api/subscriptions/payments/create', async (req, res, next) => {
     res.status(201).json({
       reused: false,
       payment: normalizeSubscriptionPaymentSession(inserted.rows[0]),
+      quote,
     });
   } catch (error) {
     next(error);
@@ -4082,6 +4421,20 @@ app.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {
     return;
   }
 
+  if (error instanceof Error && error.message.includes('is not allowed')) {
+    log('warn', 'request.cors_rejected', {
+      requestId: req.requestId ?? null,
+      method: req.method,
+      path: req.originalUrl,
+      message: error.message,
+    });
+    res.status(403).json({
+      error: 'CORS_REJECTED',
+      message: 'Origin tidak diizinkan.',
+    });
+    return;
+  }
+
   log('error', 'request.unhandled_error', {
     requestId: req.requestId ?? null,
     method: req.method,
@@ -4111,6 +4464,7 @@ async function verifyDependenciesOnStartup() {
       ok: isMidtransConfigured(),
       provider: 'midtrans',
       environment: env.MIDTRANS_ENVIRONMENT,
+      mode: resolveSubscriptionPaymentConfig().mode,
     },
   });
 }
@@ -4184,6 +4538,7 @@ async function start() {
     emailProvider: env.RESEND_API_KEY && env.RESEND_FROM_EMAIL ? 'resend' : 'disabled',
     paymentProvider: isMidtransConfigured() ? 'midtrans' : 'disabled',
     midtransEnvironment: env.MIDTRANS_ENVIRONMENT,
+    subscriptionPaymentMode: resolveSubscriptionPaymentConfig().mode,
   });
 
   await verifyDependenciesOnStartup();

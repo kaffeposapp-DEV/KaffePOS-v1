@@ -51,15 +51,20 @@ RESEND_API_KEY=
 RESEND_FROM_EMAIL=KaffePOS <no-reply@kaffepos.my.id>
 MIDTRANS_ENVIRONMENT=sandbox
 MIDTRANS_SERVER_KEY=
-MIDTRANS_CLIENT_KEY=
 MIDTRANS_MERCHANT_ID=
 MIDTRANS_SNAP_ENABLED=true
 MIDTRANS_WEBHOOK_BASE_URL=https://api.kaffepos.my.id
 MIDTRANS_FINISH_URL=https://kaffepos.my.id/settings?billing=success
 MIDTRANS_UNFINISH_URL=https://kaffepos.my.id/settings?billing=pending
 MIDTRANS_ERROR_URL=https://kaffepos.my.id/settings?billing=failed
+SUBSCRIPTION_PAYMENT_MODE=auto
+AUTH_RATE_LIMIT_WINDOW_MS=900000
+AUTH_LOGIN_RATE_LIMIT_MAX=10
+AUTH_EMAIL_RATE_LIMIT_MAX=5
+AUTH_VERIFY_RATE_LIMIT_MAX=20
+PAYMENT_CREATE_RATE_LIMIT_MAX=12
 GEMINI_API_KEY=
-CORS_ORIGIN=https://kaffepos.my.id,https://www.kaffepos.my.id,https://api.kaffepos.my.id,capacitor://localhost,http://localhost
+CORS_ORIGIN=https://kaffepos.my.id,https://www.kaffepos.my.id,https://api.kaffepos.my.id,capacitor://localhost,http://localhost,http://localhost:4173,http://127.0.0.1:4173
 ```
 
 ## 3. Cloudflare
@@ -84,8 +89,10 @@ Frontend harus membaca API yang sama:
 
 ```env
 VITE_API_BASE_URL=https://api.kaffepos.my.id
-VITE_GA_MEASUREMENT_ID=
-VITE_CLARITY_PROJECT_ID=
+VITE_GA_MEASUREMENT_ID=G-VNQJ3XPCGG
+VITE_CLARITY_PROJECT_ID=wf7x39iiqr
+VITE_MIDTRANS_CLIENT_KEY=
+VITE_MIDTRANS_ENVIRONMENT=sandbox
 ```
 
 ## 5. Resend
@@ -110,8 +117,29 @@ Frontend mendukung:
 
 - `VITE_GA_MEASUREMENT_ID`
 - `VITE_CLARITY_PROJECT_ID`
+- nilai KaffePOS production saat ini:
+  - Google Analytics: `G-VNQJ3XPCGG`
+  - Microsoft Clarity: `wf7x39iiqr`
 
 Jika kosong, script analytics tidak dimuat.
+Karena frontend dibuild dengan Vite, perubahan env analytics tidak akan terbaca otomatis di runtime. Setelah mengisi atau mengganti nilai env di service `KaffePOS Web`, frontend harus dibuild ulang dan diredeploy.
+
+Checklist aktivasi:
+
+1. isi `VITE_GA_MEASUREMENT_ID`
+2. isi `VITE_CLARITY_PROJECT_ID`
+3. redeploy frontend `KaffePOS Web`
+4. buka `/system-status`
+5. pastikan card Analytics menunjukkan `Configured: Ya`
+6. verifikasi dashboard GA dan Clarity mulai menerima traffic
+
+Troubleshooting jika dashboard masih menulis tag belum terdeteksi:
+
+1. cek bundle live di `https://kaffepos.my.id` benar-benar berubah setelah deploy
+2. cari file `assets/analytics-*.js` terbaru di HTML production
+3. pastikan file itu berisi `G-VNQJ3XPCGG` dan `wf7x39iiqr`
+4. jika bundle masih memuat env kosong, berarti env tidak terbaca saat build
+5. jika domain live masih served dari panel hosting lain seperti Hostinger/LiteSpeed, pastikan deploy terbaru benar-benar masuk ke host yang sedang melayani `kaffepos.my.id`
 
 ## 7. Midtrans
 
@@ -124,6 +152,9 @@ Rekomendasi rollout:
 
 - pakai Midtrans untuk `subscription` dulu
 - tetap biarkan checkout POS berjalan lewat flow internal sampai QRIS kasir benar-benar siap
+- selama akun Midtrans production belum approved, biarkan `SUBSCRIPTION_PAYMENT_MODE=auto`; backend production + Midtrans sandbox otomatis mematikan checkout online dan frontend akan mengarahkan user ke aktivasi manual admin
+- setelah Midtrans production approved dan webhook real lulus smoke test, set `MIDTRANS_ENVIRONMENT=production` dan tetap gunakan `SUBSCRIPTION_PAYMENT_MODE=auto` atau eksplisit `SUBSCRIPTION_PAYMENT_MODE=midtrans_production`
+- panduan cutover sandbox ke production ada di [MIDTRANS_SANDBOX_TO_PRODUCTION_SWITCH.md](/Users/macbook/kaffepos-new/kaffepos-v2/MIDTRANS_SANDBOX_TO_PRODUCTION_SWITCH.md)
 
 ## 8. Monitoring
 

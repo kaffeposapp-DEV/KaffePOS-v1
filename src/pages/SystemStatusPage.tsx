@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { resolveApiBaseUrl } from '@/lib/backendApi';
-import { analyticsStatus } from '@/lib/analytics';
+import { analyticsStatus, analyticsWarnings, type AnalyticsStatus } from '@/lib/analytics';
 
 type StatusResponse = {
   ok: boolean;
@@ -12,17 +12,24 @@ type StatusResponse = {
     backend: { ok: boolean };
     database: { ok: boolean; latencyMs?: number | null };
     email: { ok: boolean; provider: string; fromEmail: string | null };
-    payment: { ok: boolean; provider: string; environment: string; merchantId: string | null };
+    payment: { ok: boolean; commerciallyReady?: boolean; provider: string; environment: string; merchantId: string | null };
   };
   syncMatrix: Record<string, boolean>;
   readiness: Record<string, number>;
+  warnings?: string[];
 };
 
 export default function SystemStatusPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<StatusResponse | null>(null);
-  const analytics = useMemo(() => analyticsStatus(), []);
+  const [analytics, setAnalytics] = useState<AnalyticsStatus>(() => analyticsStatus());
+
+  useEffect(() => {
+    setAnalytics(analyticsStatus());
+  }, []);
+
+  const analyticsAlerts = analyticsWarnings();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -59,8 +66,17 @@ export default function SystemStatusPage() {
     <div className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
       <div className="mx-auto max-w-5xl space-y-6">
         <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">System Status</p>
-          <h1 className="mt-3 text-3xl font-black text-white">KaffePOS Production Readiness</h1>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="flex min-w-0 items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              System Live Status
+            </p>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Last Checked: {new Date().toLocaleTimeString()}</p>
+          </div>
+          <h1 className="mt-3 max-w-full break-words text-2xl font-black text-white italic uppercase sm:text-3xl">Production Readiness Audit</h1>
           <p className="mt-3 max-w-2xl text-sm text-slate-400">
             Halaman ini menarik status backend production, koneksi database, provider email, dan matriks sinkronisasi fitur inti.
           </p>
@@ -85,7 +101,11 @@ export default function SystemStatusPage() {
                 { label: 'Backend', ok: status.checks.backend.ok, detail: status.service },
                 { label: 'Database', ok: status.checks.database.ok, detail: `${status.checks.database.latencyMs ?? '-'} ms` },
                 { label: 'Email', ok: status.checks.email.ok, detail: status.checks.email.fromEmail || 'Belum dikonfigurasi' },
-                { label: 'Payment', ok: status.checks.payment.ok, detail: `${status.checks.payment.provider} · ${status.checks.payment.environment}` },
+                {
+                  label: 'Payment',
+                  ok: status.checks.payment.commerciallyReady ?? status.checks.payment.ok,
+                  detail: `${status.checks.payment.provider} · ${status.checks.payment.environment}`,
+                },
               ].map((item) => (
                 <div key={item.label} className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
                   <div className="flex items-center justify-between">
@@ -98,6 +118,17 @@ export default function SystemStatusPage() {
                 </div>
               ))}
             </section>
+
+            {status.warnings && status.warnings.length > 0 && (
+              <section className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6">
+                <h2 className="text-lg font-black text-amber-100">Operational Warnings</h2>
+                <div className="mt-4 space-y-2 text-sm text-amber-50/90">
+                  {status.warnings.map((warning) => (
+                    <p key={warning}>• {warning}</p>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <section className="grid gap-4 lg:grid-cols-2">
               <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6">
@@ -132,20 +163,39 @@ export default function SystemStatusPage() {
 
             <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6">
               <h2 className="text-lg font-black text-white">Analytics</h2>
+              {analyticsAlerts.length > 0 && (
+                <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-50/90">
+                  <p className="font-semibold text-amber-100">Butuh aktivasi di frontend build</p>
+                  <div className="mt-2 space-y-2">
+                    {analyticsAlerts.map((warning) => (
+                      <p key={warning}>• {warning}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
                   <p className="text-sm font-semibold text-slate-300">Google Analytics</p>
-                  <p className="mt-2 text-sm text-slate-400">
-                    {analytics.ga.configured ? analytics.ga.measurementId : 'Belum dikonfigurasi'}
-                  </p>
+                  <p className="mt-2 text-sm text-slate-400">{analytics.ga.configured ? analytics.ga.measurementId : 'Belum dikonfigurasi di build ini'}</p>
+                  <div className="mt-3 space-y-1 text-xs text-slate-500">
+                    <p>Configured: {analytics.ga.configured ? 'Ya' : 'Belum'}</p>
+                    <p>Script injected: {analytics.ga.scriptInjected ? 'Ya' : 'Belum'}</p>
+                    <p>Runtime ready: {analytics.ga.runtimeReady ? 'Ya' : 'Belum'}</p>
+                  </div>
                 </div>
                 <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
                   <p className="text-sm font-semibold text-slate-300">Microsoft Clarity</p>
-                  <p className="mt-2 text-sm text-slate-400">
-                    {analytics.clarity.configured ? analytics.clarity.projectId : 'Belum dikonfigurasi'}
-                  </p>
+                  <p className="mt-2 text-sm text-slate-400">{analytics.clarity.configured ? analytics.clarity.projectId : 'Belum dikonfigurasi di build ini'}</p>
+                  <div className="mt-3 space-y-1 text-xs text-slate-500">
+                    <p>Configured: {analytics.clarity.configured ? 'Ya' : 'Belum'}</p>
+                    <p>Script injected: {analytics.clarity.scriptInjected ? 'Ya' : 'Belum'}</p>
+                    <p>Runtime ready: {analytics.clarity.runtimeReady ? 'Ya' : 'Belum'}</p>
+                  </div>
                 </div>
               </div>
+              <p className="mt-4 text-xs text-slate-500">
+                Perubahan `VITE_GA_MEASUREMENT_ID` atau `VITE_CLARITY_PROJECT_ID` hanya terbaca saat frontend dibuild ulang. Setelah env diubah di service KaffePOS Web, frontend harus diredeploy.
+              </p>
             </section>
           </>
         )}

@@ -15,6 +15,7 @@ KaffePOS sekarang berjalan tanpa dependensi backend lama, dengan arsitektur:
 - [frontend env](/Users/macbook/kaffepos-new/kaffepos-v2/.env.example)
 - [backend env](/Users/macbook/kaffepos-new/kaffepos-v2/backend/.env.example)
 - [backend API](/Users/macbook/kaffepos-new/kaffepos-v2/backend/src/index.ts)
+- [midtrans switch guide](/Users/macbook/kaffepos-new/kaffepos-v2/MIDTRANS_SANDBOX_TO_PRODUCTION_SWITCH.md)
 - [frontend API client](/Users/macbook/kaffepos-new/kaffepos-v2/src/lib/backendApi.ts)
 - [auth session client](/Users/macbook/kaffepos-new/kaffepos-v2/src/lib/authSession.ts)
 - [database bootstrap SQL](/Users/macbook/kaffepos-new/kaffepos-v2/database/production-bootstrap.sql)
@@ -26,14 +27,25 @@ KaffePOS sekarang berjalan tanpa dependensi backend lama, dengan arsitektur:
 VITE_API_BASE_URL=
 VITE_APP_NAME=KaffePOS
 VITE_APP_VERSION=2.0.0
-VITE_GA_MEASUREMENT_ID=
-VITE_CLARITY_PROJECT_ID=
+VITE_GA_MEASUREMENT_ID=G-VNQJ3XPCGG
+VITE_CLARITY_PROJECT_ID=wf7x39iiqr
+VITE_MIDTRANS_CLIENT_KEY=
+VITE_MIDTRANS_ENVIRONMENT=sandbox
 ```
 
 Biarkan `VITE_API_BASE_URL` kosong jika:
 
 - local dev memakai proxy Vite ke `http://localhost:8787`
 - production memakai fallback otomatis ke `https://api.kaffepos.my.id`
+
+Untuk analytics:
+
+- `VITE_GA_MEASUREMENT_ID` mengaktifkan Google Analytics
+- `VITE_CLARITY_PROJECT_ID` mengaktifkan Microsoft Clarity
+- nilai production KaffePOS saat ini:
+  - `VITE_GA_MEASUREMENT_ID=G-VNQJ3XPCGG`
+  - `VITE_CLARITY_PROJECT_ID=wf7x39iiqr`
+- perubahan kedua env ini baru terbaca saat frontend dibuild ulang, jadi setelah mengisi atau mengganti nilainya di service `KaffePOS Web`, frontend wajib diredeploy
 
 ## Backend env
 
@@ -65,15 +77,20 @@ RESEND_API_KEY=
 RESEND_FROM_EMAIL=KaffePOS <no-reply@kaffepos.my.id>
 MIDTRANS_ENVIRONMENT=sandbox
 MIDTRANS_SERVER_KEY=
-MIDTRANS_CLIENT_KEY=
 MIDTRANS_MERCHANT_ID=
 MIDTRANS_SNAP_ENABLED=true
 MIDTRANS_WEBHOOK_BASE_URL=https://api.kaffepos.my.id
 MIDTRANS_FINISH_URL=https://kaffepos.my.id/settings?billing=success
 MIDTRANS_UNFINISH_URL=https://kaffepos.my.id/settings?billing=pending
 MIDTRANS_ERROR_URL=https://kaffepos.my.id/settings?billing=failed
+SUBSCRIPTION_PAYMENT_MODE=auto
+AUTH_RATE_LIMIT_WINDOW_MS=900000
+AUTH_LOGIN_RATE_LIMIT_MAX=10
+AUTH_EMAIL_RATE_LIMIT_MAX=5
+AUTH_VERIFY_RATE_LIMIT_MAX=20
+PAYMENT_CREATE_RATE_LIMIT_MAX=12
 GEMINI_API_KEY=
-CORS_ORIGIN=https://kaffepos.my.id,https://www.kaffepos.my.id,https://api.kaffepos.my.id,capacitor://localhost,http://localhost
+CORS_ORIGIN=https://kaffepos.my.id,https://www.kaffepos.my.id,https://api.kaffepos.my.id,capacitor://localhost,http://localhost,http://localhost:4173,http://127.0.0.1:4173
 ```
 
 ## Command run/build
@@ -134,7 +151,11 @@ cd android && ./gradlew assembleRelease
 3. Set domain API ke `api.kaffepos.my.id`
 4. Set health check ke `/health`
 5. Deploy web ke domain `kaffepos.my.id`
-6. Tambahkan analytics env bila sudah siap
+6. Tambahkan analytics env bila sudah siap, lalu rebuild dan redeploy frontend
 7. Jalankan smoke test login, verifikasi email, reset password, load store, checkout, history
 
 Lanjutan detail DNS, SSL, Cloudflare, Coolify, Resend, GA, dan Clarity ada di [PRODUCTION_DEPLOYMENT_GUIDE.md](/Users/macbook/kaffepos-new/kaffepos-v2/PRODUCTION_DEPLOYMENT_GUIDE.md).
+
+Panduan cutover Midtrans sandbox ke production ada di [MIDTRANS_SANDBOX_TO_PRODUCTION_SWITCH.md](/Users/macbook/kaffepos-new/kaffepos-v2/MIDTRANS_SANDBOX_TO_PRODUCTION_SWITCH.md).
+
+Selama akun Midtrans production masih proses verifikasi, biarkan `SUBSCRIPTION_PAYMENT_MODE=auto`. Pada backend production yang masih memakai Midtrans sandbox, checkout online subscription otomatis ditutup dan user diarahkan ke aktivasi manual admin.

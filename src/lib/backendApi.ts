@@ -231,13 +231,42 @@ export const createCashRegister = (payload: Record<string, unknown>) =>
 export const updateCashRegisterEntry = (id: string, payload: Record<string, unknown>) =>
   apiFetch<any>(`/api/cash-register/${id}`, { method: 'PATCH', json: payload });
 
+export type SubscriptionPaymentConfig = {
+  mode: 'manual' | 'disabled' | 'midtrans_sandbox' | 'midtrans_production';
+  provider: string;
+  midtransEnvironment: 'sandbox' | 'production';
+  onlinePaymentAvailable: boolean;
+  manualActivationAvailable: boolean;
+  commerciallyReady: boolean;
+  message: string;
+  recommendedAction: string;
+};
+
 export const getSubscriptions = () =>
-  apiFetch<{ currentSubscription: any | null; subscriptions: any[]; paymentHistory: any[]; pendingPayments: any[] }>('/api/subscriptions');
+  apiFetch<{
+    currentSubscription: any | null;
+    subscriptions: any[];
+    paymentHistory: any[];
+    pendingPayments: any[];
+    paymentConfig?: SubscriptionPaymentConfig;
+  }>('/api/subscriptions');
 
 export const createSubscriptionPayment = (payload: {
   plan: 'kopi_susu' | 'signature' | 'founder';
   billingCycle: 'monthly' | 'quarterly' | 'yearly';
-}) => apiFetch<{ reused: boolean; payment: any }>('/api/subscriptions/payments/create', {
+  paymentMethod: 'qris' | 'bca_va' | 'mandiri_bill' | 'bni_va' | 'bri_va';
+  voucherCode?: string | null;
+}) => apiFetch<{ reused: boolean; payment: any; quote: any }>('/api/subscriptions/payments/create', {
+  method: 'POST',
+  json: payload,
+});
+
+export const getSubscriptionPaymentQuote = (payload: {
+  plan: 'kopi_susu' | 'signature' | 'founder';
+  billingCycle: 'monthly' | 'quarterly' | 'yearly';
+  paymentMethod: 'qris' | 'bca_va' | 'mandiri_bill' | 'bni_va' | 'bri_va';
+  voucherCode?: string | null;
+}) => apiFetch<{ quote: any; paymentMethods: any[]; paymentConfig?: SubscriptionPaymentConfig }>('/api/subscriptions/payments/quote', {
   method: 'POST',
   json: payload,
 });

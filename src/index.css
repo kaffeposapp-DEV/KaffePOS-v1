@@ -3,11 +3,87 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root, [data-theme="classic"] {
+    --theme-50: #fdf8f4;
+    --theme-100: #faefe6;
+    --theme-200: #f3d6bd;
+    --theme-300: #ecbd94;
+    --theme-400: #e5a46b;
+    --theme-500: #d8823b;
+    --theme-600: #c86f2b;
+    --theme-700: #a35720;
+    --theme-800: #7a421a;
+    --theme-900: #522e15;
+    --theme-accent: #7a421a;
+    --theme-surface: #fdf8f4;
+    --theme-surface-soft: #fff7ed;
+    --theme-on-primary: #ffffff;
+    --theme-on-surface: #0f172a;
+  }
+
+  [data-theme="slate"] {
+    --theme-50: #f8fafc;
+    --theme-100: #f1f5f9;
+    --theme-200: #e2e8f0;
+    --theme-300: #cbd5e1;
+    --theme-400: #94a3b8;
+    --theme-500: #475569;
+    --theme-600: #334155;
+    --theme-700: #1e293b;
+    --theme-800: #0f172a;
+    --theme-900: #020617;
+    --theme-accent: #0f172a;
+    --theme-surface: #f8fafc;
+    --theme-surface-soft: #f1f5f9;
+    --theme-on-primary: #ffffff;
+    --theme-on-surface: #0f172a;
+  }
+
+  [data-theme="emerald"] {
+    --theme-50: #ecfdf5;
+    --theme-100: #d1fae5;
+    --theme-200: #a7f3d0;
+    --theme-300: #6ee7b7;
+    --theme-400: #34d399;
+    --theme-500: #10b981;
+    --theme-600: #059669;
+    --theme-700: #047857;
+    --theme-800: #065f46;
+    --theme-900: #064e3b;
+    --theme-accent: #065f46;
+    --theme-surface: #ecfdf5;
+    --theme-surface-soft: #f0fdf4;
+    --theme-on-primary: #0f172a;
+    --theme-on-surface: #0f172a;
+  }
+
+  [data-theme="midnight"] {
+    --theme-50: #eff6ff;
+    --theme-100: #dbeafe;
+    --theme-200: #bfdbfe;
+    --theme-300: #93c5fd;
+    --theme-400: #60a5fa;
+    --theme-500: #3b82f6;
+    --theme-600: #2563eb;
+    --theme-700: #1d4ed8;
+    --theme-800: #1e40af;
+    --theme-900: #1e3a8a;
+    --theme-accent: #1e3a8a;
+    --theme-surface: #eff6ff;
+    --theme-surface-soft: #dbeafe;
+    --theme-on-primary: #ffffff;
+    --theme-on-surface: #0f172a;
+  }
+}
+
 /* ── Android/iOS Global Fixes ────────────────────────────────────── */
 @layer base {
   html {
     overscroll-behavior: none;
     -webkit-text-size-adjust: 100%;
+    overflow-x: hidden;
+    width: 100%;
   }
 
   body {
@@ -17,6 +93,8 @@
     user-select: none;
     -webkit-user-select: none;
     background: #0b0f19;
+    overflow-x: hidden;
+    width: 100%;
   }
 
   #root {
@@ -48,9 +126,10 @@
   }
 
   /* Active state for mobile */
-  button:active {
-    transform: scale(0.97);
-    transition: transform 0.1s;
+  button:active, a:active, [role="button"]:active {
+    transform: scale(0.96);
+    opacity: 0.9;
+    transition: all 0.1s ease-out;
   }
 }
 
@@ -175,11 +254,10 @@
 
 /* Peningkatan performa scroll di Android */
 [class*="overflow-y-auto"] {
-  will-change: transform;
+  transform: translateZ(0);
 }
 
 /* Pastikan font-family konsisten di Android */
 html, body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
-
