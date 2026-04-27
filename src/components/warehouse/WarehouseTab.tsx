@@ -5,7 +5,7 @@
  
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo } from 'react';
-import { Plus, Archive, Trash2, X, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Archive, Trash2, X, AlertTriangle, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import DeleteConfirmSheet from '@/components/ui/DeleteConfirmSheet';
 import type { InventoryItem, InventoryItemUpdate, MenuItem } from '@/types';
@@ -126,17 +126,26 @@ export default function WarehouseTab({ toast }: { toast:any }) {
           </div>
         )}
 
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari bahan baku..."
-          className="w-full bg-slate-100 rounded-xl px-4 py-2.5 text-sm focus:outline-none" style={{fontSize:16}}/>
+        <div className="relative mb-3">
+          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"/>
+          <input 
+            value={search} 
+            onChange={e=>setSearch(e.target.value)} 
+            placeholder="Cari bahan baku..."
+            className="w-full h-12 bg-slate-100 rounded-2xl pl-11 pr-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:bg-white transition-all border border-transparent focus:border-orange-200"
+          />
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      <div className="flex-1 overflow-y-auto p-3">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 text-slate-400">
             <p className="text-3xl mb-2">📦</p><p className="text-sm">Belum ada bahan baku</p>
             <p className="text-xs text-slate-300 mt-1">Tambahkan bahan untuk pantau stok & resep menu</p>
           </div>
-        ) : filtered.map(item => {
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {filtered.map(item => {
           const isLow = item.stock <= item.min_stock;
           const stockMeta = getStockMeta(item);
           const inMenus = usedInMenu[item.id] || [];
@@ -207,24 +216,34 @@ export default function WarehouseTab({ toast }: { toast:any }) {
             </div>
           );
         })}
+          </div>
+        )}
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end justify-center">
-          <div className="bg-white w-full max-w-md rounded-t-3xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-black text-lg">
+        <div 
+          className="modal-overlay"
+          onClick={(e) => e.target === e.currentTarget && setShowModal(false)}
+        >
+          <div className="modal-content bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-black text-xl text-slate-900 tracking-tight">
                 {form.type==='new'?'Bahan Baru':form.type==='edit'?'Edit Bahan':'Restock Bahan'}
               </h3>
-              <button onClick={()=>setShowModal(false)} className="text-slate-400"><X size={20}/></button>
+              <button 
+                onClick={()=>setShowModal(false)} 
+                className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 active:bg-slate-100"
+              >
+                <X size={20}/>
+              </button>
             </div>
             <form onSubmit={handleSave} className="space-y-3">
               {form.type!=='restock' ? (
-                <div>
-                  <label className="text-xs font-bold text-slate-500 mb-1 block">Nama Bahan *</label>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-bold text-slate-700 pl-0.5">Nama Bahan *</label>
                   <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}
                     placeholder="Biji Kopi Arabica"
-                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-400" style={{fontSize:16}}/>
+                    className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all" />
                 </div>
               ) : (
                 <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
@@ -233,46 +252,49 @@ export default function WarehouseTab({ toast }: { toast:any }) {
                 </div>
               )}
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 mb-1 block">
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-bold text-slate-700 pl-0.5">
                     {form.type==='new'?'Stok Awal':form.type==='edit'?'Jumlah Stok':'Jumlah Restock'} *
                   </label>
                   <input type="number" value={form.qty} onChange={e=>setForm(f=>({...f,qty:e.target.value}))}
                     placeholder="0" step="0.1"
-                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-400" style={{fontSize:16}}/>
+                    className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all" />
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 mb-1 block">Satuan</label>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-bold text-slate-700 pl-0.5">Satuan</label>
                   <select value={form.unit} onChange={e=>setForm(f=>({...f,unit:e.target.value}))}
-                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-400 bg-white">
+                    className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all appearance-none">
                     {['gr','kg','ml','L','pcs','btl','bks','lbr','sachet'].map(u=><option key={u}>{u}</option>)}
                   </select>
                 </div>
               </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 mb-1 block">Total Biaya Beli (Rp)</label>
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-bold text-slate-700 pl-0.5">Total Biaya Beli (Rp)</label>
                 <input type="number" value={form.cost} onChange={e=>setForm(f=>({...f,cost:e.target.value}))}
                   placeholder="0"
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-400" style={{fontSize:16}}/>
-                <p className="text-xs text-slate-400 mt-1">
+                  className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all" />
+                <p className="text-[11px] text-slate-400 pl-0.5 font-medium">
                   {form.qty && form.cost
                     ? `HPP per ${form.unit}: ${fRp(parseInt(form.cost)/(parseFloat(form.qty)||1))}`
                     : 'Isi untuk hitung HPP/unit otomatis'}
                 </p>
               </div>
               {form.type !== 'restock' && (
-                <div>
-                  <label className="text-xs font-bold text-slate-500 mb-1 block">Stok Minimum (Peringatan)</label>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-bold text-slate-700 pl-0.5">Stok Minimum (Peringatan)</label>
                   <input type="number" value={form.minStock} onChange={e=>setForm(f=>({...f,minStock:e.target.value}))}
                     placeholder="5"
-                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-400" style={{fontSize:16}}/>
-                  <p className="text-xs text-slate-400 mt-1">Notifikasi ⚠ muncul saat stok ≤ nilai ini</p>
+                    className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all" />
+                  <p className="text-[11px] text-slate-400 pl-0.5 font-medium">Notifikasi ⚠ muncul saat stok ≤ nilai ini</p>
                 </div>
               )}
-              <button type="submit" disabled={saving}
-                className="w-full py-3.5 bg-orange-500 text-white font-black rounded-2xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
-                {saving&&<div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>}
-                {saving?'Menyimpan...':'Simpan'}
+              <button 
+                type="submit" 
+                disabled={saving}
+                className="w-full h-14 bg-slate-900 text-white font-black rounded-2xl active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-slate-900/10 transition-all"
+              >
+                {saving&&<div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/>}
+                {saving?'Menyimpan...':'Simpan Perubahan'}
               </button>
             </form>
           </div>

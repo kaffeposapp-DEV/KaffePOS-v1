@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { clearStoredAuthSession, getStoredAuthSession, isSessionExpired, saveStoredAuthSession } from '@/lib/authSession';
+import { clearStoredAuthSession, ensureStoredAuthSessionShape, getStoredAuthSession, isSessionExpired, saveStoredAuthSession } from '@/lib/authSession';
 
 describe('Auth session storage', () => {
   beforeEach(async () => {
@@ -17,7 +17,7 @@ describe('Auth session storage', () => {
     await saveStoredAuthSession(session);
     const cached = await getStoredAuthSession();
 
-    expect(cached).toEqual(session);
+    expect(cached).toMatchObject(session);
   });
 
   it('mengenali session yang sudah kedaluwarsa', async () => {
@@ -28,5 +28,16 @@ describe('Auth session storage', () => {
     };
 
     expect(isSessionExpired(expiredSession)).toBe(true);
+  });
+
+  it('membersihkan session cache yang korup tanpa me-reset storage lain', async () => {
+    localStorage.setItem('kaffepos_auth_session', '{"broken":true}');
+    localStorage.setItem('kpos_app_theme', 'custom');
+
+    const result = await ensureStoredAuthSessionShape();
+
+    expect(result).toBe('cleared');
+    expect(await getStoredAuthSession()).toBeNull();
+    expect(localStorage.getItem('kpos_app_theme')).toBe('custom');
   });
 });

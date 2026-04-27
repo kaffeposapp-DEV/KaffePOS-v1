@@ -21,8 +21,7 @@ interface MigrationResult {
 
 // ── Main migration function ────────────────────────────────────────
 export async function migrateFromLocalStorage(
-  storeId: string,
-  _userId: string
+  storeId: string
 ): Promise<MigrationResult> {
   const result: MigrationResult = {
     success: false,

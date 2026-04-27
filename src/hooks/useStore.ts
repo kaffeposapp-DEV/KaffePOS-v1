@@ -1,8 +1,8 @@
- 
- 
- 
- 
- 
+
+
+
+
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/hooks/useStore.ts — KaffePOS v5 — Full localStorage cache (menu+inv+trx)
 import { create } from 'zustand';
@@ -19,12 +19,16 @@ import {
   getCashRegister,
   getExpenses,
   getInventory,
+  getKitchenOrders,
   getMenuItems,
   getStores,
   getTransactions,
   removeExpense,
   removeInventoryItem,
   removeMenuItem,
+  subscribeKitchenEvents,
+  updateKitchenItemStatus,
+  updateKitchenOrderStatus,
   updateCashRegisterEntry,
   updateInventoryItem,
   updateMenuItem,
@@ -32,6 +36,7 @@ import {
   voidTransactionRequest,
 } from '@/lib/backendApi';
 import { trackOpsEvent } from '@/lib/opsMetrics';
+import { DEFAULT_CUSTOM_THEME, applyThemeToDocument, type CustomThemeConfig, type ThemePresetId } from '@/lib/theme';
 import { menuItemSchema } from '@/utils/validation';
 import {
   clearIndexedDbCache,
@@ -43,7 +48,7 @@ import {
 import type {
   MenuItem, InventoryItem, Transaction, Expense,
   CashFlowEntry, StoreSettings, CartItem, CashRegister,
-  InventoryItemUpdate,
+  InventoryItemUpdate, KitchenOrder, KitchenOrderStatus, KitchenRealtimeEvent, KitchenRealtimeStatus,
 } from '@/types';
 
 function makeClientId(prefix: string) {
@@ -51,6 +56,30 @@ function makeClientId(prefix: string) {
     return crypto.randomUUID();
   }
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
+function getPersistedThemeState() {
+  if (typeof window === 'undefined') {
+    return {
+      appTheme: 'classic' as ThemePresetId,
+      customTheme: DEFAULT_CUSTOM_THEME,
+    };
+  }
+
+  try {
+    const appTheme = (localStorage.getItem('kpos_app_theme') as ThemePresetId | null) || 'classic';
+    const rawCustomTheme = localStorage.getItem('kpos_app_theme_custom');
+    const customTheme = rawCustomTheme
+      ? { ...DEFAULT_CUSTOM_THEME, ...(JSON.parse(rawCustomTheme) as Partial<CustomThemeConfig>) }
+      : DEFAULT_CUSTOM_THEME;
+
+    return { appTheme, customTheme };
+  } catch {
+    return {
+      appTheme: 'classic' as ThemePresetId,
+      customTheme: DEFAULT_CUSTOM_THEME,
+    };
+  }
 }
 
 // ── localStorage helpers ──────────────────────────────────────────
@@ -70,6 +99,10 @@ function getCartCacheKey(storeId: string) {
 
 function getDiscountCacheKey(storeId: string) {
   return `kpos_discount_${storeId}`;
+}
+
+function getKitchenCacheKey(storeId: string) {
+  return `kpos_kitchen_orders_${storeId}`;
 }
 
 function persistCheckoutDraft(storeId: string | null, cart: CartItem[], discount: string) {
@@ -129,8 +162,14 @@ function loadCache(storeId: string) {
     expenses: (load(`kpos_exp_${storeId}`)  || []) as Expense[],
     cashFlow: (load(`kpos_cf_${storeId}`)   || []) as CashFlowEntry[],
     cashReg:  (load(`kpos_cr_${storeId}`)   || []) as CashRegister[],
+    kitchen:  (load(getKitchenCacheKey(storeId)) || []) as KitchenOrder[],
     settings: loadSettingsFromLS(storeId),
   };
+}
+
+function saveKitchenToLS(storeId: string | null, orders: KitchenOrder[]) {
+  if (!storeId) return;
+  try { localStorage.setItem(getKitchenCacheKey(storeId), JSON.stringify(orders)); } catch { /* ignore */ }
 }
 
 // ── Anti-duplikat: track ID yang baru di-INSERT oleh kita sendiri ─
@@ -193,6 +232,35 @@ function mergeById<T extends { id: string; date?: string; created_at?: string }>
   }
 
   return sortByDateDesc(Array.from(merged.values()));
+}
+
+function sortKitchenOrders(orders: KitchenOrder[]) {
+  return [...orders].sort((a, b) => {
+    const statusWeight: Record<string, number> = { pending: 0, preparing: 1, ready: 2, served: 3, completed: 3, cancelled: 4 };
+    const statusDiff = (statusWeight[a.overall_status] ?? 9) - (statusWeight[b.overall_status] ?? 9);
+    if (statusDiff !== 0) return statusDiff;
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  });
+}
+
+function isKitchenOrderNewer(next: KitchenOrder, current?: KitchenOrder) {
+  if (!current) return true;
+  if ((next.status_version ?? 0) !== (current.status_version ?? 0)) {
+    return (next.status_version ?? 0) >= (current.status_version ?? 0);
+  }
+  return new Date(next.updated_at || next.created_at).getTime() >= new Date(current.updated_at || current.created_at).getTime();
+}
+
+function mergeKitchenOrder(orders: KitchenOrder[], order: KitchenOrder) {
+  const existing = orders.find((entry) => entry.id === order.id);
+  if (existing && !isKitchenOrderNewer(order, existing)) {
+    return orders;
+  }
+  const merged = existing
+    ? orders.map((entry) => entry.id === order.id ? order : entry)
+    : [order, ...orders];
+  const active = merged.filter((entry) => !['served', 'completed', 'cancelled'].includes(entry.overall_status));
+  return sortKitchenOrders(active);
 }
 
 async function flushPending() {
@@ -263,6 +331,8 @@ interface AppStore {
   menu:          MenuItem[];
   inventory:     InventoryItem[];
   transactions:  Transaction[];
+  kitchenOrders: KitchenOrder[];
+  kitchenRealtimeStatus: KitchenRealtimeStatus;
   expenses:      Expense[];
   cashFlow:      CashFlowEntry[];
   cashRegister:  CashRegister[];
@@ -272,10 +342,18 @@ interface AppStore {
   loading:       boolean;
   syncing:       boolean;
   isOnline:      boolean;
+  appTheme:      ThemePresetId;
+  customTheme:   CustomThemeConfig;
 
   setStoreId:          (id: string) => void;
+  setAppTheme:         (theme: ThemePresetId) => void;
+  setCustomTheme:      (theme: Partial<CustomThemeConfig>) => void;
   loadAll:             (storeId: string) => Promise<void>;
   cleanup:             () => void;
+  loadKitchenOrders:    (storeId?: string) => Promise<void>;
+  connectKitchenRealtime: (storeId?: string) => void;
+  applyKitchenEvent:    (event: KitchenRealtimeEvent) => void;
+  setCartItemNote:      (id: string, note: string) => void;
   addToCart:           (item: MenuItem, variant?: { name: string; price: number }) => void;
   removeFromCart:      (id: string) => void;
   updateQty:           (id: string, qty: number) => void;
@@ -287,6 +365,8 @@ interface AppStore {
   deleteInventoryItem: (id: string) => Promise<void>;
   saveTransaction:     (tx: Omit<Transaction, 'store_id'>) => Promise<Transaction>;
   voidTransaction:     (id: string, reason: string, by: string) => Promise<Transaction>;
+  updateKitchenOrder:   (id: string, status: KitchenOrderStatus, reason?: string | null) => Promise<KitchenOrder>;
+  updateKitchenItem:    (id: string, status: KitchenOrderStatus) => Promise<KitchenOrder>;
   saveExpense:         (exp: Partial<Expense>) => Promise<void>;
   deleteExpense:       (id: string) => Promise<void>;
   saveCashFlow:        (entry: Partial<CashFlowEntry>) => Promise<void>;
@@ -299,13 +379,15 @@ interface AppStore {
 
 const initialState: Pick<
   AppStore,
-  'storeId' | 'storeSettings' | 'menu' | 'inventory' | 'transactions' | 'expenses' | 'cashFlow' | 'cashRegister' | 'customCats' | 'cart' | 'discount' | 'loading' | 'syncing'
+  'storeId' | 'storeSettings' | 'menu' | 'inventory' | 'transactions' | 'kitchenOrders' | 'kitchenRealtimeStatus' | 'expenses' | 'cashFlow' | 'cashRegister' | 'customCats' | 'cart' | 'discount' | 'loading' | 'syncing' | 'appTheme' | 'customTheme'
 > = {
   storeId: null,
   storeSettings: null,
   menu: [],
   inventory: [],
   transactions: [],
+  kitchenOrders: [],
+  kitchenRealtimeStatus: 'idle',
   expenses: [],
   cashFlow: [],
   cashRegister: [],
@@ -314,9 +396,13 @@ const initialState: Pick<
   discount: '',
   loading: false,
   syncing: false,
+  ...getPersistedThemeState(),
 };
 
 const loadAllPromises = new Map<string, Promise<void>>();
+let kitchenRealtimeCleanup: (() => void) | null = null;
+let kitchenReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+const seenKitchenEventIds = new Set<string>();
 
 export const useStore = create<AppStore>((set, get) => ({
   ...initialState,
@@ -324,8 +410,34 @@ export const useStore = create<AppStore>((set, get) => ({
 
   setStoreId: (id) => set({ storeId: id }),
 
+  setAppTheme: (theme) => {
+    const { customTheme } = get();
+    if (typeof window !== 'undefined') localStorage.setItem('kpos_app_theme', theme);
+    applyThemeToDocument(theme, customTheme);
+    set({ appTheme: theme });
+  },
+
+  setCustomTheme: (theme) => {
+    const nextTheme = { ...get().customTheme, ...theme };
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('kpos_app_theme_custom', JSON.stringify(nextTheme));
+    }
+    if (get().appTheme === 'custom') {
+      applyThemeToDocument('custom', nextTheme);
+    }
+    set({ customTheme: nextTheme });
+  },
+
   cleanup: () => {
-    // Main data layer now uses backend API polling and explicit refresh.
+    if (kitchenRealtimeCleanup) {
+      kitchenRealtimeCleanup();
+      kitchenRealtimeCleanup = null;
+    }
+    if (kitchenReconnectTimer) {
+      clearTimeout(kitchenReconnectTimer);
+      kitchenReconnectTimer = null;
+    }
+    seenKitchenEventIds.clear();
   },
 
   resetState: () => {
@@ -334,7 +446,11 @@ export const useStore = create<AppStore>((set, get) => ({
     clearSessionStorage();
     clearIndexedDbCache();
     loadAllPromises.clear();
-    set({ ...initialState, isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true });
+    set({
+      ...initialState,
+      ...getPersistedThemeState(),
+      isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
+    });
   },
 
   loadAll: async (storeId: string) => {
@@ -356,6 +472,7 @@ export const useStore = create<AppStore>((set, get) => ({
         menu:          cache.menu,
         inventory:     cache.inv,
         transactions:  cache.trx,
+        kitchenOrders: sortKitchenOrders(cache.kitchen),
         expenses:      cache.expenses,
         cashFlow:      cache.cashFlow,
         cashRegister:  cache.cashReg,
@@ -367,8 +484,6 @@ export const useStore = create<AppStore>((set, get) => ({
     } else {
       set({ storeId, loading: true, cart: cachedCart, discount: cachedDiscount });
     }
-
-    get().cleanup();
 
     try {
       const [storesResponse, menuResponse, inventoryResponse] = await Promise.all([
@@ -395,6 +510,7 @@ export const useStore = create<AppStore>((set, get) => ({
         customCats: freshCats,
         loading:    false,
         transactions: s.transactions,
+        kitchenOrders: s.kitchenOrders,
       }));
 
       persistCache(
@@ -432,19 +548,22 @@ export const useStore = create<AppStore>((set, get) => ({
 
     const loadSecondary = async () => {
       try {
-        const [trx, exp, cf, cr] = await Promise.all([
+        const [trx, kitchen, exp, cf, cr] = await Promise.all([
           getTransactions(storeId),
+          getKitchenOrders(storeId),
           getExpenses(storeId),
           getCashFlow(storeId),
           getCashRegister(storeId),
         ]);
 
         const trxData = mergeById((trx.items || []) as Transaction[], get().transactions);
+        const kitchenData = sortKitchenOrders((kitchen.items || []) as KitchenOrder[]);
         const expData = mergeById((exp.items || []) as Expense[], get().expenses);
         const cfData = mergeById((cf.items || []) as CashFlowEntry[], get().cashFlow);
         const crData = mergeById((cr.items || []) as CashRegister[], get().cashRegister);
         set({
           transactions: trxData,
+          kitchenOrders: kitchenData,
           expenses:     expData,
           cashFlow:     cfData,
           cashRegister: crData,
@@ -459,6 +578,8 @@ export const useStore = create<AppStore>((set, get) => ({
           cfData,
           crData,
         );
+        saveKitchenToLS(storeId, kitchenData);
+        get().connectKitchenRealtime(storeId);
       } catch {
         set({ syncing: false });
       }
@@ -472,6 +593,67 @@ export const useStore = create<AppStore>((set, get) => ({
 
     loadAllPromises.set(storeId, run);
     return run;
+  },
+
+  loadKitchenOrders: async (storeIdArg) => {
+    const storeId = storeIdArg || get().storeId;
+    if (!storeId) return;
+    try {
+      const response = await getKitchenOrders(storeId);
+      const orders = sortKitchenOrders((response.items || []) as KitchenOrder[]);
+      set({ kitchenOrders: orders });
+      saveKitchenToLS(storeId, orders);
+    } catch (error) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        set({ kitchenRealtimeStatus: 'offline' });
+        return;
+      }
+      set({ kitchenRealtimeStatus: 'error' });
+      throw error;
+    }
+  },
+
+  connectKitchenRealtime: (storeIdArg) => {
+    const storeId = storeIdArg || get().storeId;
+    if (!storeId) return;
+    if (kitchenRealtimeCleanup) return;
+
+    kitchenRealtimeCleanup = subscribeKitchenEvents({
+      storeId,
+      onStatus: (status) => set({ kitchenRealtimeStatus: status }),
+      onEvent: (event) => get().applyKitchenEvent(event),
+      onError: () => {
+        get().loadKitchenOrders(storeId).catch(() => {});
+      },
+    });
+  },
+
+  applyKitchenEvent: (event) => {
+    const storeId = get().storeId;
+    if (!storeId || event.store_id !== storeId) return;
+    if (seenKitchenEventIds.has(event.id)) return;
+    seenKitchenEventIds.add(event.id);
+    if (seenKitchenEventIds.size > 500) {
+      const oldest = seenKitchenEventIds.values().next().value;
+      if (oldest) seenKitchenEventIds.delete(oldest);
+    }
+
+    if (event.type === 'snapshot_required') {
+      get().loadKitchenOrders(storeId).catch(() => {});
+      return;
+    }
+
+    const order = event.payload?.order || null;
+    if (!order) {
+      get().loadKitchenOrders(storeId).catch(() => {});
+      return;
+    }
+
+    set((state) => {
+      const nextOrders = mergeKitchenOrder(state.kitchenOrders, order);
+      saveKitchenToLS(storeId, nextOrders);
+      return { kitchenOrders: nextOrders };
+    });
   },
 
   addToCart: (item, variant) => {
@@ -498,6 +680,12 @@ export const useStore = create<AppStore>((set, get) => ({
     const nextCart = qty <= 0
       ? s.cart.filter(c => c.id !== id)
       : s.cart.map(c => c.id === id ? { ...c, qty } : c);
+    persistCheckoutDraft(s.storeId, nextCart, s.discount);
+    return { cart: nextCart };
+  }),
+
+  setCartItemNote: (id, note) => set(s => {
+    const nextCart = s.cart.map(c => c.id === id ? { ...c, note } : c);
     persistCheckoutDraft(s.storeId, nextCart, s.discount);
     return { cart: nextCart };
   }),
@@ -822,6 +1010,13 @@ export const useStore = create<AppStore>((set, get) => ({
           ? s.transactions.map(t => t.id === savedTx.id ? savedTx : t)
           : [savedTx, ...s.transactions]
       }));
+      if (savedTx.kitchen_order) {
+        set(s => {
+          const nextOrders = mergeKitchenOrder(s.kitchenOrders, savedTx.kitchen_order as KitchenOrder);
+          saveKitchenToLS(storeId, nextOrders);
+          return { kitchenOrders: nextOrders };
+        });
+      }
       persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
       await get().loadAll(storeId);
       return savedTx;
@@ -852,6 +1047,13 @@ export const useStore = create<AppStore>((set, get) => ({
       set(s => ({
         transactions: s.transactions.map(t => t.id === id ? voidedTx : t)
       }));
+      if (voidedTx.kitchen_order) {
+        set(s => {
+          const nextOrders = mergeKitchenOrder(s.kitchenOrders, voidedTx.kitchen_order as KitchenOrder);
+          saveKitchenToLS(storeId, nextOrders);
+          return { kitchenOrders: nextOrders };
+        });
+      }
       persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
       await get().loadAll(storeId);
       return voidedTx;
@@ -860,6 +1062,41 @@ export const useStore = create<AppStore>((set, get) => ({
       import('@/utils/toast').then(m => m.showToast(msg, 'error'));
       throw e;
     }
+  },
+
+  updateKitchenOrder: async (id, status, reason) => {
+    const storeId = get().storeId;
+    if (!storeId) throw new Error('Store belum dimuat.');
+    if (!get().isOnline) throw new Error('Update status dapur butuh koneksi internet.');
+    const data = await updateKitchenOrderStatus(id, {
+      store_id: storeId,
+      status,
+      reason: reason ?? null,
+    });
+    const order = data as KitchenOrder;
+    set(s => {
+      const nextOrders = mergeKitchenOrder(s.kitchenOrders, order);
+      saveKitchenToLS(storeId, nextOrders);
+      return { kitchenOrders: nextOrders };
+    });
+    return order;
+  },
+
+  updateKitchenItem: async (id, status) => {
+    const storeId = get().storeId;
+    if (!storeId) throw new Error('Store belum dimuat.');
+    if (!get().isOnline) throw new Error('Update status item butuh koneksi internet.');
+    const data = await updateKitchenItemStatus(id, {
+      store_id: storeId,
+      status,
+    });
+    const order = data as KitchenOrder;
+    set(s => {
+      const nextOrders = mergeKitchenOrder(s.kitchenOrders, order);
+      saveKitchenToLS(storeId, nextOrders);
+      return { kitchenOrders: nextOrders };
+    });
+    return order;
   },
 
   saveExpense: async (exp) => {

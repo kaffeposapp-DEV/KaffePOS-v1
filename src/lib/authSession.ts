@@ -48,23 +48,63 @@ async function removeStorage(key: string) {
   localStorage.removeItem(key);
 }
 
+function normalizeStoredUser(input: unknown): AuthUser | null {
+  if (!input || typeof input !== 'object') return null;
+
+  const candidate = input as Record<string, unknown>;
+  if (typeof candidate.id !== 'string' || candidate.id.trim().length === 0) {
+    return null;
+  }
+
+  return {
+    id: candidate.id,
+    email: typeof candidate.email === 'string' ? candidate.email : null,
+    email_verified_at: typeof candidate.email_verified_at === 'string' ? candidate.email_verified_at : null,
+    user_metadata: candidate.user_metadata && typeof candidate.user_metadata === 'object'
+      ? candidate.user_metadata as Record<string, unknown>
+      : null,
+  };
+}
+
+export function normalizeStoredAuthSession(input: unknown): AuthSession | null {
+  if (!input || typeof input !== 'object') return null;
+
+  const candidate = input as Record<string, unknown>;
+  if (typeof candidate.accessToken !== 'string' || candidate.accessToken.trim().length === 0) {
+    return null;
+  }
+  if (typeof candidate.expiresAt !== 'string' || candidate.expiresAt.trim().length === 0) {
+    return null;
+  }
+
+  const user = normalizeStoredUser(candidate.user);
+  if (!user) return null;
+
+  return {
+    accessToken: candidate.accessToken,
+    expiresAt: candidate.expiresAt,
+    user,
+  };
+}
+
 export async function getStoredAuthSession(): Promise<AuthSession | null> {
   try {
     const raw = await readStorage(AUTH_SESSION_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as AuthSession;
+    return normalizeStoredAuthSession(JSON.parse(raw));
   } catch {
     return null;
   }
 }
 
 export async function saveStoredAuthSession(session: AuthSession | null) {
-  if (!session) {
+  const normalized = normalizeStoredAuthSession(session);
+  if (!normalized) {
     await removeStorage(AUTH_SESSION_KEY);
     return;
   }
 
-  await writeStorage(AUTH_SESSION_KEY, JSON.stringify(session));
+  await writeStorage(AUTH_SESSION_KEY, JSON.stringify(normalized));
 }
 
 export async function clearStoredAuthSession() {
@@ -86,6 +126,25 @@ export async function clearExplicitSignOutMarker() {
 
 export async function hasExplicitSignOutMarker() {
   return (await readStorage(EXPLICIT_SIGNOUT_KEY)) === '1';
+}
+
+export async function ensureStoredAuthSessionShape(): Promise<'empty' | 'ok' | 'cleared'> {
+  try {
+    const raw = await readStorage(AUTH_SESSION_KEY);
+    if (!raw) return 'empty';
+
+    const normalized = normalizeStoredAuthSession(JSON.parse(raw));
+    if (!normalized) {
+      await removeStorage(AUTH_SESSION_KEY);
+      return 'cleared';
+    }
+
+    await writeStorage(AUTH_SESSION_KEY, JSON.stringify(normalized));
+    return 'ok';
+  } catch {
+    await removeStorage(AUTH_SESSION_KEY);
+    return 'cleared';
+  }
 }
 
 export function isSessionExpired(session: AuthSession | null | undefined) {

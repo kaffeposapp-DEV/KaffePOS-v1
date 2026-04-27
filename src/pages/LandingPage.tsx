@@ -418,11 +418,10 @@ export default function LandingPage() {
             onKeyDown={handleLogoKeyDown}
           >
             <div className="h-10 md:h-12 lg:h-14 flex items-center justify-center group-hover:scale-105 transition-transform duration-500 ease-out">
-              <img 
-                src={LOGO_WEB} 
-                alt="KaffePOS Home" 
-                className="h-full w-auto object-contain drop-shadow-2xl" 
-                fetchPriority="high"
+              <img
+                src={LOGO_WEB}
+                alt="KaffePOS Home"
+                className="h-full w-auto object-contain drop-shadow-2xl"
                 loading="eager"
               />
             </div>
@@ -995,11 +994,10 @@ export default function LandingPage() {
             <div className="col-span-2">
               <div className="flex justify-center md:justify-start mb-12 group cursor-pointer" onClick={() => navigate('/welcome')}>
                 <div className="h-16 md:h-20 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                  <img 
-                    src={LOGO_WEB} 
-                    alt="KaffePOS" 
-                    className="h-full w-auto object-contain opacity-100" 
-                    fetchPriority="high"
+                  <img
+                    src={LOGO_WEB}
+                    alt="KaffePOS"
+                    className="h-full w-auto object-contain opacity-100"
                     loading="eager"
                   />
                 </div>

@@ -1,39 +1,38 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
+import { describe, expect, it } from 'vitest';
 import {
   buildSubscriptionBillingQuote,
   listSubscriptionPaymentMethods,
   validateSubscriptionVoucher,
 } from './subscriptionBilling';
 
-test('lists only supported subscription payment methods', () => {
-  const methods = listSubscriptionPaymentMethods().map((item) => item.id);
-  assert.deepEqual(methods, ['qris', 'bca_va', 'mandiri_bill', 'bni_va', 'bri_va']);
-});
-
-test('builds quote with voucher discount', () => {
-  const quote = buildSubscriptionBillingQuote({
-    plan: 'signature',
-    billingCycle: 'monthly',
-    paymentMethod: 'bca_va',
-    voucherCode: 'SIGNATURE10',
+describe('backend subscription billing helpers', () => {
+  it('lists only supported subscription payment methods', () => {
+    const methods = listSubscriptionPaymentMethods().map((item) => item.id);
+    expect(methods).toEqual(['qris', 'bca_va', 'mandiri_bill', 'bni_va', 'bri_va']);
   });
 
-  assert.equal(quote.subtotal, 99000);
-  assert.equal(quote.discount, 9900);
-  assert.equal(quote.adminFee, 0);
-  assert.equal(quote.total, 89100);
-});
+  it('builds quote with voucher discount', () => {
+    const quote = buildSubscriptionBillingQuote({
+      plan: 'signature',
+      billingCycle: 'monthly',
+      paymentMethod: 'bca_va',
+      voucherCode: 'SIGNATURE10',
+    });
 
-test('rejects invalid voucher', () => {
-  assert.throws(
-    () =>
+    expect(quote.subtotal).toBe(99000);
+    expect(quote.discount).toBe(9900);
+    expect(quote.adminFee).toBe(0);
+    expect(quote.total).toBe(89100);
+  });
+
+  it('rejects invalid voucher', () => {
+    expect(() =>
       validateSubscriptionVoucher({
         plan: 'founder',
         billingCycle: 'monthly',
         subtotal: 199000,
         voucherCode: 'SALAH',
       }),
-    /Kode voucher tidak ditemukan/,
-  );
+    ).toThrow('Kode voucher tidak ditemukan');
+  });
 });

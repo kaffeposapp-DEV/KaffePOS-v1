@@ -163,12 +163,13 @@ export interface PrintActionSheetProps {
   onClose:       () => void;
   transaction:   any;
   storeSettings:any;
+  allowThermalPrint?: boolean;
   toast:         { showToast: (m: string, t?: 'success' | 'error' | 'warning' | 'info') => void };
 }
 
 // ── Komponen utama ───────────────────────────────────────────────────────────
 export default function PrintActionSheet({
-  visible, onClose, transaction, storeSettings, toast,
+  visible, onClose, transaction, storeSettings, allowThermalPrint = true, toast,
 }: PrintActionSheetProps) {
   const printer = usePrinter();
   const [loading, setLoading] = useState<string | null>(null);
@@ -199,6 +200,10 @@ export default function PrintActionSheet({
 
   // ── Action handlers ───────────────────────────────────────────────────────
   const handleBluetooth = async () => {
+    if (!allowThermalPrint) {
+      toast.showToast('Cetak Bluetooth tersedia mulai paket Signature.', 'info');
+      return;
+    }
     setLoading('bt');
     try {
       if (!printer.btConnected) {
@@ -214,6 +219,10 @@ export default function PrintActionSheet({
   };
 
   const handleUsb = async () => {
+    if (!allowThermalPrint) {
+      toast.showToast('Cetak USB thermal tersedia mulai paket Signature.', 'info');
+      return;
+    }
     setLoading('usb');
     try {
       if (!printer.usbConnected) await printer.connectUsb();
@@ -300,7 +309,7 @@ export default function PrintActionSheet({
           <button
             onClick={handleBluetooth}
             disabled={loading !== null}
-            className="w-full flex items-center gap-3.5 p-4 rounded-2xl bg-orange-50 border border-orange-100 active:scale-[0.98] disabled:opacity-60 transition-transform"
+            className={`w-full flex items-center gap-3.5 p-4 rounded-2xl border active:scale-[0.98] disabled:opacity-60 transition-transform ${allowThermalPrint ? 'bg-orange-50 border-orange-100' : 'bg-slate-50 border-slate-200'}`}
           >
             <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center shrink-0">
               {loading === 'bt' ? <Spinner /> : <Bluetooth size={24} className="text-orange-500" />}
@@ -311,11 +320,11 @@ export default function PrintActionSheet({
                 {btStatus.dot} {btStatus.label}
               </p>
               {!printer.btConnected && (
-                <p className="text-[10px] text-orange-400 mt-0.5">Tap untuk hubungkan & cetak</p>
+                <p className={`text-[10px] mt-0.5 ${allowThermalPrint ? 'text-orange-400' : 'text-slate-400'}`}>{allowThermalPrint ? 'Tap untuk hubungkan & cetak' : 'Tersedia mulai paket Signature'}</p>
               )}
             </div>
             {!printer.btConnected && !printer.btReconnecting && (
-              <span className="text-[10px] font-bold text-orange-500 bg-orange-100 px-2.5 py-1.5 rounded-xl shrink-0">Hubungkan</span>
+              <span className={`text-[10px] font-bold px-2.5 py-1.5 rounded-xl shrink-0 ${allowThermalPrint ? 'text-orange-500 bg-orange-100' : 'text-slate-500 bg-slate-200'}`}>{allowThermalPrint ? 'Hubungkan' : 'Locked'}</span>
             )}
           </button>
 
@@ -323,7 +332,7 @@ export default function PrintActionSheet({
           <button
             onClick={handleUsb}
             disabled={loading !== null}
-            className="w-full flex items-center gap-3.5 p-4 rounded-2xl bg-blue-50 border border-blue-100 active:scale-[0.98] disabled:opacity-60 transition-transform"
+            className={`w-full flex items-center gap-3.5 p-4 rounded-2xl border active:scale-[0.98] disabled:opacity-60 transition-transform ${allowThermalPrint ? 'bg-blue-50 border-blue-100' : 'bg-slate-50 border-slate-200'}`}
           >
             <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center shrink-0">
               {loading === 'usb' ? <Spinner /> : <Usb size={24} className="text-blue-500" />}
@@ -331,7 +340,7 @@ export default function PrintActionSheet({
             <div className="text-left flex-1">
               <p className="font-black text-slate-800 text-sm">Cetak via USB OTG</p>
               <p className={`text-xs font-medium mt-0.5 ${usbStatus.color}`}>
-                {usbStatus.dot} {usbStatus.label}
+                {allowThermalPrint ? `${usbStatus.dot} ${usbStatus.label}` : 'Tersedia mulai paket Signature'}
               </p>
             </div>
             {printer.usbConnected && (

@@ -6,7 +6,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/menu/MenuTab.tsx
 import { useState, useMemo, useRef } from 'react';
-import { Plus, Edit, Trash2, X, ToggleLeft, ToggleRight, ChevronDown, ChevronUp, Link2, Image } from 'lucide-react';
+import { Plus, Edit, Trash2, X, ToggleLeft, ToggleRight, ChevronDown, ChevronUp, Link2, Image, Search } from 'lucide-react';
+import ProductPlaceholder from '@/components/ui/ProductPlaceholder';
 import { useStore } from '@/hooks/useStore';
 import DeleteConfirmSheet from '@/components/ui/DeleteConfirmSheet';
 import type { MenuItem } from '@/types';
@@ -82,12 +83,26 @@ export default function MenuTab({ toast }:any) {
             <Plus size={13}/>Tambah
           </button>
         </div>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari menu..."
-          className="w-full bg-slate-100 rounded-xl px-4 py-2.5 text-sm focus:outline-none mb-2" style={{fontSize:16}}/>
-        <div className="flex gap-1.5 overflow-x-auto pb-1">
+        <div className="relative mb-3">
+          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"/>
+          <input 
+            value={search} 
+            onChange={e=>setSearch(e.target.value)} 
+            placeholder="Cari menu..."
+            className="w-full h-12 bg-slate-100 rounded-2xl pl-11 pr-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:bg-white transition-all border border-transparent focus:border-orange-200"
+          />
+        </div>
+        <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-3 px-3 sm:-mx-4 sm:px-4">
           {cats.map(c=>(
-            <button key={c} onClick={()=>setCat(c)}
-              className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${cat===c?'bg-orange-500 text-white':'bg-slate-100 text-slate-500'}`}>
+            <button 
+              key={c} 
+              onClick={()=>setCat(c)}
+              className={`shrink-0 px-5 py-2 rounded-xl text-[13px] font-bold transition-all border ${
+                cat===c 
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-md' 
+                  : 'bg-slate-100 text-slate-500 border-transparent hover:border-slate-200'
+              }`}
+            >
               {c}
             </button>
           ))}
@@ -110,7 +125,7 @@ export default function MenuTab({ toast }:any) {
                   <div className="flex items-center gap-3 p-3">
                     {item.image_url
                       ? <img src={item.image_url} className="w-14 h-14 rounded-xl object-cover shrink-0 border border-slate-100"/>
-                      : <div className="w-14 h-14 rounded-xl bg-orange-50 flex items-center justify-center shrink-0 text-2xl border border-orange-100">☕</div>
+                      : <div className="w-14 h-14 rounded-xl shrink-0 overflow-hidden border border-slate-100"><ProductPlaceholder category={item.category} iconSize={20} /></div>
                     }
                     <div className="flex-1 min-w-0">
                       <p className="font-black text-slate-800 truncate">{item.name}</p>
@@ -164,14 +179,21 @@ export default function MenuTab({ toast }:any) {
         )}
       </div>
 
-      {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[92vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white rounded-t-3xl px-5 pt-5 pb-3 border-b border-slate-100 z-10">
+        <div 
+          className="modal-overlay"
+          onClick={(e) => e.target === e.currentTarget && setShowModal(false)}
+        >
+          <div className="modal-content bg-white shadow-2xl">
+            <div className="sticky top-0 bg-white/95 backdrop-blur-md px-6 pt-6 pb-4 border-b border-slate-100 z-10">
               <div className="flex items-center justify-between">
-                <h3 className="font-black text-lg">{form.id?'Edit Menu':'Menu Baru'}</h3>
-                <button onClick={()=>setShowModal(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500"><X size={16}/></button>
+                <h3 className="font-black text-xl text-slate-900 tracking-tight">{form.id?'Edit Menu':'Menu Baru'}</h3>
+                <button 
+                  onClick={()=>setShowModal(false)} 
+                  className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 active:bg-slate-100"
+                >
+                  <X size={20}/>
+                </button>
               </div>
             </div>
             <form onSubmit={handleSave} className="px-5 pb-6 pt-4 space-y-4">
@@ -183,7 +205,7 @@ export default function MenuTab({ toast }:any) {
                   <div className="w-20 h-20 rounded-2xl border-2 border-dashed border-slate-200 overflow-hidden bg-slate-50 shrink-0 flex items-center justify-center">
                     {form.image_url
                       ? <img src={form.image_url} alt="" className="w-full h-full object-cover"/>
-                      : <div className="text-center"><div className="text-2xl">☕</div><p className="text-[10px] text-slate-300 mt-0.5">Kosong</p></div>
+                      : <ProductPlaceholder {...(form.category ? { category: form.category } : {})} iconSize={24} />
                     }
                   </div>
                   <div className="flex-1 space-y-2">
@@ -204,44 +226,69 @@ export default function MenuTab({ toast }:any) {
               </div>
 
               {/* NAMA & HARGA */}
-              <div>
-                <label className="text-xs font-bold text-slate-500 mb-1 block">Nama Menu *</label>
-                <input value={form.name||''} onChange={e=>setForm(f=>({...f,name:e.target.value}))}
-                  placeholder="Kopi Susu Gula Aren"
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-400" style={{fontSize:16}}/>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 mb-1 block">Harga (Rp) *</label>
-                  <input type="number" inputMode="numeric" value={form.price||''}
-                    onChange={e=>setForm(f=>({...f,price:parseInt(e.target.value)||0}))}
-                    placeholder="25000"
-                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-400" style={{fontSize:16}}/>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-bold text-slate-700 pl-0.5">NAMA MENU *</label>
+                  <input 
+                    value={form.name||''} 
+                    onChange={e=>setForm(f=>({...f,name:e.target.value}))}
+                    placeholder="Contoh: Kopi Susu Aren"
+                    className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all"
+                  />
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 mb-1 block">Kategori</label>
-                  <input value={form.category||'Coffee'} onChange={e=>setForm(f=>({...f,category:e.target.value}))}
-                    placeholder="Coffee"
-                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-400" style={{fontSize:16}}/>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[13px] font-bold text-slate-700 pl-0.5">HARGA (Rp) *</label>
+                    <input 
+                      type="number" 
+                      inputMode="numeric" 
+                      value={form.price||''}
+                      onChange={e=>setForm(f=>({...f,price:parseInt(e.target.value)||0}))}
+                      placeholder="25000"
+                      className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[13px] font-bold text-slate-700 pl-0.5">KATEGORI</label>
+                    <div className="relative">
+                      <select 
+                        value={form.category||'Coffee'} 
+                        onChange={e=>setForm(f=>({...f,category:e.target.value}))}
+                        className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all appearance-none"
+                      >
+                        {['Coffee','Non-Coffee','Food','Snack','Other'].map(c=><option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                        <ChevronDown size={18} />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 mb-1 block">Deskripsi (opsional)</label>
-                <textarea value={form.description||''} onChange={e=>setForm(f=>({...f,description:e.target.value}))}
-                  rows={2} placeholder="Kopi susu dengan gula aren asli..."
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-400 resize-none" style={{fontSize:16}}/>
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-bold text-slate-700 pl-0.5">DESKRIPSI (OPSIONAL)</label>
+                <textarea 
+                  value={form.description||''} 
+                  onChange={e=>setForm(f=>({...f,description:e.target.value}))}
+                  rows={2} 
+                  placeholder="Kopi susu dengan gula aren asli..."
+                  className="w-full border border-slate-200 rounded-2xl px-4 py-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all resize-none"
+                />
               </div>
 
               {/* RESEP */}
-              <div className="border-t border-slate-100 pt-3">
-                <div className="flex items-center justify-between mb-2">
+              <div className="border-t border-slate-100 pt-5 mt-2">
+                <div className="flex items-center justify-between mb-3">
                   <div>
-                    <p className="text-xs font-black text-slate-700">RESEP BAHAN BAKU</p>
-                    <p className="text-[11px] text-slate-400">Stok gudang otomatis berkurang saat terjual</p>
+                    <p className="text-[13px] font-black text-slate-800">RESEP BAHAN BAKU</p>
+                    <p className="text-[11px] text-slate-400 font-medium">Stok gudang otomatis berkurang saat terjual</p>
                   </div>
-                  <button type="button" onClick={addRecipeLine}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-orange-100 text-orange-600 rounded-lg text-xs font-bold active:scale-95">
-                    <Plus size={11}/>Tambah
+                  <button 
+                    type="button" 
+                    onClick={addRecipeLine}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-orange-50 text-orange-600 rounded-xl text-xs font-black active:scale-95 transition-colors border border-orange-100"
+                  >
+                    <Plus size={14}/>Tambah Bahan
                   </button>
                 </div>
                 {inventory.length===0?(
@@ -254,21 +301,43 @@ export default function MenuTab({ toast }:any) {
                     <p className="text-slate-400 text-xs">Belum ada resep — menu tanpa resep tidak mengurangi stok</p>
                   </div>
                 ):(
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     {(form.recipe||[]).map((r,idx)=>(
-                      <div key={idx} className="flex items-center gap-2 bg-slate-50 rounded-xl p-2">
-                        <select value={r.matId} onChange={e=>updateRecipeLine(idx,'matId',e.target.value)}
-                          className="flex-1 min-w-0 border border-slate-200 rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-orange-400 bg-white">
-                          <option value="">-- Pilih Bahan --</option>
-                          {inventory.map(inv=><option key={inv.id} value={inv.id}>{inv.name} ({inv.stock} {inv.unit})</option>)}
-                        </select>
-                        <input type="number" inputMode="decimal" value={r.qty||''} onChange={e=>updateRecipeLine(idx,'qty',e.target.value)}
-                          placeholder="Qty" step="0.1"
-                          className="w-16 border border-slate-200 rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-orange-400 text-center shrink-0" style={{fontSize:14}}/>
-                        <span className="text-xs text-slate-400 w-7 shrink-0 text-center">
-                          {inventory.find(i=>i.id===r.matId)?.unit||''}
+                      <div key={idx} className="flex items-center gap-2.5 bg-white border border-slate-100 rounded-2xl p-2.5 shadow-sm">
+                        <div className="flex-1 min-w-0 relative">
+                          <select 
+                            value={r.matId} 
+                            onChange={e=>updateRecipeLine(idx,'matId',e.target.value)}
+                            className="w-full h-11 border border-slate-100 rounded-xl px-3 text-xs focus:outline-none focus:border-orange-400 bg-slate-50 appearance-none font-bold text-slate-700"
+                          >
+                            <option value="">-- Pilih Bahan --</option>
+                            {inventory.map(inv=><option key={inv.id} value={inv.id}>{inv.name} ({inv.stock} {inv.unit})</option>)}
+                          </select>
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                            <ChevronDown size={14} />
+                          </div>
+                        </div>
+                        <div className="w-24 relative shrink-0">
+                          <input 
+                            type="number" 
+                            inputMode="decimal" 
+                            value={r.qty||''} 
+                            onChange={e=>updateRecipeLine(idx,'qty',e.target.value)}
+                            placeholder="0.0" 
+                            step="0.1"
+                            className="w-full h-11 border border-slate-100 rounded-xl px-3 text-xs focus:outline-none focus:border-orange-400 text-center font-black bg-slate-50"
+                          />
+                        </div>
+                        <span className="text-[11px] font-black text-slate-400 w-8 shrink-0">
+                          {inventory.find(i=>i.id===r.matId)?.unit||'unit'}
                         </span>
-                        <button type="button" onClick={()=>removeRecipeLine(idx)} className="text-red-400 p-1 shrink-0"><X size={13}/></button>
+                        <button 
+                          type="button" 
+                          onClick={()=>removeRecipeLine(idx)} 
+                          className="w-9 h-9 flex items-center justify-center text-red-400 bg-red-50 rounded-xl active:scale-90 transition-all"
+                        >
+                          <X size={16}/>
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -276,19 +345,24 @@ export default function MenuTab({ toast }:any) {
               </div>
 
               {/* TOGGLE AVAILABLE */}
-              <div className="flex items-center justify-between py-1">
+              <div 
+                onClick={()=>setForm(f=>({...f,is_available:!f.is_available}))}
+                className="flex items-center justify-between py-4 px-4 bg-slate-50 rounded-2xl cursor-pointer active:bg-slate-100 transition-colors mt-4"
+              >
                 <div>
-                  <p className="text-sm font-bold text-slate-700">Tersedia untuk dijual</p>
-                  <p className="text-xs text-slate-400">Tampil di tab POS</p>
+                  <p className="text-sm font-black text-slate-800">Tersedia untuk dijual</p>
+                  <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Tampil di halaman POS</p>
                 </div>
-                <button type="button" onClick={()=>setForm(f=>({...f,is_available:!f.is_available}))}>
-                  {form.is_available?<ToggleRight size={28} className="text-green-500"/>:<ToggleLeft size={28} className="text-slate-300"/>}
-                </button>
+                <div className={`w-12 h-6.5 rounded-full transition-all relative shrink-0 ${form.is_available?'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]':'bg-slate-200'}`}>
+                  <div className={`w-5.5 h-5.5 bg-white rounded-full absolute top-0.5 shadow-sm transition-all duration-300 ${form.is_available?'left-[24px]':'left-0.5'}`}/>
+                </div>
               </div>
 
-              <button type="submit"
-                className="w-full py-3.5 bg-orange-500 text-white font-black rounded-2xl active:scale-95 flex items-center justify-center gap-2 text-base">
-                Simpan Menu
+              <button 
+                type="submit"
+                className="w-full h-14 bg-slate-900 text-white font-black rounded-2xl active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-slate-900/10 transition-all mt-6"
+              >
+                {form.id ? 'Perbarui Menu' : 'Simpan Menu Baru'}
               </button>
 
             </form>

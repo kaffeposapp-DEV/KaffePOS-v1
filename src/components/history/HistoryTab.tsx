@@ -9,6 +9,7 @@ import { useState, useMemo, useCallback, useRef } from 'react';
 import { X, Ban, Search, Printer, ChevronDown } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import PrintActionSheet from '@/components/pos/PrintActionSheet';
+import type { SubscriptionAccess } from '@/lib/subscriptionAccess';
 
 const fRp = (n: number) =>
   new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
@@ -19,7 +20,13 @@ const PAGE_SIZE = 30;
 
 type Period = 'today' | '7d' | '30d' | 'all';
 
-export default function HistoryTab({ toast }:any) {
+export default function HistoryTab({
+  toast,
+  subscriptionAccess,
+}: {
+  toast: { showToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void };
+  subscriptionAccess: SubscriptionAccess;
+}) {
   const { transactions, voidTransaction, storeSettings } = useStore();
 
   const [search,   setSearch]   = useState('');
@@ -113,20 +120,28 @@ export default function HistoryTab({ toast }:any) {
         </div>
 
         {/* Search */}
-        <div className="relative mb-2">
-          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"/>
-          <input value={search} onChange={e=>handleSearch(e.target.value)}
+        <div className="relative mb-3">
+          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"/>
+          <input 
+            value={search} 
+            onChange={e=>handleSearch(e.target.value)}
             placeholder="Cari ID, menu, kasir..."
-            className="w-full bg-slate-100 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none"
-            style={{fontSize:16}}/>
+            className="w-full h-12 bg-slate-100 rounded-2xl pl-11 pr-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:bg-white transition-all border border-transparent focus:border-orange-200"
+          />
         </div>
 
         {/* Period filter */}
-        <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4">
           {PERIODS.map(p => (
-            <button key={p.id} onClick={() => { setPeriod(p.id); setPage(1); }}
-              className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all
-                ${period===p.id?'bg-orange-500 text-white':'bg-slate-100 text-slate-500'}`}>
+            <button 
+              key={p.id} 
+              onClick={() => { setPeriod(p.id); setPage(1); }}
+              className={`shrink-0 px-4 py-2 rounded-xl text-[13px] font-bold transition-all border ${
+                period===p.id 
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-sm' 
+                  : 'bg-slate-100 text-slate-500 border-transparent hover:border-slate-200'
+              }`}
+            >
               {p.label}
             </button>
           ))}
@@ -134,13 +149,14 @@ export default function HistoryTab({ toast }:any) {
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      <div className="flex-1 overflow-y-auto p-3">
         {paginated.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 text-slate-400">
             <p className="text-sm">Belum ada transaksi pada periode ini</p>
           </div>
         ) : (
-          <>
+          <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
             {paginated.map(tx => (
               <div key={tx.id} onClick={() => setDetail(tx)}
                 className={`bg-white rounded-2xl border p-3.5 cursor-pointer active:scale-[0.99] transition-transform
@@ -171,6 +187,7 @@ export default function HistoryTab({ toast }:any) {
                 </div>
               </div>
             ))}
+            </div>
 
             {/* Load more */}
             {page < pageCount && (
@@ -179,7 +196,7 @@ export default function HistoryTab({ toast }:any) {
                 <ChevronDown size={16}/> Muat Lebih Banyak ({filtered.length - paginated.length} lagi)
               </button>
             )}
-          </>
+          </div>
         )}
       </div>
 
@@ -273,6 +290,7 @@ export default function HistoryTab({ toast }:any) {
         onClose={() => setShowPrintSheet(false)}
         transaction={printTx}
         storeSettings={storeSettings}
+        allowThermalPrint={subscriptionAccess.features.thermal_print}
         toast={toast}
       />
     </div>

@@ -9,16 +9,28 @@ module.exports = {
       colors: {
         // KaffePOS brand
         kaffe: {
-          50:  '#fff7ed',
-          100: '#ffedd5',
-          200: '#fed7aa',
-          300: '#fdba74',
-          400: '#fb923c',
-          500: '#f97316',  // PRIMARY
-          600: '#ea580c',
-          700: '#c2410c',
-          800: '#9a3412',
-          900: '#7c2d12',
+          50:  'var(--theme-50, #fdf8f4)',
+          100: 'var(--theme-100, #faefe6)',
+          200: 'var(--theme-200, #f3d6bd)',
+          300: 'var(--theme-300, #ecbd94)',
+          400: 'var(--theme-400, #e5a46b)',
+          500: 'var(--theme-500, #d8823b)',  // PRIMARY
+          600: 'var(--theme-600, #c86f2b)',
+          700: 'var(--theme-700, #a35720)',
+          800: 'var(--theme-800, #7a421a)',
+          900: 'var(--theme-900, #522e15)',
+        },
+        orange: {
+          50:  'var(--theme-50, #fdf8f4)',
+          100: 'var(--theme-100, #faefe6)',
+          200: 'var(--theme-200, #f3d6bd)',
+          300: 'var(--theme-300, #ecbd94)',
+          400: 'var(--theme-400, #e5a46b)',
+          500: 'var(--theme-500, #d8823b)',  // PRIMARY
+          600: 'var(--theme-600, #c86f2b)',
+          700: 'var(--theme-700, #a35720)',
+          800: 'var(--theme-800, #7a421a)',
+          900: 'var(--theme-900, #522e15)',
         },
       },
       fontFamily: {

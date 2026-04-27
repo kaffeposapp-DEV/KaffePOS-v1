@@ -1,18 +1,20 @@
 /* eslint-disable react-hooks/exhaustive-deps */
- 
- 
- 
- 
+
+
+
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/pos/POSTab.tsx — KaffePOS v5
 import { useState, useMemo, useCallback, useRef } from 'react';
 import {
   ShoppingBag, Plus, Minus, X, ChevronRight,
-  Search, Printer,
+  Search, Printer, RefreshCw, CheckCircle2, ChefHat
 } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import PrintActionSheet from '@/components/pos/PrintActionSheet';
+import ProductPlaceholder from '@/components/ui/ProductPlaceholder';
 import type { Profile, MenuItem, Transaction } from '@/types';
+import type { SubscriptionAccess } from '@/lib/subscriptionAccess';
 
 const fRp = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
@@ -20,6 +22,7 @@ const fRp = (n: number) =>
 interface Props {
   toast:   { showToast: (m: string, t?: 'success' | 'error' | 'warning' | 'info') => void };
   profile: Profile | null;
+  subscriptionAccess: SubscriptionAccess;
 }
 
 // ── Quick amount buttons ──────────────────────────────────────────
@@ -28,17 +31,18 @@ function quickAmounts(total: number): number[] {
   return [...new Set([total, rounded, 50_000, 100_000].filter(v => v >= total))];
 }
 
-export default function POSTab({ toast, profile }: Props) {
+export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
   const {
     menu, inventory, cart, discount, transactions, isOnline,
-    addToCart, updateQty, clearCart, setDiscount,
-    saveTransaction, storeSettings,
+    addToCart, updateQty, clearCart, setDiscount, setCartItemNote,
+    saveTransaction, storeSettings, kitchenOrders,
   } = useStore();
 
   const [cat,        setCat]        = useState('All');
   const [search,     setSearch]     = useState('');
   const [dSearch,    setDSearch]    = useState('');
   const [showPay,    setShowPay]    = useState(false);
+  const [showVouchers, setShowVouchers] = useState(false);
   const [method,     setMethod]     = useState<'Tunai'|'Transfer'|'QRIS'>('Tunai');
   const [cash,       setCash]       = useState('');
   const [showRcpt,   setShowRcpt]   = useState(false);
@@ -83,6 +87,22 @@ export default function POSTab({ toast, profile }: Props) {
   const total  = taxableBase + taxAmt;
   const paid   = method === 'Tunai' ? parseInt(cash) || 0 : total;
   const change = Math.max(0, paid - total);
+  const currentMonthTransactionCount = useMemo(() => {
+    const now = new Date();
+    return transactions.filter((tx) => {
+      if (tx.is_void) return false;
+      const txDate = new Date(tx.date);
+      return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear();
+    }).length;
+  }, [transactions]);
+  const activeKitchenOrders = useMemo(
+    () => kitchenOrders.filter((order) => !['served', 'completed', 'cancelled'].includes(order.overall_status)).slice(0, 4),
+    [kitchenOrders],
+  );
+  const lastTxKitchenOrder = useMemo(() => {
+    if (!lastTx) return null;
+    return kitchenOrders.find((order) => order.transaction_id === lastTx.id) || lastTx.kitchen_order || null;
+  }, [kitchenOrders, lastTx]);
 
   // ── Stock check — handles variants correctly ──────────────────
   const checkStock = useCallback((item: MenuItem): boolean => {
@@ -120,6 +140,13 @@ export default function POSTab({ toast, profile }: Props) {
     }
     if (method === 'Tunai' && paid < total) {
       toast.showToast('Uang bayar kurang', 'warning');
+      return;
+    }
+    if (
+      subscriptionAccess.transactionLimit !== -1 &&
+      currentMonthTransactionCount >= subscriptionAccess.transactionLimit
+    ) {
+      toast.showToast('Paket gratis sudah mencapai 50 transaksi bulan ini. Upgrade untuk lanjut tanpa batas.', 'warning');
       return;
     }
     const stockOk = cart.every((cartItem) => {
@@ -163,6 +190,7 @@ export default function POSTab({ toast, profile }: Props) {
         price: c.price,
         subtotal: c.price * c.qty,
         menu_item_id: c._baseId || c.id,
+        note: c.note?.trim() || null,
       })),
       subtotal, discount: discAmt, discount_label: discount || null,
       tax: taxAmt, total, cogs: Math.round(cogs),
@@ -187,7 +215,7 @@ export default function POSTab({ toast, profile }: Props) {
     } finally {
       setCheckingOut(false);
     }
-  }, [cart, isOnline, method, paid, total, discAmt, discount, taxAmt, subtotal, menu, inventory, profile, saveTransaction, clearCart, toast]);
+  }, [cart, clearCart, currentMonthTransactionCount, discAmt, discount, inventory, isOnline, menu, method, paid, profile, saveTransaction, subscriptionAccess.transactionLimit, subtotal, taxAmt, toast, total]);
 
 
   const lowStock = useMemo(() =>
@@ -212,13 +240,21 @@ export default function POSTab({ toast, profile }: Props) {
             <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"/>
             <input value={search} onChange={e => handleSearch(e.target.value)}
               placeholder="Cari menu kopi, snack..."
-              className="w-full bg-slate-100/80 border border-slate-200/50 rounded-2xl pl-11 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 transition-all font-medium text-slate-700"
+              className="w-full h-12 bg-slate-100/80 border border-slate-200/50 rounded-2xl pl-11 pr-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 transition-all font-medium text-slate-700"
             />
+            <div
+              onClick={() => { if(!isOnline) window.location.reload(); }}
+              className={`absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-2.5 py-1 rounded-full border cursor-pointer active:scale-95 transition-all ${isOnline?'bg-green-50 border-green-100 text-green-600':'bg-red-50 border-red-100 text-red-600 animate-bounce'}`}
+              title={isOnline ? 'Terhubung ke Cloud' : 'Klik untuk muat ulang'}
+            >
+              <div className={`w-1.5 h-1.5 rounded-full ${isOnline?'bg-green-500 animate-pulse':'bg-red-500'}`} />
+              <span className="text-[10px] font-black uppercase tracking-wider">{isOnline?'Online':'Offline'}</span>
+            </div>
           </div>
           <div className="flex gap-2 mt-3 overflow-x-auto pb-1 scrollbar-none">
             {cats.map(c => (
               <button key={c} onClick={() => setCat(c)}
-                className={`shrink-0 px-4 py-2 rounded-xl text-xs font-extrabold transition-all duration-200 ${cat===c?'bg-slate-800 text-white shadow-md shadow-slate-800/20':'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}>
+                className={`shrink-0 h-10 px-4 rounded-xl text-[13px] font-extrabold transition-all duration-200 ${cat===c?'bg-slate-800 text-white shadow-md shadow-slate-800/20':'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}>
                 {c}
               </button>
             ))}
@@ -238,15 +274,15 @@ export default function POSTab({ toast, profile }: Props) {
                 const totalQty = cart.filter(c => c.id === item.id || c._baseId === item.id).reduce((s,c)=>s+c.qty,0);
                 return (
                   <div key={item.id} onClick={() => handleAdd(item)}
-                    className="group bg-white rounded-3xl overflow-hidden shadow-[0_2px_10px_rgb(0,0,0,0.02)] border border-slate-100 cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] active:scale-[0.97] flex flex-col relative"
+                    className="group bg-white rounded-3xl overflow-hidden shadow-[0_2px_10px_rgb(0,0,0,0.02)] border border-slate-100 cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] active:scale-[0.95] flex flex-col relative"
                   >
                     {item.image_url ? (
                       <div className="relative pt-[70%] w-full overflow-hidden bg-slate-100">
                         <img src={item.image_url} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" style={{ willChange: 'transform' }} />
                       </div>
                     ) : (
-                      <div className="pt-[70%] w-full bg-gradient-to-br from-slate-100 to-slate-50 relative">
-                        <div className="absolute inset-0 flex items-center justify-center text-5xl opacity-50 grayscale transition-all group-hover:grayscale-0 group-hover:scale-110">☕</div>
+                      <div className="pt-[70%] w-full relative">
+                        <ProductPlaceholder category={item.category} className="absolute inset-0" iconSize={32} />
                       </div>
                     )}
                     <div className="p-4 flex-1 flex flex-col">
@@ -295,11 +331,49 @@ export default function POSTab({ toast, profile }: Props) {
           )}
         </div>
 
+        {activeKitchenOrders.length > 0 && (
+          <div className="border-b border-slate-100 bg-white px-4 py-3">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500">
+                <ChefHat size={14} />
+                Status Dapur
+              </div>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('kaffepos-open-tab', { detail: { tab: 'kitchen' } }))}
+                className="text-[10px] font-black uppercase tracking-wider text-orange-500"
+              >
+                Buka
+              </button>
+            </div>
+            <div className="space-y-2">
+              {activeKitchenOrders.map((order) => (
+                <div key={order.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-black text-slate-800">{order.order_number}</p>
+                    <p className="truncate text-[10px] font-bold text-slate-400">{order.customer_name || order.table_number || 'Walk-in'}</p>
+                  </div>
+                  <span className={`ml-2 rounded-lg px-2 py-1 text-[10px] font-black uppercase ${
+                    order.overall_status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                    order.overall_status === 'preparing' ? 'bg-sky-100 text-sky-700' :
+                    'bg-emerald-100 text-emerald-700'
+                  }`}>
+                    {order.overall_status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {cart.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center px-8 text-center text-slate-400">
-            <ShoppingBag size={56} className="mb-5 text-slate-200"/>
-            <p className="font-extrabold text-slate-500">Keranjang Kosong</p>
-            <p className="text-xs mt-1 leading-relaxed">Pilih menu dari katalog di sebelah kiri untuk ditambahkan ke struk pesanan.</p>
+          <div className="flex-1 flex flex-col items-center justify-center px-8 text-center">
+            <div className="w-32 h-32 bg-slate-50 rounded-[40px] flex items-center justify-center mb-8 relative">
+              <div className="absolute inset-0 bg-slate-100/50 rounded-[40px] animate-ping duration-[3000ms]" />
+              <ShoppingBag size={56} className="text-slate-200 relative z-10"/>
+            </div>
+            <p className="font-black text-slate-800 text-lg italic uppercase tracking-tighter">Keranjang Kosong</p>
+            <p className="text-slate-400 text-xs mt-2 leading-relaxed max-w-[200px] font-medium">Pilih menu di sebelah kiri untuk memulai pesanan baru.</p>
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -308,6 +382,12 @@ export default function POSTab({ toast, profile }: Props) {
                 <div className="flex-1 overflow-hidden">
                   <p className="font-bold text-slate-800 text-sm truncate">{c.name}</p>
                   <p className="text-slate-500 text-xs font-medium mt-0.5">{fRp(c.price)}</p>
+                  <input
+                    value={c.note || ''}
+                    onChange={(e) => setCartItemNote(c.id, e.target.value)}
+                    placeholder="Catatan: less ice, no sugar..."
+                    className="mt-2 w-full rounded-lg border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs font-semibold text-slate-700 outline-none transition focus:border-amber-300 focus:bg-white"
+                  />
                 </div>
                 <div className="flex flex-col items-end justify-between">
                   <p className="font-black text-slate-800 text-sm">{fRp(c.price * c.qty)}</p>
@@ -332,8 +412,19 @@ export default function POSTab({ toast, profile }: Props) {
                   <input value={custName} onChange={e => setCustName(e.target.value)} placeholder="Nama / Meja..." className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900/10 transition-all placeholder:font-normal"/>
                 </div>
                 <div>
-                  <label className="text-[10px] font-black tracking-wider text-slate-400 uppercase block mb-1.5 ml-1">Diskon</label>
-                  <input value={discount || ''} onChange={e => setDiscount(e.target.value)} placeholder="10% / 5000" className="w-full bg-green-50/50 border border-green-200/50 rounded-xl px-4 py-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-green-500/20 transition-all text-green-700 placeholder:font-normal"/>
+                  <div className="flex items-center justify-between mb-1.5 ml-1">
+                    <label className="text-[10px] font-black tracking-wider text-slate-400 uppercase">Diskon / Voucher</label>
+                    <button onClick={() => setShowVouchers(true)} className="text-[10px] font-black text-orange-500 hover:text-orange-600 transition-colors uppercase tracking-widest">Pilih Voucher</button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      value={discount || ''}
+                      onChange={e => setDiscount(e.target.value)}
+                      placeholder="Contoh: 10% atau 5000"
+                      className={`w-full bg-slate-50 border rounded-xl px-4 py-2.5 text-xs font-bold focus:outline-none transition-all placeholder:font-normal ${discAmt > 0 ? 'border-green-300 bg-green-50/50 text-green-700' : 'border-slate-200 focus:ring-2 focus:ring-slate-900/10'}`}
+                    />
+                    {discAmt > 0 && <CheckCircle2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500" />}
+                  </div>
                 </div>
               </div>
 
@@ -369,7 +460,7 @@ export default function POSTab({ toast, profile }: Props) {
               <button onClick={handleCheckout} disabled={checkingOut || method === 'Tunai' && paid < total}
                 className="w-full relative overflow-hidden bg-slate-900 text-white p-4 rounded-2xl font-black text-sm uppercase tracking-wider active:scale-[0.98] transition-all disabled:opacity-50 shadow-[0_8px_20px_rgb(15,23,42,0.2)] group">
                 <span className="relative z-10 flex items-center justify-center gap-2">
-                  {checkingOut ? 'MEMPROSES...' : 'SELESAIKAN PEMBAYARAN'}
+                  {checkingOut ? <><RefreshCw size={16} className="animate-spin" /> MEMPROSES...</> : 'SELESAIKAN PEMBAYARAN'}
                   {method === 'Tunai' && paid >= total && paid > total && <span className="text-green-400 ml-1 bg-white/10 py-1 px-2.5 rounded-lg border border-white/5">Kembali: {fRp(change)}</span>}
                 </span>
                 <div className="absolute inset-0 block bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"/>
@@ -387,12 +478,20 @@ export default function POSTab({ toast, profile }: Props) {
               <h3 className="font-black text-xl text-slate-800">Pembayaran</h3>
               <button onClick={() => setShowPay(false)} className="p-2 bg-slate-100 rounded-full active:scale-90 text-slate-500"><X size={18}/></button>
             </div>
-            
+
             <div className="bg-slate-50 border border-slate-100 rounded-3xl p-4 mb-5 space-y-2 text-sm">
               {cart.map(c => (
-                <div key={c.id} className="flex justify-between">
-                  <span className="text-slate-600 truncate flex-1 mr-2 font-medium">{c.name} <span className="font-bold text-slate-800 ml-1">x{c.qty}</span></span>
-                  <span className="font-bold text-slate-800">{fRp(c.price * c.qty)}</span>
+                <div key={c.id} className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600 truncate flex-1 mr-2 font-medium">{c.name} <span className="font-bold text-slate-800 ml-1">x{c.qty}</span></span>
+                    <span className="font-bold text-slate-800">{fRp(c.price * c.qty)}</span>
+                  </div>
+                  <input
+                    value={c.note || ''}
+                    onChange={(e) => setCartItemNote(c.id, e.target.value)}
+                    placeholder="Catatan item..."
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[14px] font-semibold text-slate-700 outline-none focus:border-amber-300"
+                  />
                 </div>
               ))}
               <div className="border-t border-slate-200/60 pt-2 space-y-1.5 mt-2">
@@ -405,19 +504,30 @@ export default function POSTab({ toast, profile }: Props) {
 
             <div className="mb-5 grid grid-cols-2 gap-3">
                <div>
-                  <label className="text-[10px] font-black tracking-wider text-slate-400 uppercase block mb-1">Pelanggan (Opsional)</label>
-                  <input value={custName} onChange={e => setCustName(e.target.value)} placeholder="Nama..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-slate-400"/>
+                  <label className="text-[11px] font-black tracking-wider text-slate-400 uppercase block mb-1.5 ml-1">Pelanggan (Opsional)</label>
+                  <input value={custName} onChange={e => setCustName(e.target.value)} placeholder="Nama..." className="w-full h-12 bg-slate-50 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:border-slate-400"/>
                </div>
                <div>
-                  <label className="text-[10px] font-black tracking-wider text-slate-400 uppercase block mb-1">Diskon</label>
-                  <input value={discount || ''} onChange={e => setDiscount(e.target.value)} placeholder="10% / 5000" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-slate-400 text-green-600 font-bold"/>
+                  <div className="flex items-center justify-between mb-1.5 ml-1">
+                    <label className="text-[11px] font-black tracking-wider text-slate-400 uppercase">Diskon</label>
+                    <button onClick={() => setShowVouchers(true)} className="text-[11px] font-black text-orange-500 uppercase tracking-widest">Cek Voucher</button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      value={discount || ''}
+                      onChange={e => setDiscount(e.target.value)}
+                      placeholder="10% / 5000"
+                      className={`w-full h-12 bg-slate-50 border rounded-2xl px-4 text-[16px] focus:outline-none transition-all font-bold ${discAmt > 0 ? 'border-green-300 bg-green-50 text-green-600' : 'border-slate-200'}`}
+                    />
+                    {discAmt > 0 && <CheckCircle2 size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-green-500" />}
+                  </div>
                </div>
             </div>
 
             <div className="flex gap-2 mb-5">
               {(['Tunai','Transfer','QRIS'] as const).map(m => (
                 <button key={m} onClick={() => setMethod(m)}
-                  className={`flex-1 py-3.5 rounded-2xl border-2 font-black text-xs transition-all ${method===m?'border-orange-500 bg-orange-500 text-white shadow-lg shadow-orange-500/30':'border-slate-200 text-slate-500 bg-white'}`}>
+                  className={`flex-1 h-12 rounded-2xl border-2 font-black text-[13px] transition-all ${method===m?'border-orange-500 bg-orange-500 text-white shadow-lg shadow-orange-500/30':'border-slate-200 text-slate-500 bg-white'}`}>
                   {m}
                 </button>
               ))}
@@ -440,7 +550,7 @@ export default function POSTab({ toast, profile }: Props) {
 
             <button onClick={handleCheckout} disabled={checkingOut || !cart.length || (method === 'Tunai' && paid < total)}
               className="w-full py-4 bg-slate-900 border border-slate-700 text-white font-black text-base rounded-2xl active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 shadow-[0_8px_30px_rgb(15,23,42,0.3)]">
-              {checkingOut ? 'MEMPROSES...' : 'BAYAR SEKARANG'}
+              {checkingOut ? <><RefreshCw size={18} className="animate-spin" /> MEMPROSES...</> : 'BAYAR SEKARANG'}
             </button>
           </div>
         </div>
@@ -463,11 +573,21 @@ export default function POSTab({ toast, profile }: Props) {
               </div>
             )}
 
+            {lastTxKitchenOrder && (
+              <div className="bg-amber-50 border border-amber-100 rounded-2xl py-3 px-4 mb-5 text-center">
+                <p className="text-[10px] font-black text-amber-500 tracking-widest mb-1 uppercase">Status Dapur</p>
+                <p className="text-lg font-black text-amber-800">{lastTxKitchenOrder.overall_status}</p>
+              </div>
+            )}
+
             <div className="bg-white border border-slate-200 border-dashed rounded-2xl p-4 mb-6 text-sm">
               {lastTx.items.map((i:any, idx: number) => (
-                <div key={idx} className="flex justify-between mb-1.5 font-medium">
-                  <span className="text-slate-600">{i.name} <span className="font-bold text-slate-800">x{i.qty}</span></span>
-                  <span className="font-bold text-slate-800">{fRp(i.subtotal)}</span>
+                <div key={idx} className="mb-2 font-medium">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">{i.name} <span className="font-bold text-slate-800">x{i.qty}</span></span>
+                    <span className="font-bold text-slate-800">{fRp(i.subtotal)}</span>
+                  </div>
+                  {i.note && <p className="mt-1 text-xs font-bold text-amber-600">Catatan: {i.note}</p>}
                 </div>
               ))}
               <div className="border-t border-slate-200 border-dashed pt-3 mt-3">
@@ -490,7 +610,57 @@ export default function POSTab({ toast, profile }: Props) {
       )}
 
       {/* Action Sheets */}
-      <PrintActionSheet visible={showPrintSheet} onClose={() => setShowPrintSheet(false)} transaction={lastTx} storeSettings={storeSettings} toast={toast} />
+      <PrintActionSheet visible={showPrintSheet} onClose={() => setShowPrintSheet(false)} transaction={lastTx} storeSettings={storeSettings} allowThermalPrint={subscriptionAccess.features.thermal_print} toast={toast} />
+
+      {/* ── VOUCHER MODAL ── */}
+      {showVouchers && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[70] flex items-end md:items-center justify-center p-0 md:p-4">
+          <div className="bg-white w-full max-w-[500px] rounded-t-[32px] md:rounded-[40px] p-8 shadow-2xl animate-in slide-in-from-bottom-20 duration-500">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h3 className="font-black text-2xl text-slate-800 italic uppercase tracking-tighter">Pilih Promo 🎁</h3>
+                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Diskon Terpopuler</p>
+              </div>
+              <button onClick={() => setShowVouchers(false)} className="p-3 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 transition-colors"><X size={24}/></button>
+            </div>
+
+            <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 scrollbar-thin">
+              {[
+                { l: 'Diskon 10%', v: '10%', d: 'Potongan 10% dari subtotal' },
+                { l: 'Diskon 50%', v: '50%', d: 'Potongan setengah harga' },
+                { l: 'Potongan 5rb', v: '5000', d: 'Potongan flat Rp 5.000' },
+                { l: 'Potongan 10rb', v: '10000', d: 'Potongan flat Rp 10.000' },
+                { l: 'Jumat Berkah (20%)', v: '20%', d: 'Promo khusus hari Jumat' },
+                { l: 'Batal Diskon', v: '', d: 'Hapus semua potongan' },
+              ].map((promo, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => { setDiscount(promo.v); setShowVouchers(false); toast.showToast(`Promo ${promo.l} diterapkan!`, 'success'); }}
+                  className={`w-full text-left p-5 rounded-3xl border-2 transition-all active:scale-[0.98] flex items-center justify-between group ${discount === promo.v ? 'border-orange-500 bg-orange-50' : 'border-slate-100 bg-slate-50 hover:border-slate-200 hover:bg-white'}`}
+                >
+                  <div className="flex-1">
+                    <p className={`font-black text-lg italic uppercase tracking-tight ${discount === promo.v ? 'text-orange-600' : 'text-slate-800'}`}>{promo.l}</p>
+                    <p className="text-slate-400 text-xs font-medium mt-0.5">{promo.d}</p>
+                  </div>
+                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${discount === promo.v ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/40' : 'bg-white text-slate-300 border border-slate-200 group-hover:border-slate-300'}`}>
+                    <Plus size={20} />
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col gap-4">
+              <p className="text-[10px] font-black text-slate-400 uppercase text-center tracking-[0.3em]">Atau input manual di halaman checkout</p>
+              <button
+                onClick={() => setShowVouchers(false)}
+                className="w-full py-5 bg-slate-900 text-white font-black rounded-2xl uppercase tracking-widest italic text-sm shadow-xl active:scale-95 transition-all"
+              >
+                Konfirmasi Pilihan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

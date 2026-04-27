@@ -9,7 +9,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "start:coolify": "node dist/index.js",
-    "check": "npm run typecheck && npm run build"
+    "check": "npm run typecheck && npm run build",
+    "deploy:kds": "cd .. && bash scripts/deploy-kds-one-command.sh"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

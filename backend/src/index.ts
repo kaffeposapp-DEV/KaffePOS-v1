@@ -7,7 +7,16 @@ import cors from 'cors';
 import express, { type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import { Pool, type PoolClient } from 'pg';
 import { z } from 'zod';
-import { appendMidtransRedirectOptions, buildMidtransCreateTransactionPayload } from './lib/midtrans';
+import { appendMidtransRedirectOptions, buildMidtransCreateTransactionPayload, createMidtransWebhookSignature } from './lib/midtrans';
+import { buildPasswordResetLink } from './lib/emailLinks';
+import {
+  KitchenStatusError,
+  assertKitchenTransition,
+  deriveKitchenOrderStatus,
+  normalizeKitchenStatus,
+  terminalKitchenStatuses,
+  type KitchenStatus,
+} from './lib/kitchenStatus';
 import {
   buildSubscriptionBillingQuote,
   listSubscriptionPaymentMethods,
@@ -545,9 +554,12 @@ function getMidtransCallbackUrls() {
 }
 
 function createMidtransSignature(orderId: string, statusCode: string, grossAmount: string) {
-  return createHash('sha512')
-    .update(`${orderId}${statusCode}${grossAmount}${env.MIDTRANS_SERVER_KEY ?? ''}`)
-    .digest('hex');
+  return createMidtransWebhookSignature({
+    orderId,
+    statusCode,
+    grossAmount,
+    serverKey: env.MIDTRANS_SERVER_KEY,
+  });
 }
 
 async function revokeUserSessions(client: PoolClient, userId: string) {
@@ -656,11 +668,7 @@ async function createEmailCode(client: PoolClient, email: string, purpose: 'sign
 }
 
 function getResetLink(email: string, token: string) {
-  const url = new URL('/reset-password', env.WEB_BASE_URL);
-  url.searchParams.set('mode', 'reset');
-  url.searchParams.set('email', email);
-  url.searchParams.set('token', token);
-  return url.toString();
+  return buildPasswordResetLink({ webBaseUrl: env.WEB_BASE_URL, email, token });
 }
 
 function buildEmailTemplate(title: string, preheader: string, contentHtml: string) {
@@ -1001,6 +1009,296 @@ const transactionColumns = `
   void_by,
   created_at
 `;
+
+const kitchenOrderColumns = `
+  id,
+  store_id,
+  transaction_id,
+  order_number,
+  source,
+  customer_name,
+  table_number,
+  overall_status,
+  created_by,
+  created_by_name,
+  status_version,
+  cancelled_reason,
+  created_at,
+  updated_at
+`;
+
+const kitchenOrderItemColumns = `
+  id,
+  order_id,
+  menu_item_id,
+  item_name,
+  qty,
+  note,
+  station,
+  item_status,
+  status_version,
+  created_at,
+  updated_at
+`;
+
+type KitchenRealtimeEventType =
+  | 'order_created'
+  | 'order_updated'
+  | 'order_cancelled'
+  | 'item_status_changed'
+  | 'order_status_changed'
+  | 'snapshot_required';
+
+type KitchenRealtimeEvent = {
+  id: string;
+  type: KitchenRealtimeEventType;
+  store_id: string;
+  order_id?: string | null;
+  created_at: string;
+  payload?: Record<string, unknown>;
+};
+
+type KitchenSseClient = {
+  id: string;
+  storeId: string;
+  userId: string;
+  res: Response;
+  keepAlive: NodeJS.Timeout;
+};
+
+const kitchenClients = new Map<string, Set<KitchenSseClient>>();
+
+function normalizeKitchenItem(row: Record<string, unknown>) {
+  return {
+    ...row,
+    qty: Number(row.qty ?? 0),
+    status_version: Number(row.status_version ?? 0),
+  };
+}
+
+function normalizeKitchenOrder(row: Record<string, unknown>, items: Record<string, unknown>[] = []) {
+  return {
+    ...row,
+    status_version: Number(row.status_version ?? 0),
+    items: items.map(normalizeKitchenItem),
+  };
+}
+
+function inferKitchenStation(category: unknown) {
+  const value = String(category ?? '').toLowerCase();
+  if (value.includes('dessert') || value.includes('cake') || value.includes('pastry')) return 'dessert';
+  if (
+    value.includes('coffee') ||
+    value.includes('kopi') ||
+    value.includes('drink') ||
+    value.includes('minum') ||
+    value.includes('tea') ||
+    value.includes('bar')
+  ) {
+    return 'bar';
+  }
+  if (value.includes('snack') || value.includes('food') || value.includes('makan') || value.includes('kitchen')) return 'kitchen';
+  return 'other';
+}
+
+function writeSse(res: Response, event: KitchenRealtimeEvent | { type: 'ping'; ts: string }) {
+  const id = 'id' in event ? event.id : `ping-${Date.now()}`;
+  res.write(`id: ${id}\n`);
+  res.write(`event: ${event.type}\n`);
+  res.write(`data: ${JSON.stringify(event)}\n\n`);
+}
+
+function broadcastKitchenEvent(event: KitchenRealtimeEvent) {
+  const clients = kitchenClients.get(event.store_id);
+  if (!clients?.size) return;
+
+  for (const client of clients) {
+    try {
+      writeSse(client.res, event);
+    } catch (error) {
+      log('warn', 'kitchen.sse_write_failed', {
+        storeId: event.store_id,
+        clientId: client.id,
+        error: serializeError(error),
+      });
+    }
+  }
+}
+
+async function fetchKitchenOrder(client: PoolClient, orderId: string) {
+  const orderResult = await client.query(
+    `select ${kitchenOrderColumns} from public.kitchen_orders where id = $1 limit 1`,
+    [orderId],
+  );
+  const order = orderResult.rows[0];
+  if (!order) return null;
+
+  const itemsResult = await client.query(
+    `select ${kitchenOrderItemColumns} from public.kitchen_order_items where order_id = $1 order by created_at asc, id asc`,
+    [orderId],
+  );
+
+  return normalizeKitchenOrder(order, itemsResult.rows);
+}
+
+async function insertKitchenEvent(
+  client: PoolClient,
+  payload: {
+    storeId: string;
+    orderId: string;
+    orderItemId?: string | null;
+    eventType: KitchenRealtimeEventType;
+    oldStatus?: string | null;
+    newStatus?: string | null;
+    changedBy?: string | null;
+    changedByName?: string | null;
+    data?: Record<string, unknown>;
+  },
+) {
+  const result = await client.query(
+    `
+      insert into public.kitchen_order_events (
+        store_id,
+        order_id,
+        order_item_id,
+        event_type,
+        old_status,
+        new_status,
+        changed_by,
+        changed_by_name,
+        payload
+      ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+      returning id, created_at
+    `,
+    [
+      payload.storeId,
+      payload.orderId,
+      payload.orderItemId ?? null,
+      payload.eventType,
+      payload.oldStatus ?? null,
+      payload.newStatus ?? null,
+      payload.changedBy ?? null,
+      payload.changedByName ?? null,
+      JSON.stringify(payload.data ?? {}),
+    ],
+  );
+
+  return {
+    id: String(result.rows[0]?.id ?? randomUUID()),
+    created_at: new Date(result.rows[0]?.created_at ?? Date.now()).toISOString(),
+  };
+}
+
+async function createKitchenOrderFromTransaction(
+  client: PoolClient,
+  payload: {
+    id: string;
+    store_id: string;
+    source?: 'cashier' | 'waiter' | 'web' | 'app';
+    customer_name?: string | null;
+    table_number?: string | null;
+    cashier?: string | null;
+    items: Array<{
+      name: string;
+      qty: number;
+      menu_item_id?: string;
+      note?: string | null;
+      station?: 'kitchen' | 'bar' | 'dessert' | 'other' | null;
+    }>;
+  },
+  changedBy: AuthenticatedUser,
+) {
+  const existing = await client.query(
+    `select ${kitchenOrderColumns} from public.kitchen_orders where store_id = $1 and transaction_id = $2 limit 1`,
+    [payload.store_id, payload.id],
+  );
+  if (existing.rows[0]) {
+    return fetchKitchenOrder(client, existing.rows[0].id);
+  }
+
+  const orderResult = await client.query(
+    `
+      insert into public.kitchen_orders (
+        store_id,
+        transaction_id,
+        order_number,
+        source,
+        customer_name,
+        table_number,
+        overall_status,
+        created_by,
+        created_by_name
+      ) values ($1, $2, $3, $4, $5, $6, 'pending', $7, $8)
+      returning ${kitchenOrderColumns}
+    `,
+    [
+      payload.store_id,
+      payload.id,
+      payload.id,
+      payload.source ?? 'cashier',
+      payload.customer_name ?? null,
+      payload.table_number ?? null,
+      changedBy.id,
+      payload.cashier ?? changedBy.email ?? null,
+    ],
+  );
+
+  const order = orderResult.rows[0];
+  for (const item of payload.items) {
+    let station = item.station ?? null;
+    if (!station && item.menu_item_id) {
+      const menuResult = await client.query(
+        `select category from public.menu_items where id = $1 and store_id = $2 limit 1`,
+        [item.menu_item_id, payload.store_id],
+      );
+      station = inferKitchenStation(menuResult.rows[0]?.category);
+    }
+
+    await client.query(
+      `
+        insert into public.kitchen_order_items (
+          order_id,
+          menu_item_id,
+          item_name,
+          qty,
+          note,
+          station,
+          item_status
+        ) values ($1, $2, $3, $4, $5, $6, 'pending')
+      `,
+      [
+        order.id,
+        item.menu_item_id ?? null,
+        item.name,
+        item.qty,
+        item.note ?? null,
+        station ?? 'other',
+      ],
+    );
+  }
+
+  const fullOrder = await fetchKitchenOrder(client, order.id);
+  await insertKitchenEvent(client, {
+    storeId: payload.store_id,
+    orderId: order.id,
+    eventType: 'order_created',
+    newStatus: 'pending',
+    changedBy: changedBy.id,
+    changedByName: payload.cashier ?? changedBy.email ?? null,
+    data: { transactionId: payload.id },
+  });
+
+  return fullOrder;
+}
+
+async function recalculateKitchenOrderStatus(client: PoolClient, orderId: string) {
+  const itemsResult = await client.query(
+    `select item_status from public.kitchen_order_items where order_id = $1 order by created_at asc, id asc`,
+    [orderId],
+  );
+  const statuses = itemsResult.rows.map((row) => normalizeKitchenStatus(String(row.item_status)));
+  return deriveKitchenOrderStatus(statuses);
+}
 
 async function ensureProfile(client: PoolClient, user: AuthenticatedUser) {
   const existing = await client.query(
@@ -1402,6 +1700,8 @@ const checkoutSchema = z.object({
       price: z.number().nonnegative(),
       subtotal: z.number().nonnegative(),
       menu_item_id: z.string().uuid().optional(),
+      note: z.string().trim().max(500).optional().nullable(),
+      station: z.enum(['kitchen', 'bar', 'dessert', 'other']).optional().nullable(),
     }),
   ),
   subtotal: z.number().nonnegative(),
@@ -1414,6 +1714,8 @@ const checkoutSchema = z.object({
   change: z.number().nonnegative(),
   method: z.enum(['Tunai', 'Transfer', 'QRIS', 'Debit', 'Kredit']).default('Tunai'),
   customer_name: z.string().trim().optional().nullable(),
+  table_number: z.string().trim().max(80).optional().nullable(),
+  source: z.enum(['cashier', 'waiter', 'web', 'app']).default('cashier'),
   cashier: z.string().trim().min(1).default('Kasir'),
   note: z.string().trim().optional().nullable(),
   store_id: z.string().uuid(),
@@ -1767,6 +2069,79 @@ async function bootstrapAuthSchema() {
     set
       email = excluded.email,
       updated_at = now()
+  `);
+}
+
+async function bootstrapKitchenSchema() {
+  await pool.query('create extension if not exists pgcrypto');
+
+  await pool.query(`
+    create table if not exists public.kitchen_orders (
+      id uuid primary key default gen_random_uuid(),
+      store_id uuid not null references public.stores(id) on delete cascade,
+      transaction_id text references public.transactions(id) on delete set null,
+      order_number text not null,
+      source text not null default 'cashier',
+      customer_name text,
+      table_number text,
+      overall_status text not null default 'pending'
+        check (overall_status in ('pending', 'preparing', 'ready', 'served', 'completed', 'cancelled')),
+      created_by uuid references public.profiles(id) on delete set null,
+      created_by_name text,
+      status_version integer not null default 1,
+      cancelled_reason text,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      unique (store_id, transaction_id)
+    );
+
+    create index if not exists kitchen_orders_store_status_created_idx
+      on public.kitchen_orders (store_id, overall_status, created_at desc);
+
+    create index if not exists kitchen_orders_store_updated_idx
+      on public.kitchen_orders (store_id, updated_at desc);
+
+    create table if not exists public.kitchen_order_items (
+      id uuid primary key default gen_random_uuid(),
+      order_id uuid not null references public.kitchen_orders(id) on delete cascade,
+      menu_item_id uuid references public.menu_items(id) on delete set null,
+      item_name text not null,
+      qty numeric not null check (qty > 0),
+      note text,
+      station text not null default 'other'
+        check (station in ('kitchen', 'bar', 'dessert', 'other')),
+      item_status text not null default 'pending'
+        check (item_status in ('pending', 'preparing', 'ready', 'served', 'completed', 'cancelled')),
+      status_version integer not null default 1,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+
+    create index if not exists kitchen_order_items_order_idx
+      on public.kitchen_order_items (order_id, created_at asc);
+
+    create index if not exists kitchen_order_items_station_status_idx
+      on public.kitchen_order_items (station, item_status);
+
+    create table if not exists public.kitchen_order_events (
+      id uuid primary key default gen_random_uuid(),
+      store_id uuid not null references public.stores(id) on delete cascade,
+      order_id uuid not null references public.kitchen_orders(id) on delete cascade,
+      order_item_id uuid references public.kitchen_order_items(id) on delete set null,
+      event_type text not null,
+      old_status text,
+      new_status text,
+      changed_by uuid references public.profiles(id) on delete set null,
+      changed_by_name text,
+      payload jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now()
+    );
+
+    create index if not exists kitchen_order_events_store_created_idx
+      on public.kitchen_order_events (store_id, created_at desc);
+
+    create index if not exists kitchen_order_events_order_created_idx
+      on public.kitchen_order_events (order_id, created_at asc);
   `);
 }
 
@@ -4120,6 +4495,322 @@ app.patch('/api/notifications/read-all', async (req, res, next) => {
   }
 });
 
+app.get('/api/kitchen/orders', async (req, res, next) => {
+  try {
+    const storeId = storeIdSchema.parse(req.query.storeId);
+    const status = typeof req.query.status === 'string' && req.query.status.trim()
+      ? normalizeKitchenStatus(req.query.status)
+      : null;
+    const station = typeof req.query.station === 'string' && req.query.station.trim()
+      ? req.query.station.trim()
+      : null;
+
+    const orders = await withTransaction(async (client) => {
+      await assertStoreOwned(client, storeId, req.authUser!.id);
+
+      const params: unknown[] = [storeId];
+      const where = ['ko.store_id = $1'];
+      if (status) {
+        params.push(status);
+        where.push(`ko.overall_status = $${params.length}`);
+      } else {
+        where.push(`ko.overall_status not in ('served', 'completed', 'cancelled')`);
+      }
+      if (station && ['kitchen', 'bar', 'dessert', 'other'].includes(station)) {
+        params.push(station);
+        where.push(`exists (
+          select 1 from public.kitchen_order_items koi
+          where koi.order_id = ko.id and koi.station = $${params.length}
+        )`);
+      }
+
+      const orderResult = await client.query(
+        `
+          select
+            ko.id,
+            ko.store_id,
+            ko.transaction_id,
+            ko.order_number,
+            ko.source,
+            ko.customer_name,
+            ko.table_number,
+            ko.overall_status,
+            ko.created_by,
+            ko.created_by_name,
+            ko.status_version,
+            ko.cancelled_reason,
+            ko.created_at,
+            ko.updated_at
+          from public.kitchen_orders ko
+          where ${where.join(' and ')}
+          order by ko.created_at asc, ko.id asc
+          limit 150
+        `,
+        params,
+      );
+
+      const orderIds = orderResult.rows.map((row) => row.id);
+      if (orderIds.length === 0) return [];
+
+      const itemResult = await client.query(
+        `
+          select ${kitchenOrderItemColumns}
+          from public.kitchen_order_items
+          where order_id = any($1::uuid[])
+          order by created_at asc, id asc
+        `,
+        [orderIds],
+      );
+      const itemsByOrder = new Map<string, Record<string, unknown>[]>();
+      for (const item of itemResult.rows) {
+        const list = itemsByOrder.get(item.order_id) || [];
+        list.push(item);
+        itemsByOrder.set(item.order_id, list);
+      }
+
+      return orderResult.rows.map((order) => normalizeKitchenOrder(order, itemsByOrder.get(order.id) || []));
+    });
+
+    res.json({ items: orders });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/kitchen/events', async (req, res, next) => {
+  try {
+    const storeId = storeIdSchema.parse(req.query.storeId);
+    await withTransaction(async (client) => {
+      await assertStoreOwned(client, storeId, req.authUser!.id);
+    });
+
+    res.status(200);
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    (res as Response & { flushHeaders?: () => void }).flushHeaders?.();
+
+    const client: KitchenSseClient = {
+      id: randomUUID(),
+      storeId,
+      userId: req.authUser!.id,
+      res,
+      keepAlive: setInterval(() => {
+        writeSse(res, { type: 'ping', ts: new Date().toISOString() });
+      }, 25_000),
+    };
+
+    const clients = kitchenClients.get(storeId) || new Set<KitchenSseClient>();
+    clients.add(client);
+    kitchenClients.set(storeId, clients);
+
+    writeSse(res, {
+      id: randomUUID(),
+      type: 'snapshot_required',
+      store_id: storeId,
+      created_at: new Date().toISOString(),
+      payload: { reason: 'connected' },
+    });
+
+    req.on('close', () => {
+      clearInterval(client.keepAlive);
+      const current = kitchenClients.get(storeId);
+      current?.delete(client);
+      if (current && current.size === 0) kitchenClients.delete(storeId);
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/api/kitchen/orders/:id/status', async (req, res, next) => {
+  try {
+    const orderId = z.string().uuid().parse(req.params.id);
+    const body = z
+      .object({
+        store_id: z.string().uuid(),
+        status: z.enum(['pending', 'preparing', 'ready', 'served', 'completed', 'cancelled']),
+        reason: z.string().trim().max(500).optional().nullable(),
+        changed_by_name: z.string().trim().max(160).optional().nullable(),
+      })
+      .parse(req.body);
+
+    const result = await withTransaction(async (client) => {
+      await assertStoreOwned(client, body.store_id, req.authUser!.id);
+      const currentResult = await client.query(
+        `
+          select ${kitchenOrderColumns}
+          from public.kitchen_orders
+          where id = $1 and store_id = $2
+          for update
+        `,
+        [orderId, body.store_id],
+      );
+      const current = currentResult.rows[0];
+      if (!current) throw new ApiError(404, 'Order kitchen tidak ditemukan.');
+
+      const oldStatus = normalizeKitchenStatus(String(current.overall_status));
+      const newStatus = normalizeKitchenStatus(body.status);
+      assertKitchenTransition(oldStatus, newStatus);
+
+      if (oldStatus === newStatus) {
+        return { order: await fetchKitchenOrder(client, orderId), event: null };
+      }
+
+      await client.query(
+        `
+          update public.kitchen_orders
+          set
+            overall_status = $1,
+            status_version = status_version + 1,
+            cancelled_reason = case when $1 = 'cancelled' then $2 else cancelled_reason end,
+            updated_at = now()
+          where id = $3 and store_id = $4
+        `,
+        [newStatus, body.reason ?? null, orderId, body.store_id],
+      );
+
+      await client.query(
+        `
+          update public.kitchen_order_items
+          set
+            item_status = $1,
+            status_version = status_version + 1,
+            updated_at = now()
+          where order_id = $2
+            and item_status not in ('served', 'completed', 'cancelled')
+        `,
+        [newStatus, orderId],
+      );
+
+      const eventType: KitchenRealtimeEventType = newStatus === 'cancelled' ? 'order_cancelled' : 'order_status_changed';
+      const eventMeta = await insertKitchenEvent(client, {
+        storeId: body.store_id,
+        orderId,
+        eventType,
+        oldStatus,
+        newStatus,
+        changedBy: req.authUser!.id,
+        changedByName: body.changed_by_name ?? req.authUser!.email ?? null,
+        data: { reason: body.reason ?? null },
+      });
+      const order = await fetchKitchenOrder(client, orderId);
+
+      return {
+        order,
+        event: {
+          id: eventMeta.id,
+          type: eventType,
+          store_id: body.store_id,
+          order_id: orderId,
+          created_at: eventMeta.created_at,
+          payload: { order },
+        } satisfies KitchenRealtimeEvent,
+      };
+    });
+
+    if (result.event) broadcastKitchenEvent(result.event);
+    res.json(result.order);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/api/kitchen/items/:id/status', async (req, res, next) => {
+  try {
+    const itemId = z.string().uuid().parse(req.params.id);
+    const body = z
+      .object({
+        store_id: z.string().uuid(),
+        status: z.enum(['pending', 'preparing', 'ready', 'served', 'completed', 'cancelled']),
+        changed_by_name: z.string().trim().max(160).optional().nullable(),
+      })
+      .parse(req.body);
+
+    const result = await withTransaction(async (client) => {
+      await assertStoreOwned(client, body.store_id, req.authUser!.id);
+      const itemResult = await client.query(
+        `
+          select koi.*, ko.store_id, ko.overall_status
+          from public.kitchen_order_items koi
+          join public.kitchen_orders ko on ko.id = koi.order_id
+          where koi.id = $1 and ko.store_id = $2
+          for update of koi, ko
+        `,
+        [itemId, body.store_id],
+      );
+      const item = itemResult.rows[0];
+      if (!item) throw new ApiError(404, 'Item kitchen tidak ditemukan.');
+
+      const oldItemStatus = normalizeKitchenStatus(String(item.item_status));
+      const newItemStatus = normalizeKitchenStatus(body.status);
+      assertKitchenTransition(oldItemStatus, newItemStatus);
+
+      if (oldItemStatus !== newItemStatus) {
+        await client.query(
+          `
+            update public.kitchen_order_items
+            set item_status = $1, status_version = status_version + 1, updated_at = now()
+            where id = $2
+          `,
+          [newItemStatus, itemId],
+        );
+      }
+
+      const oldOrderStatus = normalizeKitchenStatus(String(item.overall_status));
+      const recalculatedStatus = terminalKitchenStatuses.has(oldOrderStatus)
+        ? oldOrderStatus
+        : await recalculateKitchenOrderStatus(client, item.order_id);
+
+      if (recalculatedStatus !== oldOrderStatus) {
+        await client.query(
+          `
+            update public.kitchen_orders
+            set overall_status = $1, status_version = status_version + 1, updated_at = now()
+            where id = $2 and store_id = $3
+          `,
+          [recalculatedStatus, item.order_id, body.store_id],
+        );
+      } else {
+        await client.query(
+          `update public.kitchen_orders set updated_at = now() where id = $1 and store_id = $2`,
+          [item.order_id, body.store_id],
+        );
+      }
+
+      const eventMeta = await insertKitchenEvent(client, {
+        storeId: body.store_id,
+        orderId: item.order_id,
+        orderItemId: itemId,
+        eventType: 'item_status_changed',
+        oldStatus: oldItemStatus,
+        newStatus: newItemStatus,
+        changedBy: req.authUser!.id,
+        changedByName: body.changed_by_name ?? req.authUser!.email ?? null,
+      });
+      const order = await fetchKitchenOrder(client, item.order_id);
+
+      return {
+        order,
+        event: {
+          id: eventMeta.id,
+          type: 'item_status_changed',
+          store_id: body.store_id,
+          order_id: item.order_id,
+          created_at: eventMeta.created_at,
+          payload: { order, itemId },
+        } satisfies KitchenRealtimeEvent,
+      };
+    });
+
+    broadcastKitchenEvent(result.event);
+    res.json(result.order);
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get('/api/transactions', async (req, res, next) => {
   try {
     const storeId = storeIdSchema.parse(req.query.storeId);
@@ -4141,7 +4832,7 @@ app.post('/api/transactions/checkout', async (req, res, next) => {
   try {
     const payload = checkoutSchema.parse(req.body);
 
-    const transaction = await withTransaction(async (client) => {
+    const result = await withTransaction(async (client) => {
       await assertStoreOwned(client, payload.store_id, req.authUser!.id);
 
       const existing = await client.query(
@@ -4283,10 +4974,30 @@ app.post('/api/transactions/checkout', async (req, res, next) => {
         ],
       );
 
-      return insertResult.rows[0];
+      const kitchenOrder = await createKitchenOrderFromTransaction(client, payload, req.authUser!);
+
+      return {
+        transaction: insertResult.rows[0],
+        kitchenOrder,
+      };
     });
 
-    res.status(201).json(normalizeTransaction(transaction));
+    if (result.kitchenOrder) {
+      const kitchenOrder = result.kitchenOrder as Record<string, unknown>;
+      broadcastKitchenEvent({
+        id: randomUUID(),
+        type: 'order_created',
+        store_id: payload.store_id,
+        order_id: String(kitchenOrder.id),
+        created_at: new Date().toISOString(),
+        payload: { order: kitchenOrder, transactionId: payload.id },
+      });
+    }
+
+    res.status(201).json({
+      ...normalizeTransaction(result.transaction),
+      kitchen_order: result.kitchenOrder,
+    });
   } catch (error) {
     next(error);
   }
@@ -4303,7 +5014,7 @@ app.post('/api/transactions/:id/void', async (req, res, next) => {
       })
       .parse(req.body);
 
-    const transaction = await withTransaction(async (client) => {
+    const result = await withTransaction(async (client) => {
       await assertStoreOwned(client, body.store_id, req.authUser!.id);
 
       const currentResult = await client.query(
@@ -4385,10 +5096,74 @@ app.post('/api/transactions/:id/void', async (req, res, next) => {
         [body.reason ?? null, body.void_by ?? null, transactionId, body.store_id],
       );
 
-      return updated.rows[0];
+      const kitchenResult = await client.query(
+        `
+          select ${kitchenOrderColumns}
+          from public.kitchen_orders
+          where store_id = $1 and transaction_id = $2
+          for update
+        `,
+        [body.store_id, transactionId],
+      );
+      const kitchenOrder = kitchenResult.rows[0];
+      let kitchenEvent: KitchenRealtimeEvent | null = null;
+      let fullKitchenOrder: Record<string, unknown> | null = null;
+
+      if (kitchenOrder && !terminalKitchenStatuses.has(normalizeKitchenStatus(String(kitchenOrder.overall_status)))) {
+        const oldStatus = normalizeKitchenStatus(String(kitchenOrder.overall_status));
+        await client.query(
+          `
+            update public.kitchen_orders
+            set
+              overall_status = 'cancelled',
+              status_version = status_version + 1,
+              cancelled_reason = $1,
+              updated_at = now()
+            where id = $2 and store_id = $3
+          `,
+          [body.reason ?? null, kitchenOrder.id, body.store_id],
+        );
+        await client.query(
+          `
+            update public.kitchen_order_items
+            set item_status = 'cancelled', status_version = status_version + 1, updated_at = now()
+            where order_id = $1 and item_status not in ('served', 'completed', 'cancelled')
+          `,
+          [kitchenOrder.id],
+        );
+        const eventMeta = await insertKitchenEvent(client, {
+          storeId: body.store_id,
+          orderId: kitchenOrder.id,
+          eventType: 'order_cancelled',
+          oldStatus,
+          newStatus: 'cancelled',
+          changedBy: req.authUser!.id,
+          changedByName: body.void_by ?? req.authUser!.email ?? null,
+          data: { reason: body.reason ?? null, transactionId },
+        });
+        fullKitchenOrder = await fetchKitchenOrder(client, kitchenOrder.id);
+        kitchenEvent = {
+          id: eventMeta.id,
+          type: 'order_cancelled',
+          store_id: body.store_id,
+          order_id: kitchenOrder.id,
+          created_at: eventMeta.created_at,
+          payload: { order: fullKitchenOrder, transactionId },
+        };
+      }
+
+      return {
+        transaction: updated.rows[0],
+        kitchenOrder: fullKitchenOrder,
+        kitchenEvent,
+      };
     });
 
-    res.json(normalizeTransaction(transaction));
+    if (result.kitchenEvent) broadcastKitchenEvent(result.kitchenEvent);
+    res.json({
+      ...normalizeTransaction(result.transaction),
+      kitchen_order: result.kitchenOrder,
+    });
   } catch (error) {
     next(error);
   }
@@ -4411,6 +5186,18 @@ app.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {
 
   if (error instanceof ApiError) {
     log('warn', 'request.api_error', {
+      requestId: req.requestId ?? null,
+      method: req.method,
+      path: req.originalUrl,
+      statusCode: error.status,
+      message: error.message,
+    });
+    res.status(error.status).json({ error: 'API_ERROR', message: error.message });
+    return;
+  }
+
+  if (error instanceof KitchenStatusError) {
+    log('warn', 'request.kitchen_status_error', {
       requestId: req.requestId ?? null,
       method: req.method,
       path: req.originalUrl,
@@ -4450,6 +5237,7 @@ app.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {
 async function verifyDependenciesOnStartup() {
   const startedAt = Date.now();
   await bootstrapAuthSchema();
+  await bootstrapKitchenSchema();
   await pool.query('select 1');
   log('info', 'startup.dependencies_ready', {
     database: {

@@ -189,3 +189,21 @@ Log penting di Coolify:
 11. kirim forgot password
 12. reset password dari email
 13. login ulang di web dan APK
+
+## 10. Kitchen / Order Checker realtime
+
+Fitur Kitchen Display System memakai tabel `kitchen_orders`, `kitchen_order_items`, dan `kitchen_order_events`.
+
+Deploy cepat:
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f database/kitchen-order-checker-migration.sql
+```
+
+Setelah backend dan frontend redeploy, jalankan:
+
+```bash
+bash scripts/verify-kds-deploy.sh
+```
+
+Runbook lengkap ada di [DEPLOY_KITCHEN_CHECKER.md](/Users/macbook/kaffepos-new/kaffepos-v2/DEPLOY_KITCHEN_CHECKER.md).

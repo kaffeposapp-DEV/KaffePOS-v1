@@ -15,6 +15,10 @@ import { printReceiptBrowser, printReceiptClassicBt } from '@/utils/thermalPrint
 import { getNotifications, updateProfileMe } from '@/lib/backendApi';
 import { getStoreSettingsKey } from '@/utils/sessionIsolation';
 import NotificationCenter from './NotificationCenter';
+import UpgradePrompt from '@/components/UpgradePrompt';
+import { getPlanDefinition } from '@/lib/subscriptionPlans';
+import type { SubscriptionAccess } from '@/lib/subscriptionAccess';
+import ThemeCustomizer from './ThemeCustomizer';
 import {
   createReceiptPrintData,
   formatReceiptCurrency,
@@ -52,11 +56,15 @@ interface InpProps {
 }
 
 const Inp = ({ label, value, onChange, placeholder, note }: InpProps) => (
-  <div>
-    <label className="text-xs font-bold text-slate-500 mb-1 block">{label}</label>
-    <input value={value||''} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
-      className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-orange-400 bg-white" style={{fontSize:16}}/>
-    {note&&<p className="text-xs text-slate-400 mt-1">{note}</p>}
+  <div className="space-y-1.5">
+    <label className="text-[13px] font-bold text-slate-700 pl-0.5">{label}</label>
+    <input 
+      value={value||''} 
+      onChange={e=>onChange(e.target.value)} 
+      placeholder={placeholder}
+      className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all placeholder:text-slate-300"
+    />
+    {note&&<p className="text-[11px] text-slate-400 pl-0.5">{note}</p>}
   </div>
 );
 
@@ -68,11 +76,19 @@ interface ToggleProps {
 }
 
 const Toggle = ({ label, value, onChange, note }: ToggleProps) => (
-  <div className="flex items-center justify-between py-2.5 border-b border-slate-50 last:border-0">
-    <div className="flex-1 min-w-0 pr-3"><p className="text-sm font-bold text-slate-700">{label}</p>{note&&<p className="text-xs text-slate-400">{note}</p>}</div>
-    <button onClick={()=>onChange(!value)} className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ${value?'bg-orange-500':'bg-slate-200'}`}>
-      <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 shadow transition-all duration-200 ${value?'left-[26px]':'left-0.5'}`}/>
-    </button>
+  <div 
+    onClick={() => onChange(!value)}
+    className="flex items-center justify-between py-4 border-b border-slate-50 last:border-0 cursor-pointer active:bg-slate-50/50 -mx-4 px-4 transition-colors"
+  >
+    <div className="flex-1 min-w-0 pr-3">
+      <p className="text-sm font-bold text-slate-800">{label}</p>
+      {note&&<p className="text-[11px] text-slate-400 font-medium mt-0.5">{note}</p>}
+    </div>
+    <div 
+      className={`w-12 h-6.5 rounded-full transition-all relative shrink-0 ${value?'bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.3)]':'bg-slate-200'}`}
+    >
+      <div className={`w-5.5 h-5.5 bg-white rounded-full absolute top-0.5 shadow-sm transition-all duration-300 ${value?'left-[24px]':'left-0.5'}`}/>
+    </div>
   </div>
 );
 
@@ -84,12 +100,20 @@ interface SelProps {
 }
 
 const Sel = ({ label, value, onChange, options }: SelProps) => (
-  <div>
-    <label className="text-xs font-bold text-slate-500 mb-1 block">{label}</label>
-    <select value={value||''} onChange={e=>onChange(e.target.value)}
-      className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-orange-400 bg-white">
-      {options.map((o)=><option key={o.v} value={o.v}>{o.l}</option>)}
-    </select>
+  <div className="space-y-1.5">
+    <label className="text-[13px] font-bold text-slate-700 pl-0.5">{label}</label>
+    <div className="relative">
+      <select 
+        value={value||''} 
+        onChange={e=>onChange(e.target.value)}
+        className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all appearance-none"
+      >
+        {options.map((o)=><option key={o.v} value={o.v}>{o.l}</option>)}
+      </select>
+      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+        <ChevronRight size={16} className="rotate-90" />
+      </div>
+    </div>
   </div>
 );
 
@@ -135,9 +159,9 @@ function ReceiptPreview({ s }: { s:any }) {
 }
 const DEFAULTS:any = getReceiptSettings();
 
-type Section = 'brand'|'receipt'|'printer'|'license';
+type Section = 'brand'|'receipt'|'printer'|'theme'|'license';
 
-export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPro: boolean; profile:any }) {
+export default function SettingsTab({ toast, isPro, profile, subscriptionAccess }: { toast:any; isPro: boolean; profile:any; subscriptionAccess: SubscriptionAccess }) {
   const { signOut, refreshProfile } = useAuth();
   const { storeSettings, saveStoreSettings, storeId } = useStore();
   const printer = usePrinter();
@@ -153,7 +177,12 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [notifsOpen, setNotifsOpen]   = useState(false);
   const logoRef = useRef<HTMLInputElement>(null);
+  const licensePanelRef = useRef<HTMLDivElement>(null);
+  const focusLicenseRef = useRef(false);
   const timer   = useRef<NodeJS.Timeout | null>(null);
+  const canBrowserPrint = subscriptionAccess.features.browser_print;
+  const canThermalPrint = subscriptionAccess.features.thermal_print;
+  const activePlan = getPlanDefinition(subscriptionAccess.plan);
 
   useEffect(() => {
     if (storeSettings) {
@@ -251,10 +280,39 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
     finally { setSavingKasir(false); }
   };
 
+  const openLicenseSection = useCallback(() => {
+    focusLicenseRef.current = true;
+    setSection('license');
+    toast.showToast('Memuat menu Lisensi Anda...', 'info');
+  }, []);
+
+  useEffect(() => {
+    if (section !== 'license' || !focusLicenseRef.current) return;
+    focusLicenseRef.current = false;
+    window.requestAnimationFrame(() => {
+      const panel = licensePanelRef.current;
+      if (!panel) return;
+      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      panel.focus({ preventScroll: true });
+    });
+  }, [section]);
+
+  useEffect(() => {
+    return () => {
+      if (timer.current) {
+        clearTimeout(timer.current);
+      }
+    };
+  }, []);
+
 
   const handleTestPrint = async () => {
     try {
       if (printer.btConnected) {
+        if (!canThermalPrint) {
+          toast.showToast('Thermal printer Bluetooth/USB tersedia mulai paket Signature.', 'info');
+          return;
+        }
         await printReceiptClassicBt(createReceiptPrintData(form, {
           id: 'TEST-' + Date.now().toString().slice(-6),
           date: new Date().toISOString(),
@@ -265,6 +323,10 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
         }) as any);
         toast.showToast('✅ Test print berhasil! Cek printer.', 'success');
       } else {
+        if (!canBrowserPrint) {
+          toast.showToast('Cetak browser tersedia mulai paket Kopi Susu.', 'info');
+          return;
+        }
         printReceiptBrowser(createReceiptPrintData(form, {
             id: 'TEST-' + Date.now().toString().slice(-6),
             date: new Date().toISOString(),
@@ -280,7 +342,13 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
     }
   };
 
-  const NAV = [{id:'brand',l:'Brand',icon:'🏪'},{id:'receipt',l:'Struk',icon:'🧾'},{id:'printer',l:'Printer',icon:'🖨️'},{id:'license',l:'Lisensi',icon:'🔑'}];
+  const NAV = [
+    {id:'brand',l:'Brand',icon:'🏪'},
+    {id:'receipt',l:'Struk',icon:'🧾'},
+    {id:'printer',l:'Printer',icon:'🖨️'},
+    {id:'theme',l:'Tema',icon:'🎨'},
+    {id:'license',l:'Lisensi',icon:'🔑'}
+  ];
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
@@ -298,18 +366,26 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
           </div>
         </div>
         {saveErr&&<div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-2"><AlertCircle size={14} className="text-amber-500 shrink-0"/><p className="text-xs text-amber-700">{saveErr}</p></div>}
-        <div className="flex gap-1.5">
+        <div className="flex gap-1 overflow-x-auto pb-1 no-scrollbar -mx-4 px-4 scroll-smooth">
           {NAV.map(n=>(
-            <button key={n.id} onClick={()=>setSection(n.id as Section)}
-              className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${section===n.id?'bg-slate-900 text-white':'bg-slate-100 text-slate-500'}`}>
-              <span className="block text-base leading-tight">{n.icon}</span><span>{n.l}</span>
+            <button 
+              key={n.id} 
+              onClick={()=>setSection(n.id as Section)}
+              className={`shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[13px] font-bold transition-all border ${
+                section===n.id 
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-md' 
+                  : 'bg-white text-slate-500 border-slate-100 hover:border-slate-200'
+              }`}
+            >
+              <span className="text-lg">{n.icon}</span>
+              <span>{n.l}</span>
             </button>
           ))}
         </div>
       </div>
 
       {/* NOTIFIKASI SECTION (SAAS STYLE) */}
-      <div className="px-3 pt-3">
+      <div className="px-3 pt-3 lg:max-w-3xl lg:mx-auto lg:w-full">
         <button onClick={() => setNotifsOpen(true)}
           className="w-full bg-white rounded-2xl border border-slate-100 p-4 flex items-center justify-between active:scale-[0.98] transition-all overflow-hidden relative group">
           
@@ -336,7 +412,7 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
 
       <NotificationCenter isOpen={notifsOpen} onClose={() => { setNotifsOpen(false); setUnreadNotifs(0); }} />
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div className="flex-1 overflow-y-auto p-3 space-y-3 lg:max-w-3xl lg:mx-auto lg:w-full">
 
         {/* ── BRAND ── */}
         {section==='brand'&&<>
@@ -458,8 +534,19 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
           </div>
         </>}
 
-        {/* ── PRINTER ── */}
+      {/* ── PRINTER ── */}
         {section==='printer'&&<>
+          {!canThermalPrint && (
+            <UpgradePrompt
+              recommendedPlan="signature"
+              billingCycle="monthly"
+              title="Thermal printer ada di paket Signature"
+              description="Hubungkan printer Bluetooth Classic atau USB saat outletmu sudah butuh alur cetak yang lebih cepat dan stabil."
+              actionLabel="Tingkatkan ke Pro untuk Akses Printer"
+              onAction={openLicenseSection}
+            />
+          )}
+
           {/* Status Card */}
           <div className={`rounded-2xl p-4 border-2 ${
             printer.reconnecting ? 'bg-yellow-50 border-yellow-300' :
@@ -507,6 +594,10 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
               ) : (
                 <button
                   onClick={async () => {
+                    if (!canThermalPrint) {
+                      toast.showToast('Thermal printer Bluetooth/USB tersedia mulai paket Signature.', 'info');
+                      return;
+                    }
                     try {
                       const n = await printer.connectClassic();
                       toast.showToast('✅ Terhubung: ' + n, 'success');
@@ -519,7 +610,7 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
                   {printer.btReconnecting
                     ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
                     : <Bluetooth size={14}/>}
-                  {printer.btReconnecting ? 'Menghubungkan...' : 'Hubungkan Printer'}
+                  {printer.btReconnecting ? 'Menghubungkan...' : canThermalPrint ? 'Hubungkan Printer' : 'Butuh Signature'}
                 </button>
               )}
               {printer.btConnected && (
@@ -549,20 +640,25 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
           <div className="bg-white rounded-2xl border border-slate-100 p-4">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 bg-orange-50 rounded-xl flex items-center justify-center"><Wifi size={16} className="text-orange-500"/></div>
-              <div><p className="font-bold text-slate-800 text-sm">Cetak via Browser</p><p className="text-xs text-green-600 font-bold">Tersedia semua perangkat</p></div>
+              <div><p className="font-bold text-slate-800 text-sm">Cetak via Browser</p><p className={`text-xs font-bold ${canBrowserPrint ? 'text-green-600' : 'text-slate-400'}`}>{canBrowserPrint ? 'Tersedia di paket aktif' : 'Buka di paket Kopi Susu'}</p></div>
             </div>
-            <p className="text-xs text-slate-500 mb-3">Printer WiFi, USB, atau simpan PDF. Otomatis digunakan jika Bluetooth tidak tersedia.</p>
+            <p className="text-xs text-slate-500 mb-3">Printer WiFi atau browser print cocok untuk operasional ringan dan review struk dari desktop.</p>
             <button onClick={handleTestPrint}
-              className="w-full py-2.5 border-2 border-orange-200 text-orange-600 font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95 text-sm">
-              🖨️ Test Cetak Browser
+              className={`w-full py-2.5 border-2 font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95 text-sm ${canBrowserPrint ? 'border-orange-200 text-orange-600' : 'border-slate-200 text-slate-400'}`}>
+              🖨️ {canBrowserPrint ? 'Test Cetak Browser' : 'Upgrade untuk Browser Print'}
             </button>
           </div>
         </>
       }
 
+        {/* ── TEMA ── */}
+        {section==='theme'&&<>
+          <ThemeCustomizer toast={toast} />
+        </>}
+
         {/* ── LISENSI ── */}
         {section==='license' && (
-          <>
+          <div id="settings-license-panel" ref={licensePanelRef} tabIndex={-1} className="space-y-3 outline-none">
             <SubscriptionSection
               isPro={isPro}
               profile={profile}
@@ -600,16 +696,22 @@ export default function SettingsTab({ toast, isPro, profile }: { toast:any; isPr
                 <div className="flex justify-between items-center py-1.5">
                   <span className="text-sm text-slate-500">Tier Aktif</span>
                   <span className={`text-sm font-black px-2 py-0.5 rounded-lg ${isPro?'bg-orange-100 text-orange-600':'bg-slate-100 text-slate-600'}`}>
-                    {isPro?'⭐ PRO':'BASIC'}
+                    {activePlan.name}
                   </span>
                 </div>
+                {subscriptionAccess.expiryDate && (
+                  <div className="flex justify-between items-center py-1.5">
+                    <span className="text-sm text-slate-500">Sisa Masa Aktif</span>
+                    <span className="text-sm font-bold text-slate-800">{subscriptionAccess.daysRemaining ?? 0} hari</span>
+                  </div>
+                )}
               </div>
               <button onClick={()=>{if(confirm('Keluar dari akun?'))signOut();}}
                 className="w-full py-3 border-2 border-red-200 text-red-500 font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95">
                 <LogOut size={16}/>Keluar dari Akun
               </button>
             </div>
-          </>
+          </div>
         )}
 
       </div>

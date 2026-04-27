@@ -8,6 +8,8 @@
 // Device-based subscription dengan backend API sync + offline fallback
 
 import { getProfileMe } from '@/lib/backendApi';
+import { buildSubscriptionAccess } from '@/lib/subscriptionAccess';
+import type { Profile } from '@/types';
 export type PlanType = 'secangkir' | 'kopi_susu' | 'signature' | 'founder';
 
 export interface SubscriptionStatus {
@@ -143,38 +145,16 @@ class SubscriptionManagerClass {
     const profile = await getProfileMe();
     if (!profile) return defaultStatus();
 
-    const hasPro = profile.tier === 'pro' || !!profile.is_pro;
-    if (!hasPro) {
-      return {
-        plan: 'secangkir',
-        isActive: true,
-        expiryDate: null,
-        transactionCount: getMonthlyTxCount(),
-        transactionLimit: TRANSACTION_LIMIT_FREEMIUM,
-        daysRemaining: null,
-      };
-    }
-
-    const planType = (profile.pro_plan as PlanType) || 'founder';
-    let expiryDate: Date | null = null;
-    let daysRemaining: number | null = null;
-
-    const resolvedExpiry = profile.pro_expires_at || profile.tier_expires_at;
-    if (resolvedExpiry) {
-      expiryDate = new Date(resolvedExpiry);
-      daysRemaining = Math.ceil((expiryDate.getTime() - Date.now()) / 86_400_000);
-      if (daysRemaining <= 0) {
-        return defaultStatus(); // expired → freemium
-      }
-    }
+    const access = buildSubscriptionAccess(profile as Profile);
+    const expiryDate = access.expiryDate ? new Date(access.expiryDate) : null;
 
     return {
-      plan: planType,
-      isActive: true,
+      plan: access.plan as PlanType,
+      isActive: access.isActive,
       expiryDate,
       transactionCount: getMonthlyTxCount(),
-      transactionLimit: -1, // unlimited
-      daysRemaining,
+      transactionLimit: access.transactionLimit,
+      daysRemaining: access.daysRemaining,
     };
   }
 

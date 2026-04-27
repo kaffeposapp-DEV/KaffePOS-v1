@@ -14,6 +14,8 @@ import { getAIInsightCached, type InsightContext, type AIInsight } from '@/lib/a
 import KasDailyPanel from './KasDailyPanel';
 import ExpenseModal from '@/components/pos/ExpenseModal';
 import CashRegisterModal from '@/components/pos/CashRegisterModal';
+import UpgradePrompt from '@/components/UpgradePrompt';
+import type { SubscriptionAccess } from '@/lib/subscriptionAccess';
 
 
 const fRp  = (n: number) => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
@@ -110,10 +112,10 @@ function StatCard({ label, value, sub, icon, color='orange' }: { label:string; v
   );
 }
 
-export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean }) {
+export default function ReportTab({ toast, subscriptionAccess }: { toast:any; subscriptionAccess: SubscriptionAccess }) {
   const { transactions, expenses, inventory, storeSettings, cashRegister = [] } = useStore();
   const { user, profile } = useAuth();
-  const [period, setPeriod]     = useState<Period>('bulanan');
+  const [period, setPeriod]     = useState<Period>('harian');
   const [activeChart, setChart] = useState<'trend'|'menu'|'payment'|'stock'>('trend');
   const [downloading, setDl]    = useState(false);
 
@@ -124,6 +126,9 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
   const [aiOpen,    setAiOpen]    = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showCashRegisterModal, setShowCashRegisterModal] = useState(false);
+  const canExportReports = subscriptionAccess.features.report_export;
+  const canUseAdvancedPeriods = subscriptionAccess.features.report_advanced_periods;
+  const canUseAiInsight = subscriptionAccess.features.ai_insight;
 
   const filtered = useMemo(()=>{
     const now=new Date();
@@ -224,6 +229,11 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
 
   // ── AI Insight fetch ──────────────────────────────────────────
   const fetchAI = useCallback(async (force = false) => {
+    if (!canUseAiInsight) {
+      setAiOpen(false);
+      toast.showToast('AI Insight tersedia mulai paket Signature.', 'info');
+      return;
+    }
     setAiLoading(true); setAiError('');
     if (force) setAiData(null);
     try {
@@ -259,7 +269,11 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
     } catch (e:any) {
       setAiError(e.message || 'Gagal mendapatkan insight AI');
     } finally { setAiLoading(false); }
-  }, [period, filtered, menuRanking, inventory, trendData, totalRevenue, totalCogs, netProfit, grossMargin, avgTrx, totalExpenses, storeSettings]);
+  }, [avgTrx, canUseAiInsight, filtered, grossMargin, inventory, menuRanking, netProfit, period, storeSettings, toast, totalCogs, totalExpenses, totalRevenue, trendData]);
+
+  const handleOpenLicense = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('kaffepos-open-tab', { detail: { tab: 'settings' } }));
+  }, []);
 
   const buildReportPayload = useCallback((): ReportData => {
     const periodLabel = period === 'harian' ? 'Hari Ini' : period === 'mingguan' ? '7 Hari Terakhir' : period === 'bulanan' ? 'Bulan Ini' : 'Semua Waktu';
@@ -330,6 +344,10 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
   ]);
 
   const handleDownload = async () => {
+    if (!canExportReports) {
+      toast.showToast('Export PDF tersedia mulai paket Kopi Susu.', 'info');
+      return;
+    }
     setDl(true);
     try {
       await generateProfessionalPDF(buildReportPayload());
@@ -342,7 +360,7 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
     }
   };
 
-  const PERIODS=[{id:'harian',l:'Hari Ini'},{id:'mingguan',l:'7 Hari'},{id:'bulanan',l:'Bulan Ini'},{id:'semua',l:'Semua'}];
+  const PERIODS=[{id:'harian',l:'Hari Ini', requiresAdvanced:false},{id:'mingguan',l:'7 Hari', requiresAdvanced:true},{id:'bulanan',l:'Bulan Ini', requiresAdvanced:true},{id:'semua',l:'Semua', requiresAdvanced:false}] as const;
   const hasAnyReportData = filtered.length > 0 || filteredExp.length > 0 || filteredCR.length > 0;
 
   return (
@@ -368,14 +386,36 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
               <Receipt size={13} />
             </button>
             <button onClick={handleDownload} disabled={downloading}
-              className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 text-white rounded-xl text-xs font-bold active:scale-95 disabled:opacity-50 shrink-0">
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold active:scale-95 disabled:opacity-50 shrink-0 ${canExportReports ? 'bg-orange-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
               {downloading?<div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"/>:<Download size={13}/>}
-              {downloading?'Proses...':'PDF'}
+              {downloading?'Proses...':canExportReports?'PDF':'PDF Premium'}
             </button>
           </div>
         </div>
-        <div className="flex gap-1.5">
-          {PERIODS.map(p=><button key={p.id} onClick={()=>setPeriod(p.id as Period)} className={`flex-1 py-1.5 rounded-lg text-xs font-bold ${period===p.id?'bg-orange-500 text-white':'bg-slate-100 text-slate-500'}`}>{p.l}</button>)}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4">
+          {PERIODS.map((p) => {
+            const locked = p.requiresAdvanced && !canUseAdvancedPeriods;
+            const active = period === p.id;
+            return (
+              <button
+                key={p.id}
+                onClick={() => {
+                  if (locked) {
+                    toast.showToast('Laporan mingguan dan bulanan tersedia mulai paket Kopi Susu.', 'info');
+                    return;
+                  }
+                  setPeriod(p.id as Period);
+                }}
+                className={`shrink-0 px-5 py-2.5 rounded-2xl text-[13px] font-bold transition-all border ${
+                  active 
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-md' 
+                    : 'bg-slate-100 text-slate-500 border-transparent hover:border-slate-200'
+                } ${locked ? 'opacity-40' : ''}`}
+              >
+                {p.l}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -389,12 +429,12 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
           </div>
         )}
         {/* KPI */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3">
           <StatCard label="Pendapatan" value={fRp(totalRevenue)} sub={`${filtered.length} trx`} icon={<DollarSign size={15}/>} color="orange"/>
           <StatCard label="Laba Bersih" value={fRp(netProfit)} sub={`Margin ${grossMargin}%`} icon={<TrendingUp size={15}/>} color={netProfit>=0?'green':'red'}/>
 
         {/* ── AI Insight Card ── */}
-        <div className="col-span-2 bg-gradient-to-br from-violet-50 to-purple-50 border border-violet-200 rounded-2xl overflow-hidden">
+        <div className="col-span-2 md:col-span-4 lg:col-span-2 bg-gradient-to-br from-violet-50 to-purple-50 border border-violet-200 rounded-2xl overflow-hidden">
           {/* Header tombol */}
           <button
             onClick={() => aiData ? setAiOpen(o => !o) : fetchAI()}
@@ -412,9 +452,9 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
                     ? aiData.source === 'local'
                       ? 'Analisis pintar lokal'
                       : 'Dianalisis oleh Gemini'
-                    : isPro
-                    ? 'PRO · 20× analisis per hari'
-                    : 'Freemium · 1× analisis per bulan'}
+                    : canUseAiInsight
+                    ? 'Signature · analisis AI siap dipakai'
+                    : 'Buka di paket Signature'}
                 </p>
               </div>
             </div>
@@ -433,10 +473,22 @@ export default function ReportTab({ toast, isPro }: { toast:any; isPro: boolean 
                 ? <div className="w-4 h-4 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
                 : aiData
                 ? (aiOpen ? <ChevronUp size={15} className="text-violet-400" /> : <ChevronDown size={15} className="text-violet-400" />)
-                : <span className="text-[11px] font-black text-violet-600 bg-violet-100 px-2.5 py-1 rounded-lg">Analisis</span>
+                : <span className="text-[11px] font-black text-violet-600 bg-violet-100 px-2.5 py-1 rounded-lg">{canUseAiInsight ? 'Analisis' : 'Locked'}</span>
               }
             </div>
           </button>
+
+          {!canUseAiInsight && (
+            <div className="px-4 pb-4">
+              <UpgradePrompt
+                recommendedPlan="signature"
+                billingCycle="monthly"
+                title="AI Insight ada di paket Signature"
+                description="Upgrade saat kamu butuh analisis menu terlaris, prediksi stok, dan rekomendasi operasional yang lebih tajam."
+                onAction={handleOpenLicense}
+              />
+            </div>
+          )}
 
           {/* Error */}
           {aiError && (

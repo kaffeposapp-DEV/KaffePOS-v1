@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 export type MidtransEnvironment = 'sandbox' | 'production';
 
 export type MidtransConfig = {
@@ -118,4 +120,25 @@ export function buildMidtransCreateTransactionPayload(input: MidtransCreateTrans
   };
 
   return payload;
+}
+
+export function createMidtransWebhookSignature(input: {
+  orderId: string;
+  statusCode: string;
+  grossAmount: string;
+  serverKey?: string;
+}) {
+  return createHash('sha512')
+    .update(`${input.orderId}${input.statusCode}${input.grossAmount}${input.serverKey ?? ''}`)
+    .digest('hex');
+}
+
+export function isMidtransWebhookSignatureValid(input: {
+  orderId: string;
+  statusCode: string;
+  grossAmount: string;
+  signatureKey: string;
+  serverKey?: string;
+}) {
+  return input.signatureKey === createMidtransWebhookSignature(input);
 }

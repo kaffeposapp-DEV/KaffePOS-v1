@@ -23,6 +23,23 @@ vi.mock('@/lib/backendApi', async (importOriginal) => {
     getTransactions: vi.fn().mockResolvedValue({
       items: [],
     }),
+    getKitchenOrders: vi.fn().mockResolvedValue({
+      items: [],
+    }),
+    subscribeKitchenEvents: vi.fn(() => vi.fn()),
+    updateKitchenOrderStatus: vi.fn().mockResolvedValue({
+      id: 'ko_1',
+      store_id: 'store_123',
+      transaction_id: 'tx_123',
+      order_number: 'tx_123',
+      source: 'cashier',
+      overall_status: 'preparing',
+      status_version: 2,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      items: [],
+    }),
+    updateKitchenItemStatus: vi.fn(),
     getExpenses: vi.fn().mockResolvedValue({
       items: [],
     }),
@@ -46,6 +63,18 @@ vi.mock('@/lib/backendApi', async (importOriginal) => {
       method: 'Tunai',
       is_void: false,
       date: new Date().toISOString(),
+      kitchen_order: {
+        id: 'ko_1',
+        store_id: 'store_123',
+        transaction_id: 'tx_123',
+        order_number: 'tx_123',
+        source: 'cashier',
+        overall_status: 'pending',
+        status_version: 1,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        items: [{ id: 'koi_1', order_id: 'ko_1', item_name: 'Coffee', qty: 1, note: 'no sugar', station: 'bar', item_status: 'pending', status_version: 1, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }],
+      },
     }),
   };
 });
@@ -145,5 +174,63 @@ describe('Transaction Flow (useStore)', () => {
       store_id: 'store_123',
       total: 10000,
     }));
+  });
+
+  it('catatan item terkirim ke checkout dan antrean dapur tidak dobel saat event duplikat', async () => {
+    const item = { id: 'item_1', name: 'Coffee', price: 10000, category: 'Coffee' };
+    useStore.getState().addToCart(item as any);
+    useStore.getState().setCartItemNote('item_1', 'no sugar');
+
+    const cart = useStore.getState().cart;
+    await useStore.getState().saveTransaction({
+      id: 'tx_note',
+      items: cart.map((entry) => ({
+        name: entry.name,
+        qty: entry.qty,
+        price: entry.price,
+        subtotal: entry.price * entry.qty,
+        menu_item_id: entry.id,
+        note: entry.note,
+      })),
+      subtotal: 10000,
+      discount: 0,
+      tax: 0,
+      cogs: 0,
+      paid: 10000,
+      change: 0,
+      method: 'Tunai',
+      is_void: false,
+      total: 10000,
+      date: new Date().toISOString(),
+    } as any);
+
+    expect(checkoutTransaction).toHaveBeenCalledWith(expect.objectContaining({
+      items: [expect.objectContaining({ note: 'no sugar' })],
+    }));
+
+    const event = {
+      id: 'event_1',
+      type: 'order_created' as const,
+      store_id: 'store_123',
+      order_id: 'ko_1',
+      created_at: new Date().toISOString(),
+      payload: {
+        order: {
+          id: 'ko_1',
+          store_id: 'store_123',
+          transaction_id: 'tx_123',
+          order_number: 'tx_123',
+          source: 'cashier' as const,
+          overall_status: 'pending' as const,
+          status_version: 1,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          items: [],
+        },
+      },
+    };
+    useStore.getState().applyKitchenEvent(event);
+    useStore.getState().applyKitchenEvent(event);
+    expect(useStore.getState().kitchenOrders.filter((order) => order.id === 'ko_1')).toHaveLength(1);
   });
 });

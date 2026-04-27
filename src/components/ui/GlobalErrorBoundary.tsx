@@ -1,22 +1,17 @@
- 
- 
-/* eslint-disable @typescript-eslint/no-unused-vars */
- 
- 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Component, ErrorInfo, ReactNode } from 'react';
+import { AlertTriangle, RefreshCw, Coffee } from 'lucide-react';
 
 interface Props { children: ReactNode; }
-interface State { hasError: boolean; }
+interface State { hasError: boolean; error: Error | null; }
 
 export class GlobalErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(_: Error): State {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
@@ -30,30 +25,44 @@ export class GlobalErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{
-          position: 'fixed', inset: 0, background: '#fff',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          padding: 24, textAlign: 'center', zIndex: 99999
-        }}>
-          <div style={{ fontSize: 64, marginBottom: 24 }}>☕</div>
-          <h2 style={{ fontSize: 24, fontWeight: 900, color: '#1a0f0a', marginBottom: 12 }}>
-            Ups, ada yang bermasalah.
-          </h2>
-          <p style={{ color: '#b08060', fontSize: 16, marginBottom: 32 }}>
-            Coba lagi. Beberapa data mungkin belum sinkron.
-          </p>
-          <button
-            onClick={this.handleReload}
-            style={{
-              padding: '16px 32px', background: '#C8843A', color: '#fff',
-              border: 'none', borderRadius: 16, fontWeight: 900, fontSize: 18,
-              boxShadow: '0 8px 24px rgba(200, 132, 58, 0.3)',
-              cursor: 'pointer',
-              activeScale: 0.95
-            } as any}
-          >
-            Muat Ulang
-          </button>
+        <div className="fixed inset-0 bg-[#0b0f19] flex flex-col items-center justify-center p-8 text-center z-[99999]">
+          {/* Decorative background blur */}
+          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-orange-500/10 blur-[120px] rounded-full" />
+          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-blue-500/10 blur-[120px] rounded-full" />
+
+          <div className="relative z-10 max-w-md w-full">
+            <div className="w-24 h-24 bg-orange-500/10 border border-orange-500/20 rounded-[32px] flex items-center justify-center mx-auto mb-10 shadow-2xl">
+              <AlertTriangle size={48} className="text-orange-500" />
+            </div>
+            
+            <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase mb-6 leading-none">
+              Sesuatu <br />Bermasalah. 🛠️
+            </h2>
+            
+            <p className="text-slate-400 text-lg font-medium leading-relaxed mb-10">
+              Jangan khawatir, data transaksi Anda biasanya tetap aman. Sistem butuh penyegaran singkat untuk sinkronisasi ulang.
+            </p>
+
+            <div className="bg-white/5 border border-white/10 rounded-3xl p-4 mb-10 text-left overflow-hidden">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Error Detail</p>
+                <code className="text-xs text-orange-200/70 font-mono break-all line-clamp-3">
+                    {this.state.error?.message || 'Unknown runtime error'}
+                </code>
+            </div>
+
+            <button
+              onClick={this.handleReload}
+              className="w-full py-6 bg-orange-500 text-slate-950 rounded-[24px] font-black text-xl flex items-center justify-center gap-4 hover:scale-[1.02] active:scale-95 transition-all shadow-[0_20px_40px_rgba(216,130,59,0.3)] uppercase italic"
+            >
+              <RefreshCw size={24} strokeWidth={3} /> 
+              Segarkan Halaman
+            </button>
+            
+            <div className="mt-12 flex items-center justify-center gap-3 text-slate-500">
+                <Coffee size={16} />
+                <span className="text-[10px] font-black uppercase tracking-[0.3em]">KaffePOS Recovery Engine</span>
+            </div>
+          </div>
         </div>
       );
     }

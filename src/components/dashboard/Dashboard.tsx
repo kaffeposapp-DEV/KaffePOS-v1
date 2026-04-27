@@ -269,40 +269,42 @@ export default function Dashboard() {
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="p-4 md:p-6 pb-24 lg:pb-6 max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">Dashboard Overview</h1>
-            <p className="text-slate-500 font-medium text-sm md:text-base">
-              {storeSettings?.store_name || 'KaffePOS'} · {isOnline ? 'Online' : 'Offline'} {syncing ? '· Syncing...' : ''}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="p-4 md:p-6 pb-6 lg:pb-6 max-w-7xl mx-auto space-y-6">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-black text-slate-800 tracking-tight">Overview</h1>
+              <p className="text-slate-400 font-bold text-[11px] uppercase tracking-widest mt-0.5">
+                {storeSettings?.store_name || 'KaffePOS'} · {isOnline ? 'Online' : 'Offline'}
+              </p>
+            </div>
             <button
               onClick={handleRefresh}
               disabled={!storeId || refreshing || syncing}
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 shadow-sm text-slate-600 flex items-center gap-2 disabled:opacity-60"
+              className="w-10 h-10 rounded-2xl bg-white border border-slate-200 shadow-sm text-slate-500 flex items-center justify-center disabled:opacity-50 active:scale-95"
             >
-              <RefreshCw size={14} className={refreshing || syncing ? 'animate-spin' : ''} />
-              Muat Ulang
+              <RefreshCw size={18} className={refreshing || syncing ? 'animate-spin' : ''} />
             </button>
-            <div className="flex flex-wrap items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
-              {[
-                { id: 'today', label: 'Hari Ini' },
-                { id: 'week', label: '7 Hari' },
-                { id: 'month', label: '30 Hari' },
-              ].map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setRange(item.id as RangeKey)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold ${
-                    range === item.id ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/10' : 'text-slate-500 hover:bg-slate-50'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4">
+            {[
+              { id: 'today', label: 'Hari Ini' },
+              { id: 'week', label: '7 Hari' },
+              { id: 'month', label: '30 Hari' },
+            ].map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setRange(item.id as RangeKey)}
+                className={`shrink-0 px-6 py-2.5 rounded-2xl text-[13px] font-bold transition-all border ${
+                  range === item.id 
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-md' 
+                    : 'bg-white text-slate-500 border-slate-100 hover:border-slate-200'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
         </div>
 

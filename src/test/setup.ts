@@ -7,44 +7,28 @@
 import '@testing-library/jest-dom';
 import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
-
-function createMemoryStorage() {
-  const store = new Map<string, string>();
-  return {
-    getItem: (key: string) => store.get(key) ?? null,
-    setItem: (key: string, value: string) => {
-      store.set(String(key), String(value));
-    },
-    removeItem: (key: string) => {
-      store.delete(String(key));
-    },
-    clear: () => {
-      store.clear();
-    },
-    key: (index: number) => Array.from(store.keys())[index] ?? null,
-    get length() {
-      return store.size;
-    },
-  };
-}
+import { installMemoryStorage } from './helpers/browser';
 
 if (typeof globalThis.localStorage === 'undefined' || typeof globalThis.localStorage.clear !== 'function') {
-  Object.defineProperty(globalThis, 'localStorage', {
-    value: createMemoryStorage(),
-    configurable: true,
-  });
+  installMemoryStorage('localStorage');
+}
+
+if (typeof globalThis.sessionStorage === 'undefined' || typeof globalThis.sessionStorage.clear !== 'function') {
+  installMemoryStorage('sessionStorage');
 }
 
 // Reset mocks between tests
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 // Mock Capacitor plugins
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
-    isNativePlatform: () => false,
-    getPlatform: () => 'web'
+    isNativePlatform: vi.fn(() => false),
+    getPlatform: vi.fn(() => 'web')
   }
 }));
 

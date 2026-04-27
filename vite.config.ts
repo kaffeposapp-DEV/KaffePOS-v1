@@ -1,6 +1,10 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
+import { readFileSync } from 'fs';
+
+const packageJson = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8')) as { version?: string };
+const APP_VERSION = process.env.VITE_APP_VERSION || packageJson.version || '0.0.0';
 
 const chunkGroups = [
   {
@@ -45,6 +49,9 @@ function manualChunks(id: string) {
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+  },
 
   resolve: {
     alias: {
@@ -89,6 +96,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
-    globals: true
+    globals: true,
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    exclude: ['backend/**', 'dist/**', 'node_modules/**'],
   }
 });

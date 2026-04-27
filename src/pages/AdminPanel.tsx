@@ -213,7 +213,7 @@ export default function AdminPanel() {
             <div>
               <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Admin KaffePOS</p>
               <h1 className="mt-2 text-3xl font-black text-slate-900">Panel Langganan Internal</h1>
-              <p className="mt-2 text-sm text-slate-500">Aktivasi manual, pantau subscription aktif, dan cek riwayat pembayaran.</p>
+              <p className="mt-2 text-sm text-slate-500">Override internal untuk kasus khusus, pantau subscription aktif, dan cek riwayat pembayaran.</p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[360px]">

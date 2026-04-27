@@ -1,0 +1,25 @@
+import { describe, expect, it } from 'vitest';
+import { DEFAULT_CUSTOM_THEME, buildThemeScale, evaluateCustomTheme } from '@/lib/theme';
+
+describe('theme guardrails', () => {
+  it('builds a complete primary scale for custom theme', () => {
+    const scale = buildThemeScale(DEFAULT_CUSTOM_THEME.primary);
+
+    expect(scale[50]).toMatch(/^#/);
+    expect(scale[500]).toBe(DEFAULT_CUSTOM_THEME.primary);
+    expect(scale[900]).toMatch(/^#/);
+  });
+
+  it('lightens unreadable surfaces and separates accent from primary', () => {
+    const evaluation = evaluateCustomTheme({
+      primary: '#334155',
+      accent: '#334155',
+      surface: '#475569',
+    });
+
+    expect(evaluation.theme.surface).not.toBe('#475569');
+    expect(evaluation.theme.accent).not.toBe('#334155');
+    expect(evaluation.warnings.length).toBeGreaterThan(0);
+    expect(evaluation.contrast.onSurface).toBeGreaterThanOrEqual(7);
+  });
+});
