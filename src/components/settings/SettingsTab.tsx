@@ -13,6 +13,7 @@ import { useStore } from '@/hooks/useStore';
 import { usePrinter } from '@/hooks/usePrinter';
 import { printReceiptBrowser, printReceiptClassicBt } from '@/utils/thermalPrinter';
 import { getNotifications, updateProfileMe } from '@/lib/backendApi';
+import { normalizeUserFacingError } from '@/lib/errorMessages';
 import { getStoreSettingsKey } from '@/utils/sessionIsolation';
 import NotificationCenter from './NotificationCenter';
 import UpgradePrompt from '@/components/UpgradePrompt';
@@ -232,8 +233,9 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
         setTimeout(() => { setSaved(false); setSaveErr(''); }, 3000);
         toast.showToast('✅ Pengaturan disimpan (mode offline)', 'success');
       } else {
-        setSaveErr(msg || 'Gagal menyimpan. Coba lagi.');
-        toast.showToast('Gagal menyimpan: ' + (msg || 'Error tidak diketahui'), 'error');
+        const friendly = normalizeUserFacingError(e, 'Pengaturan belum bisa disimpan. Coba lagi beberapa saat.');
+        setSaveErr(friendly);
+        toast.showToast(friendly, 'error');
       }
     } finally { setSaving(false); }
   };
@@ -277,7 +279,7 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
       await refreshProfile();
       setKasirSaved(true); setTimeout(() => setKasirSaved(false), 2500);
       toast.showToast('Nama kasir disimpan!', 'success');
-    } catch (e:any) { toast.showToast(e.message || 'Gagal simpan nama kasir', 'error'); }
+    } catch (e:any) { toast.showToast(normalizeUserFacingError(e, 'Nama kasir belum bisa disimpan. Coba lagi.'), 'error'); }
     finally { setSavingKasir(false); }
   };
 
@@ -731,4 +733,3 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
     </div>
   );
 }
-

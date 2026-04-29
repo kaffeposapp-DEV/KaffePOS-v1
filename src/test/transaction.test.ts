@@ -21,6 +21,9 @@ vi.mock('@/lib/backendApi', async (importOriginal) => {
     getInventory: vi.fn().mockResolvedValue({
       items: [],
     }),
+    getStockUnitConversions: vi.fn().mockResolvedValue({
+      items: [],
+    }),
     getTransactions: vi.fn().mockResolvedValue({
       items: [],
     }),

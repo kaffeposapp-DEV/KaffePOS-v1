@@ -10,6 +10,8 @@ import { clearStoredAuthSession, markExplicitSignOut } from '@/lib/authSession';
 import {
   ApiError,
   checkoutTransaction,
+  commitStockBulkImport,
+  createStockUnitConversion,
   createCashFlow,
   createCashRegister,
   createExpense,
@@ -21,17 +23,20 @@ import {
   getInventory,
   getKitchenOrders,
   getMenuItems,
+  getStockUnitConversions,
   getStores,
   getTransactions,
   removeExpense,
   removeInventoryItem,
   removeMenuItem,
+  deleteStockUnitConversion,
   subscribeKitchenEvents,
   updateKitchenItemStatus,
   updateKitchenOrderStatus,
   updateCashRegisterEntry,
   updateInventoryItem,
   updateMenuItem,
+  updateStockUnitConversion,
   updateStore,
   voidTransactionRequest,
 } from '@/lib/backendApi';
@@ -45,6 +50,7 @@ import {
   type ConnectivityMode,
 } from '@/lib/offlineQueue';
 import { canProcessPosPaymentOffline, getOfflinePaymentBlockedMessage } from '@/lib/offlinePolicy';
+import { normalizeUserFacingError } from '@/lib/errorMessages';
 import { menuItemSchema } from '@/utils/validation';
 import {
   clearIndexedDbCache,
@@ -57,7 +63,9 @@ import type {
   MenuItem, InventoryItem, Transaction, Expense,
   CashFlowEntry, StoreSettings, CartItem, CashRegister,
   InventoryItemUpdate, KitchenOrder, KitchenOrderStatus, KitchenRealtimeEvent, KitchenRealtimeStatus,
+  StockUnitConversion,
 } from '@/types';
+import type { BulkImportMode, BulkImportPreview, BulkImportRow } from '@/lib/stockEngine';
 
 function makeClientId(prefix: string) {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -150,6 +158,7 @@ function persistCache(
   expenses: Expense[] = [],
   cashFlow: CashFlowEntry[] = [],
   cashRegister: CashRegister[] = [],
+  unitConversions?: StockUnitConversion[],
 ) {
   try {
     localStorage.setItem(`kpos_menu_${storeId}`,  JSON.stringify(menu));
@@ -158,6 +167,9 @@ function persistCache(
     localStorage.setItem(`kpos_exp_${storeId}`,   JSON.stringify(expenses));
     localStorage.setItem(`kpos_cf_${storeId}`,    JSON.stringify(cashFlow));
     localStorage.setItem(`kpos_cr_${storeId}`,    JSON.stringify(cashRegister));
+    if (unitConversions) {
+      localStorage.setItem(`kpos_unit_conversions_${storeId}`, JSON.stringify(unitConversions));
+    }
   } catch { /* ignore */ }
 }
 
@@ -170,6 +182,7 @@ function loadCache(storeId: string) {
     expenses: (load(`kpos_exp_${storeId}`)  || []) as Expense[],
     cashFlow: (load(`kpos_cf_${storeId}`)   || []) as CashFlowEntry[],
     cashReg:  (load(`kpos_cr_${storeId}`)   || []) as CashRegister[],
+    unitConversions: (load(`kpos_unit_conversions_${storeId}`) || []) as StockUnitConversion[],
     kitchen:  (load(getKitchenCacheKey(storeId)) || []) as KitchenOrder[],
     settings: loadSettingsFromLS(storeId),
   };
@@ -376,6 +389,10 @@ async function flushPending() {
         if (pw.op === 'insert') await createInventoryItem(pw.data);
         if (pw.op === 'update' && pw.id) await updateInventoryItem(pw.id, pw.data);
         if (pw.op === 'delete' && pw.id) await removeInventoryItem(pw.id);
+      } else if (pw.table === 'inventory_unit_conversions') {
+        if (pw.op === 'insert') await createStockUnitConversion(pw.data);
+        if (pw.op === 'update' && pw.id) await updateStockUnitConversion(pw.id, pw.data);
+        if (pw.op === 'delete' && pw.id) await deleteStockUnitConversion(pw.id);
       } else if (pw.table === 'expenses') {
         if (pw.op === 'insert') await createExpense(pw.data);
         if (pw.op === 'delete' && pw.id) await removeExpense(pw.id);
@@ -445,6 +462,7 @@ interface AppStore {
   storeSettings: StoreSettings | null;
   menu:          MenuItem[];
   inventory:     InventoryItem[];
+  unitConversions: StockUnitConversion[];
   transactions:  Transaction[];
   kitchenOrders: KitchenOrder[];
   kitchenRealtimeStatus: KitchenRealtimeStatus;
@@ -481,6 +499,13 @@ interface AppStore {
   deleteMenuItem:      (id: string) => Promise<void>;
   saveInventoryItem:   (item: InventoryItemUpdate) => Promise<void>;
   deleteInventoryItem: (id: string) => Promise<void>;
+  saveStockUnitConversion: (conversion: Partial<StockUnitConversion> & { from_unit: string; to_unit: string; ratio: number }) => Promise<StockUnitConversion>;
+  deleteStockUnitConversion: (id: string) => Promise<void>;
+  commitStockBulkImportRows: (mode: BulkImportMode, rows: BulkImportRow[]) => Promise<{
+    success: boolean;
+    summary: BulkImportPreview['summary'];
+    committed: BulkImportPreview['summary'];
+  }>;
   saveTransaction:     (tx: Omit<Transaction, 'store_id'>) => Promise<Transaction>;
   voidTransaction:     (id: string, reason: string, by: string) => Promise<Transaction>;
   updateKitchenOrder:   (id: string, status: KitchenOrderStatus, reason?: string | null) => Promise<KitchenOrder>;
@@ -498,12 +523,13 @@ interface AppStore {
 
 const initialState: Pick<
   AppStore,
-  'storeId' | 'storeSettings' | 'menu' | 'inventory' | 'transactions' | 'kitchenOrders' | 'kitchenRealtimeStatus' | 'expenses' | 'cashFlow' | 'cashRegister' | 'customCats' | 'cart' | 'discount' | 'loading' | 'syncing' | 'syncStatus' | 'pendingSyncCount' | 'failedSyncCount' | 'appTheme' | 'customTheme'
+  'storeId' | 'storeSettings' | 'menu' | 'inventory' | 'unitConversions' | 'transactions' | 'kitchenOrders' | 'kitchenRealtimeStatus' | 'expenses' | 'cashFlow' | 'cashRegister' | 'customCats' | 'cart' | 'discount' | 'loading' | 'syncing' | 'syncStatus' | 'pendingSyncCount' | 'failedSyncCount' | 'appTheme' | 'customTheme'
 > = {
   storeId: null,
   storeSettings: null,
   menu: [],
   inventory: [],
+  unitConversions: [],
   transactions: [],
   kitchenOrders: [],
   kitchenRealtimeStatus: 'idle',
@@ -596,6 +622,7 @@ export const useStore = create<AppStore>((set, get) => ({
         storeSettings: cache.settings || null,
         menu:          cache.menu,
         inventory:     cache.inv,
+        unitConversions: cache.unitConversions,
         transactions:  cache.trx,
         kitchenOrders: sortKitchenOrders(cache.kitchen),
         expenses:      cache.expenses,
@@ -611,10 +638,11 @@ export const useStore = create<AppStore>((set, get) => ({
     }
 
     try {
-      const [storesResponse, menuResponse, inventoryResponse] = await Promise.all([
+      const [storesResponse, menuResponse, inventoryResponse, conversionResponse] = await Promise.all([
         getStores(storeId),
         getMenuItems(storeId),
         getInventory(storeId),
+        getStockUnitConversions(storeId),
       ]);
 
       const store = storesResponse.items[0];
@@ -622,6 +650,7 @@ export const useStore = create<AppStore>((set, get) => ({
 
       const menuData = (menuResponse.items || []) as MenuItem[];
       const invData  = (inventoryResponse.items  || []) as InventoryItem[];
+      const conversionData = (conversionResponse.items || []) as StockUnitConversion[];
       const stdCats  = ['Coffee', 'Non-Coffee', 'Snack'];
       const freshCats = [...new Set(menuData.map(m => m.category))].filter(c => c && !stdCats.includes(c));
       const freshSettings = (store as StoreSettings) || cache.settings;
@@ -632,6 +661,7 @@ export const useStore = create<AppStore>((set, get) => ({
         storeSettings: freshSettings,
         menu:       menuData,
         inventory:  invData,
+        unitConversions: conversionData,
         customCats: freshCats,
         loading:    false,
         transactions: s.transactions,
@@ -646,6 +676,7 @@ export const useStore = create<AppStore>((set, get) => ({
         get().expenses,
         get().cashFlow,
         get().cashRegister,
+        conversionData,
       );
     } catch (e:any) {
       if (!navigator.onLine) {
@@ -901,9 +932,7 @@ export const useStore = create<AppStore>((set, get) => ({
         }
       }
     } catch (e:any) {
-      const msg = e instanceof Error ? e.message : 'Terjadi kesalahan saat menyimpan menu';
-      import('@/utils/toast').then(m => m.showToast(msg, 'error'));
-      throw e;
+      throw new Error(normalizeUserFacingError(e, 'Menu belum bisa disimpan. Periksa kembali data menu.'));
     }
   },
 
@@ -928,6 +957,11 @@ export const useStore = create<AppStore>((set, get) => ({
     const totalCost = typeof item.cost === 'string' ? parseFloat(item.cost) : (item.cost || 0);
     const minStock  = typeof item.minStock === 'string' ? parseFloat(item.minStock) : (item.minStock || 5);
     const unitCost  = qty > 0 ? totalCost / qty  : 0;
+    const baseUnit = item.unit || 'pcs';
+    const purchaseUnit = item.purchaseUnit || baseUnit;
+    const conversionRatio = typeof item.conversionRatio === 'string'
+      ? parseFloat(item.conversionRatio)
+      : (item.conversionRatio || 1);
 
     if (qty < 0 || totalCost < 0 || minStock < 0 || unitCost < 0) {
       throw new Error('Qty, biaya, dan stok minimum tidak boleh negatif.');
@@ -938,7 +972,12 @@ export const useStore = create<AppStore>((set, get) => ({
       const optimistic: InventoryItem = {
         id: tempId, store_id: storeId,
         name: item.name, stock: qty,
-        unit: item.unit || 'pcs',
+        unit: baseUnit,
+        sku: item.sku || null,
+        base_unit: baseUnit,
+        purchase_unit: purchaseUnit,
+        conversion_ratio: conversionRatio,
+        is_active: item.isActive ?? true,
         min_stock: minStock, cost_per_unit: unitCost,
       };
       const newInv = [...get().inventory, optimistic].sort((a,b) => a.name.localeCompare(b.name));
@@ -950,7 +989,14 @@ export const useStore = create<AppStore>((set, get) => ({
         data = await createInventoryItem({
           id: tempId,
           store_id: storeId, name: item.name, stock: qty,
-          unit: item.unit || 'pcs', min_stock: minStock, cost_per_unit: unitCost,
+          sku: item.sku || null,
+          unit: baseUnit,
+          base_unit: baseUnit,
+          purchase_unit: purchaseUnit,
+          conversion_ratio: conversionRatio,
+          min_stock: minStock,
+          cost_per_unit: unitCost,
+          is_active: item.isActive ?? true,
         });
       } catch {
         addPendingWrite(storeId, {
@@ -959,7 +1005,14 @@ export const useStore = create<AppStore>((set, get) => ({
           data: {
             id: tempId,
             store_id: storeId, name: item.name, stock: qty,
-            unit: item.unit || 'pcs', min_stock: minStock, cost_per_unit: unitCost,
+            sku: item.sku || null,
+            unit: baseUnit,
+            base_unit: baseUnit,
+            purchase_unit: purchaseUnit,
+            conversion_ratio: conversionRatio,
+            min_stock: minStock,
+            cost_per_unit: unitCost,
+            is_active: item.isActive ?? true,
           }
         });
         import('@/utils/toast').then(m => m.showToast('Stok disimpan offline dan akan disinkronkan otomatis', 'success'));
@@ -1000,13 +1053,34 @@ export const useStore = create<AppStore>((set, get) => ({
       const existing = inventory.find(i => i.id === item.id);
       const newCost  = qty > 0 ? unitCost : (existing?.cost_per_unit || 0);
       set(s => ({ inventory: s.inventory.map(i => i.id === item.id
-        ? { ...i, name: item.name, stock: qty, unit: item.unit || i.unit, min_stock: minStock, cost_per_unit: newCost }
+        ? {
+            ...i,
+            name: item.name,
+            stock: qty,
+            unit: item.unit || i.unit,
+            sku: item.sku ?? i.sku ?? null,
+            base_unit: item.unit || i.base_unit || i.unit,
+            purchase_unit: item.purchaseUnit || i.purchase_unit || item.unit || i.unit,
+            conversion_ratio: conversionRatio || i.conversion_ratio || 1,
+            is_active: item.isActive ?? i.is_active ?? true,
+            min_stock: minStock,
+            cost_per_unit: newCost,
+          }
         : i
       )}));
       persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
       try {
         await updateInventoryItem(item.id!, {
-          name: item.name, stock: qty, unit: item.unit, min_stock: minStock, cost_per_unit: newCost,
+          name: item.name,
+          stock: qty,
+          sku: item.sku,
+          unit: item.unit,
+          base_unit: item.unit,
+          purchase_unit: item.purchaseUnit,
+          conversion_ratio: conversionRatio || undefined,
+          is_active: item.isActive,
+          min_stock: minStock,
+          cost_per_unit: newCost,
         });
       } catch (error) {
         if (existing) {
@@ -1080,6 +1154,103 @@ export const useStore = create<AppStore>((set, get) => ({
       const msg = e instanceof Error ? e.message : 'Gagal menghapus inventaris';
       import('@/utils/toast').then(m => m.showToast(msg, 'error'));
     }
+  },
+
+  saveStockUnitConversion: async (conversion) => {
+    const { storeId } = get();
+    if (!storeId) throw new Error('Store belum dimuat.');
+    if (conversion.ratio <= 0) throw new Error('Rasio konversi harus lebih dari 0.');
+
+    const id = conversion.id || makeClientId('conv');
+    const optimistic: StockUnitConversion = {
+      id,
+      store_id: storeId,
+      ingredient_id: conversion.ingredient_id ?? null,
+      from_unit: conversion.from_unit,
+      to_unit: conversion.to_unit,
+      ratio: conversion.ratio,
+      is_active: conversion.is_active ?? true,
+      ...(conversion.created_at ? { created_at: conversion.created_at } : {}),
+      ...(conversion.updated_at ? { updated_at: conversion.updated_at } : {}),
+    };
+    const existing = get().unitConversions.find((entry) => entry.id === id);
+
+    set(s => ({
+      unitConversions: s.unitConversions.some(entry => entry.id === id)
+        ? s.unitConversions.map(entry => entry.id === id ? { ...entry, ...optimistic } : entry)
+        : [...s.unitConversions, optimistic],
+    }));
+    persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister, get().unitConversions);
+
+    try {
+      const payload = {
+        id,
+        store_id: storeId,
+        ingredient_id: optimistic.ingredient_id,
+        from_unit: optimistic.from_unit,
+        to_unit: optimistic.to_unit,
+        ratio: optimistic.ratio,
+        is_active: optimistic.is_active,
+      };
+      const saved = existing
+        ? await updateStockUnitConversion(id, payload)
+        : await createStockUnitConversion(payload);
+      set(s => ({
+        unitConversions: s.unitConversions.map(entry => entry.id === id ? saved : entry),
+      }));
+      persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister, get().unitConversions);
+      return saved;
+    } catch (error) {
+      addPendingWrite(storeId, {
+        table: 'inventory_unit_conversions',
+        op: existing ? 'update' : 'insert',
+        id,
+        data: {
+          id,
+          store_id: storeId,
+          ingredient_id: optimistic.ingredient_id,
+          from_unit: optimistic.from_unit,
+          to_unit: optimistic.to_unit,
+          ratio: optimistic.ratio,
+          is_active: optimistic.is_active,
+        },
+      });
+      import('@/utils/toast').then(m => m.showToast('Konversi disimpan offline dan akan disinkronkan otomatis', 'success'));
+      return optimistic;
+    }
+  },
+
+  deleteStockUnitConversion: async (id) => {
+    const { storeId } = get();
+    if (!storeId) return;
+    const existing = get().unitConversions.find((entry) => entry.id === id);
+    set(s => ({ unitConversions: s.unitConversions.filter(entry => entry.id !== id) }));
+    persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister, get().unitConversions);
+    try {
+      await deleteStockUnitConversion(id);
+    } catch {
+      if (existing) {
+        set(s => ({ unitConversions: [...s.unitConversions, existing] }));
+        persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister, get().unitConversions);
+      }
+      addPendingWrite(storeId, { table: 'inventory_unit_conversions', op: 'delete', id, data: {} });
+    }
+  },
+
+  commitStockBulkImportRows: async (mode, rows) => {
+    const { storeId, isOnline } = get();
+    if (!storeId) throw new Error('Store belum dimuat.');
+    if (!isOnline) {
+      throw new Error('Import bulk membutuhkan koneksi internet agar data produk, bahan, resep, dan stok tersimpan utuh.');
+    }
+
+    const result = await commitStockBulkImport({
+      store_id: storeId,
+      mode,
+      rows,
+    });
+    await get().loadAll(storeId);
+    return result;
   },
 
   saveTransaction: async (tx) => {

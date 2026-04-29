@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { getStoredAccessToken } from '@/lib/authSession';
+import { normalizeUserFacingError } from '@/lib/errorMessages';
 import { resolveRuntimeApiBaseUrl } from '@/lib/releaseConfig';
 import type {
   CashFlowEntry,
@@ -12,11 +13,13 @@ import type {
   KitchenRealtimeStatus,
   KitchenStation,
   MenuItem,
+  StockUnitConversion,
   StoreSettings,
   Transaction,
 } from '@/types';
 import type { Permission, UserRole } from '@/lib/accessControl';
 import type { SubscriptionBillingQuote, SubscriptionPaymentMethod, SubscriptionPaymentMethodId } from '@/lib/subscriptionBilling';
+import type { BulkImportMode, BulkImportPreview, BulkImportRow } from '@/lib/stockEngine';
 
 const EXPLICIT_API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
 
@@ -82,10 +85,13 @@ async function getAccessToken() {
 
 async function readErrorMessage(response: Response) {
   try {
-    const data = await response.json() as { message?: string };
-    return data.message || `Request gagal (${response.status})`;
+    const data = await response.json() as { message?: string; errors?: Array<{ message?: string }> };
+    return normalizeUserFacingError({
+      message: data.message || data.errors?.[0]?.message || `Request gagal (${response.status})`,
+      status: response.status,
+    });
   } catch {
-    return `Request gagal (${response.status})`;
+    return normalizeUserFacingError({ message: `Request gagal (${response.status})`, status: response.status });
   }
 }
 
@@ -323,6 +329,23 @@ export const updateInventoryItem = (id: string, payload: Record<string, unknown>
   apiFetch<InventoryItem>(`/api/inventory/${id}`, { method: 'PATCH', json: payload });
 export const removeInventoryItem = (id: string) =>
   apiFetch<{ success: boolean }>(`/api/inventory/${id}`, { method: 'DELETE' });
+export const getStockUnitConversions = (storeId: string) =>
+  apiFetch<ApiListResponse<StockUnitConversion>>(`/api/inventory/conversions?storeId=${encodeURIComponent(storeId)}`);
+export const createStockUnitConversion = (payload: Record<string, unknown>) =>
+  apiFetch<StockUnitConversion>('/api/inventory/conversions', { method: 'POST', json: payload });
+export const updateStockUnitConversion = (id: string, payload: Record<string, unknown>) =>
+  apiFetch<StockUnitConversion>(`/api/inventory/conversions/${id}`, { method: 'PATCH', json: payload });
+export const deleteStockUnitConversion = (id: string) =>
+  apiFetch<{ success: boolean }>(`/api/inventory/conversions/${id}`, { method: 'DELETE' });
+export const commitStockBulkImport = (payload: {
+  store_id: string;
+  mode: BulkImportMode;
+  rows: BulkImportRow[];
+}) => apiFetch<{
+  success: boolean;
+  summary: BulkImportPreview['summary'];
+  committed: BulkImportPreview['summary'];
+}>('/api/inventory/bulk-import/commit', { method: 'POST', json: payload as unknown as Record<string, unknown> });
 
 export const getExpenses = (storeId: string) =>
   apiFetch<ApiListResponse<Expense>>(`/api/expenses?storeId=${encodeURIComponent(storeId)}`);

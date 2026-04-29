@@ -34,7 +34,7 @@ export interface MenuItem {
   is_available: boolean; sort_order?: number;
   created_at?: string; updated_at?: string;
 }
-export interface RecipeItem { matId: string; qty: number; }
+export interface RecipeItem { matId: string; qty: number; unit_reference?: string; note?: string; }
 export interface Variant    { name: string; price: number; }
 export interface CartItem extends MenuItem {
   qty: number; variantId?: string; _baseId?: string; note?: string;
@@ -42,7 +42,13 @@ export interface CartItem extends MenuItem {
 export interface InventoryItem {
   id: string; store_id: string; name: string;
   stock: number; unit: string; min_stock: number;
-  cost_per_unit: number; created_at?: string; updated_at?: string;
+  cost_per_unit: number;
+  sku?: string | null | undefined;
+  base_unit?: string | null | undefined;
+  purchase_unit?: string | null | undefined;
+  conversion_ratio?: number | null | undefined;
+  is_active?: boolean;
+  created_at?: string; updated_at?: string;
 }
 export interface InventoryItemUpdate {
   type: 'new' | 'edit' | 'add' | 'restock';
@@ -50,8 +56,23 @@ export interface InventoryItemUpdate {
   name: string;
   qty: string | number;
   cost: string | number;
-  unit?: string;
-  minStock?: string | number;
+  unit?: string | undefined;
+  minStock?: string | number | undefined;
+  sku?: string | undefined;
+  purchaseUnit?: string | undefined;
+  conversionRatio?: string | number | undefined;
+  isActive?: boolean | undefined;
+}
+export interface StockUnitConversion {
+  id: string;
+  store_id: string;
+  ingredient_id?: string | null;
+  from_unit: string;
+  to_unit: string;
+  ratio: number;
+  is_active: boolean;
+  created_at?: string | undefined;
+  updated_at?: string | undefined;
 }
 export interface Transaction {
   id: string; store_id: string; date: string;

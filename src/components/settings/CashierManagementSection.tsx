@@ -8,6 +8,7 @@ import {
   type CashierAccount,
   type StoreResponse,
 } from '@/lib/backendApi';
+import { normalizeUserFacingError } from '@/lib/errorMessages';
 
 type Props = {
   toast: { showToast: (message: string, type?: string) => void };
@@ -58,7 +59,7 @@ export default function CashierManagementSection({ toast }: Props) {
         storeId: current.storeId || storeResponse.items?.[0]?.id || '',
       }));
     } catch (error) {
-      toast.showToast(error instanceof Error ? error.message : 'Gagal memuat data kasir.', 'error');
+      toast.showToast(normalizeUserFacingError(error, 'Data kasir belum bisa dimuat. Coba lagi.'), 'error');
     } finally {
       setLoading(false);
     }
@@ -133,7 +134,7 @@ export default function CashierManagementSection({ toast }: Props) {
       setFormOpen(false);
       await loadData();
     } catch (error) {
-      toast.showToast(error instanceof Error ? error.message : 'Gagal menyimpan kasir.', 'error');
+      toast.showToast(normalizeUserFacingError(error, 'Data kasir belum bisa disimpan. Periksa isian lalu coba lagi.'), 'error');
     } finally {
       setSaving(false);
     }
@@ -149,7 +150,7 @@ export default function CashierManagementSection({ toast }: Props) {
       );
       await loadData();
     } catch (error) {
-      toast.showToast(error instanceof Error ? error.message : 'Gagal mengubah status kasir.', 'error');
+      toast.showToast(normalizeUserFacingError(error, 'Status kasir belum bisa diubah. Coba lagi.'), 'error');
     }
   };
 

@@ -17,6 +17,7 @@
     "check": "npm run lint && npm run typecheck && npm run test:all && npm run build:web && npm --prefix backend run check",
     "smoke:staging:cashier": "node scripts/smoke-owner-cashier.mjs",
     "smoke:staging:offline-sync": "node scripts/smoke-offline-sync.mjs",
+    "smoke:staging:stock": "node scripts/smoke-stock-flow.mjs",
     "smoke:production:readiness": "node scripts/smoke-production-readiness.mjs",
     "release:verify-config": "node scripts/verify-release-config.mjs",
     "android:usb-debug": "bash scripts/android-usb-debug-build.sh",

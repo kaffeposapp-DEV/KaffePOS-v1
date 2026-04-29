@@ -4,6 +4,7 @@ import {
   SlidersHorizontal, Utensils, AlertCircle, Wifi, WifiOff
 } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
+import { normalizeUserFacingError } from '@/lib/errorMessages';
 import type { KitchenOrder, KitchenOrderStatus, KitchenStation, Profile, ToastType } from '@/types';
 
 interface Props {
@@ -112,7 +113,7 @@ export default function KitchenTab({ toast, profile }: Props) {
       await updateKitchenOrder(order.id, action.next);
       toast.showToast(`Order ${order.order_number} diperbarui.`, 'success');
     } catch (error) {
-      toast.showToast(error instanceof Error ? error.message : 'Gagal memperbarui status.', 'warning');
+      toast.showToast(normalizeUserFacingError(error, 'Status order belum bisa diperbarui. Coba lagi.'), 'warning');
     } finally {
       setBusyId(null);
     }

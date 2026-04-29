@@ -15,6 +15,7 @@ import { Capacitor } from '@capacitor/core';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/hooks/useStore';
 import { createStore, getStores } from '@/lib/backendApi';
+import { normalizeUserFacingError } from '@/lib/errorMessages';
 import { getStoreCacheKey } from '@/utils/sessionIsolation';
 import { ToastContainer, useToast } from './ui/Toast';
 import DailyOpeningModal, { useNeedsOpeningCash } from './pos/DailyOpeningModal';
@@ -253,7 +254,7 @@ export default function AppShell() {
       } catch (e:any) {
         console.error('[AppShell] init failed:', e);
         if (isMounted.current) {
-          showToast(e instanceof Error ? e.message : 'Gagal memuat. Cek koneksi.', 'error');
+          showToast(normalizeUserFacingError(e, 'Aplikasi belum bisa memuat data toko. Cek koneksi lalu coba lagi.'), 'error');
           // Jika gagal total, tampilkan UI kosong agar tidak stuck di spinner
           setReady(true);
         }
@@ -530,7 +531,7 @@ export default function AppShell() {
             {renderTabPanel('dashboard', 'Beranda', <DashboardTab />)}
             {renderTabPanel('pos', 'POS', <POSTab toast={toast} profile={profile} subscriptionAccess={subscriptionAccess} />)}
             {renderTabPanel('kitchen', 'Dapur', <KitchenTab toast={toast} profile={profile} />)}
-            {renderTabPanel('warehouse', 'Gudang', <WarehouseTab toast={toast} />)}
+            {renderTabPanel('warehouse', 'Stok', <WarehouseTab toast={toast} />)}
             {renderTabPanel('menu', 'Menu', <MenuTab toast={toast} />)}
             {renderTabPanel('history', 'Riwayat', <HistoryTab toast={toast} subscriptionAccess={subscriptionAccess} />)}
             {renderTabPanel('report', 'Laporan', <ReportTab toast={toast} subscriptionAccess={subscriptionAccess} />)}

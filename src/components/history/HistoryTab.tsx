@@ -9,6 +9,7 @@ import { useState, useMemo, useCallback, useRef } from 'react';
 import { X, Ban, Search, Printer, ChevronDown } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import PrintActionSheet from '@/components/pos/PrintActionSheet';
+import { normalizeUserFacingError } from '@/lib/errorMessages';
 import type { SubscriptionAccess } from '@/lib/subscriptionAccess';
 
 const fRp = (n: number) =>
@@ -90,7 +91,7 @@ export default function HistoryTab({
       setShowVoid(null); setVoidR('');
       if (detail?.id === showVoid.id) setDetail(null);
     } catch(e:any) {
-      toast.showToast(e.message,'error');
+      toast.showToast(normalizeUserFacingError(e, 'Transaksi belum bisa di-void. Coba lagi.'),'error');
     } finally { setVoiding(false); }
   }, [voidR, showVoid, detail, voidTransaction, toast]);
 

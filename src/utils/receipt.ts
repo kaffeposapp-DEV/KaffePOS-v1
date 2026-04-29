@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { StoreSettings, Transaction } from '@/types';
+import { convertQuantity } from '@/lib/stockEngine';
+import type { StoreSettings, Transaction, StockUnitConversion } from '@/types';
 
 type ReceiptSettings = Partial<StoreSettings> & {
   show_logo_on_receipt?: boolean;
@@ -104,7 +105,7 @@ export function createReceiptPrintData(storeSettings: any, transaction: Transact
   };
 }
 
-export function getInventoryUsageMap(inventory: any[], menu: any[], transactions: any[]) {
+export function getInventoryUsageMap(inventory: any[], menu: any[], transactions: any[], conversions: StockUnitConversion[] = []) {
   const menuMap = new Map(menu.map((item: any) => [item.id, item]));
   const menuByName = new Map(menu.map((item: any) => [item.name, item]));
   const usage = new Map<string, number>();
@@ -116,7 +117,21 @@ export function getInventoryUsageMap(inventory: any[], menu: any[], transactions
         const baseName = (sold.name || '').split(' (')[0];
         const menuItem = menuByName.get(sold.name) || menuByName.get(baseName) || menuMap.get((sold as any)._baseId);
         (menuItem?.recipe || []).forEach((recipe: any) => {
-          const qty = (usage.get(recipe.matId) || 0) + (recipe.qty || 0) * (sold.qty || 0);
+          const material = inventory.find((item: any) => item.id === recipe.matId);
+          const baseUnit = material?.base_unit || material?.unit || 'unit';
+          let baseQty = recipe.qty || 0;
+          try {
+            baseQty = convertQuantity(
+              recipe.qty || 0,
+              recipe.unit_reference || baseUnit,
+              baseUnit,
+              conversions,
+              recipe.matId,
+            ).quantity;
+          } catch {
+            baseQty = recipe.qty || 0;
+          }
+          const qty = (usage.get(recipe.matId) || 0) + baseQty * (sold.qty || 0);
           usage.set(recipe.matId, qty);
         });
       });

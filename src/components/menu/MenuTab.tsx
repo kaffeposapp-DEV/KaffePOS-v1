@@ -10,6 +10,7 @@ import { Plus, Edit, Trash2, X, ChevronDown, Image, Search, ShoppingBag } from '
 import ProductPlaceholder from '@/components/ui/ProductPlaceholder';
 import { useStore } from '@/hooks/useStore';
 import DeleteConfirmSheet from '@/components/ui/DeleteConfirmSheet';
+import { normalizeUserFacingError } from '@/lib/errorMessages';
 import type { MenuItem } from '@/types';
 
 const fRp = (n: number) => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
@@ -46,18 +47,27 @@ export default function MenuTab({ toast }:any) {
     e.preventDefault();
     if (!form.name) { toast.showToast('Nama menu wajib diisi','warning'); return; }
     if (!form.price || form.price <= 0) { toast.showToast('Harga harus lebih dari 0','warning'); return; }
+    const incompleteRecipe = (form.recipe || []).some((line) => !line.matId || !line.qty || line.qty <= 0);
+    if (incompleteRecipe) {
+      toast.showToast('Lengkapi bahan resep atau hapus baris yang kosong.', 'warning');
+      return;
+    }
     setSaving(true);
     try {
       await saveMenuItem(form);
       setShowModal(false);
       toast.showToast(form.id ? '✅ Menu diperbarui!' : '✅ Menu ditambahkan!', 'success');
     }
-    catch (err:any) { toast.showToast('Gagal: ' + err.message, 'error'); }
+    catch (err:any) { toast.showToast(normalizeUserFacingError(err, 'Menu belum bisa disimpan. Periksa kembali data menu.'), 'error'); }
     finally { setSaving(false); }
   };
 
   const toggleAvailable = async (item: MenuItem) => {
-    await saveMenuItem({ ...item, is_available: !item.is_available });
+    try {
+      await saveMenuItem({ ...item, is_available: !item.is_available });
+    } catch (err) {
+      toast.showToast(normalizeUserFacingError(err, 'Status menu belum bisa diubah. Coba lagi.'), 'error');
+    }
   };
 
   const addRecipeLine = () => setForm(f => ({ ...f, recipe: [...(f.recipe||[]), { matId: '', qty: 0 }] }));

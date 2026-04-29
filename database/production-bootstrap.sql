@@ -103,6 +103,84 @@ create index if not exists cashier_outlet_assignments_owner_idx
 create index if not exists cashier_outlet_assignments_cashier_idx
   on public.cashier_outlet_assignments (cashier_id, status);
 
+create table if not exists public.inventory (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid not null references public.stores(id) on delete cascade,
+  name text not null,
+  stock numeric not null default 0,
+  unit text not null default 'pcs',
+  min_stock numeric not null default 5,
+  cost_per_unit numeric not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.inventory
+  add column if not exists sku text;
+
+alter table public.inventory
+  add column if not exists base_unit text;
+
+alter table public.inventory
+  add column if not exists purchase_unit text;
+
+alter table public.inventory
+  add column if not exists conversion_ratio numeric;
+
+alter table public.inventory
+  add column if not exists is_active boolean not null default true;
+
+update public.inventory
+set base_unit = coalesce(nullif(trim(base_unit), ''), unit)
+where base_unit is null or trim(base_unit) = '';
+
+update public.inventory
+set purchase_unit = coalesce(nullif(trim(purchase_unit), ''), unit)
+where purchase_unit is null or trim(purchase_unit) = '';
+
+update public.inventory
+set conversion_ratio = 1
+where conversion_ratio is null or conversion_ratio <= 0;
+
+create index if not exists inventory_store_active_name_idx
+  on public.inventory (store_id, is_active, name);
+
+create table if not exists public.inventory_unit_conversions (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid not null references public.stores(id) on delete cascade,
+  ingredient_id uuid references public.inventory(id) on delete cascade,
+  from_unit text not null,
+  to_unit text not null,
+  ratio numeric not null check (ratio > 0),
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists inventory_unit_conversions_store_idx
+  on public.inventory_unit_conversions (store_id, is_active, from_unit, to_unit);
+
+create index if not exists inventory_unit_conversions_ingredient_idx
+  on public.inventory_unit_conversions (ingredient_id, is_active);
+
+create table if not exists public.transaction_inventory_audit (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid not null references public.stores(id) on delete cascade,
+  transaction_id text not null,
+  inventory_id uuid references public.inventory(id) on delete set null,
+  action text not null,
+  qty_delta numeric not null,
+  stock_before numeric not null,
+  stock_after numeric not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists transaction_inventory_audit_transaction_idx
+  on public.transaction_inventory_audit (transaction_id, created_at asc);
+
+create index if not exists transaction_inventory_audit_store_idx
+  on public.transaction_inventory_audit (store_id, created_at desc);
+
 do $$
 begin
   if exists (

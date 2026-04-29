@@ -5,6 +5,7 @@ import {
   Lock, ArrowRight, Wallet
 } from 'lucide-react';
 import { createSubscriptionPayment, getSubscriptionPaymentQuote } from '@/lib/backendApi';
+import { normalizeUserFacingError } from '@/lib/errorMessages';
 import {
   type SubscriptionBillingQuote,
   type SubscriptionPaymentMethodId,
@@ -122,7 +123,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
       await loadQuote(appliedVoucher);
       setStep('review');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Gagal menyiapkan checkout.';
+      const message = normalizeUserFacingError(error, 'Checkout langganan belum bisa disiapkan. Coba lagi.');
       toast.showToast(message, 'error');
     }
   };
@@ -135,7 +136,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
       if (nextQuote.voucher) setShowVoucherInput(false);
       toast.showToast(nextQuote.voucher ? `Voucher ${nextQuote.voucher.code} berhasil dipasang!` : 'Voucher dihapus.', nextQuote.voucher ? 'success' : 'info');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Voucher tidak valid.';
+      const message = normalizeUserFacingError(error, 'Voucher tidak valid atau belum bisa dipakai.');
       toast.showToast(message, 'error');
     }
   };
@@ -161,7 +162,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
       toast.showToast(result.reused ? 'Melanjutkan pembayaran Anda...' : 'Membuka gerbang pembayaran aman...', 'success');
       window.location.assign(result.payment.redirect_url);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Gagal memulai pembayaran.';
+      const message = normalizeUserFacingError(error, 'Pembayaran belum bisa dimulai. Coba lagi.');
       toast.showToast(message, 'error');
     } finally {
       setSubmitting(false);

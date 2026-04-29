@@ -16,6 +16,8 @@ import ProductPlaceholder from '@/components/ui/ProductPlaceholder';
 import type { Profile, MenuItem, Transaction } from '@/types';
 import type { SubscriptionAccess } from '@/lib/subscriptionAccess';
 import { canProcessPosPaymentOffline, getOfflinePaymentBlockedMessage } from '@/lib/offlinePolicy';
+import { buildStockDeductionPlan, calculateProductHpp } from '@/lib/stockEngine';
+import { normalizeUserFacingError } from '@/lib/errorMessages';
 
 const fRp = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
@@ -34,7 +36,7 @@ function quickAmounts(total: number): number[] {
 
 export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
   const {
-    menu, inventory, cart, discount, transactions, isOnline,
+    menu, inventory, unitConversions, cart, discount, transactions, isOnline,
     addToCart, updateQty, clearCart, setDiscount, setCartItemNote,
     saveTransaction, storeSettings, kitchenOrders,
   } = useStore();
@@ -112,11 +114,14 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
     const inCartQty = cart
       .filter(c => c.id === item.id || c._baseId === item.id)
       .reduce((s, c) => s + c.qty, 0);
-    return item.recipe.every(r => {
-      const mat = inventory.find(i => i.id === r.matId);
-      return mat && mat.stock >= r.qty * (inCartQty + 1);
-    });
-  }, [cart, inventory]);
+    const plan = buildStockDeductionPlan(
+      [{ id: item.id, name: item.name, qty: inCartQty + 1, menu_item_id: item.id }],
+      menu,
+      inventory,
+      unitConversions,
+    );
+    return plan.ok;
+  }, [cart, inventory, menu, unitConversions]);
 
   const handleAdd = useCallback((item: MenuItem) => {
     if (!checkStock(item)) {
@@ -150,26 +155,22 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
       toast.showToast('Paket gratis sudah mencapai 50 transaksi bulan ini. Upgrade untuk lanjut tanpa batas.', 'warning');
       return;
     }
-    const stockOk = cart.every((cartItem) => {
-      const base = menu.find(m => m.id === (cartItem._baseId || cartItem.id));
-      if (!base?.recipe?.length) return true;
-      return base.recipe.every((recipeItem) => {
-        const material = inventory.find(i => i.id === recipeItem.matId);
-        return material && material.stock >= recipeItem.qty * cartItem.qty;
-      });
-    });
-    if (!stockOk) {
+    const stockPlan = buildStockDeductionPlan(cart.map((cartItem) => ({
+      id: cartItem.id,
+      ...(cartItem._baseId ? { _baseId: cartItem._baseId } : {}),
+      name: cartItem.name,
+      qty: cartItem.qty,
+      menu_item_id: cartItem._baseId || cartItem.id,
+    })), menu, inventory, unitConversions);
+    if (!stockPlan.ok) {
       toast.showToast('Stok bahan berubah. Periksa ulang keranjang sebelum checkout.', 'warning');
       return;
     }
 
     const cogs = cart.reduce((s, c) => {
       const base = menu.find(m => m.id === (c._baseId || c.id));
-      const rc = base?.recipe?.reduce((rs, r) => {
-        const mat = inventory.find(i => i.id === r.matId);
-        return rs + (mat?.cost_per_unit || 0) * r.qty;
-      }, 0) || 0;
-      return s + rc * c.qty;
+      if (!base) return s;
+      return s + calculateProductHpp(base, inventory, unitConversions).totalCost * c.qty;
     }, 0);
 
     const todayStr = new Date().toDateString();
@@ -217,11 +218,11 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
         'success',
       );
     } catch (e:any) {
-      toast.showToast(e instanceof Error ? e.message : 'Checkout gagal diproses', 'warning');
+      toast.showToast(normalizeUserFacingError(e, 'Checkout belum bisa diproses. Coba lagi.'), 'warning');
     } finally {
       setCheckingOut(false);
     }
-  }, [cart, clearCart, currentMonthTransactionCount, discAmt, discount, inventory, isOnline, menu, method, paid, profile, saveTransaction, subscriptionAccess.transactionLimit, subtotal, taxAmt, toast, total]);
+  }, [cart, clearCart, currentMonthTransactionCount, discAmt, discount, inventory, isOnline, menu, method, paid, profile, saveTransaction, subscriptionAccess.transactionLimit, subtotal, taxAmt, toast, total, unitConversions]);
 
 
   const lowStock = useMemo(() =>

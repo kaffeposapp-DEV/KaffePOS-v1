@@ -2,17 +2,22 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   ApiError,
   apiFetch,
+  commitStockBulkImport,
   createCashier,
+  createStockUnitConversion,
   createSubscriptionPayment,
+  deleteStockUnitConversion,
   forgotPasswordRequest,
   getAuthSession,
   getCashiers,
   getKitchenOrders,
+  getStockUnitConversions,
   getSubscriptionPaymentQuote,
   loginRequest,
   resetPasswordRequest,
   updateCashier,
   updateKitchenOrderStatus,
+  updateStockUnitConversion,
 } from '@/lib/backendApi';
 import { createJsonResponse, getJsonRequestBody, getRequestHeader, installFetchMock } from '@/test/helpers/api';
 import { seedStoredAuthSession } from '@/test/helpers/browser';
@@ -193,6 +198,86 @@ describe('backend API contract', () => {
     });
   });
 
+  it('keeps stock conversion endpoints owner-authenticated and scoped by store', async () => {
+    seedStoredAuthSession({ accessToken: 'token-stock' });
+    const { calls } = installFetchMock(() =>
+      createJsonResponse({
+        items: [],
+        id: 'conv_1',
+        store_id: 'store_1',
+        ingredient_id: 'ingredient_1',
+        from_unit: 'mika',
+        to_unit: 'pcs',
+        ratio: 15,
+        is_active: true,
+      }),
+    );
+
+    await getStockUnitConversions('store A/B');
+    await createStockUnitConversion({
+      store_id: 'store_1',
+      ingredient_id: 'ingredient_1',
+      from_unit: 'mika',
+      to_unit: 'pcs',
+      ratio: 15,
+    });
+    await updateStockUnitConversion('conv_1', { ratio: 12, is_active: false });
+    await deleteStockUnitConversion('conv_1');
+
+    expect(calls.map((call) => [call.url, call.init.method ?? 'GET'])).toEqual([
+      ['/api/inventory/conversions?storeId=store%20A%2FB', 'GET'],
+      ['/api/inventory/conversions', 'POST'],
+      ['/api/inventory/conversions/conv_1', 'PATCH'],
+      ['/api/inventory/conversions/conv_1', 'DELETE'],
+    ]);
+    expect(calls.every((call) => getRequestHeader(call, 'Authorization') === 'Bearer token-stock')).toBe(true);
+    expect(getJsonRequestBody(calls[1])).toEqual({
+      store_id: 'store_1',
+      ingredient_id: 'ingredient_1',
+      from_unit: 'mika',
+      to_unit: 'pcs',
+      ratio: 15,
+    });
+    expect(getJsonRequestBody(calls[2])).toEqual({ ratio: 12, is_active: false });
+  });
+
+  it('keeps stock bulk import committed through one authenticated backend contract', async () => {
+    seedStoredAuthSession({ accessToken: 'token-stock-import' });
+    const { calls } = installFetchMock(() =>
+      createJsonResponse({
+        success: true,
+        summary: { ingredients: 1, conversions: 1, products: 1, recipes: 1 },
+        committed: { ingredients: 1, conversions: 1, products: 1, recipes: 1 },
+      }),
+    );
+
+    await commitStockBulkImport({
+      store_id: '11111111-1111-4111-8111-111111111111',
+      mode: 'upsert',
+      rows: [
+        { rowNumber: 2, kind: 'ingredient', name: 'Gula Aren', stock: 10, base_unit: 'kg', total_cost: 45000 },
+        { rowNumber: 3, kind: 'product', name: 'Kopi Susu', price: 18000, category: 'Coffee' },
+        { rowNumber: 4, kind: 'conversion', ingredient_name: 'Gula Aren', from_unit: 'kg', to_unit: 'gram', ratio: 1000 },
+        { rowNumber: 5, kind: 'recipe', product_name: 'Kopi Susu', ingredient_name: 'Gula Aren', qty_per_serving: 20, unit_reference: 'gram' },
+      ],
+    });
+
+    expect(calls.map((call) => [call.url, call.init.method ?? 'GET'])).toEqual([
+      ['/api/inventory/bulk-import/commit', 'POST'],
+    ]);
+    expect(getRequestHeader(calls[0], 'Authorization')).toBe('Bearer token-stock-import');
+    expect(getJsonRequestBody(calls[0])).toEqual({
+      store_id: '11111111-1111-4111-8111-111111111111',
+      mode: 'upsert',
+      rows: [
+        { rowNumber: 2, kind: 'ingredient', name: 'Gula Aren', stock: 10, base_unit: 'kg', total_cost: 45000 },
+        { rowNumber: 3, kind: 'product', name: 'Kopi Susu', price: 18000, category: 'Coffee' },
+        { rowNumber: 4, kind: 'conversion', ingredient_name: 'Gula Aren', from_unit: 'kg', to_unit: 'gram', ratio: 1000 },
+        { rowNumber: 5, kind: 'recipe', product_name: 'Kopi Susu', ingredient_name: 'Gula Aren', qty_per_serving: 20, unit_reference: 'gram' },
+      ],
+    });
+  });
+
   it('fails protected requests before fetch when auth session is missing', async () => {
     const { fetchMock } = installFetchMock(() => createJsonResponse({ ok: true }));
 
@@ -224,6 +309,22 @@ describe('backend API contract', () => {
       name: 'ApiError',
       message: 'Voucher tidak berlaku untuk paket ini.',
       status: 422,
+    } satisfies Partial<ApiError>);
+  });
+
+  it('maps generic backend failures to a safe user-facing message', async () => {
+    seedStoredAuthSession({ accessToken: 'token-error' });
+    installFetchMock(() =>
+      createJsonResponse(
+        { message: 'Terjadi kesalahan di backend.' },
+        { status: 500 },
+      ),
+    );
+
+    await expect(getStockUnitConversions('11111111-1111-4111-8111-111111111111')).rejects.toMatchObject({
+      name: 'ApiError',
+      message: 'Terjadi gangguan pada server. Coba lagi beberapa saat.',
+      status: 500,
     } satisfies Partial<ApiError>);
   });
 });

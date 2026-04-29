@@ -101,6 +101,7 @@ export default function Dashboard() {
     transactions,
     expenses,
     inventory,
+    unitConversions,
     menu,
     cashRegister,
     storeSettings,
@@ -228,8 +229,8 @@ export default function Dashboard() {
   );
 
   const stockUsageRows = useMemo(
-    () => getInventoryUsageMap(inventory, menu, transactions),
-    [inventory, menu, transactions]
+    () => getInventoryUsageMap(inventory, menu, transactions, unitConversions),
+    [inventory, menu, transactions, unitConversions]
   );
 
   const stockUsageMap = useMemo(

@@ -109,6 +109,16 @@ curl -fsS https://api.kaffepos.my.id/system-status
 npm run smoke:production:readiness
 ```
 
+- Untuk staging production-like, jalankan smoke stok transaksional:
+
+```bash
+KAFFEPOS_API_BASE_URL=https://api-staging.kaffepos.my.id \
+KAFFEPOS_OWNER_EMAIL=owner-staging@example.com \
+KAFFEPOS_OWNER_PASSWORD='isi-di-terminal' \
+KAFFEPOS_STOCK_SMOKE_CONFIRM=1 \
+npm run smoke:staging:stock
+```
+
 ## 6. Android USB Debugging
 
 - Aktifkan Developer Options dan USB Debugging di device.
@@ -131,6 +141,8 @@ INSTALL=1 npm run android:usb-debug
   - QRIS/payment online saat koneksi aktif
   - mode offline lalu reconnect
   - printer config tetap ada
+  - nav Stok dan subtabnya terbuka
+  - POS produk dengan resep mengurangi stok bahan
 
 ## 7. Go / No-Go
 
@@ -140,6 +152,7 @@ Go-live jika:
 - `npm run build:mobile` hijau.
 - `npm run android:usb-debug` hijau minimal sampai APK debug terbentuk.
 - `npm run smoke:production:readiness` hijau.
+- `npm run smoke:staging:stock` hijau di staging production-like.
 - `/health`, `/health/db`, `/system-status` hijau.
 - Payment production settlement berhasil membuka lisensi.
 - Clarity menerima session.
