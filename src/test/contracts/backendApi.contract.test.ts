@@ -2,12 +2,16 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   ApiError,
   apiFetch,
+  createCashier,
   createSubscriptionPayment,
   forgotPasswordRequest,
+  getAuthSession,
+  getCashiers,
   getKitchenOrders,
   getSubscriptionPaymentQuote,
   loginRequest,
   resetPasswordRequest,
+  updateCashier,
   updateKitchenOrderStatus,
 } from '@/lib/backendApi';
 import { createJsonResponse, getJsonRequestBody, getRequestHeader, installFetchMock } from '@/test/helpers/api';
@@ -25,7 +29,7 @@ describe('backend API contract', () => {
     await resetPasswordRequest({ email: 'owner@kaffepos.test', token: 'reset-token', password: 'new-password' });
     await loginRequest({ email: 'owner@kaffepos.test', password: 'password' });
 
-    expect(calls.map((call) => [call.url, call.init.method])).toEqual([
+    expect(calls.map((call) => [call.url, call.init.method ?? 'GET'])).toEqual([
       ['/api/auth/password/forgot', 'POST'],
       ['/api/auth/password/reset', 'POST'],
       ['/api/auth/login', 'POST'],
@@ -63,7 +67,7 @@ describe('backend API contract', () => {
       voucherCode: null,
     });
 
-    expect(calls.map((call) => [call.url, call.init.method])).toEqual([
+    expect(calls.map((call) => [call.url, call.init.method ?? 'GET'])).toEqual([
       ['/api/subscriptions/payments/quote', 'POST'],
       ['/api/subscriptions/payments/create', 'POST'],
     ]);
@@ -79,6 +83,88 @@ describe('backend API contract', () => {
       billingCycle: 'monthly',
       paymentMethod: 'bca_va',
       voucherCode: null,
+    });
+  });
+
+  it('keeps auth session role and permission contract explicit for RBAC sync', async () => {
+    seedStoredAuthSession({ accessToken: 'token-role' });
+    installFetchMock(() =>
+      createJsonResponse({
+        user: {
+          id: 'user_1',
+          email: 'cashier@kaffepos.test',
+          user_metadata: { role: 'cashier' },
+        },
+        profile: {
+          id: 'user_1',
+          email: 'cashier@kaffepos.test',
+          role: 'cashier',
+          permissions: ['can_use_pos', 'can_view_kitchen', 'can_print_receipt'],
+          assigned_store_id: '11111111-1111-4111-8111-111111111111',
+          assigned_store_name: 'Outlet Utama',
+          assignment_status: 'active',
+        },
+        sessionExpiresAt: '2026-05-01T00:00:00.000Z',
+      }),
+    );
+
+    const session = await getAuthSession();
+
+    expect(session.profile.role).toBe('cashier');
+    expect(session.profile.assigned_store_id).toBe('11111111-1111-4111-8111-111111111111');
+    expect(session.profile.assignment_status).toBe('active');
+    expect(session.profile.permissions).toContain('can_use_pos');
+    expect(session.profile.permissions).not.toContain('can_manage_billing');
+  });
+
+  it('keeps cashier management endpoints owner-authenticated with stable payloads', async () => {
+    seedStoredAuthSession({ accessToken: 'token-owner' });
+    const { calls } = installFetchMock(() =>
+      createJsonResponse({
+        items: [],
+        cashier: {
+          id: 'cashier_1',
+          display_name: 'Sinta',
+          email: 'sinta@kaffepos.test',
+          role: 'cashier',
+          status: 'active',
+          store_id: 'store_1',
+          store_name: 'Outlet Utama',
+        },
+      }),
+    );
+
+    await getCashiers();
+    await createCashier({
+      displayName: 'Sinta',
+      email: 'sinta@kaffepos.test',
+      password: 'password-awal',
+      storeId: '11111111-1111-4111-8111-111111111111',
+      status: 'active',
+    });
+    await updateCashier('cashier_1', {
+      displayName: 'Sinta Shift Malam',
+      storeId: '22222222-2222-4222-8222-222222222222',
+      status: 'inactive',
+    });
+
+    expect(calls.map((call) => [call.url, call.init.method ?? 'GET'])).toEqual([
+      ['/api/cashiers', 'GET'],
+      ['/api/cashiers', 'POST'],
+      ['/api/cashiers/cashier_1', 'PATCH'],
+    ]);
+    expect(calls.every((call) => getRequestHeader(call, 'Authorization') === 'Bearer token-owner')).toBe(true);
+    expect(getJsonRequestBody(calls[1])).toEqual({
+      displayName: 'Sinta',
+      email: 'sinta@kaffepos.test',
+      password: 'password-awal',
+      storeId: '11111111-1111-4111-8111-111111111111',
+      status: 'active',
+    });
+    expect(getJsonRequestBody(calls[2])).toEqual({
+      displayName: 'Sinta Shift Malam',
+      storeId: '22222222-2222-4222-8222-222222222222',
+      status: 'inactive',
     });
   });
 

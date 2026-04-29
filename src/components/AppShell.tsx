@@ -10,7 +10,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/AppShell.tsx — KaffePOS v5 — FAST INIT: cache storeId, show instantly
 import React, { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
-import { ShoppingBag, Package, Tag, History, BarChart3, Settings, WifiOff, LayoutDashboard, ChefHat } from 'lucide-react';
+import { ShoppingBag, Package, Tag, History, BarChart3, Settings, WifiOff, LayoutDashboard, ChefHat, RefreshCw, LogOut } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/hooks/useStore';
@@ -18,9 +18,13 @@ import { createStore, getStores } from '@/lib/backendApi';
 import { getStoreCacheKey } from '@/utils/sessionIsolation';
 import { ToastContainer, useToast } from './ui/Toast';
 import DailyOpeningModal, { useNeedsOpeningCash } from './pos/DailyOpeningModal';
+import SyncConflictCenter from './sync/SyncConflictCenter';
 import type { Tab, ToastType } from '@/types';
 import { isPostUpdateSyncPending, markPostUpdateSyncComplete, readUpgradeReport } from '@/lib/appUpgrade';
 import { subscriptionManager } from '@/services/SubscriptionManager';
+import { canAccessTab, getDefaultTabForRole, getVisibleTabs } from '@/lib/accessControl';
+import { selectStoreForBootstrap } from '@/lib/storeContext';
+import LOGO_ICON from '@/assets/logo-kaffeposappicon.svg';
 
 const DashboardTab = lazy(() => import('./dashboard/Dashboard'));
 const POSTab       = lazy(() => import('./pos/POSTab'));
@@ -32,14 +36,14 @@ const ReportTab    = lazy(() => import('./report/ReportTab'));
 const SettingsTab  = lazy(() => import('./settings/SettingsTab'));
 
 const NAV = [
-  { id: 'dashboard' as Tab, label: 'Beranda',    icon: LayoutDashboard },
-  { id: 'pos'       as Tab, label: 'POS',       icon: ShoppingBag },
+  { id: 'dashboard' as Tab, label: 'Dashboard',  icon: LayoutDashboard },
+  { id: 'pos'       as Tab, label: 'Kasir',      icon: ShoppingBag },
   { id: 'kitchen'   as Tab, label: 'Dapur',     icon: ChefHat },
-  { id: 'warehouse' as Tab, label: 'Gudang',     icon: Package     },
-  { id: 'menu'      as Tab, label: 'Menu',       icon: Tag         },
-  { id: 'history'   as Tab, label: 'Riwayat',    icon: History     },
+  { id: 'warehouse' as Tab, label: 'Stok',       icon: Package     },
+  { id: 'menu'      as Tab, label: 'Produk',     icon: Tag         },
+  { id: 'history'   as Tab, label: 'Transaksi',  icon: History     },
   { id: 'report'    as Tab, label: 'Laporan',    icon: BarChart3   },
-  { id: 'settings'  as Tab, label: 'Pengaturan', icon: Settings    },
+  { id: 'settings'  as Tab, label: 'Lainnya',    icon: Settings    },
 ] as const;
 
 const LS_LAST_TAB  = 'kpos_last_tab';
@@ -75,10 +79,12 @@ function TabSpinner() {
 
 function AppLoading({ message }: { message?: string }) {
   return (
-    <div className="fixed inset-0 bg-white flex flex-col items-center justify-center gap-3">
-      <div className="text-4xl">☕</div>
-      <div className="w-8 h-8 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
-      <p className="text-sm text-slate-400">{message || 'Memuat...'}</p>
+    <div className="fixed inset-0 bg-white flex flex-col items-center justify-center gap-6">
+      <div className="relative">
+         <div className="text-6xl animate-bounce duration-2000">☕</div>
+         <div className="absolute -inset-6 border-4 border-[#FF6A00]/5 border-t-[#FF6A00] rounded-full animate-spin" />
+      </div>
+      <p className="text-[12px] font-black text-slate-400 tracking-[0.3em] uppercase italic">{message || 'Memuat...'}</p>
     </div>
   );
 }
@@ -114,8 +120,20 @@ function createLoadedTabsState(initialTab: Tab): Record<Tab, boolean> {
 }
 
 export default function AppShell() {
-  const { user, profile, isPro, subscriptionAccess, refreshProfile } = useAuth();
-  const { storeId, loadAll, cleanup, syncing, cashRegister, isOnline, saveCashRegister } = useStore();
+  const { user, profile, isPro, subscriptionAccess, refreshProfile, role, can } = useAuth();
+  const {
+    storeId,
+    loadAll,
+    cleanup,
+    syncing,
+    cashRegister,
+    isOnline,
+    saveCashRegister,
+    syncStatus,
+    pendingSyncCount,
+    failedSyncCount,
+    flushPending,
+  } = useStore();
 
   const [tab, setTab] = useState<Tab>(() => {
     try {
@@ -130,6 +148,7 @@ export default function AppShell() {
   const [message, setMessage] = useState('Memuat...');
   const [postUpdateSyncing, setPostUpdateSyncing] = useState(false);
   const [postUpdateNotice, setPostUpdateNotice] = useState(() => readUpgradeReport());
+  const [showSyncCenter, setShowSyncCenter] = useState(false);
   const { toasts, showToast, dismissToast, showDownloadSuccess, showDownloadError } = useToast();
 
   useEffect(() => {
@@ -190,34 +209,31 @@ export default function AppShell() {
       const cachedId = uid ? getCachedStoreId(uid) : null;
       try { localStorage.removeItem(EXPLICIT_SIGNOUT_KEY); } catch { /* ignore */ }
 
-      if (cachedId) {
-        console.info('[AppShell] Restoring cached store context', { storeId: cachedId, userId: uid });
-        if (isMounted.current) setReady(true);
-        loadAll(cachedId).catch(() => {});
-
-        // Background verify
-        try {
-          const response = await getStores();
-          const exists = response.items.some((entry) => entry.id === cachedId);
-          if (!exists) {
-             console.warn('[AppShell] Cached store no longer exists for user');
-             localStorage.removeItem(getStoreCacheKey(uid!));
-             initDone.current = false;
-             if (isMounted.current) setReady(false);
-             setTimeout(init, 500);
-          } else {
-            console.info('[AppShell] Store context revalidated with backend', { storeId: cachedId, userId: uid });
-          }
-        } catch { /* ignore */ }
-        return;
-      }
-
       setMessage('Menyiapkan toko...');
       try {
         const response = await getStores();
-        let activeStore = response.items[0] || null;
+        const canCreateStore = can('can_manage_settings');
+        const assignedStoreId = role === 'cashier' ? profile?.assigned_store_id ?? null : null;
+        const decision = selectStoreForBootstrap({
+          stores: response.items,
+          cachedStoreId: cachedId,
+          assignedStoreId,
+          canCreateStore,
+        });
+
+        if (decision.shouldClearCachedStore) {
+          localStorage.removeItem(getStoreCacheKey(uid));
+        }
+
+        let activeStore = decision.store;
 
         if (!activeStore) {
+          if (!decision.needsOwnerStoreCreation) {
+            setMessage('Akun kasir belum terhubung ke outlet.');
+            showToast('Akun kasir belum terhubung ke outlet. Minta Owner/Admin menyiapkan akses kasir.', 'warning');
+            if (isMounted.current) setReady(true);
+            return;
+          }
           setMessage('Membuat toko baru...');
           activeStore = await createStore({
             store_name: `Kedai ${profile?.username || user?.email?.split('@')[0] || 'Kopi'}`,
@@ -227,6 +243,9 @@ export default function AppShell() {
         if (!activeStore?.id) throw new Error('ID toko tidak ditemukan');
 
         setCachedStoreId(uid, activeStore.id);
+        if (role === 'cashier' && assignedStoreId && activeStore.id !== assignedStoreId) {
+          void refreshProfile();
+        }
         console.info('[AppShell] Active store prepared', { storeId: activeStore.id, userId: uid });
         if (isMounted.current) setReady(true);
         loadAll(activeStore.id).catch(() => {});
@@ -242,7 +261,7 @@ export default function AppShell() {
     };
 
     init();
-  }, [user?.id, profile?.id]);
+  }, [user?.id, profile?.id, profile?.assigned_store_id, role, refreshProfile]);
 
   // Reset tampilan saat logout; pembersihan cache dilakukan di AuthContext
   useEffect(() => {
@@ -293,14 +312,16 @@ export default function AppShell() {
     try {
       const scopedTab = getValidTab(localStorage.getItem(getLastTabStorageKey(userId)));
       const fallbackTab = getValidTab(localStorage.getItem(LS_LAST_TAB));
-      const nextTab = scopedTab ?? fallbackTab ?? 'dashboard';
+      const requestedTab = scopedTab ?? fallbackTab ?? getDefaultTabForRole(role);
+      const nextTab = canAccessTab(role, requestedTab) ? requestedTab : getDefaultTabForRole(role);
       setTab(nextTab);
       setLoadedTabs(createLoadedTabsState(nextTab));
     } catch {
-      setTab('dashboard');
-      setLoadedTabs(createLoadedTabsState('dashboard'));
+      const defaultTab = getDefaultTabForRole(role);
+      setTab(defaultTab);
+      setLoadedTabs(createLoadedTabsState(defaultTab));
     }
-  }, [user?.id, profile?.id]);
+  }, [user?.id, profile?.id, role]);
 
   useEffect(() => {
     setLoadedTabs((current) => {
@@ -310,6 +331,12 @@ export default function AppShell() {
   }, [tab]);
 
   const changeTab = useCallback(async (t: Tab) => {
+    if (!canAccessTab(role, t)) {
+      showToast('Akses fitur ini hanya untuk Owner/Admin.', 'warning');
+      const fallbackTab = getDefaultTabForRole(role);
+      setTab(fallbackTab);
+      return;
+    }
     setTab(t);
     try {
       localStorage.setItem(LS_LAST_TAB, t);
@@ -324,12 +351,17 @@ export default function AppShell() {
         await Haptics.impact({ style: ImpactStyle.Light });
       } catch { /* ignore */ }
     }
-  }, [user?.id, profile?.id],   );
+  }, [user?.id, profile?.id, role, showToast],   );
+
+  useEffect(() => {
+    if (canAccessTab(role, tab)) return;
+    void changeTab(getDefaultTabForRole(role));
+  }, [changeTab, role, tab]);
 
   useEffect(() => {
     const openTab = (event: Event) => {
       const detail = (event as CustomEvent<{ tab?: Tab }>).detail;
-      if (detail?.tab && NAV.some((entry) => entry.id === detail.tab)) {
+      if (detail?.tab && NAV.some((entry) => entry.id === detail.tab) && canAccessTab(role, detail.tab)) {
         void changeTab(detail.tab);
       }
     };
@@ -345,6 +377,7 @@ export default function AppShell() {
   };
 
   const renderTabPanel = (tabId: Tab, name: string, node: React.ReactNode) => {
+    if (!canAccessTab(role, tabId)) return null;
     if (!loadedTabs[tabId]) return null;
     const isActive = tab === tabId;
     return (
@@ -361,91 +394,190 @@ export default function AppShell() {
   if (!ready) return <AppLoading message={message} />;
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-slate-50 overflow-hidden"
+    <div className="kaffe-app-bg fixed inset-0 flex overflow-hidden"
       style={{ paddingTop: 'env(safe-area-inset-top,0px)' }}>
-      {postUpdateNotice && (postUpdateNotice.firstLaunchAfterUpdate || postUpdateNotice.recoveredKeys.length > 0) ? (
-        <div className="px-3 pt-2 flex-shrink-0">
-          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-900 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-semibold">Update berhasil dipulihkan</p>
-                <p className="mt-1 text-emerald-800/90">
-                  {postUpdateSyncing
-                    ? 'Kami sedang menyelaraskan ulang data lama kamu dengan server agar aplikasi langsung siap dipakai.'
-                    : 'Pengaturan penting, tema, dan konteks toko lama sudah dibaca kembali dengan aman.'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPostUpdateNotice(null)}
-                className="shrink-0 rounded-full px-2 py-1 text-emerald-700 transition hover:bg-emerald-100"
-                aria-label="Tutup notifikasi update"
-              >
-                ×
-              </button>
-            </div>
+
+      {/* ── DESKTOP SIDEBAR ── */}
+      <aside className="kaffe-sidebar hidden lg:flex flex-col w-[232px] backdrop-blur-xl border-r z-50">
+        <div className="px-6 py-6">
+          <div className="flex items-center gap-3 group cursor-pointer" onClick={() => changeTab('dashboard')}>
+            <img src={LOGO_ICON} alt="" className="h-9 w-9 object-contain" />
+            <span className="text-[18px] font-extrabold tracking-tight text-slate-900">
+              Kaffe<span className="text-[#FF6A00]">POS</span>
+            </span>
           </div>
         </div>
-      ) : null}
 
-      {/* ── Offline Banner ───────────────────────────── */}
-      {!isOnline && (
-        <div className="bg-amber-500 px-3 py-2 flex items-center justify-center gap-2 flex-shrink-0 text-center">
-          <WifiOff size={13} className="text-white" />
-          <p className="text-white text-xs font-bold leading-tight">Offline — data disimpan lokal, sync otomatis saat online</p>
-        </div>
-      )}
-
-      <main className="flex-1 min-h-0 overflow-hidden flex flex-col"
-        style={{ paddingBottom: 'calc(60px + env(safe-area-inset-bottom,0px))' }}>
-        <Suspense fallback={<TabSpinner />}>
-          {renderTabPanel('dashboard', 'Beranda', <DashboardTab />)}
-          {renderTabPanel('pos', 'POS', <POSTab toast={toast} profile={profile} subscriptionAccess={subscriptionAccess} />)}
-          {renderTabPanel('kitchen', 'Dapur', <KitchenTab toast={toast} profile={profile} />)}
-          {renderTabPanel('warehouse', 'Gudang', <WarehouseTab toast={toast} />)}
-          {renderTabPanel('menu', 'Menu', <MenuTab toast={toast} />)}
-          {renderTabPanel('history', 'Riwayat', <HistoryTab toast={toast} subscriptionAccess={subscriptionAccess} />)}
-          {renderTabPanel('report', 'Laporan', <ReportTab toast={toast} subscriptionAccess={subscriptionAccess} />)}
-          {renderTabPanel('settings', 'Pengaturan', <SettingsTab toast={toast} isPro={isPro} profile={profile} subscriptionAccess={subscriptionAccess} />)}
-        </Suspense>
-      </main>
-
-      <nav className="fixed bottom-0 left-0 right-0 flex items-stretch justify-center bg-white border-t border-slate-100 z-40 px-2"
-        style={{ height: 'calc(65px + env(safe-area-inset-bottom,0px))', paddingBottom: 'env(safe-area-inset-bottom,0px)' }}>
-        {NAV.map(({ id, label, icon: Icon }) => {
-          const active = tab === id;
-          return (
-            <button
-              key={id}
-              onClick={() => changeTab(id)}
-              className={`flex flex-col items-center justify-center flex-1 min-w-0 h-full transition-all active:scale-95 relative ${
-                active ? 'text-orange-500' : 'text-slate-400'
-              }`}
-            >
-              <div className={`flex flex-col items-center gap-0.5 ${active ? 'scale-110' : ''} transition-transform duration-300`}>
-                <div className="relative">
-                  <Icon size={24} strokeWidth={active ? 2.5 : 2} />
-                  {id === 'pos' && syncing && (
-                    <span className="absolute -top-1 -right-1.5 w-2.5 h-2.5 bg-green-400 rounded-full animate-pulse border-2 border-white shadow-sm" title="Menyinkronkan data..." />
-                  )}
-                  {id === 'settings' && isPro && (
-                    <span className="absolute -top-1.5 -right-2.5 w-4 h-4 bg-amber-400 rounded-full border-2 border-white flex items-center justify-center shadow-sm">
-                      <span className="text-[8px] font-black text-white">✓</span>
-                    </span>
-                  )}
+        <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto scrollbar-hide">
+          {NAV.filter((entry) => getVisibleTabs(role).includes(entry.id)).map(({ id, label, icon: Icon }) => {
+            const active = tab === id;
+            return (
+              <button
+                key={id}
+                onClick={() => changeTab(id)}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 relative group ${
+                  active ? 'bg-orange-50 text-[#FF6A00]' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                }`}
+              >
+                <div className="transition-all duration-200">
+                  <Icon size={18} strokeWidth={active ? 2.5 : 2} />
                 </div>
-                <span className={`text-[11px] font-extrabold tracking-tight truncate max-w-full px-1`}>
-                  {label}
-                </span>
+                <span className="font-bold text-[13px] transition-all">{label}</span>
+                {active && (
+                  <div className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-[#FF6A00]" />
+                )}
+                {id === 'pos' && syncing && (
+                  <span className="ml-auto w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="p-4 border-t border-slate-100">
+           <button
+             onClick={() => {
+                localStorage.setItem(EXPLICIT_SIGNOUT_KEY, '1');
+                import('@/contexts/AuthContext').then(m => (m as any).useAuth.getState().signOut());
+             }}
+             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:bg-rose-50 hover:text-rose-500 transition-all font-bold text-[13px]"
+           >
+             <LogOut size={18} /> Keluar
+           </button>
+        </div>
+      </aside>
+
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        {postUpdateNotice && (postUpdateNotice.firstLaunchAfterUpdate || postUpdateNotice.recoveredKeys.length > 0) ? (
+          <div className="px-3 pt-2 flex-shrink-0">
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-900 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold">Update berhasil dipulihkan</p>
+                  <p className="mt-1 text-emerald-800/90">
+                    {postUpdateSyncing
+                      ? 'Kami sedang menyelaraskan ulang data lama kamu dengan server agar aplikasi langsung siap dipakai.'
+                      : 'Pengaturan penting, tema, dan konteks toko lama sudah dibaca kembali dengan aman.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPostUpdateNotice(null)}
+                  className="shrink-0 rounded-full px-2 py-1 text-emerald-700 transition hover:bg-emerald-100"
+                  aria-label="Tutup notifikasi update"
+                >
+                  ×
+                </button>
               </div>
-              {active && (
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-b-full bg-orange-500 shadow-[0_2px_8px_rgba(249,115,22,0.4)]" />
-              )}
-            </button>
-          );
-        })}
-      </nav>
+            </div>
+          </div>
+        ) : null}
+
+        {/* ── Status Banner ───────────────────────────── */}
+        {(!isOnline || syncStatus === 'syncing' || syncStatus === 'sync_failed' || syncStatus === 'sync_success') && (
+          <div className={`px-4 py-2 flex items-center justify-center gap-3 flex-shrink-0 shadow-sm z-50 animate-in slide-up ${
+            syncStatus === 'sync_failed'
+              ? 'bg-rose-500'
+              : syncStatus === 'sync_success'
+                ? 'bg-emerald-500'
+                : syncStatus === 'syncing'
+                  ? 'bg-slate-900'
+                  : 'bg-amber-500'
+          }`}>
+            {syncStatus === 'syncing' ? <RefreshCw size={12} className="text-white animate-spin" /> : <WifiOff size={12} className="text-white" />}
+            <p className="text-white text-[10px] font-black uppercase tracking-widest leading-none">
+              {syncStatus === 'sync_failed'
+                ? `${failedSyncCount || pendingSyncCount} data gagal sinkron`
+                : syncStatus === 'sync_success'
+                  ? 'Semua data tersinkron'
+                  : syncStatus === 'syncing'
+                    ? `Sinkronisasi ${pendingSyncCount || 1} data...`
+                    : `Mode Offline Aktif${pendingSyncCount ? ` (${pendingSyncCount} pending)` : ''}`}
+            </p>
+            {syncStatus === 'sync_failed' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowSyncCenter(true)}
+                  className="rounded-lg bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/30 transition-all"
+                >
+                  Detail
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void flushPending()}
+                  className="rounded-lg bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/30 transition-all"
+                >
+                  Ulangi
+                </button>
+              </>
+            )}
+            {(pendingSyncCount > 0 && syncStatus !== 'sync_failed') && (
+              <button
+                type="button"
+                onClick={() => setShowSyncCenter(true)}
+                className="rounded-lg bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/30 transition-all"
+              >
+                Lihat
+              </button>
+            )}
+          </div>
+        )}
+
+        <main className="flex-1 min-h-0 overflow-hidden flex flex-col"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom,0px))' }}>
+          <Suspense fallback={<TabSpinner />}>
+            {renderTabPanel('dashboard', 'Beranda', <DashboardTab />)}
+            {renderTabPanel('pos', 'POS', <POSTab toast={toast} profile={profile} subscriptionAccess={subscriptionAccess} />)}
+            {renderTabPanel('kitchen', 'Dapur', <KitchenTab toast={toast} profile={profile} />)}
+            {renderTabPanel('warehouse', 'Gudang', <WarehouseTab toast={toast} />)}
+            {renderTabPanel('menu', 'Menu', <MenuTab toast={toast} />)}
+            {renderTabPanel('history', 'Riwayat', <HistoryTab toast={toast} subscriptionAccess={subscriptionAccess} />)}
+            {renderTabPanel('report', 'Laporan', <ReportTab toast={toast} subscriptionAccess={subscriptionAccess} />)}
+            {renderTabPanel('settings', 'Pengaturan', <SettingsTab toast={toast} isPro={isPro} profile={profile} subscriptionAccess={subscriptionAccess} />)}
+          </Suspense>
+        </main>
+
+        {/* ── MOBILE NAV (Bottom) ── */}
+        <nav className="lg:hidden flex items-stretch justify-start overflow-x-auto bg-white/95 backdrop-blur-xl border-t border-orange-100/80 z-40 px-1 shadow-[0_-12px_32px_rgba(255,106,0,0.10)]"
+          style={{ height: 'calc(64px + env(safe-area-inset-bottom,0px))', paddingBottom: 'env(safe-area-inset-bottom,0px)' }}>
+          {NAV.filter((entry) => getVisibleTabs(role).includes(entry.id)).map(({ id, label, icon: Icon }) => {
+            const active = tab === id;
+            return (
+              <button
+                key={id}
+                onClick={() => changeTab(id)}
+                className={`flex h-full w-[74px] flex-none flex-col items-center justify-center transition-all relative ${
+                  active ? 'text-[#FF6A00]' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                <div className="flex flex-col items-center gap-1 transition-all duration-200">
+                  <div className="relative">
+                    <Icon size={20} strokeWidth={active ? 2.5 : 2} />
+                    {id === 'pos' && syncing && (
+                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-ping border border-white shadow-sm" />
+                    )}
+                  </div>
+                  <span className="max-w-full truncate px-1 text-[10px] font-semibold">
+                    {label}
+                  </span>
+                </div>
+                {active && (
+                  <div className="absolute top-0 left-1/2 h-1 w-8 -translate-x-1/2 rounded-b-lg bg-[#FF6A00]" />
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      <SyncConflictCenter
+        open={showSyncCenter}
+        onClose={() => setShowSyncCenter(false)}
+        storeId={storeId}
+        role={role}
+        onRetryAll={flushPending}
+      />
 
       {/* Dialog saldo kasir harian wajib */}
       {showOpening && (

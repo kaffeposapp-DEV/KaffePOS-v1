@@ -1,8 +1,8 @@
- 
- 
- 
- 
- 
+
+
+
+
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/history/HistoryTab.tsx — KaffePOS v4 — PrintActionSheet
 import { useState, useMemo, useCallback, useRef } from 'react';
@@ -108,81 +108,89 @@ export default function HistoryTab({
   ];
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
+    <div className="flex-1 flex flex-col overflow-hidden bg-white lg:bg-slate-50/50">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 px-4 pt-3 pb-3">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="font-black text-slate-800 text-lg">Riwayat</h2>
+      <div className="bg-white border-b border-slate-100 px-6 pt-6 pb-4 z-10">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="font-black text-xl text-slate-800 italic uppercase tracking-tighter">Riwayat Transaksi</h2>
+            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">
+              {totalCount} SUKSES {totalVoid > 0 && <span className="text-rose-400 ml-1">· {totalVoid} VOID</span>}
+            </p>
+          </div>
           <div className="text-right">
-            <p className="font-black text-orange-500 text-sm">{fRp(totalRev)}</p>
-            <p className="text-xs text-slate-400">{totalCount} trx{totalVoid > 0 ? ` · ${totalVoid} void` : ''}</p>
+            <p className="font-black text-2xl text-[#FF6A00] tracking-tighter italic">{fRp(totalRev)}</p>
+            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-1">Total Pendapatan</p>
           </div>
         </div>
 
         {/* Search */}
-        <div className="relative mb-3">
-          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"/>
-          <input 
-            value={search} 
+        <div className="relative mb-5">
+          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"/>
+          <input
+            value={search}
             onChange={e=>handleSearch(e.target.value)}
-            placeholder="Cari ID, menu, kasir..."
-            className="w-full h-12 bg-slate-100 rounded-2xl pl-11 pr-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:bg-white transition-all border border-transparent focus:border-orange-200"
+            placeholder="Cari ID, menu, atau kasir..."
+            className="w-full h-12 bg-slate-50/50 border border-slate-100 rounded-2xl pl-12 pr-4 text-[15px] focus:outline-none focus:ring-4 focus:ring-[#FF6A00]/5 focus:border-[#FF6A00]/20 transition-all font-bold text-slate-700 placeholder:text-slate-300 shadow-sm"
           />
         </div>
 
         {/* Period filter */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4">
+        <div className="flex gap-4 overflow-x-auto no-scrollbar -mx-6 px-6 border-b border-slate-50">
           {PERIODS.map(p => (
-            <button 
-              key={p.id} 
+            <button
+              key={p.id}
               onClick={() => { setPeriod(p.id); setPage(1); }}
-              className={`shrink-0 px-4 py-2 rounded-xl text-[13px] font-bold transition-all border ${
-                period===p.id 
-                  ? 'bg-slate-900 text-white border-slate-900 shadow-sm' 
-                  : 'bg-slate-100 text-slate-500 border-transparent hover:border-slate-200'
+              className={`shrink-0 pb-3 text-[13px] font-black uppercase tracking-widest transition-all relative ${
+                period===p.id
+                  ? 'text-[#FF6A00]'
+                  : 'text-slate-400 hover:text-slate-600'
               }`}
             >
               {p.label}
+              {period===p.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#FF6A00] rounded-full animate-in fade-in" />}
             </button>
           ))}
         </div>
       </div>
 
-      {/* List */}
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6">
         {paginated.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-40 text-slate-400">
-            <p className="text-sm">Belum ada transaksi pada periode ini</p>
+          <div className="flex flex-col items-center justify-center h-60 text-slate-300">
+            <Search size={40} className="mb-3 opacity-20" />
+            <p className="text-[12px] font-black uppercase tracking-[0.2em]">Data Tidak Ditemukan</p>
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {paginated.map(tx => (
               <div key={tx.id} onClick={() => setDetail(tx)}
-                className={`bg-white rounded-2xl border p-3.5 cursor-pointer active:scale-[0.99] transition-transform
-                  ${tx.is_void?'border-red-100 opacity-60':'border-slate-100'}`}>
+                className={`group bg-white rounded-[28px] border p-5 cursor-pointer transition-all duration-300 hover:shadow-premium hover:border-[#FF6A00]/20 active:scale-[0.98]
+                  ${tx.is_void?'border-rose-100 bg-rose-50/10 opacity-70':'border-slate-100 shadow-soft'}`}>
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-bold text-slate-400 truncate">{tx.id}</span>
-                      {tx.is_void && <span className="text-[10px] font-black text-red-500 bg-red-50 px-2 py-0.5 rounded-full shrink-0">VOID</span>}
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-[10px] font-black text-slate-300 truncate uppercase tracking-widest">{tx.id}</span>
+                      {tx.is_void && <span className="text-[9px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md uppercase tracking-wider">Void</span>}
                     </div>
-                    <p className="text-xs text-slate-500 truncate">
+                    <p className="text-[15px] font-bold text-slate-800 truncate mb-1 group-hover:text-[#FF6A00] transition-colors">
                       {tx.items.map(i=>`${i.name} x${i.qty}`).join(', ')}
                     </p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      {fDt(tx.date)} · {tx.method} · {tx.cashier}
-                    </p>
+                    <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                       <span>{fDt(tx.date)}</span>
+                       <div className="w-1 h-1 rounded-full bg-slate-100" />
+                       <span>{tx.method}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 ml-3 shrink-0">
-                    <button
-                    onClick={e => { e.stopPropagation(); handlePrint(tx); }}
-                    className="p-1.5 text-slate-400 active:text-orange-500 active:scale-90">
-                    <Printer size={15}/>
-                  </button>
-                    <p className={`font-black text-base ${tx.is_void?'text-red-400 line-through':'text-slate-800'}`}>
-                      {fRp(tx.total)}
+                  <div className="flex flex-col items-end gap-3 ml-4 shrink-0">
+                    <p className={`font-black text-lg tracking-tighter italic ${tx.is_void?'text-rose-300 line-through':'text-slate-900'}`}>
+                      {fRp(tx.total).replace('Rp', '').trim()}
                     </p>
+                    <button
+                      onClick={e => { e.stopPropagation(); handlePrint(tx); }}
+                      className="p-2 text-slate-300 hover:text-[#FF6A00] transition-colors bg-slate-50 rounded-xl">
+                      <Printer size={16}/>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -202,57 +210,70 @@ export default function HistoryTab({
 
       {/* ── Detail Modal ── */}
       {detail && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center">
-          <div className="bg-white w-full max-w-md rounded-t-3xl p-5 max-h-[88vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-end md:items-center justify-center p-0 md:p-6">
+          <div className="bg-white w-full max-w-[480px] rounded-t-[32px] md:rounded-[40px] p-8 max-h-[95vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom-20 duration-500">
+            <div className="flex items-center justify-between mb-8">
               <div>
-                <h3 className="font-black text-lg">Detail Transaksi</h3>
-                <p className="text-slate-400 text-xs">{detail.id}</p>
+                <h3 className="font-black text-2xl text-slate-800 italic uppercase tracking-tighter">Detail Pesanan 🧾</h3>
+                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">ID: {detail.id}</p>
               </div>
-              <button onClick={() => setDetail(null)} className="p-1 active:scale-90"><X size={20}/></button>
+              <button onClick={() => setDetail(null)} className="p-3 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 transition-colors"><X size={24}/></button>
             </div>
 
-            <div className="bg-slate-50 rounded-2xl p-4 mb-4 text-sm space-y-1.5">
-              {detail.items.map((i:any, idx: number) => (
-                <div key={idx} className="flex justify-between">
-                  <span className="text-slate-600">{i.name} x{i.qty}</span>
-                  <span className="font-bold">{fRp(i.subtotal)}</span>
+            <div className="bg-slate-50 rounded-[32px] p-6 mb-8 border border-slate-100">
+              <div className="space-y-4 mb-6">
+                {detail.items.map((i:any, idx: number) => (
+                  <div key={idx} className="flex justify-between items-start gap-4">
+                    <div className="flex-1">
+                      <p className="font-bold text-slate-800 text-[15px]">{i.name}</p>
+                      <p className="text-slate-400 text-[12px] font-bold uppercase tracking-wider">x{i.qty} · {fRp(i.price)}</p>
+                    </div>
+                    <span className="font-black text-slate-800 text-[15px] italic">{fRp(i.subtotal)}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t border-slate-200/60 border-dashed pt-4 space-y-2">
+                <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-widest"><span>Subtotal</span><span>{fRp(detail.subtotal)}</span></div>
+                {detail.discount > 0 && <div className="flex justify-between text-xs font-black text-rose-500 uppercase tracking-widest"><span>Diskon</span><span>-{fRp(detail.discount)}</span></div>}
+                {detail.tax > 0 && <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-widest"><span>Pajak</span><span>{fRp(detail.tax)}</span></div>}
+                <div className="flex justify-between items-center pt-3 border-t border-slate-200/60 mt-2">
+                  <span className="text-[16px] font-black text-slate-900 uppercase italic tracking-tighter">Total Akhir</span>
+                  <span className="text-2xl font-black text-[#FF6A00] italic tracking-tighter">{fRp(detail.total)}</span>
                 </div>
-              ))}
-              <div className="border-t pt-1.5 space-y-1">
-                <div className="flex justify-between text-slate-400"><span>Subtotal</span><span>{fRp(detail.subtotal)}</span></div>
-                {detail.discount > 0 && <div className="flex justify-between text-green-600 font-bold"><span>Diskon</span><span>-{fRp(detail.discount)}</span></div>}
-                {detail.tax > 0 && <div className="flex justify-between text-slate-400"><span>Pajak</span><span>{fRp(detail.tax)}</span></div>}
-                <div className="flex justify-between font-black text-base border-t pt-1"><span>Total</span><span className="text-orange-500">{fRp(detail.total)}</span></div>
-                <div className="flex justify-between text-xs text-slate-400"><span>Metode</span><span className="font-bold">{detail.method}</span></div>
-                <div className="flex justify-between text-xs text-slate-400"><span>Kasir</span><span>{detail.cashier}</span></div>
-                <div className="flex justify-between text-xs text-slate-400"><span>Waktu</span><span>{fDt(detail.date)}</span></div>
               </div>
             </div>
 
-            {/* Printer status bar */}
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl mb-3 text-xs font-bold bg-slate-50 text-slate-500">
-              <Printer size={12}/>
-              <span>Pilih metode cetak saat klik tombol di bawah</span>
+            <div className="grid grid-cols-2 gap-4 mb-8">
+               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Metode</p>
+                  <p className="text-[14px] font-black text-slate-700">{detail.method}</p>
+               </div>
+               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Kasir</p>
+                  <p className="text-[14px] font-black text-slate-700">{detail.cashier}</p>
+               </div>
             </div>
 
-            <button
-              onClick={() => handlePrint(detail)}
-              className="w-full py-3 mb-2.5 border-2 border-orange-200 text-orange-600 font-bold rounded-2xl flex items-center justify-center gap-2 active:scale-95">
-              <Printer size={16}/> Cetak Ulang Struk
-            </button>
-
-            {!detail.is_void ? (
-              <button onClick={() => setShowVoid(detail)}
-                className="w-full py-3 border-2 border-red-200 text-red-500 font-bold rounded-2xl flex items-center justify-center gap-2 active:scale-95">
-                <Ban size={16}/> Void Transaksi
+            <div className="space-y-3">
+              <button
+                onClick={() => handlePrint(detail)}
+                className="w-full py-5 bg-white border-2 border-slate-100 text-slate-700 font-black text-[15px] uppercase italic tracking-wider rounded-[24px] flex items-center justify-center gap-3 active:scale-95 transition-all hover:border-[#FF6A00]/30 hover:bg-orange-50/30">
+                <Printer size={20}/> Cetak Struk
               </button>
-            ) : (
-              <div className="bg-red-50 rounded-xl p-3 text-center">
-                <p className="text-red-500 font-bold text-sm">Transaksi sudah di-void</p>
-                {detail.void_reason && <p className="text-red-400 text-xs mt-1">&quot;{detail.void_reason}&quot;</p>}
-              </div>
-            )}
+
+              {!detail.is_void ? (
+                <button onClick={() => setShowVoid(detail)}
+                  className="w-full py-5 text-rose-400 font-black text-[15px] uppercase italic tracking-wider rounded-[24px] flex items-center justify-center gap-3 active:scale-95 transition-all hover:bg-rose-50">
+                  <Ban size={20}/> Void Transaksi
+                </button>
+              ) : (
+                <div className="bg-rose-50 rounded-[24px] p-6 text-center border border-rose-100">
+                  <p className="text-rose-500 font-black text-sm uppercase tracking-widest">Transaksi Telah Di-Void</p>
+                  {detail.void_reason && <p className="text-rose-400 text-xs font-bold mt-2 italic">&quot;{detail.void_reason}&quot;</p>}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

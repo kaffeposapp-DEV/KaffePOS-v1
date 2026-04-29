@@ -1,12 +1,12 @@
- 
- 
- 
- 
- 
+
+
+
+
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/menu/MenuTab.tsx
 import { useState, useMemo, useRef } from 'react';
-import { Plus, Edit, Trash2, X, ToggleLeft, ToggleRight, ChevronDown, ChevronUp, Link2, Image, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, X, ChevronDown, Image, Search, ShoppingBag } from 'lucide-react';
 import ProductPlaceholder from '@/components/ui/ProductPlaceholder';
 import { useStore } from '@/hooks/useStore';
 import DeleteConfirmSheet from '@/components/ui/DeleteConfirmSheet';
@@ -23,7 +23,6 @@ export default function MenuTab({ toast }:any) {
   const [cat,          setCat]          = useState('All');
   const [search,       setSearch]       = useState('');
   const [,             setSaving]       = useState(false);
-  const [expandedId,   setExpandedId]   = useState<string|null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MenuItem|null>(null); // konfirmasi hapus
   const imgRef = useRef<HTMLInputElement>(null);
 
@@ -72,115 +71,185 @@ export default function MenuTab({ toast }:any) {
     return item.recipe.some(r => { const m = inventory.find(i => i.id === r.matId); return !m || m.stock < r.qty; }) ? 'low' : 'ok';
   };
 
+  const getProductStatus = (item: MenuItem) => {
+    const stockStatus = getStockStatus(item);
+    if (!item.is_available) {
+      return { label: 'Habis', className: 'bg-rose-50 text-rose-600 border-rose-100' };
+    }
+    if (stockStatus === 'low') {
+      return { label: 'Menipis', className: 'bg-amber-50 text-amber-700 border-amber-100' };
+    }
+    return { label: 'Aman', className: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
+  };
+
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
+    <div className="kaffe-app-bg flex-1 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 px-3 sm:px-4 pt-3 pb-3">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-black text-slate-800 text-lg">Kelola Menu</h2>
+      <div className="bg-white/95 border-b border-slate-200/70 px-4 pt-5 pb-4 z-10 backdrop-blur-xl sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
+          <div>
+            <h2 className="font-display text-xl font-extrabold text-slate-900 tracking-tight">Produk</h2>
+            <p className="text-slate-500 font-semibold text-[12px] mt-1">Manajemen produk, kategori, harga, dan resep.</p>
+          </div>
           <button onClick={openNew}
-            className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 text-white rounded-xl text-xs font-bold active:scale-95 shrink-0">
-            <Plus size={13}/>Tambah
+            className="kaffe-gradient-button flex items-center justify-center gap-2 h-11 px-5 rounded-lg text-[13px] font-bold active:scale-95 transition-all shrink-0">
+            <Plus size={16}/>Tambah Produk
           </button>
         </div>
-        <div className="relative mb-3">
+
+        {/* Search */}
+        <div className="relative mb-5">
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"/>
-          <input 
-            value={search} 
-            onChange={e=>setSearch(e.target.value)} 
-            placeholder="Cari menu..."
-            className="w-full h-12 bg-slate-100 rounded-2xl pl-11 pr-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:bg-white transition-all border border-transparent focus:border-orange-200"
+          <input
+            value={search}
+            onChange={e=>setSearch(e.target.value)}
+            placeholder="Cari nama menu..."
+            className="w-full h-12 bg-white border border-slate-200/90 rounded-lg pl-12 pr-4 text-[15px] focus:outline-none focus:ring-4 focus:ring-[#FF6A00]/10 focus:border-[#FF6A00]/30 transition-all font-medium text-slate-700 placeholder:text-slate-400 shadow-sm"
           />
         </div>
-        <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-3 px-3 sm:-mx-4 sm:px-4">
+
+        {/* Category Tabs */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6">
           {cats.map(c=>(
-            <button 
-              key={c} 
+            <button
+              key={c}
               onClick={()=>setCat(c)}
-              className={`shrink-0 px-5 py-2 rounded-xl text-[13px] font-bold transition-all border ${
-                cat===c 
-                  ? 'bg-slate-900 text-white border-slate-900 shadow-md' 
-                  : 'bg-slate-100 text-slate-500 border-transparent hover:border-slate-200'
-              }`}
+              data-active={cat===c}
+              className="kaffe-filter-chip shrink-0 rounded-lg px-4 py-2 text-[12px] font-bold transition-all hover:border-orange-200 hover:text-[#FF6A00]"
             >
-              {c}
+              {c === 'All' ? 'Semua' : c}
             </button>
           ))}
         </div>
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-5">
         {filtered.length===0 ? (
-          <div className="flex flex-col items-center justify-center h-40 text-slate-400">
-            <p className="text-3xl mb-2">🍽️</p><p className="text-sm">Belum ada menu</p>
+          <div className="flex flex-col items-center justify-center h-48 text-slate-400">
+            <div className="w-16 h-16 bg-slate-100 rounded-[24px] flex items-center justify-center mb-4 text-slate-300">
+               <ShoppingBag size={32} />
+            </div>
+            <p className="text-sm font-bold">Belum ada menu di kategori ini</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {filtered.map(item => {
-              const stockStatus = getStockStatus(item);
-              const expanded = expandedId === item.id;
-              return (
-                <div key={item.id} className={`bg-white rounded-2xl border-2 overflow-hidden ${!item.is_available?'opacity-60':stockStatus==='low'?'border-red-200':'border-slate-100'}`}>
-                  <div className="flex items-center gap-3 p-3">
-                    {item.image_url
-                      ? <img src={item.image_url} className="w-14 h-14 rounded-xl object-cover shrink-0 border border-slate-100"/>
-                      : <div className="w-14 h-14 rounded-xl shrink-0 overflow-hidden border border-slate-100"><ProductPlaceholder category={item.category} iconSize={20} /></div>
-                    }
-                    <div className="flex-1 min-w-0">
-                      <p className="font-black text-slate-800 truncate">{item.name}</p>
-                      <p className="text-orange-500 font-bold text-sm">{fRp(item.price)}</p>
-                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                        <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{item.category}</span>
-                        {item.recipe && item.recipe.length > 0 && (
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${stockStatus==='low'?'bg-red-50 text-red-500':'bg-green-50 text-green-600'}`}>
-                            <Link2 size={10}/>{item.recipe.length} bahan {stockStatus==='low'?'⚠':'✓'}
-                          </span>
+          <>
+            <div className="kaffe-product-grid grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden">
+              {filtered.map(item => {
+                const stockStatus = getStockStatus(item);
+                const status = getProductStatus(item);
+                return (
+                  <div key={item.id} className={`group bg-white rounded-2xl border border-slate-200/80 p-4 transition-all duration-300 hover:shadow-premium hover:border-[#FF6A00]/20 ${!item.is_available ? 'opacity-70 bg-slate-50/50' : 'shadow-sm'}`}>
+                    <div className="flex items-center gap-4">
+                      <div className="w-20 h-20 rounded-xl overflow-hidden shrink-0 border border-slate-100 bg-slate-50 relative group">
+                        {item.image_url
+                          ? <img src={item.image_url} alt={item.name} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-500"/>
+                          : <ProductPlaceholder category={item.category} iconSize={24} />
+                        }
+                        {!item.is_available && (
+                          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center">
+                            <span className="text-[10px] font-black text-white uppercase tracking-widest">Habis</span>
+                          </div>
                         )}
                       </div>
-                    </div>
-                    <div className="flex flex-col items-center gap-1 shrink-0">
-                      <button onClick={()=>toggleAvailable(item)} className="p-1">
-                        {item.is_available?<ToggleRight size={22} className="text-green-500"/>:<ToggleLeft size={22} className="text-slate-300"/>}
-                      </button>
-                      <button onClick={()=>openEdit(item)} className="p-1.5 text-slate-400 hover:text-orange-500"><Edit size={14}/></button>
-                      <button onClick={() => setDeleteTarget(item)} className="p-1.5 text-slate-300 hover:text-red-400"><Trash2 size={14}/></button>
-                      {item.recipe && item.recipe.length > 0 && (
-                        <button onClick={()=>setExpandedId(expanded?null:item.id)} className="p-1 text-slate-400">
-                          {expanded?<ChevronUp size={14}/>:<ChevronDown size={14}/>}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {expanded && item.recipe && item.recipe.length > 0 && (
-                    <div className="border-t border-slate-100 bg-slate-50 px-3 py-2.5">
-                      <p className="text-[10px] font-black text-slate-400 mb-2">RESEP BAHAN BAKU</p>
-                      <div className="space-y-1.5">
-                        {(item.recipe || []).map((r,i)=>{
-                          const mat = inventory.find(inv=>inv.id===r.matId);
-                          const ok  = mat && mat.stock>=r.qty;
-                          return (
-                            <div key={i} className={`flex items-center justify-between text-xs rounded-lg px-2.5 py-1.5 ${ok?'bg-green-50':'bg-red-50'}`}>
-                              <span className="font-bold text-slate-700">{mat?.name||'Tidak ditemukan'}</span>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <span className="text-slate-400">{r.qty} {mat?.unit||''}</span>
-                                <span className={`font-bold ${ok?'text-green-600':'text-red-500'}`}>Stok:{mat?.stock??'?'} {ok?'✓':'⚠'}</span>
-                              </div>
-                            </div>
-                          );
-                        })}
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-start gap-2">
+                          <p className="font-bold text-slate-900 text-[16px] truncate leading-tight">{item.name}</p>
+                          <div className="flex items-center gap-1">
+                            <button type="button" aria-label={`Edit ${item.name}`} onClick={()=>openEdit(item)} className="p-1.5 text-slate-400 hover:text-[#FF6A00] transition-colors"><Edit size={14}/></button>
+                            <button type="button" aria-label={`Hapus ${item.name}`} onClick={() => setDeleteTarget(item)} className="p-1.5 text-slate-400 hover:text-rose-500 transition-colors"><Trash2 size={14}/></button>
+                          </div>
+                        </div>
+
+                        <p className="text-[#FF6A00] font-black text-[17px] mt-1 tracking-tight">{fRp(item.price)}</p>
+
+                        <div className="flex items-center justify-between mt-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md uppercase tracking-wider">{item.category}</span>
+                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${status.className}`}>{status.label}</span>
+                            {item.recipe && item.recipe.length > 0 && (
+                              <div className={`w-2 h-2 rounded-full ${stockStatus==='low'?'bg-rose-500 animate-pulse':'bg-emerald-500'}`} title={stockStatus==='low'?'Stok Menipis':'Stok Aman'} />
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            aria-label={`${item.is_available ? 'Nonaktifkan' : 'Aktifkan'} ${item.name}`}
+                            onClick={()=>toggleAvailable(item)}
+                            className={`w-10 h-6 rounded-full transition-all relative ${item.is_available ? 'bg-emerald-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]' : 'bg-slate-200'}`}
+                          >
+                            <div className={`w-4.5 h-4.5 bg-white rounded-full absolute top-0.75 transition-all duration-300 ${item.is_available ? 'left-[22px]' : 'left-0.75'}`}/>
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="kaffe-table-surface hidden lg:block">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/70 text-[12px] font-bold text-slate-500">
+                    <th className="px-5 py-4">Produk</th>
+                    <th className="px-5 py-4">Kategori</th>
+                    <th className="px-5 py-4">Harga</th>
+                    <th className="px-5 py-4">Status</th>
+                    <th className="px-5 py-4 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filtered.map((item) => {
+                    const status = getProductStatus(item);
+                    return (
+                      <tr key={item.id} className={!item.is_available ? 'bg-slate-50/50 opacity-75' : 'bg-white'}>
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-11 w-11 overflow-hidden rounded-lg border border-slate-100 bg-slate-50">
+                              {item.image_url
+                                ? <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" />
+                                : <ProductPlaceholder category={item.category} iconSize={18} />
+                              }
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-bold text-slate-900">{item.name}</p>
+                              <p className="mt-0.5 text-[11px] font-medium text-slate-500">{item.recipe?.length ? `${item.recipe.length} bahan resep` : 'Tanpa resep'}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 text-sm font-semibold text-slate-600">{item.category}</td>
+                        <td className="px-5 py-4 text-sm font-bold text-slate-900">{fRp(item.price)}</td>
+                        <td className="px-5 py-4">
+                          <span className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-bold ${status.className}`}>{status.label}</span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              aria-label={`${item.is_available ? 'Nonaktifkan' : 'Aktifkan'} ${item.name}`}
+                              onClick={()=>toggleAvailable(item)}
+                              className={`w-11 h-7 rounded-full transition-all relative ${item.is_available ? 'bg-emerald-500 shadow-[0_0_10px_rgba(34,197,94,0.25)]' : 'bg-slate-200'}`}
+                            >
+                              <div className={`h-5 w-5 rounded-full bg-white shadow-sm absolute top-1 transition-all duration-300 ${item.is_available ? 'left-[20px]' : 'left-1'}`}/>
+                            </button>
+                            <button type="button" aria-label={`Edit ${item.name}`} onClick={()=>openEdit(item)} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-orange-50 hover:text-[#FF6A00] transition-colors"><Edit size={15}/></button>
+                            <button type="button" aria-label={`Hapus ${item.name}`} onClick={() => setDeleteTarget(item)} className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors"><Trash2 size={15}/></button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
       {showModal && (
-        <div 
+        <div
           className="modal-overlay"
           onClick={(e) => e.target === e.currentTarget && setShowModal(false)}
         >
@@ -188,8 +257,8 @@ export default function MenuTab({ toast }:any) {
             <div className="sticky top-0 bg-white/95 backdrop-blur-md px-6 pt-6 pb-4 border-b border-slate-100 z-10">
               <div className="flex items-center justify-between">
                 <h3 className="font-black text-xl text-slate-900 tracking-tight">{form.id?'Edit Menu':'Menu Baru'}</h3>
-                <button 
-                  onClick={()=>setShowModal(false)} 
+                <button
+                  onClick={()=>setShowModal(false)}
                   className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 active:bg-slate-100"
                 >
                   <X size={20}/>
@@ -229,8 +298,8 @@ export default function MenuTab({ toast }:any) {
               <div className="space-y-3">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-bold text-slate-700 pl-0.5">NAMA MENU *</label>
-                  <input 
-                    value={form.name||''} 
+                  <input
+                    value={form.name||''}
                     onChange={e=>setForm(f=>({...f,name:e.target.value}))}
                     placeholder="Contoh: Kopi Susu Aren"
                     className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all"
@@ -239,9 +308,9 @@ export default function MenuTab({ toast }:any) {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-[13px] font-bold text-slate-700 pl-0.5">HARGA (Rp) *</label>
-                    <input 
-                      type="number" 
-                      inputMode="numeric" 
+                    <input
+                      type="number"
+                      inputMode="numeric"
                       value={form.price||''}
                       onChange={e=>setForm(f=>({...f,price:parseInt(e.target.value)||0}))}
                       placeholder="25000"
@@ -251,8 +320,8 @@ export default function MenuTab({ toast }:any) {
                   <div className="space-y-1.5">
                     <label className="text-[13px] font-bold text-slate-700 pl-0.5">KATEGORI</label>
                     <div className="relative">
-                      <select 
-                        value={form.category||'Coffee'} 
+                      <select
+                        value={form.category||'Coffee'}
                         onChange={e=>setForm(f=>({...f,category:e.target.value}))}
                         className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all appearance-none"
                       >
@@ -267,10 +336,10 @@ export default function MenuTab({ toast }:any) {
               </div>
               <div className="space-y-1.5">
                 <label className="text-[13px] font-bold text-slate-700 pl-0.5">DESKRIPSI (OPSIONAL)</label>
-                <textarea 
-                  value={form.description||''} 
+                <textarea
+                  value={form.description||''}
                   onChange={e=>setForm(f=>({...f,description:e.target.value}))}
-                  rows={2} 
+                  rows={2}
                   placeholder="Kopi susu dengan gula aren asli..."
                   className="w-full border border-slate-200 rounded-2xl px-4 py-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all resize-none"
                 />
@@ -283,8 +352,8 @@ export default function MenuTab({ toast }:any) {
                     <p className="text-[13px] font-black text-slate-800">RESEP BAHAN BAKU</p>
                     <p className="text-[11px] text-slate-400 font-medium">Stok gudang otomatis berkurang saat terjual</p>
                   </div>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={addRecipeLine}
                     className="flex items-center gap-1.5 px-4 py-2 bg-orange-50 text-orange-600 rounded-xl text-xs font-black active:scale-95 transition-colors border border-orange-100"
                   >
@@ -305,8 +374,8 @@ export default function MenuTab({ toast }:any) {
                     {(form.recipe||[]).map((r,idx)=>(
                       <div key={idx} className="flex items-center gap-2.5 bg-white border border-slate-100 rounded-2xl p-2.5 shadow-sm">
                         <div className="flex-1 min-w-0 relative">
-                          <select 
-                            value={r.matId} 
+                          <select
+                            value={r.matId}
                             onChange={e=>updateRecipeLine(idx,'matId',e.target.value)}
                             className="w-full h-11 border border-slate-100 rounded-xl px-3 text-xs focus:outline-none focus:border-orange-400 bg-slate-50 appearance-none font-bold text-slate-700"
                           >
@@ -318,12 +387,12 @@ export default function MenuTab({ toast }:any) {
                           </div>
                         </div>
                         <div className="w-24 relative shrink-0">
-                          <input 
-                            type="number" 
-                            inputMode="decimal" 
-                            value={r.qty||''} 
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            value={r.qty||''}
                             onChange={e=>updateRecipeLine(idx,'qty',e.target.value)}
-                            placeholder="0.0" 
+                            placeholder="0.0"
                             step="0.1"
                             className="w-full h-11 border border-slate-100 rounded-xl px-3 text-xs focus:outline-none focus:border-orange-400 text-center font-black bg-slate-50"
                           />
@@ -331,9 +400,9 @@ export default function MenuTab({ toast }:any) {
                         <span className="text-[11px] font-black text-slate-400 w-8 shrink-0">
                           {inventory.find(i=>i.id===r.matId)?.unit||'unit'}
                         </span>
-                        <button 
-                          type="button" 
-                          onClick={()=>removeRecipeLine(idx)} 
+                        <button
+                          type="button"
+                          onClick={()=>removeRecipeLine(idx)}
                           className="w-9 h-9 flex items-center justify-center text-red-400 bg-red-50 rounded-xl active:scale-90 transition-all"
                         >
                           <X size={16}/>
@@ -345,7 +414,7 @@ export default function MenuTab({ toast }:any) {
               </div>
 
               {/* TOGGLE AVAILABLE */}
-              <div 
+              <div
                 onClick={()=>setForm(f=>({...f,is_available:!f.is_available}))}
                 className="flex items-center justify-between py-4 px-4 bg-slate-50 rounded-2xl cursor-pointer active:bg-slate-100 transition-colors mt-4"
               >
@@ -358,7 +427,7 @@ export default function MenuTab({ toast }:any) {
                 </div>
               </div>
 
-              <button 
+              <button
                 type="submit"
                 className="w-full h-14 bg-slate-900 text-white font-black rounded-2xl active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-slate-900/10 transition-all mt-6"
               >

@@ -5,6 +5,7 @@
  
  
 import '@testing-library/jest-dom';
+import 'fake-indexeddb/auto';
 import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { installMemoryStorage } from './helpers/browser';

@@ -1,0 +1,155 @@
+# KaffePOS Final Release Checklist
+
+Checklist ini dipakai sebelum go-live production atau sebelum APK debug/release di-install ke device kasir. Jangan tempel secret ke dokumen ini.
+
+## 1. Coolify
+
+- Backend service: `KaffePOS API`
+- Frontend service: `KaffePOS Web`
+- Backend healthcheck: `GET /health`
+- Backend start command: `npm run start:coolify` atau `node dist/index.js`
+- Backend build command: `npm install && npm run build`
+- Frontend build command: `npm install && npm run build:web`
+- Frontend publish directory: `dist`
+- Backend env production:
+  - `NODE_ENV=production`
+  - `WEB_BASE_URL=https://kaffepos.my.id`
+  - `API_BASE_URL=https://api.kaffepos.my.id`
+  - `CORS_ORIGIN=https://kaffepos.my.id,https://www.kaffepos.my.id,capacitor://localhost,http://localhost`
+  - `DATABASE_URL` atau `DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD`
+  - `RESEND_API_KEY`
+  - `RESEND_FROM_EMAIL=KaffePOS <no-reply@kaffepos.my.id>`
+  - `MIDTRANS_ENVIRONMENT=production`
+  - `MIDTRANS_SERVER_KEY`
+  - `MIDTRANS_MERCHANT_ID`
+  - `MIDTRANS_SNAP_ENABLED=true`
+  - `MIDTRANS_WEBHOOK_BASE_URL=https://api.kaffepos.my.id`
+  - `SUBSCRIPTION_PAYMENT_MODE=auto`
+- Frontend env production:
+  - `VITE_API_BASE_URL=https://api.kaffepos.my.id` atau kosong untuk fallback production
+  - `VITE_MIDTRANS_ENVIRONMENT=production`
+  - `VITE_MIDTRANS_CLIENT_KEY`
+  - `VITE_CLARITY_PROJECT_ID=wf7x39iiqr`
+  - `VITE_GA_MEASUREMENT_ID=G-VNQJ3XPCGG`
+- Tidak ada env `SUPABASE_*` atau `VITE_SUPABASE_*`.
+- Jalankan validasi config:
+
+```bash
+RELEASE_CHANNEL=production \
+NODE_ENV=production \
+WEB_BASE_URL=https://kaffepos.my.id \
+API_BASE_URL=https://api.kaffepos.my.id \
+MIDTRANS_ENVIRONMENT=production \
+VITE_MIDTRANS_ENVIRONMENT=production \
+MIDTRANS_SERVER_KEY=*** \
+MIDTRANS_MERCHANT_ID=*** \
+VITE_MIDTRANS_CLIENT_KEY=*** \
+VITE_CLARITY_PROJECT_ID=wf7x39iiqr \
+RESEND_API_KEY=*** \
+RESEND_FROM_EMAIL='KaffePOS <no-reply@kaffepos.my.id>' \
+npm run release:verify-config
+```
+
+## 2. Cloudflare
+
+- `kaffepos.my.id` menuju frontend Coolify.
+- `www.kaffepos.my.id` redirect atau CNAME ke web utama.
+- `api.kaffepos.my.id` menuju backend Coolify.
+- SSL/TLS mode: `Full (strict)` jika origin certificate valid.
+- Always Use HTTPS: aktif.
+- API caching: bypass untuk `api.kaffepos.my.id/*`.
+- Web caching: boleh cache static assets, jangan cache HTML app shell terlalu agresif saat release.
+- Pastikan tidak ada mixed content HTTP dari web/APK.
+
+## 3. Midtrans
+
+- Dashboard Midtrans memakai environment production.
+- Notification URL:
+  - `https://api.kaffepos.my.id/api/payments/midtrans/webhook`
+- Frontend memakai production client key.
+- Backend memakai production server key dan merchant id.
+- Metode aktif sesuai produk:
+  - QRIS
+  - BCA VA
+  - Mandiri Bill / `echannel`
+  - BNI VA
+  - BRI VA
+- Smoke:
+  - pending tetap pending
+  - settlement membuka lisensi
+  - cancel/expire/deny tidak membuka lisensi
+  - webhook replay tidak membuat subscription dobel
+
+## 4. Clarity
+
+- `VITE_CLARITY_PROJECT_ID=wf7x39iiqr` ada di frontend production.
+- Tracking script hanya muncul satu kali dengan id `kaffepos-clarity`.
+- Verifikasi setelah deploy:
+  - buka `https://kaffepos.my.id`
+  - login dan pindah tab
+  - cek Clarity dashboard menerima session baru
+  - cek `/system-status` untuk warning analytics frontend
+
+## 5. PostgreSQL / Backend
+
+- Jalankan backup sebelum migration/bootstrap.
+- Jalankan `database/production-bootstrap.sql` ke DB production-like/production.
+- Validasi:
+
+```bash
+curl -fsS https://api.kaffepos.my.id/health
+curl -fsS https://api.kaffepos.my.id/health/db
+curl -fsS https://api.kaffepos.my.id/system-status
+```
+
+- Pastikan `warnings` kosong atau hanya warning non-blocking yang disetujui.
+- Jalankan smoke blocker production:
+
+```bash
+npm run smoke:production:readiness
+```
+
+## 6. Android USB Debugging
+
+- Aktifkan Developer Options dan USB Debugging di device.
+- Build dan sync asset terbaru:
+
+```bash
+npm run android:usb-debug
+```
+
+- Install langsung:
+
+```bash
+INSTALL=1 npm run android:usb-debug
+```
+
+- Smoke di device:
+  - login
+  - session restore setelah app ditutup
+  - POS tunai
+  - QRIS/payment online saat koneksi aktif
+  - mode offline lalu reconnect
+  - printer config tetap ada
+
+## 7. Go / No-Go
+
+Go-live jika:
+
+- `npm run check` hijau.
+- `npm run build:mobile` hijau.
+- `npm run android:usb-debug` hijau minimal sampai APK debug terbentuk.
+- `npm run smoke:production:readiness` hijau.
+- `/health`, `/health/db`, `/system-status` hijau.
+- Payment production settlement berhasil membuka lisensi.
+- Clarity menerima session.
+- Tidak ada env Supabase.
+
+No-go jika:
+
+- production masih memakai Midtrans sandbox.
+- API web/APK mengarah ke staging/local.
+- webhook tidak reachable.
+- CORS menolak APK atau web production.
+- APK ter-install dari asset lama.
+- Ada duplicate payment/subscription/transaction pada replay.

@@ -1,4 +1,4 @@
- 
+import type { Permission, UserRole } from '@/lib/accessControl';
  
  
  
@@ -63,6 +63,9 @@ export interface Transaction {
   cashier?: string; note?: string|null;
   is_void: boolean; void_reason?: string|null;
   void_at?: string|null; void_by?: string|null;
+  sync_status?: 'synced' | 'pending' | 'syncing' | 'failed' | 'conflicted';
+  sync_error?: string | null;
+  local_only?: boolean;
   created_at?: string;
   kitchen_order?: KitchenOrder | null;
 }
@@ -137,6 +140,12 @@ export interface CashRegister {
 export interface Profile {
   id: string; username?: string; display_name?: string;
   email?: string; avatar_url?: string;
+  role?: UserRole; permissions?: Permission[];
+  account_status?: 'active' | 'inactive';
+  owner_id?: string;
+  assigned_store_id?: string;
+  assigned_store_name?: string;
+  assignment_status?: 'active' | 'inactive';
   tier?: string;       // 'pro' | 'basic' — kolom utama subscription state
   tier_expires_at?: string;
   is_pro?: boolean;    // kolom legacy (fallback)

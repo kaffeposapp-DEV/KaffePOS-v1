@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { 
-  Bell, CheckCircle2, ChefHat, Clock3, Flame, RefreshCw, 
-  SlidersHorizontal, Utensils, AlertCircle, Wifi, WifiOff 
+import {
+  Bell, CheckCircle2, ChefHat, Clock3, Flame, RefreshCw,
+  SlidersHorizontal, Utensils, AlertCircle, Wifi, WifiOff
 } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import type { KitchenOrder, KitchenOrderStatus, KitchenStation, Profile, ToastType } from '@/types';
@@ -11,18 +11,18 @@ interface Props {
   profile: Profile | null;
 }
 
-const STATUS_TABS: Array<{ id: KitchenOrderStatus; label: string; color: string }> = [
-  { id: 'pending', label: 'BARU', color: 'bg-amber-500' },
-  { id: 'preparing', label: 'PROSES', color: 'bg-sky-500' },
-  { id: 'ready', label: 'SIAP', color: 'bg-emerald-500' },
+const STATUS_TABS: Array<{ id: KitchenOrderStatus; label: string }> = [
+  { id: 'pending', label: 'Antrean Baru' },
+  { id: 'preparing', label: 'Proses' },
+  { id: 'ready', label: 'Siap Saji' },
 ];
 
 const STATIONS: Array<{ id: KitchenStation | 'all'; label: string }> = [
-  { id: 'all', label: 'SEMUA' },
-  { id: 'kitchen', label: 'KITCHEN' },
-  { id: 'bar', label: 'BAR' },
-  { id: 'dessert', label: 'DESSERT' },
-  { id: 'other', label: 'LAINNYA' },
+  { id: 'all', label: 'Semua' },
+  { id: 'kitchen', label: 'Kitchen' },
+  { id: 'bar', label: 'Bar' },
+  { id: 'dessert', label: 'Dessert' },
+  { id: 'other', label: 'Lainnya' },
 ];
 
 function minutesSince(value: string) {
@@ -66,7 +66,7 @@ export default function KitchenTab({ toast, profile }: Props) {
     connectKitchenRealtime,
     updateKitchenOrder,
   } = useStore();
-  
+
   const [status, setStatus] = useState<KitchenOrderStatus>('pending');
   const [station, setStation] = useState<KitchenStation | 'all'>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -121,88 +121,90 @@ export default function KitchenTab({ toast, profile }: Props) {
   const ConnectionIndicator = () => {
     const isConnected = kitchenRealtimeStatus === 'connected';
     const isError = kitchenRealtimeStatus === 'error' || kitchenRealtimeStatus === 'offline';
-    
+
     return (
-      <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest border transition-all ${
-        isConnected ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 
-        isError ? 'bg-red-500/10 border-red-500/20 text-red-400 animate-pulse' : 
-        'bg-amber-500/10 border-amber-500/20 text-amber-400'
+      <div className={`flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest border transition-all ${
+        isConnected ? 'bg-emerald-50 border-emerald-100 text-emerald-600' :
+        isError ? 'bg-rose-50 border-rose-100 text-rose-600 animate-pulse' :
+        'bg-amber-50 border-amber-100 text-amber-600'
       }`}>
-        {isConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
+        {isConnected ? <Wifi size={10} /> : <WifiOff size={10} />}
         {kitchenRealtimeStatus}
       </div>
     );
   };
 
   return (
-    <div className="flex-1 min-h-0 bg-[#0b0f19] text-white flex flex-col overflow-hidden font-sans">
-      {/* ── HEADER: PREMIUM DARK COMMAND CENTER ── */}
-      <header className="shrink-0 border-b border-white/5 bg-[#0b0f19] px-6 py-5 md:px-8">
+    <div className="flex-1 min-h-0 bg-slate-50 text-slate-900 flex flex-col overflow-hidden font-sans">
+      {/* ── HEADER: CLEAN & FAMILIAR APK STYLE ── */}
+      <header className="shrink-0 bg-white border-b border-slate-200/60 px-5 pt-5 pb-4 md:px-8 z-10">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-lg shadow-orange-500/20">
-              <ChefHat size={30} strokeWidth={2.5} />
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FF6A00]/10 text-[#FF6A00] shadow-soft border border-[#FF6A00]/20">
+              <ChefHat size={24} strokeWidth={2.5} />
             </div>
             <div>
-              <h2 className="text-2xl font-black tracking-tighter italic uppercase md:text-3xl">Kitchen Console</h2>
+              <h2 className="font-display text-xl font-extrabold text-slate-800 tracking-tight">Antrean Dapur</h2>
               <div className="mt-1 flex items-center gap-3">
                 <ConnectionIndicator />
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Op: {operatorName}</span>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Operator: {operatorName}</span>
               </div>
             </div>
           </div>
-          
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-center gap-2">
             <button
               onClick={() => { setSoundOn(!soundOn); if (!soundOn) playChime(); }}
-              className={`flex h-12 w-12 items-center justify-center rounded-2xl border-2 transition-all active:scale-90 ${
-                soundOn ? 'border-orange-500 bg-orange-500 text-white' : 'border-white/10 bg-white/5 text-slate-400'
+              className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-all active:scale-95 ${
+                soundOn ? 'border-orange-500 bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'border-slate-200 bg-white text-slate-400 hover:bg-slate-50'
               }`}
+              title="Bunyi order baru"
             >
-              <Bell size={20} />
+              <Bell size={18} />
             </button>
             <button
               onClick={() => storeId && loadKitchenOrders(storeId)}
-              className="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-white/10 bg-white/5 text-slate-400 transition-all active:scale-90 hover:border-white/20"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-400 transition-all active:scale-95 hover:bg-slate-50"
+              title="Refresh"
             >
-              <RefreshCw size={20} className={kitchenRealtimeStatus === 'connecting' || kitchenRealtimeStatus === 'reconnecting' ? 'animate-spin' : ''} />
+              <RefreshCw size={18} className={kitchenRealtimeStatus === 'connecting' || kitchenRealtimeStatus === 'reconnecting' ? 'animate-spin' : ''} />
             </button>
           </div>
         </div>
 
-        {/* ── STATUS TABS: BOLD & INTERACTIVE ── */}
-        <div className="mt-8 flex flex-wrap items-center gap-3">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setStatus(tab.id)}
-              className={`relative flex h-12 items-center rounded-2xl px-6 text-xs font-black uppercase tracking-tighter italic transition-all active:scale-95 ${
-                status === tab.id 
-                  ? 'bg-white text-slate-900 shadow-xl' 
-                  : 'bg-white/5 text-slate-400 hover:bg-white/10'
-              }`}
-            >
-              <span className="relative z-10">{tab.label}</span>
-              <span className={`ml-3 flex h-6 min-w-[24px] items-center justify-center rounded-lg px-1.5 text-[10px] font-black leading-none ${
-                status === tab.id ? 'bg-slate-900 text-white' : 'bg-white/10 text-slate-300'
-              }`}>
-                {counts[tab.id] || 0}
-              </span>
-            </button>
-          ))}
-          
-          <div className="mx-2 h-8 w-px bg-white/10 hidden md:block" />
-          
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-            <SlidersHorizontal size={14} className="shrink-0 text-slate-600 mr-1" />
+        {/* ── FILTER TABS: ONE-TONE WITH POS ── */}
+        <div className="mt-6 flex flex-col gap-4">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-5 px-5">
+            {STATUS_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setStatus(tab.id)}
+                className={`shrink-0 h-10 px-6 rounded-2xl text-[13px] font-bold transition-all border flex items-center gap-3 ${
+                  status === tab.id
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-premium'
+                    : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                {tab.label}
+                <span className={`flex h-5 min-w-[20px] items-center justify-center rounded-lg px-2 text-[10px] font-bold ${
+                  status === tab.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'
+                }`}>
+                  {counts[tab.id] || 0}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-5 px-5 pb-1">
+            <SlidersHorizontal size={14} className="shrink-0 text-slate-300 mr-1" />
             {STATIONS.map((st) => (
               <button
                 key={st.id}
                 onClick={() => setStation(st.id)}
-                className={`h-9 shrink-0 rounded-xl px-4 text-[10px] font-black uppercase tracking-widest transition-all ${
-                  station === st.id 
-                    ? 'bg-orange-500 text-white' 
-                    : 'border border-white/10 text-slate-500 hover:text-slate-300'
+                className={`shrink-0 h-8 rounded-xl px-4 text-[10px] font-black uppercase tracking-widest transition-all ${
+                  station === st.id
+                    ? 'bg-orange-50 text-orange-600 border border-orange-100'
+                    : 'text-slate-400 hover:text-slate-600'
                 }`}
               >
                 {st.label}
@@ -212,66 +214,69 @@ export default function KitchenTab({ toast, profile }: Props) {
         </div>
       </header>
 
-      {/* ── MAIN CONTENT: ORDER STREAM ── */}
-      <main className="flex-1 overflow-y-auto p-6 md:p-8 bg-[#080b14] custom-scrollbar">
+      {/* ── MAIN CONTENT: CONSISTENT GRID ── */}
+      <main className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
         {filteredOrders.length === 0 ? (
-          <div className="flex h-full min-h-[400px] flex-col items-center justify-center text-center">
-            <div className="relative mb-6">
-              <div className="absolute inset-0 bg-orange-500/20 blur-3xl rounded-full" />
-              <ChefHat size={80} className="text-slate-800 relative z-10 opacity-20" />
+          <div className="flex h-full min-h-[360px] flex-col items-center justify-center text-center opacity-40">
+            <div className="w-24 h-24 bg-slate-100 rounded-[40px] flex items-center justify-center mb-6">
+              <ChefHat size={48} className="text-slate-300" />
             </div>
-            <p className="text-2xl font-black text-slate-700 italic uppercase tracking-tighter">Belum ada pesanan</p>
-            <p className="mt-2 text-sm font-bold text-slate-500 uppercase tracking-widest">Dapur bersih! Santai sejenak.</p>
+            <p className="text-lg font-black text-slate-800 uppercase italic tracking-tighter">Dapur Bersih</p>
+            <p className="mt-1 text-xs font-bold text-slate-400 uppercase tracking-widest">Belum ada pesanan yang masuk.</p>
           </div>
         ) : (
-          <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 animate-in fade-in duration-500">
+          <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 animate-in fade-in duration-300">
             {filteredOrders.map((order) => {
               const action = nextAction(order.overall_status);
               const minutes = minutesSince(order.created_at);
               const isFresh = minutes < 2 && order.overall_status === 'pending';
               const ActionIcon = action?.icon;
-              
+
               return (
                 <article
                   key={order.id}
-                  className={`group relative flex flex-col rounded-[32px] bg-white text-slate-900 shadow-2xl transition-all duration-300 hover:-translate-y-1 ${
-                    isFresh ? 'ring-4 ring-orange-500 animate-in zoom-in-95' : ''
+                  className={`group relative flex flex-col rounded-[32px] bg-white border border-slate-200/80 shadow-[0_4px_20px_rgb(0,0,0,0.03)] transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:-translate-y-1 ${
+                    isFresh ? 'bg-amber-50/30 border-amber-200' : ''
                   }`}
                 >
-                  {/* Card Glow for new orders */}
-                  {isFresh && <div className="absolute -inset-1 bg-orange-500 blur-xl opacity-20 rounded-[32px] animate-pulse" />}
-
-                  <div className="relative z-10 flex flex-col h-full">
+                  <div className="flex flex-col h-full">
                     {/* Header: Order Info */}
-                    <div className="flex items-start justify-between p-6 border-b border-slate-100">
-                      <div>
-                        <div className="flex items-center gap-3 mb-1">
-                          <h3 className="text-3xl font-black tracking-tighter italic uppercase text-slate-900 leading-none">
-                            {order.order_number}
-                          </h3>
-                          {isFresh && (
-                            <span className="flex h-6 items-center rounded-lg bg-orange-500 px-2 text-[10px] font-black text-white uppercase tracking-tighter animate-bounce">
-                              BARU
-                            </span>
-                          )}
+                    <div className="p-5 pb-4 border-b border-slate-100">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Order ID</p>
+                          <div className="flex items-center gap-3">
+                            <h3 className="font-display text-2xl font-extrabold text-slate-800 tracking-tight uppercase leading-none">
+                              {order.order_number}
+                            </h3>
+                            {isFresh && (
+                              <span className="flex h-5 items-center rounded-lg bg-[#FF6A00] px-2 text-[10px] font-bold text-white uppercase tracking-wider">
+                                BARU
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">
-                            {order.table_number || order.customer_name || 'WALK-IN'}
-                          </p>
+                        <div className="flex flex-col items-end">
+                          <div className="flex items-center gap-1.5 text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
+                            <Clock3 size={12} />
+                            <span className={`text-[11px] font-bold uppercase tracking-wider ${minutes > 15 ? 'text-rose-500' : ''}`}>
+                              {minutes === 0 ? 'Tadi' : `${minutes}m`}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end">
-                        <div className="flex items-center gap-1.5 text-slate-400">
-                          <Clock3 size={12} />
-                          <span className={`text-[11px] font-black uppercase ${minutes > 10 ? 'text-red-500' : ''}`}>
-                            {minutes === 0 ? 'TADI' : `${minutes} MIN`}
-                          </span>
+
+                      <div className="mt-4 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                           <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                           <p className="text-[13px] font-bold text-slate-600 truncate">
+                             {order.table_number || order.customer_name || 'Walk-in'}
+                           </p>
                         </div>
-                        <span className={`mt-2 rounded-lg px-2 py-1 text-[9px] font-black uppercase tracking-widest ${
-                          order.overall_status === 'pending' ? 'bg-amber-100 text-amber-600' :
-                          order.overall_status === 'preparing' ? 'bg-sky-100 text-sky-600' :
-                          'bg-emerald-100 text-emerald-600'
+                        <span className={`rounded-lg px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                          order.overall_status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                          order.overall_status === 'preparing' ? 'bg-sky-100 text-sky-700' :
+                          'bg-emerald-100 text-emerald-700'
                         }`}>
                           {order.overall_status}
                         </span>
@@ -279,27 +284,25 @@ export default function KitchenTab({ toast, profile }: Props) {
                     </div>
 
                     {/* Body: Items */}
-                    <div className="flex-1 divide-y divide-slate-50 overflow-hidden">
+                    <div className="flex-1 divide-y divide-slate-50">
                       {order.items
                         .filter((item) => station === 'all' || item.station === station)
                         .map((item) => (
-                          <div key={item.id} className="p-6 flex gap-4 transition-colors group-hover:bg-slate-50/50">
-                            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-2xl font-black text-white shadow-inner">
+                          <div key={item.id} className="p-5 flex gap-4">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-slate-900 text-lg font-extrabold text-white shadow-soft font-display">
                               {item.qty}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2 mb-1">
-                                <p className="text-lg font-black leading-none text-slate-900 italic uppercase tracking-tight truncate">
-                                  {item.item_name}
-                                </p>
-                                <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-400 border border-slate-200/50">
-                                  {item.station}
-                                </span>
-                              </div>
+                              <p className="text-[15px] font-bold text-slate-800 leading-tight mb-1 truncate">
+                                {item.item_name}
+                              </p>
+                              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                                {item.station}
+                              </p>
                               {item.note && (
-                                <div className="mt-3 flex gap-2 rounded-2xl border-2 border-amber-200/50 bg-amber-50 p-3 shadow-sm">
-                                  <AlertCircle size={14} className="shrink-0 text-amber-600 mt-0.5" />
-                                  <p className="text-xs font-black text-amber-900 leading-snug uppercase tracking-tight">
+                                <div className="mt-3 flex gap-2 rounded-2xl bg-amber-50/80 border border-amber-100 p-3">
+                                  <AlertCircle size={12} className="shrink-0 text-amber-500 mt-0.5" />
+                                  <p className="text-[11px] font-bold text-amber-800 leading-snug">
                                     {item.note}
                                   </p>
                                 </div>
@@ -309,24 +312,21 @@ export default function KitchenTab({ toast, profile }: Props) {
                         ))}
                     </div>
 
-                    {/* Footer: Action */}
+                    {/* Footer: Action Button */}
                     {action && ActionIcon && (
-                      <div className="p-6 mt-auto">
+                      <div className="p-5 pt-2">
                         <button
                           type="button"
                           disabled={busyId === order.id}
                           onClick={() => handleAdvance(order)}
-                          className={`relative w-full h-16 flex items-center justify-center gap-3 rounded-[24px] text-sm font-black text-white uppercase tracking-[0.2em] italic shadow-xl transition-all active:scale-[0.97] disabled:opacity-50 overflow-hidden group/btn ${action.color}`}
+                          className={`relative w-full h-12 flex items-center justify-center gap-3 rounded-[20px] text-[13px] font-bold text-white uppercase tracking-widest transition-all active:scale-[0.97] disabled:opacity-50 overflow-hidden shadow-premium ${action.color} ${action.color === 'bg-orange-500' ? 'bg-[#FF6A00] hover:bg-[#ef934b]' : ''}`}
                         >
-                          {/* Inner shimmer effect */}
-                          <div className="absolute inset-0 block bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover/btn:animate-[shimmer_1.5s_infinite]" />
-                          
                           {busyId === order.id ? (
-                            <RefreshCw size={22} className="animate-spin" />
+                            <RefreshCw size={18} className="animate-spin" />
                           ) : (
                             <>
-                              <ActionIcon size={22} strokeWidth={2.5} />
-                              <span className="relative z-10">{action.label}</span>
+                              <ActionIcon size={18} strokeWidth={2.5} />
+                              <span>{action.label}</span>
                             </>
                           )}
                         </button>
@@ -339,23 +339,20 @@ export default function KitchenTab({ toast, profile }: Props) {
           </div>
         )}
       </main>
-      
+
       <style>{`
-        @keyframes shimmer {
-          100% { transform: translateX(100%); }
-        }
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: #080b14;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #1e293b;
-          border-radius: 10px;
-        }
         .no-scrollbar::-webkit-scrollbar {
           display: none;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #e2e8f0;
+          border-radius: 10px;
         }
       `}</style>
     </div>

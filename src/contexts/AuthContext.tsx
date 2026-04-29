@@ -20,6 +20,7 @@ import { loginSchema, signUpSchema } from '@/utils/validation';
 import { buildSubscriptionAccess, hasSubscriptionFeature, type SubscriptionAccess, type SubscriptionFeature } from '@/lib/subscriptionAccess';
 import type { SubscriptionPlanId } from '@/lib/subscriptionPlans';
 import { APP_PRESERVED_STORAGE_KEYS } from '@/lib/appUpgrade';
+import { getPermissionsForRole, hasPermission, normalizeUserRole, type Permission, type UserRole } from '@/lib/accessControl';
 
 type AuthCtx = {
   user: AuthUser | null;
@@ -28,6 +29,9 @@ type AuthCtx = {
   subscriptionPlan: SubscriptionPlanId;
   subscriptionAccess: SubscriptionAccess;
   hasFeature: (feature: SubscriptionFeature) => boolean;
+  role: UserRole;
+  permissions: Permission[];
+  can: (permission: Permission) => boolean;
   isAuthenticated: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
@@ -45,13 +49,24 @@ const AuthCtx = createContext<AuthCtx | null>(null);
 const PRESERVED_LOCAL_KEYS = ['kpos_app_theme', 'kpos_app_theme_custom', ...APP_PRESERVED_STORAGE_KEYS];
 
 function buildUser(profile: Profile, fallbackEmail?: string | null): AuthUser {
+  const role = normalizeUserRole(profile.role);
   return {
     id: profile.id,
     email: profile.email ?? fallbackEmail ?? null,
     user_metadata: {
       display_name: profile.display_name ?? null,
       username: profile.username ?? null,
+      role,
     },
+  };
+}
+
+function normalizeProfileAccess(profile: Profile): Profile {
+  const role = normalizeUserRole(profile.role);
+  return {
+    ...profile,
+    role,
+    permissions: profile.permissions?.length ? profile.permissions : getPermissionsForRole(role),
   };
 }
 
@@ -108,10 +123,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const freshProfile = await getProfileMe();
+      const freshProfile = normalizeProfileAccess(await getProfileMe() as Profile);
       if (!mounted.current) return;
-      setProfile(freshProfile as Profile);
-      setUser(buildUser(freshProfile as Profile, session.user.email));
+      setProfile(freshProfile);
+      setUser(buildUser(freshProfile, session.user.email));
     } catch {
       if (mounted.current) {
         setProfile(null);
@@ -122,10 +137,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshProfile = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const freshProfile = await getProfileMe();
+      const freshProfile = normalizeProfileAccess(await getProfileMe() as Profile);
       if (!mounted.current) return;
-      setProfile(freshProfile as Profile);
-      setUser((current) => current ? buildUser(freshProfile as Profile, current.email) : current);
+      setProfile(freshProfile);
+      setUser((current) => current ? buildUser(freshProfile, current.email) : current);
     } catch (error) {
       console.error('[Auth] refreshProfile failed', error);
     }
@@ -157,7 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         try {
           const current = await getAuthSession();
-          const resolvedProfile = current.profile as Profile;
+          const resolvedProfile = normalizeProfileAccess(current.profile as Profile);
           await applySession(
             {
               accessToken: cached.accessToken,
@@ -167,6 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 user_metadata: {
                   display_name: resolvedProfile.display_name ?? null,
                   username: resolvedProfile.username ?? null,
+                  role: resolvedProfile.role,
                 },
               },
             },
@@ -204,7 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       const result = await loginRequest(parsed);
-      const resolvedProfile = result.profile as Profile;
+      const resolvedProfile = normalizeProfileAccess(result.profile as Profile);
       await applySession(
         {
           accessToken: result.accessToken,
@@ -324,6 +340,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const subscriptionAccess = useMemo(() => buildSubscriptionAccess(profile), [profile]);
+  const role = useMemo(() => normalizeUserRole(profile?.role ?? user?.user_metadata?.role), [profile?.role, user?.user_metadata]);
+  const permissions = useMemo(() => profile?.permissions?.length ? profile.permissions : getPermissionsForRole(role), [profile?.permissions, role]);
 
   const value = useMemo<AuthCtx>(() => ({
     user,
@@ -332,6 +350,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     subscriptionPlan: subscriptionAccess.plan,
     subscriptionAccess,
     hasFeature: (feature) => hasSubscriptionFeature(subscriptionAccess, feature),
+    role,
+    permissions,
+    can: (permission) => hasPermission(role, permission),
     isAuthenticated: Boolean(user),
     loading,
     signIn,
@@ -346,9 +367,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }), [
     loading,
     profile,
+    permissions,
     refreshProfile,
     resendVerification,
     resetPassword,
+    role,
     signIn,
     signInWithGoogle,
     signOut,

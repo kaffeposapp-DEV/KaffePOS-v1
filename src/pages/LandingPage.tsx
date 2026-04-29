@@ -1,20 +1,16 @@
 import { useState, useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  BarChart3, 
-  Download, 
+import {
+  BarChart3,
   ShieldCheck,
-  Smartphone, 
-  Star, 
-  Store, 
+  Smartphone,
+  Store,
   Zap,
   ArrowRight,
   Menu,
   X,
-  Rocket, 
   ArrowUp,
   Coffee,
-  Check,
   Lock,
   Instagram,
   MessageCircle,
@@ -25,21 +21,24 @@ import {
   Shield,
   FileText,
   FileCheck,
-  Scale
+  Scale,
+  ShoppingBag,
+  Package,
+  Tag,
+  Users,
+  Headset,
+  Cloud,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import LOGO_WEB from '@/assets/logo-kaffeposweb.svg';
 import LOGO_ICON from '@/assets/logo-kaffeposappicon.svg';
-import PREVIEW_BRAND from '@/assets/preview-brand.jpg';
-import PREVIEW_REPORT from '@/assets/preview-report.jpg';
-import PREVIEW_LICENSE from '@/assets/preview-license.jpg';
 
 const NAV_LINKS = [
+  { name: 'Beranda', href: '#top' },
   { name: 'Fitur', href: '#features' },
   { name: 'Harga', href: '#pricing' },
-  { name: 'Testimoni', href: '#testimonials' },
-  { name: 'Download APK', href: '#download' },
+  { name: 'Tentang', href: '#about' },
+  { name: 'Kontak', href: '#contact' },
 ];
 
 type FeatureTitle =
@@ -51,7 +50,7 @@ type FeatureTitle =
 type SafeContentKey = 'ADVISORY' | 'TERMS' | 'PRIVACY' | 'AUDIT';
 
 type MarketingFeature = {
-  title: FeatureTitle;
+  title: string;
   desc: string;
   icon: LucideIcon;
   color: string;
@@ -83,7 +82,7 @@ const PRICING = [
     period: '/bulan',
     desc: 'Naik kelas dari catatan manual ke operasional yang lebih stabil.',
     features: ['Transaksi unlimited', 'Export PDF & Excel', 'Laporan mingguan/bulanan', 'Cetak browser / WiFi'],
-    color: 'border-white/5 bg-white/[0.01]'
+    color: 'border-slate-100 bg-white'
   },
   {
     name: 'Signature',
@@ -91,7 +90,7 @@ const PRICING = [
     period: '/bulan',
     desc: 'Paket paling pas untuk bisnis yang ingin jalan lebih serius.',
     features: ['Transaksi unlimited', 'Multi kasir & cashier session', 'Thermal Bluetooth/USB', 'AI Insight penjualan'],
-    color: 'border-[#d8823b]/50 bg-[#d8823b]/5'
+    color: 'border-[#FF6A00]/20 bg-orange-50/30'
   },
   {
     name: 'Founder',
@@ -99,34 +98,46 @@ const PRICING = [
     period: '/bulan',
     desc: 'Untuk outlet intensif yang butuh paket paling lengkap dan dukungan lebih cepat.',
     features: ['Semua fitur Signature', 'Pendampingan setup prioritas', 'Review operasional berkala', 'Jalur bantuan lebih cepat'],
-    color: 'border-white/5 bg-white/[0.01]'
+    color: 'border-slate-100 bg-white'
   }
 ];
 
 const FEATURES: MarketingFeature[] = [
   {
-    title: 'Smart Cloud POS',
-    desc: 'Transaksi instan, struk digital, dan sinkronisasi real-time antar perangkat tanpa delay.',
-    icon: Store,
-    color: 'bg-emerald-500/10 text-emerald-400',
+    title: 'Penjualan Cepat',
+    desc: 'Proses transaksi cepat dan mudah dengan tampilan yang intuitif.',
+    icon: ShoppingBag,
+    color: 'bg-orange-50 text-[#FF6A00]',
   },
   {
-    title: 'Manajemen Stok (RECIPE)',
-    desc: 'Hitung HPP otomatis. Stok bahan baku terpotong otomatis saat menu terjual.',
-    icon: Zap,
-    color: 'bg-orange-500/10 text-orange-400',
+    title: 'Kelola Produk',
+    desc: 'Kelola produk, variasi, kategori, dan harga dengan mudah.',
+    icon: Package,
+    color: 'bg-orange-50 text-[#FF6A00]',
   },
   {
-    title: 'Laporan Dashboard AI',
-    desc: 'Analisis penjualan harian, produk terlaris, hingga prediksi stok berbasis AI.',
+    title: 'Manajemen Stok',
+    desc: 'Pantau stok real-time dan dapatkan notifikasi stok menipis.',
+    icon: Tag,
+    color: 'bg-orange-50 text-[#FF6A00]',
+  },
+  {
+    title: 'Laporan Lengkap',
+    desc: 'Laporan penjualan, stok, dan keuntungan lengkap dan akurat.',
     icon: BarChart3,
-    color: 'bg-blue-500/10 text-blue-400',
+    color: 'bg-orange-50 text-[#FF6A00]',
   },
   {
-    title: 'Keamanan Berlapis',
-    desc: 'Akses akun diverifikasi, data sinkron lewat koneksi aman, dan pemisahan data toko dijaga di server.',
-    icon: ShieldCheck,
-    color: 'bg-purple-500/10 text-purple-400',
+    title: 'Kelola Pelanggan',
+    desc: 'Simpan data pelanggan dan riwayat transaksi dengan rapi.',
+    icon: Users,
+    color: 'bg-orange-50 text-[#FF6A00]',
+  },
+  {
+    title: 'Multi Perangkat',
+    desc: 'Akses aplikasi di berbagai perangkat dengan sinkronisasi real-time.',
+    icon: Smartphone,
+    color: 'bg-orange-50 text-[#FF6A00]',
   },
 ];
 
@@ -156,6 +167,15 @@ const FEATURE_DETAILS: Record<FeatureTitle, FeatureDetail> = {
     icon: ShieldCheck,
   },
 };
+
+function getFeatureDetail(title: string): FeatureDetail {
+  return FEATURE_DETAILS[title as FeatureTitle] ?? {
+    highlights: ['Mudah dipakai', 'Sinkronisasi aman', 'Siap operasional', 'Dukungan lintas perangkat'],
+    details: 'Fitur ini dirancang agar operasional harian tetap cepat, rapi, dan mudah dipahami oleh tim.',
+    stats: { metric: 'Ready', value: 'POS' },
+    icon: HelpCircle,
+  };
+}
 
 const SAFE_CONTENT: Record<SafeContentKey, SafeContentItem> = {
   ADVISORY: {
@@ -259,6 +279,10 @@ const TESTIMONIALS = [
   },
 ];
 
+void PRICING;
+void FEATURES;
+void TESTIMONIALS;
+
 
 // Reusable Counter Component
 function Counter({ end, duration = 2000, suffix = "" }: { end: number, duration?: number, suffix?: string }) {
@@ -292,6 +316,153 @@ function Counter({ end, duration = 2000, suffix = "" }: { end: number, duration?
   }, [isVisible, end, duration]);
 
   return <div ref={countRef} className="tabular-nums">{count.toLocaleString('id-ID')}{suffix}</div>;
+}
+
+void Counter;
+
+function DashboardPreview() {
+  const chartBars = [32, 44, 38, 52, 68, 48, 59, 76, 62, 84, 95, 118];
+  const topProducts = ['Americano', 'Latte', 'Cappuccino', 'Caramel Macchiato'];
+
+  return (
+    <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_26px_80px_rgba(15,23,42,0.12)]">
+      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+        <div className="flex items-center gap-2" aria-label="KaffePOS dashboard">
+          <img src={LOGO_ICON} alt="" className="h-7 w-7 object-contain" />
+          <span className="text-sm font-extrabold text-slate-900">Kaffe<span className="text-[#FF6A00]">POS</span></span>
+        </div>
+        <div className="flex items-center gap-3 text-slate-400">
+          <div className="h-8 w-8 rounded-full bg-slate-100" />
+          <div>
+            <p className="text-xs font-bold text-slate-700">Barista</p>
+            <p className="text-[10px] text-slate-400">Pemilik</p>
+          </div>
+        </div>
+      </div>
+      <div className="grid min-h-[360px] grid-cols-[150px_1fr] bg-slate-50/60">
+        <div className="hidden border-r border-slate-100 bg-white p-4 sm:block">
+          {['Dashboard', 'Penjualan', 'Produk', 'Stok', 'Pelanggan', 'Laporan'].map((item, index) => (
+            <div
+              key={item}
+              className={`mb-2 flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-bold ${
+                index === 0 ? 'bg-orange-50 text-[#FF6A00]' : 'text-slate-500'
+              }`}
+            >
+              <span className={`h-2 w-2 rounded-full ${index === 0 ? 'bg-[#FF6A00]' : 'bg-slate-200'}`} />
+              {item}
+            </div>
+          ))}
+        </div>
+        <div className="p-4 sm:p-5">
+          <p className="mb-4 text-sm font-extrabold text-slate-900">Ringkasan</p>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              ['Penjualan Hari Ini', 'Rp 2.450.000', '+12.5%'],
+              ['Transaksi', '128', '+8.2%'],
+              ['Pelanggan Baru', '25', '+15.4%'],
+              ['Produk Terjual', '320', '+10.1%'],
+            ].map(([label, value, growth]) => (
+              <div key={label} className="rounded-lg border border-slate-100 bg-white p-3 shadow-sm">
+                <p className="text-[10px] font-bold text-slate-400">{label}</p>
+                <p className="mt-2 text-sm font-extrabold text-slate-900 sm:text-base">{value}</p>
+                <p className="mt-1 text-[10px] font-bold text-emerald-600">{growth} dari kemarin</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_220px]">
+            <div className="rounded-lg border border-slate-100 bg-white p-4 shadow-sm">
+              <p className="text-xs font-extrabold text-slate-900">Grafik Penjualan</p>
+              <div className="mt-5 flex h-36 items-end gap-2 border-b border-l border-slate-100 pl-2">
+                {chartBars.map((height, index) => (
+                  <div
+                    key={`${height}-${index}`}
+                    className="flex-1 rounded-t bg-[#FF6A00]"
+                    style={{ height: `${height}px`, opacity: 0.45 + index / 24 }}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-100 bg-white p-4 shadow-sm">
+              <p className="mb-3 text-xs font-extrabold text-slate-900">Penjualan Terlaris</p>
+              <div className="space-y-3">
+                {topProducts.map((item, index) => (
+                  <div key={item} className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="h-8 w-8 rounded-lg bg-orange-100" />
+                      <span className="truncate text-xs font-bold text-slate-700">
+                        {index + 1}. {item}
+                      </span>
+                    </div>
+                    <span className="text-xs font-bold text-slate-500">{120 - index * 18}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MobileCheckoutPreview() {
+  const rows = [
+    ['Americano', 'Rp 18.000'],
+    ['Latte', 'Rp 22.000'],
+    ['Cappuccino', 'Rp 22.000'],
+    ['Caramel Macchiato', 'Rp 24.000'],
+  ];
+
+  return (
+    <div className="w-[210px] overflow-hidden rounded-[30px] border-[8px] border-slate-900 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.22)]">
+      <div className="flex items-center justify-between px-4 py-3 text-[10px] font-bold text-slate-900">
+        <span>16:04</span>
+        <span className="h-4 w-16 rounded-full bg-slate-900" />
+      </div>
+      <div className="border-t border-slate-100 px-4 pb-4 pt-3">
+        <div className="mb-4 flex items-center justify-between">
+          <span className="text-sm font-extrabold text-slate-900">Transaksi Baru</span>
+          <span className="text-slate-400">•••</span>
+        </div>
+        <div className="mb-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-400">
+          Cari produk
+        </div>
+        <div className="space-y-3">
+          {rows.map(([name, price]) => (
+            <div key={name} className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-orange-100" />
+                <div>
+                  <p className="text-[11px] font-bold text-slate-900">{name}</p>
+                  <p className="text-[9px] text-slate-400">1 item</p>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold text-slate-700">{price}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-3">
+          <span className="text-xs font-bold text-slate-500">Total</span>
+          <span className="text-sm font-extrabold text-slate-900">Rp 86.000</span>
+        </div>
+        <button className="mt-4 h-10 w-full rounded-lg bg-[#FF6A00] text-xs font-extrabold text-white">
+          Bayar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function LandingDeviceShowcase() {
+  return (
+    <div data-testid="reference-device-showcase" className="relative mx-auto w-full max-w-[760px]">
+      <div className="absolute -right-8 top-16 hidden h-52 w-52 rounded-full bg-orange-100/70 lg:block" aria-hidden="true" />
+      <DashboardPreview />
+      <div className="absolute -bottom-8 -right-2 hidden md:block lg:-right-16">
+        <MobileCheckoutPreview />
+      </div>
+    </div>
+  );
 }
 
 export default function LandingPage() {
@@ -334,7 +505,7 @@ export default function LandingPage() {
     const targetId = id.replace('#', '');
     const element = document.getElementById(targetId);
     if (element) {
-      element.scrollIntoView({ 
+      element.scrollIntoView({
         behavior: 'smooth',
         block: 'start'
       });
@@ -374,11 +545,14 @@ export default function LandingPage() {
     setIsFeatureDetailOpen(true);
   };
 
-  const BRAND_ACCENT = '#d8823b';
+  void handleDownload;
+  void handleFeatureClick;
+
+  const BRAND_ACCENT = '#FF6A00';
 
   return (
-    <div id="top" className="min-h-screen bg-[#0b0f19] text-slate-100 font-sans selection:bg-[#d8823b]/30 overflow-x-hidden">
-      
+    <div id="top" className="kaffe-app-bg min-h-screen text-slate-900 font-sans selection:bg-[#FF6A00]/20 overflow-x-hidden">
+
       {/* WCAG Skip Link */}
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:bg-white focus:text-black focus:px-6 focus:py-3 focus:rounded-xl focus:font-black">
         Skip to main content
@@ -394,7 +568,7 @@ export default function LandingPage() {
         }
       `}} />
       <div className="fixed inset-0 pointer-events-none z-0" aria-hidden="true">
-        <div 
+        <div
           className="absolute inset-0 opacity-[0.03]"
           style={{
             backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)',
@@ -404,126 +578,130 @@ export default function LandingPage() {
       </div>
 
       {/* Navbar */}
-      <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-        isScrolled 
-          ? 'bg-[#0b0f19]/90 backdrop-blur-2xl border-b border-white/5 py-2 shadow-2xl' 
-          : 'bg-[#0b0f19]/30 backdrop-blur-xl py-4'
+      <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        isScrolled
+          ? 'bg-white/95 backdrop-blur-xl border-b border-slate-200/70 py-3 shadow-sm'
+          : 'bg-white/90 backdrop-blur-xl border-b border-slate-100 py-4'
       }`}>
         <nav className="max-w-[1400px] mx-auto px-6 md:px-12 flex items-center justify-between" aria-label="Main Navigation">
-          <div 
-            className="flex items-center gap-4 cursor-pointer group focus-visible:ring-4 focus-visible:ring-[#d8823b]/50 outline-none rounded-2xl transition-all" 
+          <div
+            className="flex items-center gap-4 cursor-pointer group focus-visible:ring-4 focus-visible:ring-[#FF6A00]/50 outline-none rounded-2xl transition-all"
             onClick={() => scrollToTarget('#top')}
             role="button"
             tabIndex={0}
             onKeyDown={handleLogoKeyDown}
           >
-            <div className="h-10 md:h-12 lg:h-14 flex items-center justify-center group-hover:scale-105 transition-transform duration-500 ease-out">
+            <div className="flex items-center gap-3 group-hover:scale-105 transition-transform duration-500 ease-out">
               <img
-                src={LOGO_WEB}
-                alt="KaffePOS Home"
-                className="h-full w-auto object-contain drop-shadow-2xl"
+                src={LOGO_ICON}
+                alt=""
+                className="h-10 w-10 object-contain md:h-11 md:w-11"
                 loading="eager"
               />
+              <span className="text-2xl font-extrabold tracking-tight text-slate-900 md:text-[28px]">
+                Kaffe<span className="text-[#FF6A00]">POS</span>
+              </span>
             </div>
           </div>
 
           {/* Desktop Navigation */}
-          <ul className="hidden lg:flex items-center gap-12 list-none">
+          <ul className="hidden lg:flex items-center gap-10 list-none">
             {NAV_LINKS.map(link => (
               <li key={link.name}>
-                <a 
+                <a
                   href={link.href}
-                  onClick={(e) => scrollToSection(e, link.href)} 
-                  className="text-[16px] font-black text-slate-100 hover:text-[#d8823b] transition-all focus-visible:text-[#d8823b] outline-none drop-shadow-lg py-2 px-1 relative group"
+                  onClick={(e) => scrollToSection(e, link.href)}
+                  className={`text-[15px] font-bold transition-all focus-visible:text-[#FF6A00] outline-none py-2 px-1 relative group ${
+                    isScrolled ? 'text-slate-600 hover:text-slate-900' : 'text-slate-700 hover:text-slate-900'
+                  }`}
                 >
                   {link.name}
-                  <span className="absolute bottom-0 left-0 w-0 h-1 bg-[#d8823b] transition-all group-hover:w-full rounded-full" />
+                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#FF6A00] rounded-full transition-all group-hover:w-full" />
                 </a>
               </li>
             ))}
           </ul>
 
-          <div className="hidden md:flex items-center gap-6">
+          <div className="hidden md:flex items-center gap-5">
             {isAuthenticated ? (
-              <button 
+              <button
                 onClick={() => navigate('/')}
-                className="bg-slate-800 hover:bg-slate-700 text-white px-8 py-4 rounded-[20px] text-[15px] font-black transition-all border border-white/10 shadow-2xl group flex items-center gap-3"
+                className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-3 rounded-lg text-[14px] font-bold transition-all shadow-sm group flex items-center gap-2"
               >
-                Dashboard <ArrowRight size={18} className="group-hover:translate-x-1.5 transition-transform" />
+                Dashboard <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
               </button>
             ) : (
               <>
-                <button 
+                <button
                   onClick={() => navigate('/login')}
-                  className="text-slate-100 hover:text-white px-6 py-3 text-[15px] font-black transition-all focus-visible:ring-4 focus-visible:ring-[#d8823b]/30 rounded-xl"
+                  className="text-slate-600 hover:text-slate-900 px-4 py-2.5 text-[14px] font-bold transition-all rounded-lg"
                 >
                   Masuk
                 </button>
-                <button 
+                <button
                   onClick={() => navigate('/register')}
-                  className="bg-[#d8823b] hover:bg-[#ef934b] text-[#0b0f19] px-10 py-4 rounded-[20px] text-[15px] font-black transition-all shadow-[0_20px_40px_rgba(216,130,59,0.3)] hover:-translate-y-1 active:translate-y-0"
+                  className="bg-[#FF6A00] hover:bg-[#FF8A1C] text-white px-6 py-3 rounded-lg text-[14px] font-extrabold transition-all shadow-[0_10px_24px_rgba(255,106,0,0.2)]"
                 >
-                  Gabung Gratis
+                  Coba Gratis
                 </button>
               </>
             )}
           </div>
 
-          <button 
-            className="lg:hidden text-white w-14 h-14 flex items-center justify-center bg-slate-900/80 rounded-2xl border border-white/10 shadow-xl backdrop-blur-md" 
+          <button
+            className="lg:hidden text-slate-900 w-11 h-11 flex items-center justify-center bg-white rounded-lg border border-slate-200 shadow-sm"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label={mobileMenuOpen ? "Tutup menu" : "Buka menu"}
             aria-expanded={mobileMenuOpen}
           >
-            {mobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </nav>
 
         {/* Mobile Menu Overlay - Reference: MELD-style Clean UX */}
-        <div 
+        <div
           className={`fixed inset-0 z-[100] lg:hidden transition-all duration-300 ${
             mobileMenuOpen ? 'visible opacity-100' : 'invisible opacity-0'
           }`}
           aria-hidden={!mobileMenuOpen}
         >
-          {/* Solid Backdrop */}
-          <div 
-            className="absolute inset-0 bg-[#0b0f19] transition-opacity"
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
             onClick={() => setMobileMenuOpen(false)}
           />
-          
-          {/* Drawer Content - Optimized to match MELD reference */}
-          <div 
-            className={`absolute inset-x-0 top-0 bg-[#0b0f19]/95 backdrop-blur-2xl border-b border-white/5 transition-transform duration-500 ease-out flex flex-col ${
+
+          {/* Drawer Content */}
+          <div
+            className={`absolute inset-x-0 top-0 bg-white border-b border-slate-200 transition-transform duration-500 ease-out flex flex-col ${
               mobileMenuOpen ? 'translate-y-0' : '-translate-y-full'
             }`}
           >
             {/* Header Area */}
-            <div className="flex items-center justify-between p-8">
+            <div className="flex items-center justify-between p-6">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg border border-white/10 p-1 bg-white">
+                <div className="w-9 h-9 rounded-lg overflow-hidden shadow-soft p-1.5 bg-white border border-slate-100">
                   <img src={LOGO_ICON} alt="KaffePOS" className="w-full h-full object-contain" />
                 </div>
-                <span className="text-xl font-black text-white tracking-widest uppercase">KAFFEPOS</span>
+                <span className="text-lg font-extrabold text-slate-900 tracking-tight">Kaffe<span className="text-[#FF6A00]">POS</span></span>
               </div>
-              <button 
+              <button
                 onClick={() => setMobileMenuOpen(false)}
-                className="w-12 h-12 flex items-center justify-center text-white hover:bg-white/5 rounded-full transition-colors"
-                aria-label="Tutup menu"
+                className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-colors"
               >
-                <X size={32} />
+                <X size={24} />
               </button>
             </div>
 
             {/* Navigation Links Area */}
-            <div className="px-10 pb-12">
-              <div className="flex flex-col border-t border-white/5 py-8 space-y-8">
+            <div className="px-6 pb-10">
+              <div className="flex flex-col border-t border-slate-100 py-6 space-y-5">
                 {NAV_LINKS.map((link) => (
-                  <a 
-                    key={link.name} 
+                  <a
+                    key={link.name}
                     href={link.href}
-                    onClick={(e) => scrollToSection(e, link.href)} 
-                    className="text-2xl font-black text-white/90 hover:text-[#d8823b] transition-colors tracking-tighter uppercase italic"
+                    onClick={(e) => scrollToSection(e, link.href)}
+                    className="text-lg font-bold text-slate-700 hover:text-[#FF6A00] transition-colors"
                   >
                     {link.name}
                   </a>
@@ -531,18 +709,18 @@ export default function LandingPage() {
               </div>
 
               {/* Action Buttons Area */}
-              <div className="flex flex-col border-t border-white/5 pt-10 pb-6 gap-8 text-center">
-                <button 
+              <div className="flex flex-col border-t border-slate-100 pt-6 gap-4">
+                <button
                   onClick={() => { setMobileMenuOpen(false); navigate('/login'); }}
-                  className="text-xl font-black text-[#d8823b] hover:text-white transition-colors uppercase italic tracking-widest"
+                  className="w-full py-4 text-slate-600 font-bold hover:text-slate-900 transition-colors"
                 >
-                  MASUK AKUN
+                  Masuk Akun
                 </button>
-                <button 
+                <button
                   onClick={() => { setMobileMenuOpen(false); navigate('/register'); }}
-                  className="w-full bg-[#d8823b] text-[#0b0f19] py-6 rounded-[24px] font-black text-2xl shadow-2xl shadow-[#d8823b]/30 hover:scale-[1.02] active:scale-95 transition-all uppercase italic"
+                  className="w-full bg-[#FF6A00] text-white py-4 rounded-2xl font-bold shadow-lg shadow-[#FF6A00]/20"
                 >
-                  GABUNG GRATIS SEKARANG
+                  Gabung Gratis Sekarang
                 </button>
               </div>
             </div>
@@ -551,264 +729,156 @@ export default function LandingPage() {
       </header>
 
       <main id="main-content" className="relative z-10 pt-20 overflow-x-hidden">
-        
+
         {/* Hero Section */}
-        <section className="relative pt-24 pb-20 md:pt-48 md:pb-40 px-4 sm:px-6 overflow-x-hidden">
-          <div className="w-full max-w-7xl mx-auto text-center relative z-10 min-w-0">
-            <div className="inline-flex max-w-[calc(100vw-32px)] items-center justify-center gap-2 sm:gap-3 bg-white/[0.03] border border-white/10 px-3 sm:px-6 py-3 rounded-full mb-10 animate-in slide-up backdrop-blur-md">
-              <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse border-2 border-emerald-500/30" />
-              <span className="min-w-0 text-center text-[10px] sm:text-[12px] font-black text-slate-200 uppercase tracking-[0.08em] sm:tracking-[0.3em] break-words">AI-Powered Cloud POS v2.0</span>
+        <section className="relative overflow-hidden px-5 pb-14 pt-14 sm:px-6 md:pb-20 md:pt-24">
+          <div className="mx-auto grid min-w-0 max-w-7xl items-center gap-12 lg:grid-cols-[0.95fr_1.2fr]">
+            <div className="relative z-10 min-w-0 text-left">
+              <h1 className="max-w-[340px] break-words font-display text-[34px] font-extrabold leading-[1.14] text-slate-900 sm:max-w-[620px] sm:text-[52px] md:text-[64px]">
+                Sistem Kasir Modern Untuk <span className="text-[#FF6A00]">Bisnis Anda</span>
+              </h1>
+              <p className="mt-6 max-w-[340px] break-words text-base font-medium leading-8 text-slate-600 sm:max-w-[560px] md:text-lg">
+                kaffePOS adalah aplikasi kasir yang mudah digunakan, cepat, dan lengkap untuk mengelola penjualan, stok, pelanggan, dan laporan bisnis Anda.
+              </p>
+
+              <div className="mt-8 flex max-w-[340px] flex-col gap-3 sm:max-w-none sm:flex-row">
+                <button
+                  onClick={() => navigate('/register')}
+                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#FF6A00] px-7 text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(255,106,0,0.22)] hover:bg-[#ef6200] sm:w-auto"
+                >
+                  Coba Gratis 14 Hari <ArrowRight size={16} />
+                </button>
+                <a
+                  href="#features"
+                  onClick={(e) => scrollToSection(e, '#features')}
+                  className="inline-flex h-12 w-full items-center justify-center rounded-lg border border-[#FF6A00]/40 bg-white px-7 text-sm font-extrabold text-[#FF6A00] hover:bg-orange-50 sm:w-auto"
+                >
+                  Lihat Fitur
+                </a>
+              </div>
+
+              <div className="mt-10 grid max-w-[560px] gap-5 sm:grid-cols-3">
+                {[
+                  { title: 'Berbasis Cloud', desc: 'Akses kapan saja di mana saja', icon: Cloud },
+                  { title: 'Aman & Terpercaya', desc: 'Data bisnis aman terlindungi', icon: Shield },
+                  { title: 'Dukungan 24/7', desc: 'Tim support siap membantu Anda', icon: Headset },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.title} className="flex items-start gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-[#FF6A00]">
+                        <Icon size={19} />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-extrabold text-slate-900">{item.title}</h3>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">{item.desc}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            <h1 className="max-w-[calc(100vw-32px)] mx-auto text-[34px] sm:text-[48px] md:text-[64px] lg:text-[80px] font-black leading-[1.08] text-white tracking-normal mb-8 animate-in slide-up delay-100 break-words">
-               <span className="text-white">SISTEM POS</span> <br />
-               <span className="text-[#d8823b]">PROFESIONAL.</span>
-            </h1>
-            
-            <p className="max-w-[340px] sm:max-w-[800px] mx-auto text-[15px] sm:text-[18px] md:text-[24px] text-slate-300 font-medium leading-relaxed mb-16 sm:mb-20 animate-in slide-up delay-200 break-words">
-              Solusi manajemen operasional paling cerdas untuk UMKM. Kelola stok, pantau transaksi, dan scale-up bisnis Anda dalam satu dashboard intuitif.
-            </p>
+            <LandingDeviceShowcase />
+          </div>
+        </section>
 
-            <div className="w-full max-w-[350px] sm:max-w-none mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-5 sm:gap-6 animate-in slide-up delay-300">
-              <button 
+        {/* Partner Section */}
+        <section className="bg-white px-5 py-10 sm:px-6">
+          <div className="mx-auto max-w-7xl">
+            <p className="text-center text-xs font-semibold text-slate-400">Dipercaya oleh berbagai bisnis di Indonesia</p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-5 text-sm font-extrabold text-slate-500 md:gap-x-14">
+              <div className="flex items-center gap-2"><Coffee size={18} className="text-[#FF6A00]" /> Kopi Kita</div>
+              <div className="flex items-center gap-2"><Zap size={18} className="text-[#FF6A00]" /> Brewlicious</div>
+              <div className="flex items-center gap-2"><Store size={18} className="text-[#FF6A00]" /> Tanamera</div>
+              <div className="flex items-center gap-2"><Coffee size={18} className="text-[#FF6A00]" /> Daily Brew</div>
+              <div className="flex items-center gap-2"><Store size={18} className="text-[#FF6A00]" /> Kopi Nusantara</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="features" className="px-5 py-8 sm:px-6">
+          <div className="kaffe-soft-section mx-auto max-w-7xl rounded-[24px] px-5 py-8 md:px-8 md:py-10">
+            <h2 className="text-center font-display text-2xl font-extrabold text-slate-900 md:text-3xl">
+              Fitur Lengkap untuk Bisnis Anda
+            </h2>
+            <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              {FEATURES.map((feature) => {
+                const Icon = feature.icon;
+                return (
+                  <button
+                    key={feature.title}
+                    type="button"
+                    onClick={() => handleFeatureClick(feature)}
+                    className="rounded-lg bg-white px-4 py-6 text-center shadow-sm transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
+                  >
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-orange-50 text-[#FF6A00]">
+                      <Icon size={24} />
+                    </div>
+                    <h3 className="mt-5 text-sm font-extrabold text-slate-900">{feature.title}</h3>
+                    <p className="mt-3 text-xs leading-6 text-slate-500">{feature.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section id="about" className="px-5 py-12 sm:px-6 md:py-16">
+          <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[0.72fr_1.28fr]">
+            <div>
+              <p className="text-xs font-extrabold uppercase text-[#FF6A00]">Pantau Bisnis Anda</p>
+              <h2 className="mt-4 font-display text-3xl font-extrabold leading-tight text-slate-900 md:text-4xl">
+                Pantau Bisnis Anda dalam Sekejap
+              </h2>
+              <p className="mt-5 text-sm leading-7 text-slate-600 md:text-base">
+                Dashboard ringkasan menampilkan informasi penting untuk membantu Anda mengambil keputusan bisnis yang lebih baik.
+              </p>
+              <div className="mt-7 space-y-4">
+                {['Ringkasan penjualan harian', 'Grafik dan analisis penjualan', 'Produk terlaris', 'Transaksi terbaru'].map((item) => (
+                  <div key={item} className="flex items-center gap-3 text-sm font-semibold text-slate-700">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full border border-[#FF6A00] text-[11px] text-[#FF6A00]">✓</span>
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <DashboardPreview />
+          </div>
+        </section>
+
+        <section id="pricing" className="px-5 pb-16 sm:px-6 md:pb-20">
+          <div className="kaffe-cta-band mx-auto grid max-w-7xl items-center gap-8 rounded-[24px] p-6 md:grid-cols-[0.45fr_1fr_0.45fr] md:p-8">
+            <div className="hidden md:block">
+              <div className="mx-auto flex h-36 w-44 items-center justify-center rounded-[22px] border border-white/30 bg-white/92 shadow-[0_16px_40px_rgba(31,41,51,0.12)]">
+                <img src={LOGO_ICON} alt="KaffePOS checkout terminal" className="h-16 w-16" />
+              </div>
+            </div>
+            <div>
+              <h2 className="font-display text-2xl font-extrabold text-white md:text-3xl">
+                Siap Meningkatkan Efisiensi Bisnis Anda?
+              </h2>
+              <p className="mt-4 max-w-2xl text-sm font-medium leading-7 text-white/90">
+                Bergabunglah dengan bisnis yang menggunakan kaffePOS untuk mengelola bisnis mereka dengan lebih mudah.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-5 text-sm font-semibold text-white">
+                <span className="flex items-center gap-2"><ShieldCheck size={18} className="text-white" /> Gratis 14 Hari</span>
+                <span className="flex items-center gap-2"><Lock size={18} className="text-white" /> Tanpa Kartu Kredit</span>
+                <span className="flex items-center gap-2"><Zap size={18} className="text-white" /> Setup Mudah</span>
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 md:items-end">
+              <button
                 onClick={() => navigate('/register')}
-                className="w-full sm:w-auto min-w-0 bg-[#d8823b] hover:bg-[#ef934b] text-slate-950 px-5 sm:px-14 py-5 sm:py-7 rounded-[22px] sm:rounded-[28px] text-[16px] sm:text-[20px] font-black transition-all shadow-[0_30px_60px_rgba(216,130,59,0.4)] flex items-center justify-center gap-3 sm:gap-4 group hover:-translate-y-1.5 active:translate-y-0"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-white px-7 text-sm font-extrabold text-[#FF6A00] shadow-[0_14px_30px_rgba(31,41,51,0.16)] hover:bg-orange-50"
               >
-                <span className="min-w-0 whitespace-nowrap">Mulai Gratis Sekarang</span>
-                <ArrowRight size={20} strokeWidth={3} className="shrink-0 group-hover:translate-x-2 transition-transform" />
+                Coba Gratis Sekarang <ArrowRight size={16} />
               </button>
-              <a 
-                href="#download"
-                onClick={handleDownload}
-                className="w-full sm:w-auto min-w-0 bg-white/[0.03] border border-white/10 hover:bg-white/[0.08] text-white px-5 sm:px-14 py-5 sm:py-7 rounded-[22px] sm:rounded-[28px] text-[16px] sm:text-[20px] font-black transition-all flex items-center justify-center gap-3 sm:gap-4 hover:-translate-y-1.5 active:translate-y-0 backdrop-blur-sm"
-              >
-                <Smartphone size={20} className="shrink-0" />
-                <span className="min-w-0 whitespace-nowrap">Unduh Android APK</span>
+              <a href="https://wa.me/6285186076224" className="text-xs font-semibold text-white/85">
+                Atau hubungi kami untuk demo gratis
               </a>
             </div>
-
-
           </div>
-        </section>
-
-        {/* Dynamic Stats Section - With Counter Animation */}
-        <section className="py-24 md:py-36 bg-slate-950/90 border-y border-white/5 relative z-10 px-6">
-          <div className="max-w-7xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-12 md:gap-20">
-             <div className="text-center group p-6 rounded-[40px] hover:bg-white/[0.02] transition-colors">
-               <div className="text-4xl md:text-5xl lg:text-6xl font-black text-white mb-6 tracking-tighter group-hover:text-[#d8823b] transition-colors flex justify-center items-center">
-                 <Counter end={1200} suffix="+" />
-               </div>
-               <div className="text-[12px] md:text-[14px] text-slate-400 font-black uppercase tracking-[0.4em] mb-2 leading-none">Kafe Aktif</div>
-               <div className="text-[11px] text-[#d8823b] font-bold uppercase tracking-widest opacity-60">Verified Partners</div>
-             </div>
-             <div className="text-center group p-6 rounded-[40px] hover:bg-white/[0.02] transition-colors">
-               <div className="text-4xl md:text-5xl lg:text-6xl font-black text-white mb-6 tracking-tighter group-hover:text-[#d8823b] transition-colors flex justify-center items-center">
-                 <Counter end={4000000} suffix="+" />
-               </div>
-               <div className="text-[12px] md:text-[14px] text-slate-400 font-black uppercase tracking-[0.4em] mb-2 leading-none">Transaksi</div>
-               <div className="text-[11px] text-[#d8823b] font-bold uppercase tracking-widest opacity-60">Secured Volume</div>
-             </div>
-             <div className="text-center group p-6 rounded-[40px] hover:bg-white/[0.02] transition-colors">
-               <div className="text-4xl md:text-5xl lg:text-6xl font-black text-white mb-6 tracking-tighter group-hover:text-[#d8823b] transition-colors flex justify-center items-center">
-                 <Counter end={99} suffix=".9%" />
-               </div>
-               <div className="text-[12px] md:text-[14px] text-slate-400 font-black uppercase tracking-[0.4em] mb-2 leading-none">Uptime</div>
-               <div className="text-[11px] text-[#d8823b] font-bold uppercase tracking-widest opacity-60">Operasional Stabil</div>
-             </div>
-             <div className="text-center group p-6 rounded-[40px] bg-[#d8823b]/5 border border-[#d8823b]/10 transition-transform hover:-translate-y-2">
-               <div className="text-4xl md:text-5xl lg:text-6xl font-black text-[#d8823b] mb-6 tracking-tighter flex justify-center items-center">
-                 <Counter end={100} suffix="ms" duration={1500} />
-               </div>
-               <div className="text-[12px] md:text-[14px] text-slate-400 font-black uppercase tracking-[0.4em] mb-2 leading-none">Latency</div>
-               <div className="text-[11px] text-[#d8823b] font-bold uppercase tracking-widest">Global Speed</div>
-             </div>
-          </div>
-        </section>
-
-        {/* Features Grid - WCAG Enhanced */}
-        <section id="features" className="py-36 md:py-52 px-6 bg-[#0b0f19] relative z-10 scroll-mt-32">
-          <div className="max-w-6xl mx-auto">
-            <div className="flex flex-col md:flex-row items-center md:items-end justify-between gap-12 mb-32 text-center md:text-left">
-              <div className="max-w-3xl">
-                <span className="text-[#d8823b] font-bold uppercase tracking-[0.2em] text-[13px] mb-4 block">Platform Terpadu</span>
-                <h2 className="text-[36px] md:text-[54px] font-black text-white leading-[1.1] tracking-tight">
-                   MANAJEMEN <br />
-                   <span className="text-[#d8823b]">OPERASIONAL</span>
-                </h2>
-              </div>
-              <p className="text-slate-300 text-[18px] md:text-[22px] font-medium max-w-[420px] mx-auto md:mx-0 mb-4 leading-relaxed opacity-80">
-                 Teknologi yang dibangun untuk menangani lonjakan transaksi tanpa cacat, memberikan stabilitas bagi bisnis Anda.
-              </p>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-12">
-              {FEATURES.map((feature, i) => (
-                <div key={i} className="group relative p-10 md:p-16 rounded-[60px] bg-white/[0.015] border border-white/5 hover:border-[#d8823b]/50 hover:bg-white/[0.04] transition-all duration-700 overflow-hidden shadow-2xl backdrop-blur-sm flex flex-col items-center md:items-start text-center md:text-left">
-                  <div className="absolute -right-20 -top-20 w-64 h-64 bg-[#d8823b]/5 blur-[100px] rounded-full group-hover:bg-[#d8823b]/15 transition-all duration-700" />
-                  <div className="absolute top-0 right-0 p-12 opacity-5 group-hover:opacity-10 transition-opacity">
-                     <feature.icon size={120} strokeWidth={1} />
-                  </div>
-                  <div className={`w-24 h-24 rounded-[32px] flex items-center justify-center mb-12 transition-all group-hover:scale-110 group-hover:rotate-12 duration-700 shadow-3xl ${feature.color}`}>
-                    <feature.icon size={48} strokeWidth={2.5} />
-                  </div>
-                  <h3 className="text-4xl font-black text-white mb-8 tracking-tight group-hover:text-[#d8823b] transition-colors uppercase italic">{feature.title}</h3>
-                  <p className="text-slate-200 text-[20px] leading-relaxed mb-12 font-medium opacity-80 group-hover:opacity-100 transition-opacity">{feature.desc}</p>
-                  <button 
-                    onClick={() => handleFeatureClick(feature)}
-                    className="flex items-center gap-4 text-[15px] font-black text-[#d8823b] group-hover:gap-8 transition-all uppercase tracking-[0.3em] italic outline-none focus:ring-2 focus:ring-[#d8823b]/50 rounded-lg"
-                  >
-                    Master This Feature <ArrowRight size={22} strokeWidth={4} className="group-hover:translate-x-2 transition-transform" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Pricing Section */}
-        <section id="pricing" className="py-36 md:py-52 px-6 bg-slate-950/30 relative z-10 scroll-mt-32">
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-32">
-              <span className="text-[#d8823b] font-bold uppercase tracking-[0.2em] text-[13px] mb-4 block">Investasi Transparan</span>
-              <h2 className="text-[36px] md:text-[54px] font-black text-white tracking-tight leading-tight uppercase">PILIHAN PAKET.</h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-               {PRICING.map((p, i) => (
-                 <div key={i} className={`p-12 rounded-[50px] border ${p.color} backdrop-blur-sm transition-all duration-500 hover:-translate-y-4 group`}>
-                    <h3 className="text-2xl font-black text-white mb-2 uppercase italic tracking-widest">{p.name}</h3>
-                    <p className="text-slate-400 text-sm mb-10 font-medium h-[40px] leading-relaxed">{p.desc}</p>
-                    <div className="flex items-baseline gap-2 mb-10">
-                       <span className="text-white text-sm font-black uppercase">Rp</span>
-                       <span className="text-6xl font-black text-white tracking-tighter group-hover:text-[#d8823b] transition-colors">{p.price}</span>
-                       {p.period && <span className="text-slate-400 font-bold">{p.period}</span>}
-                    </div>
-                    <ul className="space-y-6 mb-12 border-t border-white/5 pt-10">
-                       {p.features.map((feature, idx) => (
-                         <li key={idx} className="flex items-center gap-4 text-slate-300 font-medium">
-                            <div className="w-6 h-6 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                               <Check size={14} strokeWidth={4} />
-                            </div>
-                            {feature}
-                         </li>
-                       ))}
-                    </ul>
-                    <button 
-                      onClick={() => navigate('/register')}
-                      className={`w-full py-6 rounded-[28px] font-black text-lg transition-all ${p.period ? 'bg-[#d8823b] text-slate-950' : 'bg-white/5 text-white hover:bg-white/10'}`}
-                    >
-                      {p.period ? 'Pilih Paket Pro' : 'Mulai Gratis'}
-                    </button>
-                 </div>
-               ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Testimonials - Enhanced Depth */}
-        <section id="testimonials" className="py-36 px-6 bg-slate-950/50 relative z-10 scroll-mt-32">
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-32">
-              <span className="text-[#d8823b] font-bold uppercase tracking-[0.2em] text-[13px] mb-4 block">Kepercayaan</span>
-              <h2 className="text-[36px] md:text-[54px] font-black text-white tracking-tight leading-tight uppercase">MITRA KAMI.</h2>
-            </div>
-
-            <div className="relative overflow-hidden group">
-              {/* Testimonial Track */}
-              <div className="flex gap-4 md:gap-8 overflow-x-auto pb-8 snap-x">
-                 {TESTIMONIALS.map((t, i) => (
-                   <div key={i} className="w-[300px] md:w-[380px] shrink-0 snap-center bg-white/[0.01] border border-white/10 p-6 md:p-10 rounded-[24px] hover:bg-white/[0.04] transition-all duration-300 shadow-xl ring-1 ring-white/5 group/card">
-                     <div className="flex gap-1.5 mb-8">
-                        {[...Array(t.rating)].map((_, i) => <Star key={i} size={16} fill="#d8823b" className="text-[#d8823b]" />)}
-                     </div>
-                     <blockquote className="text-slate-200 text-[18px] italic font-medium mb-10 leading-relaxed opacity-90 h-[100px] overflow-hidden">
-                       &ldquo;{t.body}&rdquo;
-                     </blockquote>
-                     <div className="flex items-center gap-5 pt-8 border-t border-white/5">
-                        <div className="w-14 h-14 rounded-2xl bg-[#d8823b]/10 border border-[#d8823b]/30 flex items-center justify-center text-[#d8823b] font-black text-xl">
-                           {t.name[0]}
-                        </div>
-                        <div>
-                          <div className="text-white font-black text-[16px] group-hover/card:text-[#d8823b] transition-colors">{t.name}</div>
-                          <div className="text-white/30 text-[11px] font-black uppercase tracking-widest">{t.handle}</div>
-                        </div>
-                     </div>
-                   </div>
-                 ))}
-              </div>
-
-              {/* Gradient Overlays */}
-              <div className="absolute inset-y-0 left-0 w-40 bg-gradient-to-r from-[#0b0f19] to-transparent z-10" />
-              <div className="absolute inset-y-0 right-0 w-40 bg-gradient-to-l from-[#0b0f19] to-transparent z-10" />
-            </div>
-          </div>
-        </section>
-
-        {/* APK CTA Section - Redesigned with Real Slanted Preview */}
-        <section id="download" className="py-36 px-6 overflow-hidden relative z-10 scroll-mt-32">
-          <div className="max-w-7xl mx-auto bg-gradient-to-br from-[#d8823b] to-[#c87635] rounded-[80px] p-12 md:p-32 relative shadow-[0_60px_200px_rgba(216,130,59,0.4)] ring-1 ring-white/20 group">
-             <div className="flex flex-col lg:flex-row items-center justify-between gap-16 lg:gap-24 relative z-10">
-               {/* Content Side */}
-               <div className="max-w-xl text-slate-950 text-center lg:text-left flex-1">
-                 <div className="w-24 h-24 bg-white/30 backdrop-blur-2xl rounded-[32px] flex items-center justify-center mb-10 mx-auto lg:mx-0 shadow-xl border border-white/20 overflow-hidden">
-                   <img src={LOGO_ICON} alt="KaffePOS System Icon" className="w-full h-full object-cover scale-110" />
-                 </div>
-                 <h2 className="text-[42px] md:text-[64px] font-black mb-6 leading-[1.1] tracking-tight text-white">KASIR <br />DI SAKU.</h2>
-                 <p className="text-white/80 text-[18px] md:text-[20px] mb-12 font-medium leading-relaxed">Performa andal dalam desain minimalis. Jualan offline, cetak struk instan, pantau stok kapanpun, dimanapun.</p>
-                 
-                 <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-6">
-                    <button 
-                      onClick={handleDownload}
-                      className="w-full sm:w-auto bg-slate-950 text-white px-12 py-6 rounded-[28px] font-black text-xl flex items-center justify-center gap-4 hover:scale-105 active:scale-95 hover:shadow-2xl transition-all group/btn"
-                    >
-                      <Download size={28} strokeWidth={3} className="group-hover/btn:translate-y-1 transition-transform" /> UNDUH APK
-                    </button>
-                 </div>
-               </div>
-
-               {/* Preview Side - Triple Fan */}
-               <div className="relative group/preview mt-12 lg:mt-0 flex-1 flex justify-center lg:justify-end scale-[0.8] sm:scale-85 md:scale-95 lg:scale-100 transition-transform pt-12">
-                  {/* Background Geometric Outline */}
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] md:w-[420px] aspect-[9/18] border-[2px] border-white/10 rounded-[100px] rotate-0 pointer-events-none z-0 transition-all duration-1000 group-hover/preview:rotate-6" />
-                  
-                  <div className="relative flex items-end justify-center animate-in zoom-in fade-in slide-in-from-bottom-20 duration-1000 ease-out z-10">
-                     {/* Phone Left */}
-                     <div className="relative w-[150px] md:w-[200px] aspect-[9/19.5] rounded-[40px] border-[6px] border-slate-950 bg-slate-900 overflow-hidden shadow-2xl -rotate-[6deg] -translate-x-12 translate-y-8 z-10 group-hover/preview:-rotate-[10deg] group-hover/preview:-translate-x-20 transition-all duration-700">
-                        <img src={PREVIEW_BRAND} alt="Tampilan Pengaturan Brand KaffePOS" className="w-full h-full object-cover opacity-80 group-hover/preview:opacity-100 transition-opacity" />
-                     </div>
-
-                     {/* Phone Center */}
-                     <div className="relative w-[180px] md:w-[240px] aspect-[9/19.5] rounded-[45px] border-[8px] border-slate-950 bg-slate-900 overflow-hidden shadow-[0_50px_100px_rgba(0,0,0,0.5)] z-30 group-hover/preview:scale-105 transition-all duration-700">
-                        <img src={PREVIEW_REPORT} alt="Dashboard Laporan Penjualan KaffePOS" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
-                     </div>
-
-                     {/* Phone Right */}
-                     <div className="relative w-[150px] md:w-[200px] aspect-[9/19.5] rounded-[40px] border-[6px] border-slate-950 bg-slate-900 overflow-hidden shadow-2xl rotate-[6deg] translate-x-12 translate-y-8 z-10 group-hover/preview:rotate-[10deg] group-hover/preview:translate-x-20 transition-all duration-700">
-                        <img src={PREVIEW_LICENSE} alt="Manajemen Langganan KaffePOS" className="w-full h-full object-cover opacity-80 group-hover/preview:opacity-100 transition-opacity" />
-                     </div>
-                  </div>
-               </div>
-             </div>
-          </div>
-        </section>
-
-        {/* Global CTA - Final Punch */}
-        <section className="py-52 px-6 text-center border-t border-white/5 relative z-10">
-          <h2 className="text-[60px] md:text-[120px] lg:text-[160px] font-black text-white mb-20 tracking-tighter italic leading-none opacity-90 drop-shadow-2xl">DOMINASI BI<br className="md:hidden" />SNIS ANDA. ⚡</h2>
-          <div className="flex flex-wrap justify-center gap-8 mb-28">
-             {['OTP Verification', 'Row-Level Security', 'Auto-Sync Ready'].map((badge, i) => (
-               <div key={i} className="flex items-center gap-4 px-6 md:px-10 py-3 md:py-5 rounded-[40px] border border-white/10 bg-white/5 text-[11px] md:text-[14px] font-black text-slate-200 uppercase tracking-[0.4em] shadow-lg whitespace-nowrap">
-                 <ShieldCheck size={20} className="text-[#d8823b]" /> {badge}
-               </div>
-             ))}
-          </div>
-          <button 
-            onClick={() => navigate('/register')}
-            className="bg-white text-slate-950 px-12 md:px-24 py-6 md:py-10 rounded-[30px] md:rounded-[40px] text-[18px] md:text-[28px] font-black hover:scale-[1.1] active:scale-100 transition-all shadow-[0_0_80px_rgba(255,255,255,0.2)] md:shadow-[0_0_120px_rgba(255,255,255,0.3)] font-sans italic uppercase tracking-widest ring-4 md:ring-8 ring-white/10"
-          >
-            SAYA MAU GABUNG!
-          </button>
         </section>
 
       </main>
@@ -816,25 +886,25 @@ export default function LandingPage() {
       {/* Download Warning Modal */}
       {showDownloadWarning && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-10">
-           <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-xl animate-in fade-in duration-300" onClick={() => setShowDownloadWarning(false)} />
-           <div className="relative bg-[#0b0f19] border border-white/10 p-10 md:p-12 rounded-[50px] max-w-[540px] w-full shadow-[0_50px_100px_rgba(0,0,0,0.8)] animate-in zoom-in slide-in-from-bottom-10 duration-500">
-              <div className="w-24 h-24 bg-[#d8823b]/10 rounded-[32px] flex items-center justify-center mb-10 mx-auto border border-[#d8823b]/20">
+           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-300" onClick={() => setShowDownloadWarning(false)} />
+           <div className="relative bg-white border border-slate-100 p-10 md:p-12 rounded-[50px] max-w-[540px] w-full shadow-premium animate-in zoom-in slide-in-from-bottom-10 duration-500">
+              <div className="w-24 h-24 bg-[#FF6A00]/5 rounded-[32px] flex items-center justify-center mb-10 mx-auto border border-[#FF6A00]/10">
                  <Lock size={48} style={{ color: BRAND_ACCENT }} />
               </div>
-              <h3 className="text-4xl md:text-5xl font-black text-white text-center mb-6 italic leading-tight uppercase tracking-tighter">PERLU PENDAFTARAN. 🛡️</h3>
-              <p className="text-slate-300 text-lg md:text-xl text-center mb-10 font-medium leading-relaxed">
+              <h3 className="text-4xl md:text-5xl font-black text-slate-900 text-center mb-6 italic leading-tight uppercase tracking-tighter">PERLU PENDAFTARAN. 🛡️</h3>
+              <p className="text-slate-500 text-lg md:text-xl text-center mb-10 font-medium leading-relaxed">
                  Fitur unduh APK hanya tersedia untuk pemilik outlet terdaftar guna menjaga keamanan dan lisensi Dashboard Anda.
               </p>
               <div className="flex flex-col gap-4">
-                 <button 
+                 <button
                    onClick={() => navigate('/register')}
-                   className="w-full bg-[#d8823b] text-slate-950 py-6 rounded-[24px] font-black text-xl shadow-[0_20px_40px_rgba(216,130,59,0.3)] hover:scale-105 transition-all uppercase italic"
+                   className="w-full bg-[#FF6A00] text-white py-6 rounded-[24px] font-black text-xl shadow-premium hover:scale-[1.02] transition-all uppercase italic"
                  >
                    Daftar Gratis Sekarang
                  </button>
-                 <button 
+                 <button
                    onClick={() => setShowDownloadWarning(false)}
-                   className="w-full bg-white/5 text-white py-6 rounded-[24px] font-black text-lg hover:bg-white/10 transition-all uppercase tracking-widest"
+                   className="w-full bg-slate-50 text-slate-400 py-6 rounded-[24px] font-black text-lg hover:bg-slate-100 transition-all uppercase tracking-widest"
                  >
                    Nanti Saja
                  </button>
@@ -846,61 +916,61 @@ export default function LandingPage() {
       {/* Feature Intelligence Detail Overlay */}
       {isFeatureDetailOpen && selectedFeature && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 md:p-10">
-           <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-3xl animate-in fade-in duration-500" onClick={() => setIsFeatureDetailOpen(false)} />
-           
-           <div className="relative bg-[#0b0f19] border border-white/10 rounded-[60px] max-w-[900px] w-full max-h-[90vh] overflow-hidden shadow-[0_100px_200px_rgba(0,0,0,0.9)] animate-in zoom-in slide-in-from-bottom-20 duration-700 flex flex-col md:flex-row">
+           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-500" onClick={() => setIsFeatureDetailOpen(false)} />
+
+           <div className="relative bg-white border border-slate-100 rounded-[60px] max-w-[900px] w-full max-h-[90vh] overflow-hidden shadow-premium animate-in zoom-in slide-in-from-bottom-20 duration-700 flex flex-col md:flex-row">
               {/* Left Side: Visual/Metric */}
-              <div className={`md:w-1/2 p-12 flex flex-col items-center justify-center relative overflow-hidden bg-gradient-to-br from-[#0b0f19] to-slate-900`}>
-                 <div className="absolute inset-0 opacity-10">
-                    <div className="absolute top-0 right-0 w-96 h-96 bg-[#d8823b] blur-[150px] rounded-full" />
+              <div className={`md:w-1/2 p-12 flex flex-col items-center justify-center relative overflow-hidden bg-slate-50`}>
+                 <div className="absolute inset-0 opacity-5">
+                    <div className="absolute top-0 right-0 w-96 h-96 bg-[#FF6A00] blur-[150px] rounded-full" />
                  </div>
 
                  {(() => {
-                    const detail = FEATURE_DETAILS[selectedFeature.title];
+                    const detail = getFeatureDetail(selectedFeature.title);
                     const DetailIcon = detail?.icon || HelpCircle;
                     return (
                        <div className="relative z-10 text-center">
-                          <div className={`w-32 h-32 rounded-[40px] flex items-center justify-center mx-auto mb-10 shadow-3xl bg-[#d8823b]/10 border border-[#d8823b]/20 text-[#d8823b] animate-bounce duration-[4000ms]`}>
+                          <div className={`w-32 h-32 rounded-[40px] flex items-center justify-center mx-auto mb-10 shadow-premium bg-white border border-[#FF6A00]/10 text-[#FF6A00] animate-bounce duration-[4000ms]`}>
                              <DetailIcon size={64} strokeWidth={1.5} />
                           </div>
-                          <div className="text-[12px] font-black uppercase tracking-[0.6em] text-[#d8823b] mb-4 opacity-60">{detail.stats.metric}</div>
-                          <div className="text-7xl font-black text-white italic tracking-tighter mb-2">{detail.stats.value}</div>
-                          <div className="w-16 h-1 bg-[#d8823b] mx-auto rounded-full mt-8" />
+                          <div className="text-[12px] font-black uppercase tracking-[0.6em] text-slate-400 mb-4 opacity-60">{detail.stats.metric}</div>
+                          <div className="text-7xl font-black text-slate-900 italic tracking-tighter mb-2">{detail.stats.value}</div>
+                          <div className="w-16 h-1.5 bg-[#FF6A00] mx-auto rounded-full mt-8" />
                        </div>
                     );
                  })()}
               </div>
 
               {/* Right Side: Logic/Content */}
-              <div className="md:w-1/2 p-12 md:p-16 overflow-y-auto bg-slate-950/50">
-                 <button 
+              <div className="md:w-1/2 p-12 md:p-16 overflow-y-auto bg-white">
+                 <button
                    onClick={() => setIsFeatureDetailOpen(false)}
-                   className="absolute top-8 right-8 text-slate-500 hover:text-white transition-colors"
+                   className="absolute top-8 right-8 text-slate-400 hover:text-slate-900 transition-colors"
                  >
                     <X size={32} />
                  </button>
 
-                 <h3 className="text-4xl md:text-5xl font-black text-white mb-8 tracking-tighter italic leading-none uppercase">
+                 <h3 className="text-4xl md:text-5xl font-black text-slate-900 mb-8 tracking-tighter italic leading-none uppercase">
                     {selectedFeature.title}
                  </h3>
-                 
-                 <p className="text-slate-300 text-[18px] md:text-[20px] font-medium leading-relaxed mb-12 opacity-80">
-                    {FEATURE_DETAILS[selectedFeature.title]?.details}
+
+                 <p className="text-slate-500 text-[18px] md:text-[20px] font-medium leading-relaxed mb-12">
+                    {getFeatureDetail(selectedFeature.title).details}
                  </p>
 
                  <div className="space-y-6">
-                    <h4 className="text-[11px] font-black text-[#d8823b] uppercase tracking-[0.5em] mb-4">Technical Advantage</h4>
-                    {FEATURE_DETAILS[selectedFeature.title]?.highlights.map((h: string, idx: number) => (
+                    <h4 className="text-[11px] font-black text-[#FF6A00] uppercase tracking-[0.5em] mb-4">Technical Advantage</h4>
+                    {getFeatureDetail(selectedFeature.title).highlights.map((h: string, idx: number) => (
                        <div key={idx} className="flex items-center gap-5 group/item">
-                          <div className="w-2 h-2 rounded-full bg-[#d8823b] group-hover/item:scale-150 transition-transform" />
-                          <span className="text-white font-black text-[16px] tracking-tight group-hover/item:text-[#d8823b] transition-colors italic uppercase">{h}</span>
+                          <div className="w-2 h-2 rounded-full bg-[#FF6A00] group-hover/item:scale-150 transition-transform" />
+                          <span className="text-slate-900 font-black text-[16px] tracking-tight group-hover/item:text-[#FF6A00] transition-colors italic uppercase">{h}</span>
                        </div>
                     ))}
                  </div>
 
-                 <button 
+                 <button
                    onClick={() => setIsFeatureDetailOpen(false)}
-                   className="mt-16 w-full py-6 rounded-[24px] bg-white/5 border border-white/10 text-white font-black hover:bg-white/10 transition-all uppercase tracking-widest italic"
+                   className="mt-16 w-full py-6 rounded-[24px] bg-slate-50 border border-slate-100 text-slate-500 font-black hover:bg-slate-100 transition-all uppercase tracking-widest italic"
                  >
                     Kembali Ke Welcome Page
                  </button>
@@ -912,14 +982,14 @@ export default function LandingPage() {
       {/* Safe Detail Overlay - Legal & Advisory */}
       {isSafeDetailOpen && selectedSafeItem && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 md:p-10">
-           <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-3xl animate-in fade-in duration-500" onClick={() => setIsSafeDetailOpen(false)} />
-           
-           <div className="relative bg-[#0b0f19] border border-white/10 rounded-[60px] max-w-[800px] w-full max-h-[85vh] overflow-hidden shadow-[0_100px_200px_rgba(0,0,0,0.9)] animate-in zoom-in slide-in-from-bottom-20 duration-700 flex flex-col">
+           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-500" onClick={() => setIsSafeDetailOpen(false)} />
+
+           <div className="relative bg-white border border-slate-100 rounded-[60px] max-w-[800px] w-full max-h-[85vh] overflow-hidden shadow-premium animate-in zoom-in slide-in-from-bottom-20 duration-700 flex flex-col">
               {/* Header Box */}
-              <div className="p-12 md:p-16 bg-gradient-to-br from-slate-900 to-[#0b0f19] border-b border-white/5 relative">
-                 <button 
+              <div className="p-12 md:p-16 bg-slate-50 border-b border-slate-100 relative">
+                 <button
                    onClick={() => setIsSafeDetailOpen(false)}
-                   className="absolute top-8 right-8 text-slate-500 hover:text-white transition-colors"
+                   className="absolute top-8 right-8 text-slate-400 hover:text-slate-900 transition-colors"
                  >
                     <X size={32} />
                  </button>
@@ -929,47 +999,47 @@ export default function LandingPage() {
                        const item = SAFE_CONTENT[selectedSafeItem];
                        const ItemIcon = item?.icon || Shield;
                        return (
-                          <div className="w-20 h-20 rounded-[28px] bg-[#d8823b]/10 border border-[#d8823b]/20 flex items-center justify-center text-[#d8823b]">
+                          <div className="w-20 h-20 rounded-[28px] bg-white border border-slate-100 shadow-soft flex items-center justify-center text-[#FF6A00]">
                              <ItemIcon size={40} />
                           </div>
                        );
                     })()}
                     <div>
-                       <h3 className="text-4xl md:text-5xl font-black text-white italic tracking-tighter uppercase leading-none">
+                       <h3 className="text-4xl md:text-5xl font-black text-slate-900 italic tracking-tighter uppercase leading-none">
                           {selectedSafeItem}
                        </h3>
-                       <p className="text-[#d8823b] font-black text-[12px] uppercase tracking-[0.5em] mt-3 italic">Kebijakan & Keamanan</p>
+                       <p className="text-[#FF6A00] font-black text-[12px] uppercase tracking-[0.5em] mt-3 italic">Kebijakan & Keamanan</p>
                     </div>
                  </div>
 
-                 <p className="text-slate-300 text-lg md:text-xl font-medium leading-relaxed opacity-80 max-w-2xl">
+                 <p className="text-slate-500 text-lg md:text-xl font-medium leading-relaxed max-w-2xl">
                     {SAFE_CONTENT[selectedSafeItem]?.description}
                  </p>
               </div>
 
               {/* Scrollable Content Area */}
-              <div className="flex-1 overflow-y-auto p-12 md:p-16 bg-slate-950/30">
+              <div className="flex-1 overflow-y-auto p-12 md:p-16 bg-white">
                  <div className="space-y-12">
                     {SAFE_CONTENT[selectedSafeItem]?.points.map((p, idx: number) => (
                        <div key={idx} className="group/safe-item">
                           <div className="flex items-center gap-5 mb-4">
-                             <div className="w-6 h-[2px] bg-[#d8823b]/50 group-hover/safe-item:w-10 group-hover/safe-item:bg-[#d8823b] transition-all" />
-                             <h4 className="text-white font-black text-xl italic uppercase tracking-tight group-hover/safe-item:text-[#d8823b] transition-colors">
+                             <div className="w-6 h-[2.5px] bg-[#FF6A00]/30 group-hover/safe-item:w-10 group-hover/safe-item:bg-[#FF6A00] transition-all" />
+                             <h4 className="text-slate-900 font-black text-xl italic uppercase tracking-tight group-hover/safe-item:text-[#FF6A00] transition-colors">
                                 {p.title}
                              </h4>
                           </div>
-                          <p className="text-slate-400 text-lg leading-relaxed ml-11 font-medium group-hover/safe-item:text-slate-200 transition-colors">
+                          <p className="text-slate-500 text-lg leading-relaxed ml-11 font-medium">
                              {p.detail}
                           </p>
                        </div>
                     ))}
                  </div>
 
-                 <div className="mt-20 pt-12 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-8">
-                    <div className="text-slate-500 text-sm font-black italic tracking-widest">VERIFIED BY KAFFEPOS PLATFORM INTERNAL AUDIT . 2026</div>
-                    <button 
+                 <div className="mt-20 pt-12 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-8">
+                    <div className="text-slate-400 text-sm font-black italic tracking-widest uppercase">Platform Internal Audit &bull; 2026</div>
+                    <button
                       onClick={() => setIsSafeDetailOpen(false)}
-                      className="px-12 py-5 rounded-[20px] bg-white/5 text-white font-black text-sm hover:bg-white/10 transition-all uppercase tracking-[0.3em] italic border border-white/10"
+                      className="px-12 py-5 rounded-[20px] bg-slate-50 text-slate-500 font-black text-sm hover:bg-slate-100 transition-all uppercase tracking-[0.3em] italic border border-slate-100"
                     >
                        Tutup Dokumen
                     </button>
@@ -979,121 +1049,72 @@ export default function LandingPage() {
         </div>
       )}
 
-      {/* Footer - Solid & Enterprise */}
-      <footer className="py-32 px-6 border-t border-white/5 bg-slate-950/95 relative z-10" role="contentinfo">
-        {/* Animated Coffee Beans Floating in Background */}
-        <div className="absolute top-[20%] left-[5%] opacity-10 animate-float hidden lg:block">
-           <Coffee size={40} strokeWidth={1.5} className="text-[#d8823b]" />
-        </div>
-        <div className="absolute bottom-[40%] right-[10%] opacity-10 animate-float hidden lg:block" style={{ animationDelay: '2s' }}>
-           <Coffee size={60} strokeWidth={1.5} className="text-[#d8823b]" />
-        </div>
-
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-24 mb-32 text-center md:text-left">
-            <div className="col-span-2">
-              <div className="flex justify-center md:justify-start mb-12 group cursor-pointer" onClick={() => navigate('/welcome')}>
-                <div className="h-16 md:h-20 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                  <img
-                    src={LOGO_WEB}
-                    alt="KaffePOS"
-                    className="h-full w-auto object-contain opacity-100"
-                    loading="eager"
-                  />
-                </div>
-              </div>
-              <p className="text-slate-400 text-[17px] font-medium leading-relaxed max-w-[320px] mx-auto md:mx-0 opacity-80">
-                Membangun ekosistem digital untuk kemandirian ekonomi UMKM Indonesia. Teknologi lokal kualitas global.
+      <footer className="kaffe-footer relative z-10 px-6 py-12">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
+            <div>
+              <button className="mb-5 flex items-center gap-3" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-50 ring-1 ring-orange-100">
+                  <img src={LOGO_ICON} alt="" className="h-7 w-7" />
+                </span>
+                <span className="text-2xl font-extrabold text-slate-900">Kaffe<span className="text-[#FF6A00]">POS</span></span>
+              </button>
+              <p className="max-w-sm text-sm font-medium leading-7 text-slate-600">
+                Sistem kasir modern yang membantu bisnis Anda berkembang lebih cepat dan efisien.
               </p>
             </div>
-            
-            <div className="col-span-1">
-              <h4 className="text-white font-black text-sm mb-12 uppercase tracking-[0.4em] opacity-100 italic">CORE</h4>
-              <ul className="space-y-8 text-sm text-slate-400 font-black list-none p-0 tracking-widest">
-                <li className="hover:text-[#d8823b] transition-all cursor-pointer hover:translate-x-2">POS SYSTEM</li>
-                <li className="hover:text-[#d8823b] transition-all cursor-pointer hover:translate-x-2">INVENTORY</li>
-                <li className="hover:text-[#d8823b] transition-all cursor-pointer hover:translate-x-2">AI ANALYTICS</li>
-                <li className="hover:text-[#d8823b] transition-all cursor-pointer hover:translate-x-2">STABLE APK</li>
+
+            <div>
+              <h4 className="mb-4 text-sm font-extrabold text-slate-900">Produk</h4>
+              <ul className="space-y-3 text-sm font-semibold text-slate-600">
+                <li><a href="#features" onClick={(e) => scrollToSection(e, '#features')}>Fitur</a></li>
+                <li><a href="#pricing" onClick={(e) => scrollToSection(e, '#pricing')}>Harga</a></li>
+                <li>Update</li>
               </ul>
             </div>
 
-            <div className="col-span-1">
-              <h4 className="text-white font-black text-sm mb-12 uppercase tracking-[0.4em] opacity-100 italic">HUB</h4>
-              <ul className="space-y-8 text-sm text-slate-400 font-black list-none p-0 tracking-widest">
-                <li className="hover:text-[#d8823b] transition-all cursor-pointer hover:translate-x-2">RESOURCES</li>
-                <li className="hover:text-[#d8823b] transition-all cursor-pointer hover:translate-x-2">COMMUNITY</li>
-                <li className="hover:text-[#d8823b] transition-all cursor-pointer hover:translate-x-2">CHANGELOG</li>
-                <li className="hover:text-[#d8823b] transition-all cursor-pointer hover:translate-x-2">YOUTUBE</li>
+            <div>
+              <h4 className="mb-4 text-sm font-extrabold text-slate-900">Perusahaan</h4>
+              <ul className="space-y-3 text-sm font-semibold text-slate-600">
+                <li><a href="#about" onClick={(e) => scrollToSection(e, '#about')}>Tentang Kami</a></li>
+                <li>Karir</li>
+                <li><a href="#contact" onClick={(e) => scrollToSection(e, '#contact')}>Kontak</a></li>
               </ul>
             </div>
 
-            <div className="col-span-1">
-              <h4 className="text-white font-black text-sm mb-12 uppercase tracking-[0.4em] opacity-100 italic">SAFE</h4>
-              <ul className="space-y-8 text-sm text-slate-400 font-black list-none p-0 tracking-widest">
-                <li 
-                  onClick={() => { setSelectedSafeItem('ADVISORY'); setIsSafeDetailOpen(true); }}
-                  className="hover:text-[#d8823b] transition-all cursor-pointer hover:translate-x-2"
-                >ADVISORY</li>
-                <li 
-                  onClick={() => { setSelectedSafeItem('TERMS'); setIsSafeDetailOpen(true); }}
-                  className="hover:text-[#d8823b] transition-all cursor-pointer hover:translate-x-2"
-                >TERMS</li>
-                <li 
-                  onClick={() => { setSelectedSafeItem('PRIVACY'); setIsSafeDetailOpen(true); }}
-                  className="hover:text-[#d8823b] transition-all cursor-pointer hover:translate-x-2"
-                >PRIVACY</li>
-                <li 
-                  onClick={() => { setSelectedSafeItem('AUDIT'); setIsSafeDetailOpen(true); }}
-                  className="hover:text-[#d8823b] transition-all cursor-pointer hover:translate-x-2"
-                >AUDIT</li>
+            <div>
+              <h4 className="mb-4 text-sm font-extrabold text-slate-900">Bantuan</h4>
+              <ul className="space-y-3 text-sm font-semibold text-slate-600">
+                <li className="cursor-pointer" onClick={() => { setSelectedSafeItem('ADVISORY'); setIsSafeDetailOpen(true); }}>Pusat Bantuan</li>
+                <li className="cursor-pointer" onClick={() => { setSelectedSafeItem('TERMS'); setIsSafeDetailOpen(true); }}>Panduan</li>
+                <li className="cursor-pointer" onClick={() => { setSelectedSafeItem('PRIVACY'); setIsSafeDetailOpen(true); }}>Kebijakan Privasi</li>
               </ul>
             </div>
 
-            <div className="col-span-1">
-              <h4 className="text-white font-black text-sm mb-12 uppercase tracking-[0.4em] opacity-100 italic">SOCIAL</h4>
-              <div className="flex justify-center md:justify-start gap-4 flex-wrap">
-                 <a 
-                   href="https://wa.me/6285186076224"
-                   target="_blank"
-                   rel="noopener noreferrer"
-                   className="w-14 h-14 rounded-[20px] bg-white/[0.03] border border-white/5 flex items-center justify-center text-slate-400 hover:text-[#25D366] hover:border-[#25D366]/50 transition-all cursor-pointer shadow-xl hover:scale-110 active:scale-95 group"
-                   title="WhatsApp KaffePOS"
-                 >
-                    <MessageCircle size={28} className="group-hover:rotate-12 transition-transform" />
-                 </a>
-                 <a 
-                   href="https://instagram.com/kaffepos"
-                   target="_blank"
-                   rel="noopener noreferrer"
-                   className="w-14 h-14 rounded-[20px] bg-white/[0.03] border border-white/5 flex items-center justify-center text-slate-400 hover:text-[#E4405F] hover:border-[#E4405F]/50 transition-all cursor-pointer shadow-xl hover:scale-110 active:scale-95 group"
-                   title="Instagram KaffePOS"
-                 >
-                    <Instagram size={28} className="group-hover:-translate-y-1 transition-transform" />
-                 </a>
-                 <div className="w-14 h-14 rounded-[20px] bg-white/[0.03] border border-white/5 flex items-center justify-center text-slate-400 hover:text-white hover:border-[#d8823b] transition-all cursor-pointer shadow-xl hover:scale-110 active:scale-95 group">
-                    <Rocket size={28} className="group-hover:-translate-y-1 transition-transform" />
-                 </div>
+            <div id="contact">
+              <h4 className="mb-4 text-sm font-extrabold text-slate-900">Ikuti Kami</h4>
+              <div className="flex gap-3">
+                <a href="https://wa.me/6285186076224" target="_blank" rel="noopener noreferrer" className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-50 text-[#FF6A00] ring-1 ring-orange-100 hover:bg-orange-100" aria-label="WhatsApp KaffePOS">
+                  <MessageCircle size={18} />
+                </a>
+                <a href="https://instagram.com/kaffepos" target="_blank" rel="noopener noreferrer" className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-50 text-[#FF6A00] ring-1 ring-orange-100 hover:bg-orange-100" aria-label="Instagram KaffePOS">
+                  <Instagram size={18} />
+                </a>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row items-center justify-between pt-16 border-t border-white/5 gap-12">
-            <div className="text-slate-500 text-[14px] font-black italic tracking-[0.2em] text-center md:text-left opacity-60">
-              &copy; 2026 KAFFEPOS PLATFORM. BUILT FOR DOMINANCE. ☕
-            </div>
-            <div className="flex items-center gap-4 text-emerald-500 font-black text-[12px] tracking-[0.5em] uppercase px-6 py-2 rounded-full bg-emerald-500/5 border border-emerald-500/10">
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-              SYSTEM AAA STATUS
-            </div>
+          <div className="mt-10 border-t border-orange-100 pt-6 text-center text-xs font-medium text-slate-500">
+            © 2026 kaffePOS. All rights reserved.
           </div>
         </div>
       </footer>
 
       {/* Back to Top */}
       {showScrollTop && (
-        <button 
+        <button
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="fixed bottom-12 right-12 z-[60] bg-[#d8823b] text-slate-950 w-20 h-20 rounded-[32px] flex items-center justify-center shadow-[0_30px_60px_rgba(216,130,59,0.4)] hover:scale-110 active:scale-90 transition-all animate-in fade-in zoom-in duration-500 ring-8 ring-[#d8823b]/20"
+          className="fixed bottom-12 right-12 z-[60] bg-[#FF6A00] text-white w-20 h-20 rounded-[32px] flex items-center justify-center shadow-premium hover:scale-110 active:scale-90 transition-all animate-in fade-in zoom-in duration-500 ring-8 ring-[#FF6A00]/10"
           aria-label="Kembali ke atas"
         >
           <ArrowUp size={36} strokeWidth={4} />

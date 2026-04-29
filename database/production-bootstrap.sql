@@ -46,6 +46,63 @@ begin
   end if;
 end $$;
 
+alter table public.profiles
+  add column if not exists role text not null default 'owner_admin';
+
+alter table public.profiles
+  add column if not exists account_status text not null default 'active';
+
+update public.profiles
+set role = 'owner_admin'
+where role is null
+   or role not in ('owner_admin', 'cashier');
+
+update public.profiles
+set account_status = 'active'
+where account_status is null
+   or account_status not in ('active', 'inactive');
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'profiles_role_check'
+  ) then
+    alter table public.profiles
+      add constraint profiles_role_check
+      check (role in ('owner_admin', 'cashier'));
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'profiles_account_status_check'
+  ) then
+    alter table public.profiles
+      add constraint profiles_account_status_check
+      check (account_status in ('active', 'inactive'));
+  end if;
+end $$;
+
+create table if not exists public.cashier_outlet_assignments (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references public.profiles(id) on delete cascade,
+  cashier_id uuid not null references public.profiles(id) on delete cascade,
+  store_id uuid not null references public.stores(id) on delete cascade,
+  status text not null default 'active' check (status in ('active', 'inactive')),
+  created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (owner_id, cashier_id)
+);
+
+create index if not exists cashier_outlet_assignments_owner_idx
+  on public.cashier_outlet_assignments (owner_id, updated_at desc);
+
+create index if not exists cashier_outlet_assignments_cashier_idx
+  on public.cashier_outlet_assignments (cashier_id, status);
+
 do $$
 begin
   if exists (

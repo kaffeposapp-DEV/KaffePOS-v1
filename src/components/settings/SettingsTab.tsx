@@ -1,8 +1,8 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable react/no-unescaped-entities */
- 
- 
- 
+
+
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/settings/SettingsTab.tsx — KaffePOS v5
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -19,6 +19,7 @@ import UpgradePrompt from '@/components/UpgradePrompt';
 import { getPlanDefinition } from '@/lib/subscriptionPlans';
 import type { SubscriptionAccess } from '@/lib/subscriptionAccess';
 import ThemeCustomizer from './ThemeCustomizer';
+import CashierManagementSection from './CashierManagementSection';
 import {
   createReceiptPrintData,
   formatReceiptCurrency,
@@ -57,14 +58,14 @@ interface InpProps {
 
 const Inp = ({ label, value, onChange, placeholder, note }: InpProps) => (
   <div className="space-y-1.5">
-    <label className="text-[13px] font-bold text-slate-700 pl-0.5">{label}</label>
-    <input 
-      value={value||''} 
-      onChange={e=>onChange(e.target.value)} 
+    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-0.5">{label}</label>
+    <input
+      value={value||''}
+      onChange={e=>onChange(e.target.value)}
       placeholder={placeholder}
-      className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all placeholder:text-slate-300"
+      className="w-full h-12 border border-slate-100 rounded-2xl px-4 text-[15px] font-bold focus:outline-none focus:ring-4 focus:ring-[#FF6A00]/5 focus:border-[#FF6A00]/20 bg-slate-50/50 transition-all placeholder:text-slate-300 shadow-sm"
     />
-    {note&&<p className="text-[11px] text-slate-400 pl-0.5">{note}</p>}
+    {note&&<p className="text-[10px] text-slate-400 font-bold italic pl-0.5 opacity-80">{note}</p>}
   </div>
 );
 
@@ -76,16 +77,16 @@ interface ToggleProps {
 }
 
 const Toggle = ({ label, value, onChange, note }: ToggleProps) => (
-  <div 
+  <div
     onClick={() => onChange(!value)}
-    className="flex items-center justify-between py-4 border-b border-slate-50 last:border-0 cursor-pointer active:bg-slate-50/50 -mx-4 px-4 transition-colors"
+    className="flex items-center justify-between py-4 border-b border-slate-100/50 last:border-0 cursor-pointer active:bg-slate-50/30 -mx-4 px-4 transition-colors"
   >
     <div className="flex-1 min-w-0 pr-3">
-      <p className="text-sm font-bold text-slate-800">{label}</p>
-      {note&&<p className="text-[11px] text-slate-400 font-medium mt-0.5">{note}</p>}
+      <p className="text-[14px] font-bold text-slate-800">{label}</p>
+      {note&&<p className="text-[10px] text-slate-400 font-bold mt-0.5 italic">{note}</p>}
     </div>
-    <div 
-      className={`w-12 h-6.5 rounded-full transition-all relative shrink-0 ${value?'bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.3)]':'bg-slate-200'}`}
+    <div
+      className={`w-12 h-6.5 rounded-full transition-all relative shrink-0 ${value?'bg-[#FF6A00] shadow-[0_0_15px_rgba(255,106,0,0.25)]':'bg-slate-200'}`}
     >
       <div className={`w-5.5 h-5.5 bg-white rounded-full absolute top-0.5 shadow-sm transition-all duration-300 ${value?'left-[24px]':'left-0.5'}`}/>
     </div>
@@ -101,16 +102,16 @@ interface SelProps {
 
 const Sel = ({ label, value, onChange, options }: SelProps) => (
   <div className="space-y-1.5">
-    <label className="text-[13px] font-bold text-slate-700 pl-0.5">{label}</label>
+    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-0.5">{label}</label>
     <div className="relative">
-      <select 
-        value={value||''} 
+      <select
+        value={value||''}
         onChange={e=>onChange(e.target.value)}
-        className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all appearance-none"
+        className="w-full h-12 border border-slate-100 rounded-2xl px-4 text-[15px] font-bold focus:outline-none focus:ring-4 focus:ring-[#FF6A00]/5 focus:border-[#FF6A00]/20 bg-slate-50/50 transition-all appearance-none shadow-sm"
       >
         {options.map((o)=><option key={o.v} value={o.v}>{o.l}</option>)}
       </select>
-      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-300">
         <ChevronRight size={16} className="rotate-90" />
       </div>
     </div>
@@ -159,7 +160,7 @@ function ReceiptPreview({ s }: { s:any }) {
 }
 const DEFAULTS:any = getReceiptSettings();
 
-type Section = 'brand'|'receipt'|'printer'|'theme'|'license';
+type Section = 'brand'|'receipt'|'printer'|'theme'|'cashiers'|'license';
 
 export default function SettingsTab({ toast, isPro, profile, subscriptionAccess }: { toast:any; isPro: boolean; profile:any; subscriptionAccess: SubscriptionAccess }) {
   const { signOut, refreshProfile } = useAuth();
@@ -241,7 +242,7 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
     saveToLS(storeId, newForm);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => doSave(newForm), 1000);
-  }, [storeId]);  
+  }, [storeId]);
 
   const update = (key: string, val:any) => {
     const nf = { ...form, [key]: val };
@@ -347,38 +348,45 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
     {id:'receipt',l:'Struk',icon:'🧾'},
     {id:'printer',l:'Printer',icon:'🖨️'},
     {id:'theme',l:'Tema',icon:'🎨'},
+    {id:'cashiers',l:'Kasir',icon:'👥'},
     {id:'license',l:'Lisensi',icon:'🔑'}
   ];
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
+    <div className="flex-1 flex flex-col overflow-hidden bg-white lg:bg-slate-50/50">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 px-4 pt-3 pb-3">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-black text-slate-800 text-lg">Pengaturan</h2>
-          <div className="flex items-center gap-2">
-            {saving&&<div className="w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin"/>}
-            {saved&&!saving&&<div className="flex items-center gap-1 text-green-500 text-xs font-bold"><CheckCircle2 size={13}/>Tersimpan</div>}
+      <div className="bg-white border-b border-slate-100 px-6 pt-6 pb-4">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="font-black text-xl text-slate-800 italic uppercase tracking-tighter">Pengaturan</h2>
+            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">Konfigurasi & Akun</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {saving&&<div className="w-5 h-5 border-2 border-[#FF6A00] border-t-transparent rounded-full animate-spin"/>}
+            {saved&&!saving&&<div className="flex items-center gap-1.5 text-emerald-500 text-[10px] font-black uppercase tracking-widest"><CheckCircle2 size={14}/>Tersimpan</div>}
             <button onClick={handleSaveNow} disabled={saving}
-              className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 text-white rounded-xl text-xs font-bold active:scale-95 disabled:opacity-50 shadow-sm">
-              <Save size={13}/>{saving?'Menyimpan...':'Simpan'}
+              className="flex items-center gap-2 px-5 py-2.5 bg-[#FF6A00] text-white rounded-2xl text-[12px] font-black uppercase italic tracking-widest active:scale-95 disabled:opacity-50 shadow-premium transition-all">
+              <Save size={14}/>{saving?'Memproses...':'Simpan'}
             </button>
           </div>
         </div>
-        {saveErr&&<div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-2"><AlertCircle size={14} className="text-amber-500 shrink-0"/><p className="text-xs text-amber-700">{saveErr}</p></div>}
-        <div className="flex gap-1 overflow-x-auto pb-1 no-scrollbar -mx-4 px-4 scroll-smooth">
+        {saveErr&&<div className="flex items-center gap-2 bg-rose-50 border border-rose-100 rounded-2xl px-4 py-2.5 mb-3"><AlertCircle size={14} className="text-rose-500 shrink-0"/><p className="text-xs text-rose-700 font-bold">{saveErr}</p></div>}
+        <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar -mx-6 px-6 border-b border-slate-50">
           {NAV.map(n=>(
-            <button 
-              key={n.id} 
+            <button
+              key={n.id}
               onClick={()=>setSection(n.id as Section)}
-              className={`shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[13px] font-bold transition-all border ${
-                section===n.id 
-                  ? 'bg-slate-900 text-white border-slate-900 shadow-md' 
-                  : 'bg-white text-slate-500 border-slate-100 hover:border-slate-200'
+              className={`shrink-0 pb-3 text-[12px] font-black uppercase tracking-widest transition-all relative ${
+                section===n.id
+                  ? 'text-[#FF6A00]'
+                  : 'text-slate-400 hover:text-slate-600'
               }`}
             >
-              <span className="text-lg">{n.icon}</span>
-              <span>{n.l}</span>
+              <div className="flex items-center gap-2">
+                <span>{n.icon}</span>
+                <span>{n.l}</span>
+              </div>
+              {section===n.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#FF6A00] rounded-full animate-in fade-in" />}
             </button>
           ))}
         </div>
@@ -388,10 +396,10 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
       <div className="px-3 pt-3 lg:max-w-3xl lg:mx-auto lg:w-full">
         <button onClick={() => setNotifsOpen(true)}
           className="w-full bg-white rounded-2xl border border-slate-100 p-4 flex items-center justify-between active:scale-[0.98] transition-all overflow-hidden relative group">
-          
+
           {/* Decorative background circle */}
           <div className="absolute -right-4 -top-4 w-24 h-24 bg-orange-50 rounded-full group-hover:scale-125 transition-transform duration-500 opacity-50" />
-          
+
           <div className="flex items-center gap-4 relative z-10">
             <div className="w-12 h-12 bg-orange-100 rounded-2xl flex items-center justify-center">
               <div className="relative">
@@ -637,15 +645,15 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
             <p className="text-blue-600 text-xs">3. App otomatis connect via Bluetooth Classic (SPP)</p>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-100 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 bg-orange-50 rounded-xl flex items-center justify-center"><Wifi size={16} className="text-orange-500"/></div>
-              <div><p className="font-bold text-slate-800 text-sm">Cetak via Browser</p><p className={`text-xs font-bold ${canBrowserPrint ? 'text-green-600' : 'text-slate-400'}`}>{canBrowserPrint ? 'Tersedia di paket aktif' : 'Buka di paket Kopi Susu'}</p></div>
+          <div className="bg-white rounded-[32px] border border-slate-100 p-6 shadow-soft">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 bg-orange-50 rounded-xl flex items-center justify-center"><Wifi size={18} className="text-[#FF6A00]"/></div>
+              <div><p className="font-black text-slate-800 text-[14px] italic uppercase tracking-tighter">Cetak via Browser</p><p className={`text-[10px] font-black uppercase tracking-widest ${canBrowserPrint ? 'text-emerald-500' : 'text-slate-300'}`}>{canBrowserPrint ? 'Tersedia' : 'Butuh Kopi Susu'}</p></div>
             </div>
-            <p className="text-xs text-slate-500 mb-3">Printer WiFi atau browser print cocok untuk operasional ringan dan review struk dari desktop.</p>
+            <p className="text-xs font-bold text-slate-400 mb-6 leading-relaxed">Printer WiFi atau browser print cocok untuk operasional ringan dan review struk dari desktop.</p>
             <button onClick={handleTestPrint}
-              className={`w-full py-2.5 border-2 font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95 text-sm ${canBrowserPrint ? 'border-orange-200 text-orange-600' : 'border-slate-200 text-slate-400'}`}>
-              🖨️ {canBrowserPrint ? 'Test Cetak Browser' : 'Upgrade untuk Browser Print'}
+              className={`w-full py-4 border-2 font-black uppercase italic tracking-widest rounded-2xl flex items-center justify-center gap-3 active:scale-95 text-[12px] transition-all ${canBrowserPrint ? 'border-orange-100 text-[#FF6A00] hover:bg-orange-50' : 'border-slate-100 text-slate-300'}`}>
+              <Printer size={18}/> {canBrowserPrint ? 'Test Cetak Browser' : 'Upgrade Browser Print'}
             </button>
           </div>
         </>
@@ -654,6 +662,11 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
         {/* ── TEMA ── */}
         {section==='theme'&&<>
           <ThemeCustomizer toast={toast} />
+        </>}
+
+        {/* ── KASIR ── */}
+        {section==='cashiers'&&<>
+          <CashierManagementSection toast={toast} />
         </>}
 
         {/* ── LISENSI ── */}
@@ -718,4 +731,4 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
     </div>
   );
 }
- 
+

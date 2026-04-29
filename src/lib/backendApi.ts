@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { getStoredAccessToken } from '@/lib/authSession';
+import { resolveRuntimeApiBaseUrl } from '@/lib/releaseConfig';
 import type {
   CashFlowEntry,
   CashRegister,
@@ -14,9 +15,9 @@ import type {
   StoreSettings,
   Transaction,
 } from '@/types';
+import type { Permission, UserRole } from '@/lib/accessControl';
 import type { SubscriptionBillingQuote, SubscriptionPaymentMethod, SubscriptionPaymentMethodId } from '@/lib/subscriptionBilling';
 
-const API_DEFAULT_PROD_ORIGIN = 'https://api.kaffepos.my.id';
 const EXPLICIT_API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
 
 type RequestInitWithJson = RequestInit & {
@@ -61,33 +62,12 @@ export class ApiError extends Error {
   }
 }
 
-function isLocalHostname(hostname: string) {
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.local');
-}
-
 export function resolveApiBaseUrl() {
-  if (EXPLICIT_API_BASE_URL) {
-    return EXPLICIT_API_BASE_URL;
-  }
-
-  if (typeof window === 'undefined') {
-    return '';
-  }
-
-  if (Capacitor.isNativePlatform()) {
-    return API_DEFAULT_PROD_ORIGIN;
-  }
-
-  const { hostname } = window.location;
-  if (isLocalHostname(hostname)) {
-    return '';
-  }
-
-  if (hostname === 'kaffepos.my.id' || hostname.endsWith('.kaffepos.my.id')) {
-    return API_DEFAULT_PROD_ORIGIN;
-  }
-
-  return '';
+  return resolveRuntimeApiBaseUrl({
+    explicitApiBaseUrl: EXPLICIT_API_BASE_URL,
+    hostname: typeof window === 'undefined' ? null : window.location.hostname,
+    isNativePlatform: Capacitor.isNativePlatform(),
+  });
 }
 
 export function buildApiUrl(path: string) {
@@ -213,6 +193,13 @@ export type ProfileResponse = {
   display_name?: string;
   email?: string;
   avatar_url?: string;
+  role?: UserRole;
+  permissions?: Permission[];
+  account_status?: 'active' | 'inactive';
+  owner_id?: string;
+  assigned_store_id?: string;
+  assigned_store_name?: string;
+  assignment_status?: 'active' | 'inactive';
   tier?: string;
   tier_expires_at?: string | null;
   is_pro?: boolean;
@@ -262,6 +249,7 @@ export type AdminProfileResponse = {
   email: string | null;
   display_name: string | null;
   username: string | null;
+  role?: UserRole;
 } & ApiRecord;
 
 export type AdminSubscriptionRecord = SubscriptionRecord & {
@@ -271,6 +259,18 @@ export type AdminSubscriptionRecord = SubscriptionRecord & {
 export type AdminPaymentHistoryRecord = PaymentHistoryRecord & {
   user_id: string;
 };
+export type CashierAccount = {
+  id: string;
+  display_name: string | null;
+  email: string | null;
+  username: string | null;
+  role: 'cashier';
+  status: 'active' | 'inactive';
+  store_id: string;
+  store_name: string;
+  created_at?: string;
+  updated_at?: string;
+} & ApiRecord;
 export type SubscriptionPaymentSession = {
   redirect_url?: string;
   token?: string;
@@ -288,6 +288,23 @@ export const createStore = (payload: { store_name?: string }) =>
   apiFetch<StoreResponse>('/api/stores', { method: 'POST', json: payload });
 export const updateStore = (storeId: string, payload: Record<string, unknown>) =>
   apiFetch<StoreResponse>(`/api/stores/${storeId}`, { method: 'PATCH', json: payload });
+
+export const getCashiers = () =>
+  apiFetch<ApiListResponse<CashierAccount>>('/api/cashiers');
+export const createCashier = (payload: {
+  displayName: string;
+  email: string;
+  password: string;
+  storeId: string;
+  status: 'active' | 'inactive';
+}) => apiFetch<{ cashier: CashierAccount }>('/api/cashiers', { method: 'POST', json: payload });
+export const updateCashier = (id: string, payload: {
+  displayName?: string;
+  email?: string;
+  password?: string;
+  storeId?: string;
+  status?: 'active' | 'inactive';
+}) => apiFetch<{ cashier: CashierAccount }>(`/api/cashiers/${id}`, { method: 'PATCH', json: payload });
 
 export const getMenuItems = (storeId: string) =>
   apiFetch<ApiListResponse<MenuItem>>(`/api/menu-items?storeId=${encodeURIComponent(storeId)}`);

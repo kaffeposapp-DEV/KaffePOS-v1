@@ -111,6 +111,11 @@ export function initAnalytics() {
   }
 
   if (CLARITY_PROJECT_ID && !clarityInitialized) {
+    if (document.getElementById(CLARITY_SCRIPT_ID)) {
+      clarityInitialized = true;
+      return;
+    }
+
     const w = window as AnalyticsWindow;
     const clarityQueue: ClarityQueuedCommand = w.clarity || function queuedClarity(...args: unknown[]) {
       clarityQueue.q = clarityQueue.q || [];

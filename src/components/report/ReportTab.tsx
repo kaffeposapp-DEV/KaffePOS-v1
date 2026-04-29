@@ -1,8 +1,8 @@
- 
- 
- 
- 
- 
+
+
+
+
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/report/ReportTab.tsx — v5 + Gemini AI Insight
 import { useState, useMemo, useCallback } from 'react';
@@ -21,7 +21,7 @@ import type { SubscriptionAccess } from '@/lib/subscriptionAccess';
 const fRp  = (n: number) => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
 const fNum = (n: number) => new Intl.NumberFormat('id-ID').format(n||0);
 type Period = 'harian'|'mingguan'|'bulanan'|'semua';
-const COLORS = ['#f97316','#3b82f6','#10b981','#8b5cf6','#ef4444','#ec4899','#f59e0b','#06b6d4'];
+const COLORS = ['#FF6A00','#3b82f6','#10b981','#8b5cf6','#ef4444','#ec4899','#f59e0b','#06b6d4'];
 const getExpenseSource = (expense: { source?: string; category?: string }) =>
   expense.source || (expense.category === 'Bahan Baku' ? 'inventory' : 'cashier');
 
@@ -101,13 +101,18 @@ function HBar({ items, max }: { items:{label:string;value:number;sub?:string}[];
 }
 
 function StatCard({ label, value, sub, icon, color='orange' }: { label:string; value:string; sub?:string; icon:React.ReactNode; color?:string }) {
-  const cls: Record<string, string> = {orange:'bg-orange-50 text-orange-500',green:'bg-green-50 text-green-500',blue:'bg-blue-50 text-blue-500',red:'bg-red-50 text-red-500'};
+  const cls: Record<string, string> = {
+    orange:'bg-orange-50 text-[#FF6A00] border-orange-100',
+    green:'bg-emerald-50 text-emerald-600 border-emerald-100',
+    blue:'bg-blue-50 text-blue-600 border-blue-100',
+    red:'bg-rose-50 text-rose-600 border-rose-100'
+  };
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 p-3">
-      <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-2 ${cls[color] || cls.orange}`}>{icon}</div>
-      <p className="text-sm font-black text-slate-800 leading-tight">{value}</p>
-      <p className="text-xs text-slate-400 mt-0.5 leading-tight">{label}</p>
-      {sub&&<p className="text-xs text-slate-500 font-bold mt-0.5">{sub}</p>}
+    <div className="bg-white rounded-[28px] border border-slate-100 p-5 shadow-soft hover:shadow-premium transition-all group">
+      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center mb-4 border transition-transform group-hover:scale-110 ${cls[color] || cls.orange}`}>{icon}</div>
+      <p className="font-black text-[18px] text-slate-800 leading-tight italic tracking-tighter">{value}</p>
+      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">{label}</p>
+      {sub&&<p className="text-[10px] text-slate-500 font-bold mt-1.5 opacity-80">{sub}</p>}
     </div>
   );
 }
@@ -364,35 +369,36 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
   const hasAnyReportData = filtered.length > 0 || filteredExp.length > 0 || filteredCR.length > 0;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
-      <div className="bg-white border-b border-slate-100 px-3 sm:px-4 pt-3 pb-3">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-black text-slate-800 text-lg">Laporan & Analitik</h2>
+    <div className="flex-1 flex flex-col overflow-hidden bg-white lg:bg-slate-50/50">
+      <div className="bg-white border-b border-slate-100 px-6 pt-6 pb-4 z-10">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="font-black text-xl text-slate-800 italic uppercase tracking-tighter">Laporan & Analitik</h2>
+            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">Performa Bisnis Realtime</p>
+          </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowCashRegisterModal(true)}
-              title="Edit saldo kasir awal"
-              aria-label="Edit saldo kasir awal"
-              className="flex items-center justify-center w-9 h-9 bg-white border border-slate-200 text-slate-700 rounded-xl active:scale-95 shrink-0"
+              title="Edit saldo kasir"
+              className="flex items-center justify-center w-10 h-10 bg-white border border-slate-100 text-slate-400 rounded-2xl active:scale-95 transition-all hover:bg-orange-50 hover:text-[#FF6A00] shadow-sm"
             >
-              <Wallet size={13} />
+              <Wallet size={18} />
             </button>
             <button
               onClick={() => setShowExpenseModal(true)}
               title="Catat pengeluaran"
-              aria-label="Catat pengeluaran"
-              className="flex items-center justify-center w-9 h-9 bg-white border border-slate-200 text-slate-700 rounded-xl active:scale-95 shrink-0"
+              className="flex items-center justify-center w-10 h-10 bg-white border border-slate-100 text-slate-400 rounded-2xl active:scale-95 transition-all hover:bg-orange-50 hover:text-[#FF6A00] shadow-sm"
             >
-              <Receipt size={13} />
+              <Receipt size={18} />
             </button>
             <button onClick={handleDownload} disabled={downloading}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold active:scale-95 disabled:opacity-50 shrink-0 ${canExportReports ? 'bg-orange-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
-              {downloading?<div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"/>:<Download size={13}/>}
-              {downloading?'Proses...':canExportReports?'PDF':'PDF Premium'}
+              className={`flex items-center gap-2 h-10 px-5 rounded-2xl text-[12px] font-black uppercase italic tracking-widest active:scale-95 disabled:opacity-50 transition-all shadow-premium ${canExportReports ? 'bg-[#FF6A00] text-white' : 'bg-slate-100 text-slate-400'}`}>
+              {downloading?<div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>:<Download size={16}/>}
+              {downloading?'Proses...':canExportReports?'Ekspor PDF':'Premium'}
             </button>
           </div>
         </div>
-        <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4">
+        <div className="flex gap-6 overflow-x-auto no-scrollbar -mx-6 px-6 border-b border-slate-50">
           {PERIODS.map((p) => {
             const locked = p.requiresAdvanced && !canUseAdvancedPeriods;
             const active = period === p.id;
@@ -406,32 +412,36 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
                   }
                   setPeriod(p.id as Period);
                 }}
-                className={`shrink-0 px-5 py-2.5 rounded-2xl text-[13px] font-bold transition-all border ${
-                  active 
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-md' 
-                    : 'bg-slate-100 text-slate-500 border-transparent hover:border-slate-200'
-                } ${locked ? 'opacity-40' : ''}`}
+                className={`shrink-0 pb-3 text-[13px] font-black uppercase tracking-widest transition-all relative ${
+                  active
+                    ? 'text-[#FF6A00]'
+                    : 'text-slate-400 hover:text-slate-600'
+                } ${locked ? 'opacity-30' : ''}`}
               >
                 {p.l}
+                {active && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#FF6A00] rounded-full animate-in fade-in" />}
               </button>
             );
           })}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {!hasAnyReportData && (
-          <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-6 text-center">
-            <p className="text-base font-black text-slate-800 mb-2">Belum ada data laporan</p>
-            <p className="text-sm text-slate-500">
-              Mulai transaksi, buka kas harian, atau catat pengeluaran agar laporan penjualan dan operasional muncul di sini.
+          <div className="bg-white rounded-[32px] border border-dashed border-slate-200 p-10 text-center shadow-soft">
+            <div className="w-20 h-20 bg-slate-50 rounded-[32px] flex items-center justify-center mx-auto mb-6 text-slate-200">
+               <Receipt size={40} />
+            </div>
+            <p className="font-display text-lg font-extrabold text-slate-800 mb-2 uppercase tracking-tight italic">Belum ada data laporan</p>
+            <p className="text-[13px] text-slate-400 max-w-md mx-auto font-medium leading-relaxed">
+              Mulai transaksi, buka kas harian, atau catat pengeluaran agar laporan ini terisi otomatis secara realtime.
             </p>
           </div>
         )}
         {/* KPI */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3">
-          <StatCard label="Pendapatan" value={fRp(totalRevenue)} sub={`${filtered.length} trx`} icon={<DollarSign size={15}/>} color="orange"/>
-          <StatCard label="Laba Bersih" value={fRp(netProfit)} sub={`Margin ${grossMargin}%`} icon={<TrendingUp size={15}/>} color={netProfit>=0?'green':'red'}/>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
+          <StatCard label="Pendapatan" value={fRp(totalRevenue)} sub={`${filtered.length} transaksi`} icon={<DollarSign size={20}/>} color="orange"/>
+          <StatCard label="Laba Bersih" value={fRp(netProfit)} sub={`Margin ${grossMargin}%`} icon={<TrendingUp size={20}/>} color={netProfit>=0?'green':'red'}/>
 
         {/* ── AI Insight Card ── */}
         <div className="col-span-2 md:col-span-4 lg:col-span-2 bg-gradient-to-br from-violet-50 to-purple-50 border border-violet-200 rounded-2xl overflow-hidden">
@@ -578,30 +588,30 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
             </div>
           )}
         </div>
-          <StatCard label="Total HPP" value={fRp(totalCogs)} sub={`Pengeluaran: ${fRp(totalExpenses)}`} icon={<CreditCard size={15}/>} color="red"/>
-          <StatCard label="Avg Transaksi" value={fRp(avgTrx)} sub={`Laba Kotor: ${fRp(grossProfit)}`} icon={<ShoppingBag size={15}/>} color="blue"/>
-          <StatCard label="Saldo Kasir" value={fRp(totalCashRegister)} sub={`${filteredCR.length}× buka kasir`} icon={<Wallet size={15}/>} color="orange"/>
-          <StatCard label="Pengeluaran Ops" value={fRp(totalExpOps)} sub="Di luar bahan baku" icon={<Receipt size={15}/>} color="red"/>
+          <StatCard label="Total HPP" value={fRp(totalCogs)} sub={`Pengeluaran: ${fRp(totalExpenses)}`} icon={<CreditCard size={20}/>} color="red"/>
+          <StatCard label="Avg Transaksi" value={fRp(avgTrx)} sub={`Laba Kotor: ${fRp(grossProfit)}`} icon={<ShoppingBag size={20}/>} color="blue"/>
+          <StatCard label="Saldo Kasir" value={fRp(totalCashRegister)} sub={`${filteredCR.length}× buka kasir`} icon={<Wallet size={20}/>} color="orange"/>
+          <StatCard label="Pengeluaran Ops" value={fRp(totalExpOps)} sub="Di luar bahan baku" icon={<Receipt size={20}/>} color="red"/>
         </div>
 
-        {lowStockCount>0&&<div className="bg-red-50 border border-red-200 rounded-2xl p-3 flex items-center gap-3"><span className="text-xl">⚠️</span><div><p className="font-bold text-red-700 text-sm">{lowStockCount} bahan kritis</p><p className="text-red-400 text-xs">Restock di tab Gudang</p></div></div>}
+        {lowStockCount>0&&<div className="bg-rose-50 border border-rose-100 rounded-3xl p-4 flex items-center gap-4 shadow-soft"><div className="w-10 h-10 rounded-2xl bg-rose-500 text-white flex items-center justify-center font-display font-extrabold shadow-premium shrink-0">!</div><div><p className="font-bold text-rose-800 text-sm">{lowStockCount} bahan kritis</p><p className="text-rose-500 text-[11px] font-bold uppercase tracking-widest mt-0.5">Restock di tab Gudang</p></div></div>}
 
         {/* Charts */}
-        <div className="bg-white rounded-2xl border border-slate-100">
-          <div className="px-4 pt-4 pb-2">
-            <div className="grid grid-cols-4 gap-1.5">
+        <div className="bg-white rounded-[32px] border border-slate-100 shadow-soft overflow-hidden">
+          <div className="px-6 pt-6 pb-2">
+            <div className="grid grid-cols-4 gap-2">
               {[{id:'trend',l:'Tren',e:'📈'},{id:'menu',l:'Produk',e:'🥧'},{id:'payment',l:'Bayar',e:'💳'},{id:'stock',l:'Stok',e:'📦'}].map(c=>(
-                <button key={c.id} onClick={()=>setChart(c.id as any)} className={`flex flex-col items-center py-2 rounded-xl text-xs font-bold transition-all gap-0.5 ${activeChart===c.id?'bg-slate-900 text-white':'bg-slate-100 text-slate-500'}`}>
+                <button key={c.id} onClick={()=>setChart(c.id as any)} className={`flex flex-col items-center py-3 rounded-[20px] text-[11px] font-bold transition-all gap-1.5 border ${activeChart===c.id?'bg-slate-900 text-white border-slate-900 shadow-premium':'bg-slate-50 text-slate-500 border-slate-100 hover:border-slate-200'}`}>
                   <span>{c.e}</span><span>{c.l}</span>
                 </button>
               ))}
             </div>
           </div>
-          <div className="px-4 pb-4">
+          <div className="px-6 pb-6 pt-4">
             {activeChart==='trend'&&(
-              <div className="space-y-4">
-                <div><p className="text-xs font-bold text-slate-400 mb-2">Tren Pendapatan</p><LineChart data={trendData} color="#f97316"/></div>
-                <div><p className="text-xs font-bold text-slate-400 mb-2">Bar per Hari</p><BarChart data={trendData.slice(-7)} color="#3b82f6"/></div>
+              <div className="space-y-6">
+                <div><p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-4">Tren Pendapatan</p><LineChart data={trendData} color="#FF6A00"/></div>
+                <div><p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-4">Aktivitas Mingguan</p><BarChart data={trendData.slice(-7)} color="#3b82f6"/></div>
               </div>
             )}
             {activeChart==='menu'&&(

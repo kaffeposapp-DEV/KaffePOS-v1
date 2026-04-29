@@ -37,6 +37,14 @@ import {
 } from '@/lib/backendApi';
 import { trackOpsEvent } from '@/lib/opsMetrics';
 import { DEFAULT_CUSTOM_THEME, applyThemeToDocument, type CustomThemeConfig, type ThemePresetId } from '@/lib/theme';
+import {
+  deriveConnectivityMode,
+  enqueueOfflineOperation,
+  getOfflineOutboxSummary,
+  processOfflineOutbox,
+  type ConnectivityMode,
+} from '@/lib/offlineQueue';
+import { canProcessPosPaymentOffline, getOfflinePaymentBlockedMessage } from '@/lib/offlinePolicy';
 import { menuItemSchema } from '@/utils/validation';
 import {
   clearIndexedDbCache,
@@ -208,6 +216,34 @@ function addPendingWrite(storeId: string | null, pw: PendingWrite) {
   const writes = getPendingWrites(storeId);
   writes.push(pw);
   savePendingWrites(storeId, writes);
+  if (storeId) void updateSyncIndicators(storeId);
+}
+
+async function updateSyncIndicators(storeId: string | null, options: { syncing?: boolean; lastSyncSucceeded?: boolean } = {}) {
+  if (!storeId) return;
+  const outbox = await getOfflineOutboxSummary(storeId);
+  const legacyCount = getPendingWrites(storeId).length;
+  const summary = {
+    total: outbox.total + legacyCount,
+    pending: outbox.pending + legacyCount,
+    syncing: outbox.syncing,
+    failed: outbox.failed,
+    conflicted: outbox.conflicted,
+    resolved: outbox.resolved,
+  };
+  const state = useStore.getState();
+  const isSyncing = options.syncing ?? state.syncing;
+  const modeInput = {
+    isOnline: state.isOnline,
+    isSyncing,
+    summary,
+    ...(options.lastSyncSucceeded === undefined ? {} : { lastSyncSucceeded: options.lastSyncSucceeded }),
+  };
+  useStore.setState({
+    pendingSyncCount: summary.total,
+    failedSyncCount: summary.failed + summary.conflicted,
+    syncStatus: deriveConnectivityMode(modeInput),
+  });
 }
 
 function sortByDateDesc<T extends { date?: string; created_at?: string }>(items: T[]) {
@@ -228,7 +264,7 @@ function mergeById<T extends { id: string; date?: string; created_at?: string }>
     merged.set(item.id, item);
   }
   for (const item of remoteItems) {
-    merged.set(item.id, { ...(merged.get(item.id) || {}), ...item });
+    merged.set(item.id, item);
   }
 
   return sortByDateDesc(Array.from(merged.values()));
@@ -265,9 +301,70 @@ function mergeKitchenOrder(orders: KitchenOrder[], order: KitchenOrder) {
 
 async function flushPending() {
   const storeId = useStore.getState().storeId;
+  if (!storeId) return;
+  if (activeFlushStores.has(storeId)) return;
+  activeFlushStores.add(storeId);
+  try {
   const writes = getPendingWrites(storeId);
-  if (writes.length === 0) return;
-  useStore.setState({ syncing: true });
+  const outboxSummary = await getOfflineOutboxSummary(storeId);
+  if (writes.length === 0 && outboxSummary.total === 0) {
+    await updateSyncIndicators(storeId);
+    return;
+  }
+  useStore.setState({ syncing: true, syncStatus: 'syncing' });
+  await updateSyncIndicators(storeId, { syncing: true });
+
+  await processOfflineOutbox(storeId, {
+    'transaction.create': async (item) => {
+      const data = await checkoutTransaction(item.payload);
+      const savedTx = data as Transaction;
+      markInserted(savedTx.id);
+      useStore.setState((state) => ({
+        transactions: state.transactions.some(t => t.id === savedTx.id)
+          ? state.transactions.map(t => t.id === savedTx.id ? savedTx : t)
+          : [savedTx, ...state.transactions.filter(t => t.id !== item.payload.id)],
+      }));
+      if (savedTx.kitchen_order) {
+        useStore.setState((state) => {
+          const nextOrders = mergeKitchenOrder(state.kitchenOrders, savedTx.kitchen_order as KitchenOrder);
+          saveKitchenToLS(storeId, nextOrders);
+          return { kitchenOrders: nextOrders };
+        });
+      }
+      persistCache(storeId, useStore.getState().menu, useStore.getState().inventory, useStore.getState().transactions, useStore.getState().expenses, useStore.getState().cashFlow, useStore.getState().cashRegister);
+    },
+    'kitchen.order.update': async (item) => {
+      const data = await updateKitchenOrderStatus(String(item.payload.id), {
+        store_id: storeId,
+        status: item.payload.status as KitchenOrderStatus,
+        reason: typeof item.payload.reason === 'string' ? item.payload.reason : null,
+      });
+      const order = data as KitchenOrder;
+      useStore.setState((state) => {
+        const nextOrders = mergeKitchenOrder(state.kitchenOrders, order);
+        saveKitchenToLS(storeId, nextOrders);
+        return { kitchenOrders: nextOrders };
+      });
+    },
+    'kitchen.item.update': async (item) => {
+      const data = await updateKitchenItemStatus(String(item.payload.id), {
+        store_id: storeId,
+        status: item.payload.status as KitchenOrderStatus,
+      });
+      const order = data as KitchenOrder;
+      useStore.setState((state) => {
+        const nextOrders = mergeKitchenOrder(state.kitchenOrders, order);
+        saveKitchenToLS(storeId, nextOrders);
+        return { kitchenOrders: nextOrders };
+      });
+    },
+    'store.settings.update': async (item) => {
+      const updated = await updateStore(storeId, item.payload);
+      saveSettingsToLS(storeId, updated as StoreSettings);
+      useStore.setState({ storeSettings: updated as StoreSettings });
+    },
+  });
+
   const remaining: PendingWrite[] = [];
   for (const pw of writes) {
     try {
@@ -295,16 +392,34 @@ async function flushPending() {
     }
   }
   savePendingWrites(storeId, remaining);
-  useStore.setState({ syncing: remaining.length > 0 });
+  const finalOutbox = await getOfflineOutboxSummary(storeId);
+  const hasFailures = remaining.length > 0 || finalOutbox.failed > 0 || finalOutbox.conflicted > 0;
+  useStore.setState({
+    syncing: false,
+    pendingSyncCount: finalOutbox.total + remaining.length,
+    failedSyncCount: finalOutbox.failed + finalOutbox.conflicted,
+    syncStatus: hasFailures ? 'sync_failed' : 'sync_success',
+  });
+  if (!hasFailures) {
+    setTimeout(() => {
+      const current = useStore.getState();
+      if (current.storeId === storeId && current.syncStatus === 'sync_success') {
+        useStore.setState({ syncStatus: current.isOnline ? 'online' : 'offline' });
+      }
+    }, 3000);
+  }
+  } finally {
+    activeFlushStores.delete(storeId);
+  }
 }
 
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
-    useStore.setState({ isOnline: true });
+    useStore.setState({ isOnline: true, syncStatus: 'reconnecting' });
     flushPending();
   });
   window.addEventListener('offline', () => {
-    useStore.setState({ isOnline: false });
+    useStore.setState({ isOnline: false, syncStatus: 'offline' });
   });
   let visibilityDebounce: ReturnType<typeof setTimeout> | null = null;
   document.addEventListener('visibilitychange', () => {
@@ -342,6 +457,9 @@ interface AppStore {
   loading:       boolean;
   syncing:       boolean;
   isOnline:      boolean;
+  syncStatus:    ConnectivityMode;
+  pendingSyncCount: number;
+  failedSyncCount: number;
   appTheme:      ThemePresetId;
   customTheme:   CustomThemeConfig;
 
@@ -374,12 +492,13 @@ interface AppStore {
   updateCashRegister:  (id: string, entry: Partial<CashRegister>) => Promise<void>;
   saveStoreSettings:   (settings: Partial<StoreSettings>) => Promise<void>;
   saveCustomCats:      (cats: string[]) => void;
+  flushPending:        () => Promise<void>;
   resetState:          () => void;
 }
 
 const initialState: Pick<
   AppStore,
-  'storeId' | 'storeSettings' | 'menu' | 'inventory' | 'transactions' | 'kitchenOrders' | 'kitchenRealtimeStatus' | 'expenses' | 'cashFlow' | 'cashRegister' | 'customCats' | 'cart' | 'discount' | 'loading' | 'syncing' | 'appTheme' | 'customTheme'
+  'storeId' | 'storeSettings' | 'menu' | 'inventory' | 'transactions' | 'kitchenOrders' | 'kitchenRealtimeStatus' | 'expenses' | 'cashFlow' | 'cashRegister' | 'customCats' | 'cart' | 'discount' | 'loading' | 'syncing' | 'syncStatus' | 'pendingSyncCount' | 'failedSyncCount' | 'appTheme' | 'customTheme'
 > = {
   storeId: null,
   storeSettings: null,
@@ -396,6 +515,9 @@ const initialState: Pick<
   discount: '',
   loading: false,
   syncing: false,
+  syncStatus: 'online',
+  pendingSyncCount: 0,
+  failedSyncCount: 0,
   ...getPersistedThemeState(),
 };
 
@@ -403,10 +525,12 @@ const loadAllPromises = new Map<string, Promise<void>>();
 let kitchenRealtimeCleanup: (() => void) | null = null;
 let kitchenReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 const seenKitchenEventIds = new Set<string>();
+const activeFlushStores = new Set<string>();
 
 export const useStore = create<AppStore>((set, get) => ({
   ...initialState,
   isOnline:     typeof navigator !== 'undefined' ? navigator.onLine : true,
+  syncStatus:   typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'online',
 
   setStoreId: (id) => set({ storeId: id }),
 
@@ -450,6 +574,7 @@ export const useStore = create<AppStore>((set, get) => ({
       ...initialState,
       ...getPersistedThemeState(),
       isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
+      syncStatus: typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'online',
     });
   },
 
@@ -960,7 +1085,9 @@ export const useStore = create<AppStore>((set, get) => ({
   saveTransaction: async (tx) => {
     const { storeId, isOnline } = get();
     if (!storeId) throw new Error('Store belum dimuat.');
-    if (!isOnline) throw new Error('Checkout butuh koneksi internet agar stok tetap akurat di semua perangkat.');
+    if (!isOnline && !canProcessPosPaymentOffline(tx.method)) {
+      throw new Error(getOfflinePaymentBlockedMessage(tx.method));
+    }
     const existingIds = get().transactions.map(transaction => transaction.id);
     const normalizedDate = tx.date || new Date().toISOString();
     const normalizedId = makeUniqueTransactionId(tx.id, existingIds);
@@ -990,6 +1117,41 @@ export const useStore = create<AppStore>((set, get) => ({
       change: safeChange,
       cogs: Math.max(0, txWithId.cogs || 0),
     };
+
+    const queueOfflineTransaction = async (error?: unknown) => {
+      if (!canProcessPosPaymentOffline(normalizedTx.method)) {
+        throw error instanceof Error ? error : new Error('Metode pembayaran ini membutuhkan koneksi internet.');
+      }
+      const offlineTx = {
+        ...normalizedTx,
+        store_id: storeId,
+        sync_status: 'pending' as const,
+        sync_error: null,
+        local_only: true,
+      } satisfies Transaction;
+      markInserted(offlineTx.id);
+      set(s => ({
+        transactions: s.transactions.some(t => t.id === offlineTx.id)
+          ? s.transactions.map(t => t.id === offlineTx.id ? offlineTx : t)
+          : [offlineTx, ...s.transactions],
+      }));
+      await enqueueOfflineOperation(storeId, {
+        operation: 'transaction.create',
+        payload: {
+          ...normalizedTx,
+          store_id: storeId,
+        },
+        idempotencyKey: `transaction:${normalizedTx.id}`,
+        createdAt: normalizedTx.created_at,
+      });
+      persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
+      await updateSyncIndicators(storeId);
+      return offlineTx;
+    };
+
+    if (!isOnline) {
+      return queueOfflineTransaction();
+    }
 
     try {
       const data = await checkoutTransaction({
@@ -1021,6 +1183,9 @@ export const useStore = create<AppStore>((set, get) => ({
       await get().loadAll(storeId);
       return savedTx;
     } catch (error: any) {
+      if (!(error instanceof ApiError)) {
+        return queueOfflineTransaction(error);
+      }
       void trackOpsEvent({
         event_name: 'checkout',
         status: 'failure',
@@ -1067,7 +1232,31 @@ export const useStore = create<AppStore>((set, get) => ({
   updateKitchenOrder: async (id, status, reason) => {
     const storeId = get().storeId;
     if (!storeId) throw new Error('Store belum dimuat.');
-    if (!get().isOnline) throw new Error('Update status dapur butuh koneksi internet.');
+    if (!get().isOnline) {
+      let optimisticOrder: KitchenOrder | null = null;
+      set(s => {
+        const nextOrders = s.kitchenOrders.map((order) => {
+          if (order.id !== id) return order;
+          optimisticOrder = {
+            ...order,
+            overall_status: status,
+            status_version: (order.status_version || 0) + 1,
+            updated_at: new Date().toISOString(),
+          };
+          return optimisticOrder;
+        });
+        saveKitchenToLS(storeId, nextOrders);
+        return { kitchenOrders: nextOrders };
+      });
+      await enqueueOfflineOperation(storeId, {
+        operation: 'kitchen.order.update',
+        payload: { id, store_id: storeId, status, reason: reason ?? null },
+        idempotencyKey: `kitchen-order:${id}:${status}:${Date.now()}`,
+      });
+      await updateSyncIndicators(storeId);
+      if (optimisticOrder) return optimisticOrder;
+      throw new Error('Order dapur tidak ditemukan.');
+    }
     const data = await updateKitchenOrderStatus(id, {
       store_id: storeId,
       status,
@@ -1085,7 +1274,34 @@ export const useStore = create<AppStore>((set, get) => ({
   updateKitchenItem: async (id, status) => {
     const storeId = get().storeId;
     if (!storeId) throw new Error('Store belum dimuat.');
-    if (!get().isOnline) throw new Error('Update status item butuh koneksi internet.');
+    if (!get().isOnline) {
+      let optimisticOrder: KitchenOrder | null = null;
+      set(s => {
+        const nextOrders = s.kitchenOrders.map((order) => {
+          const hasItem = order.items.some((item) => item.id === id);
+          if (!hasItem) return order;
+          optimisticOrder = {
+            ...order,
+            status_version: (order.status_version || 0) + 1,
+            updated_at: new Date().toISOString(),
+            items: order.items.map((item) => item.id === id
+              ? { ...item, item_status: status, status_version: (item.status_version || 0) + 1, updated_at: new Date().toISOString() }
+              : item),
+          };
+          return optimisticOrder;
+        });
+        saveKitchenToLS(storeId, nextOrders);
+        return { kitchenOrders: nextOrders };
+      });
+      await enqueueOfflineOperation(storeId, {
+        operation: 'kitchen.item.update',
+        payload: { id, store_id: storeId, status },
+        idempotencyKey: `kitchen-item:${id}:${status}:${Date.now()}`,
+      });
+      await updateSyncIndicators(storeId);
+      if (optimisticOrder) return optimisticOrder;
+      throw new Error('Item dapur tidak ditemukan.');
+    }
     const data = await updateKitchenItemStatus(id, {
       store_id: storeId,
       status,
@@ -1303,7 +1519,12 @@ export const useStore = create<AppStore>((set, get) => ({
       try {
         await updateStore(storeId, toSave);
       } catch {
-        addPendingWrite(storeId, { table: 'stores', op: 'update', id: storeId, data: toSave as Record<string, unknown> });
+        await enqueueOfflineOperation(storeId, {
+          operation: 'store.settings.update',
+          payload: toSave as Record<string, unknown>,
+          idempotencyKey: `store-settings:${storeId}`,
+        });
+        await updateSyncIndicators(storeId);
         import('@/utils/toast').then(m => m.showToast('Pengaturan disimpan offline dan akan disinkronkan otomatis', 'success'));
       }
     } catch (e:any) {
@@ -1314,4 +1535,5 @@ export const useStore = create<AppStore>((set, get) => ({
   },
 
   saveCustomCats: (cats) => set({ customCats: cats }),
+  flushPending: () => flushPending(),
 }));

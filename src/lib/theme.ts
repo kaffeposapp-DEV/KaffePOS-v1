@@ -1,3 +1,5 @@
+import { ACCESSIBLE_COLORS, WCAG_AAA_NORMAL_TEXT_CONTRAST } from '@/lib/accessibility';
+
 export type ThemePresetId = 'classic' | 'slate' | 'emerald' | 'midnight' | 'custom';
 
 export type CustomThemeConfig = {
@@ -16,7 +18,7 @@ export type ThemeGuardrailResult = {
 };
 
 export const DEFAULT_CUSTOM_THEME: CustomThemeConfig = {
-  primary: '#d8823b',
+  primary: ACCESSIBLE_COLORS.accent,
   accent: '#0f766e',
   surface: '#fff7ed',
 };
@@ -31,7 +33,7 @@ export const THEME_PRESETS: Array<{
     id: 'classic',
     name: 'Classic Coffee',
     description: 'Hangat, familiar, dan cocok untuk kedai harian.',
-    preview: { primary: '#d8823b', accent: '#7a421a', surface: '#fdf8f4' },
+    preview: { primary: ACCESSIBLE_COLORS.accent, accent: ACCESSIBLE_COLORS.accentHover, surface: '#fdf8f4' },
   },
   {
     id: 'slate',
@@ -141,11 +143,13 @@ export function evaluateCustomTheme(input: Partial<CustomThemeConfig>): ThemeGua
   };
 
   const warnings: string[] = [];
-  const onPrimary = getContrastRatio(getReadableTextColor(theme.primary), theme.primary);
+  let onPrimary = getContrastRatio('#ffffff', theme.primary);
   let onSurface = getContrastRatio('#0f172a', theme.surface);
 
-  if (onPrimary < 4.5) {
-    warnings.push('Warna utama terlalu lemah. Sistem akan memilih warna teks yang lebih aman.');
+  if (onPrimary < WCAG_AAA_NORMAL_TEXT_CONTRAST) {
+    theme.primary = getDarkerPrimary(theme.primary);
+    onPrimary = getContrastRatio('#ffffff', theme.primary);
+    warnings.push('Warna utama disesuaikan agar tombol tetap memenuhi kontras WCAG AAA.');
   }
 
   if (onSurface < 7) {
@@ -181,6 +185,18 @@ function getLighterSurface(surface: string) {
   return candidate;
 }
 
+function getDarkerPrimary(primary: string) {
+  let candidate = primary;
+  let ratio = 0.08;
+
+  while (getContrastRatio('#ffffff', candidate) < WCAG_AAA_NORMAL_TEXT_CONTRAST && ratio <= 0.9) {
+    candidate = mixColors(primary, '#000000', ratio);
+    ratio += 0.08;
+  }
+
+  return candidate;
+}
+
 export function applyThemeToDocument(themeId: ThemePresetId, customTheme?: Partial<CustomThemeConfig>) {
   const root = document.documentElement;
   root.setAttribute('data-theme', themeId);
@@ -209,7 +225,6 @@ export function applyThemeToDocument(themeId: ThemePresetId, customTheme?: Parti
 
   const { theme } = evaluateCustomTheme(customTheme ?? DEFAULT_CUSTOM_THEME);
   const scale = buildThemeScale(theme.primary);
-  const onPrimary = getReadableTextColor(theme.primary);
 
   root.style.setProperty('--theme-50', scale[50]);
   root.style.setProperty('--theme-100', scale[100]);
@@ -224,6 +239,6 @@ export function applyThemeToDocument(themeId: ThemePresetId, customTheme?: Parti
   root.style.setProperty('--theme-accent', theme.accent);
   root.style.setProperty('--theme-surface', theme.surface);
   root.style.setProperty('--theme-surface-soft', mixColors(theme.surface, '#ffffff', 0.45));
-  root.style.setProperty('--theme-on-primary', onPrimary);
+  root.style.setProperty('--theme-on-primary', '#ffffff');
   root.style.setProperty('--theme-on-surface', '#0f172a');
 }

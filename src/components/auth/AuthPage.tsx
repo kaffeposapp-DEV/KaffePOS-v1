@@ -12,7 +12,6 @@ import {
   Eye,
   EyeOff,
   Lock,
-  Mail,
   RefreshCw,
   Shield,
   ShieldCheck,
@@ -22,36 +21,56 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthMode, getAuthModeFromLocation, getAuthPathForMode } from '@/utils/authFlow';
 import { getPasswordResetParams } from '@/utils/authFlow';
-import LOGO_WEB from '@/assets/logo-kaffeposweb.svg';
+import APP_PREVIEW from '@/assets/app-preview.jpg';
 import LOGO_ICON from '@/assets/logo-kaffeposappicon.svg';
+import BRAND_PREVIEW from '@/assets/preview-brand.jpg';
+import LICENSE_PREVIEW from '@/assets/preview-license.jpg';
 
 const brandHighlights = [
   {
-    title: 'Operasional tetap cepat',
-    copy: 'Masuk dari web untuk backoffice, lalu lanjutkan transaksi dari APK tanpa pindah data.',
+    title: 'Mudah digunakan',
+    copy: 'Kelola penjualan, stok, pelanggan, dan laporan dari satu aplikasi.',
     icon: Zap,
   },
   {
-    title: 'Laporan lebih mudah dibaca',
-    copy: 'Riwayat penjualan, stok, dan ringkasan bisnis tetap satu jalur dengan akun yang sama.',
+    title: 'Transaksi cepat',
+    copy: 'Alur kasir dibuat ringkas agar tim bisa melayani pelanggan tanpa jeda.',
     icon: BarChart3,
   },
   {
-    title: 'Akun bisnis tetap aman',
-    copy: 'Verifikasi email, reset password, dan akses pengguna berjalan pada domain yang sama.',
+    title: 'Laporan lengkap',
+    copy: 'Ringkasan penjualan, stok, dan riwayat transaksi tersaji rapi.',
     icon: ShieldCheck,
   },
   {
-    title: 'Akses akun lebih terjaga',
-    copy: 'Verifikasi email, reset password, dan pembatasan akses berjalan pada jalur akun yang sama.',
+    title: 'Keamanan terjamin',
+    copy: 'Akses akun dan data outlet berjalan dengan pembatasan per pengguna.',
     icon: Shield,
   },
 ];
 
-const statsData = [
-  { label: 'Active Cafes', value: '1,000+' },
-  { label: 'Transactions', value: '2M+' },
-  { label: 'Uptime', value: '99.9%' },
+const authPreviewCards = [
+  {
+    title: 'Dashboard live',
+    label: 'Web & APK',
+    copy: 'Pantau penjualan dan laporan dari semua device.',
+    image: APP_PREVIEW,
+    alt: 'Preview dashboard KaffePOS',
+  },
+  {
+    title: 'Brand outlet',
+    label: 'Pengaturan',
+    copy: 'Identitas toko, printer, dan pengguna tetap rapi.',
+    image: BRAND_PREVIEW,
+    alt: 'Preview pengaturan brand KaffePOS',
+  },
+  {
+    title: 'Lisensi sinkron',
+    label: 'Billing',
+    copy: 'Paket dan masa aktif mudah dicek tanpa berpindah aplikasi.',
+    image: LICENSE_PREVIEW,
+    alt: 'Preview lisensi KaffePOS',
+  },
 ];
 
 export default function AuthPage() {
@@ -343,112 +362,172 @@ export default function AuthPage() {
           : `Atur password baru untuk ${resetParams.email}.`;
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-slate-200 selection:bg-[#d8823b]/30 font-sans relative">
+    <div data-testid="reference-auth-shell" className="kaffe-app-bg min-h-screen text-slate-700 selection:bg-[#FF6A00]/20 font-sans relative">
       <div
-        className="absolute inset-0 pointer-events-none opacity-[0.04] hidden lg:block"
+        className="absolute inset-0 pointer-events-none opacity-[0.05] hidden lg:block"
         style={{
-          backgroundImage: 'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)',
+          backgroundImage: 'linear-gradient(rgba(255,106,0,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,106,0,0.1) 1px, transparent 1px)',
           backgroundSize: '40px 40px',
         }}
       />
       
       <div className="mx-auto min-h-screen w-full max-w-[1280px] lg:grid lg:grid-cols-2 relative z-10">
         
-        {/* Left Side - Marketing Matching Welcome Page Tone */}
-        <section className="relative hidden lg:flex flex-col justify-between px-10 xl:px-16 py-16 animate-in" style={{ animationDuration: '0.6s' }}>
+        {/* Left Side - Reference mobile-first brand panel */}
+        <section className="relative hidden lg:flex flex-col justify-center px-10 xl:px-16 py-8 animate-in" style={{ animationDuration: '0.6s' }}>
           
           <div className="max-w-xl">
             <div
-              className="flex items-center gap-3 mb-12 group cursor-pointer"
+              className="flex items-center gap-3 mb-6 group cursor-pointer"
               onClick={() => navigate(isNative ? '/login' : '/welcome')}
             >
-              <div className="h-10 md:h-12 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+              <div className="flex items-center gap-3 group-hover:scale-105 transition-transform duration-300">
                 <img
-                  src={LOGO_WEB}
-                  alt="KaffePOS"
-                  className="h-full w-auto object-contain"
+                  src={LOGO_ICON}
+                  alt=""
+                  className="h-11 w-11 object-contain"
                   loading="eager"
                 />
+                <span className="text-3xl font-extrabold tracking-tight text-slate-900">
+                  Kaffe<span className="text-[#FF6A00]">POS</span>
+                </span>
               </div>
             </div>
 
-            <h1 className="text-[56px] font-bold leading-[1.1] text-white tracking-tight mb-6">
-              Take Control of Your <br />
-              <span className="text-kaffe-500">Kafe Finances</span>
+            <h1 className="text-[40px] font-extrabold leading-[1.14] text-slate-900 mb-4">
+              Aplikasi Kasir Modern Untuk <span className="text-[#FF6A00]">Bisnis Anda</span>
             </h1>
-            <p className="text-[17px] text-slate-300 leading-relaxed font-normal mb-14 max-w-[520px]">
-              Join thousands of cafes who have transformed their business with our intuitive tracking and POS tools.
+            <p className="text-[16px] text-slate-500 leading-7 font-medium mb-5 max-w-[520px]">
+              Kelola penjualan, stok, pelanggan, dan laporan bisnis dengan mudah dalam satu aplikasi.
             </p>
 
-            <div className="grid grid-cols-2 gap-5">
+            <div className="mb-4 flex flex-wrap gap-2">
               {brandHighlights.map((item, idx) => {
                 const Icon = item.icon;
                 return (
-                  <div key={idx} className="group flex flex-col items-start gap-4 rounded-[20px] bg-slate-900/30 border border-slate-800/50 p-6 backdrop-blur-sm transition-all duration-300 hover:bg-slate-800/40 hover:border-slate-700/60 hover:-translate-y-1 shadow-sm hover:shadow-xl">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-950/80 border border-slate-800 text-kaffe-500 transition-colors duration-300 group-hover:border-kaffe-500">
-                      <Icon size={18} strokeWidth={2} aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h3 className="text-[14px] font-bold text-white mb-2">{item.title}</h3>
-                      <p className="text-[12px] text-slate-400 leading-relaxed">{item.copy}</p>
-                    </div>
+                  <div key={idx} className="inline-flex items-center gap-2 rounded-full border border-orange-100 bg-white/90 px-3 py-2 text-[11px] font-extrabold text-slate-900 shadow-sm">
+                    <Icon size={15} className="text-[#FF6A00]" strokeWidth={2.5} aria-hidden="true" />
+                    <span>{item.title}</span>
+                    <span className="sr-only">{item.copy}</span>
                   </div>
                 );
               })}
             </div>
+
+            <div data-testid="auth-preview-stage" className="kaffe-auth-preview mb-5">
+              <div className="relative z-10 flex items-start justify-between gap-5">
+                <div className="min-w-0">
+                  <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-orange-200/80 bg-white/80 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-[#FF6A00]">
+                    <span className="h-2 w-2 rounded-full bg-[#16A34A] shadow-[0_0_0_5px_rgba(22,163,74,0.12)]" aria-hidden="true" />
+                    Sinkronisasi outlet aktif
+                  </div>
+                  <h2 className="text-[18px] font-extrabold leading-snug text-slate-900">
+                    Preview operasional yang selalu tersambung
+                  </h2>
+                  <p className="mt-1.5 text-[12px] font-medium leading-5 text-slate-500">
+                    UI web, mobile web, dan APK dibuat senada supaya tim tetap familiar di perangkat apa pun.
+                  </p>
+                </div>
+                <div className="hidden shrink-0 rounded-2xl border border-orange-100 bg-white/80 px-3 py-2 text-right shadow-sm xl:block">
+                  <p className="text-[11px] font-bold text-slate-400">Sync status</p>
+                  <p className="text-lg font-extrabold text-slate-900">99.9%</p>
+                  <p className="text-[11px] font-semibold text-[#16A34A]">Real-time</p>
+                </div>
+              </div>
+
+              <div className="relative z-10 mt-4 grid grid-cols-3 gap-2.5">
+                {authPreviewCards.map((card, index) => (
+                  <article
+                    key={card.title}
+                    data-testid="auth-preview-card"
+                    className="kaffe-preview-card kaffe-float-soft"
+                    style={{ animationDelay: `${index * -1.35}s` }}
+                  >
+                    <div className="overflow-hidden rounded-[16px] border border-slate-100 bg-white shadow-sm">
+                      <img
+                        src={card.image}
+                        alt={card.alt}
+                        className="h-28 w-full object-cover object-top"
+                        loading={index === 0 ? 'eager' : 'lazy'}
+                      />
+                    </div>
+                    <div className="mt-3 min-w-0">
+                      <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#FF6A00]">{card.label}</p>
+                      <h3 className="mt-1 truncate text-[13px] font-extrabold text-slate-900">{card.title}</h3>
+                      <p className="mt-1 hidden text-[11px] font-medium leading-5 text-slate-500 2xl:block">{card.copy}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+
           </div>
 
-          {/* Stats Footer */}
-          <div className="flex items-center gap-12 pt-8 border-t border-slate-800/40">
-            {statsData.map((stat, i) => (
-              <div key={i}>
-                <div className="text-2xl font-bold text-white mb-1">{stat.value}</div>
-                <div className="text-[12px] text-slate-500 font-medium uppercase tracking-wider">{stat.label}</div>
-              </div>
-            ))}
-          </div>
         </section>
 
-        {/* Right Side - Auth Forms (Flat dark aesthetic) */}
-        <section className="relative flex min-h-screen items-center justify-center py-8 px-4 sm:px-6 lg:px-8">
-          <div className="w-full max-w-[420px] sm:max-w-[460px] lg:max-w-[420px] animate-in" style={{ animationDuration: '0.5s' }}>
+        {/* Right Side - Auth Forms */}
+        <section className="relative flex min-h-screen items-center justify-center py-8 px-4 sm:px-6 lg:items-start lg:px-8 lg:pt-14">
+          <div className="w-full min-w-0 max-w-[calc(100vw_-_2rem)] sm:max-w-[460px] lg:max-w-[420px] animate-in" style={{ animationDuration: '0.5s' }}>
              
             {/* Mobile Title */}
             <div className="mb-10 text-center lg:hidden animate-in slide-up">
-              <div className="inline-flex items-center gap-3 mb-6">
-                <div className="w-14 h-14 rounded-2xl bg-kaffe-500 flex items-center justify-center shadow-lg overflow-hidden">
-                  <img src={LOGO_ICON} alt="KaffePOS" className="w-full h-full object-cover" />
-                </div>
+              <div
+                data-testid="reference-auth-mobile-brand"
+                className="mb-5 flex items-center justify-center"
+              >
+                <img
+                  src={LOGO_ICON}
+                  alt=""
+                  className="h-11 w-11 object-contain"
+                  loading="eager"
+                />
+                <span className="ml-2 text-2xl font-extrabold tracking-tight text-slate-900">
+                  Kaffe<span className="text-[#FF6A00]">POS</span>
+                </span>
               </div>
-              <p className="text-[14px] text-slate-400 px-4">Bergabung ke dalam ekosistem KaffePOS</p>
+              <p className="text-[13px] text-slate-400 px-4">Bergabung ke dalam ekosistem KaffePOS</p>
             </div>
 
-            <div className="rounded-[16px] bg-[#111827] border border-slate-800/80 p-5 sm:p-10 shadow-xl relative transition-all duration-500 hover:border-slate-700/80">
+            <div data-testid="auth-mobile-preview-strip" className="kaffe-mobile-preview-strip lg:hidden" aria-label="Preview fitur KaffePOS">
+              {authPreviewCards.map((card, index) => (
+                <div key={card.title} className="kaffe-mobile-preview-card kaffe-float-soft" style={{ animationDelay: `${index * -1.2}s` }}>
+                  <img src={card.image} alt="" aria-hidden="true" className="h-16 w-full rounded-xl object-cover object-top" loading="lazy" />
+                  <span>{index === 0 ? 'Sinkronisasi outlet' : card.title}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="kaffe-panel min-w-0 rounded-[24px] p-6 sm:p-7 relative transition-all duration-300 hover:border-[#FF6A00]/20">
               <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-white mb-2">
-                  {registered ? 'Verifikasi OTP' : authTitle}
+                <div className="flex justify-center mb-6">
+                  <div className="w-16 h-16 bg-[#FFF4EA] rounded-lg flex items-center justify-center p-3 shadow-sm border border-orange-50">
+                    <img src={LOGO_ICON} alt="KaffePOS" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-extrabold text-slate-900 mb-3">
+                  {registered ? 'Verifikasi' : (mode === 'login' ? 'Selamat datang kembali!' : authTitle)}
                 </h2>
-                <p className="text-[14px] text-slate-400 leading-relaxed">
+                <p className="text-[13px] text-slate-500 font-medium leading-6">
                   {registered
-                    ? `6-digit kode OTP terkirim ke ${email}`
-                    : authDescription}
+                    ? `Kode OTP dikirim ke ${email}`
+                    : (mode === 'login' ? 'Silakan masuk untuk melanjutkan' : authDescription)}
                 </p>
               </div>
 
               {!registered && mode !== 'forgot' && mode !== 'reset' && (
-                <div className="mb-8 flex overflow-hidden rounded-lg bg-[#1f2937] p-1 border border-slate-800">
+                <div className="mb-6 flex overflow-hidden rounded-[20px] bg-slate-50 p-1.5 border border-slate-100">
                   {(['login', 'register'] as AuthMode[]).map((value) => (
                     <button
                       key={value}
                       type="button"
                       onClick={() => switchMode(value)}
-                      className={`flex-1 rounded-md py-2.5 text-[13px] font-bold focus-visible:ring-2 focus-visible:ring-kaffe-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-800 outline-none transition-all ${
+                    className={`flex-1 rounded-[14px] py-3 text-[14px] font-bold transition-all ${
                         mode === value
-                          ? 'bg-slate-800 text-white shadow-sm'
-                          : 'text-slate-400 hover:text-slate-200'
+                          ? 'bg-white text-slate-900 shadow-soft border border-slate-100'
+                          : 'text-slate-400 hover:text-slate-600'
                       }`}
                     >
-                      {value === 'login' ? 'Masuk' : 'Buat Akun'}
+                      {value === 'login' ? 'Login' : 'Daftar'}
                     </button>
                   ))}
                 </div>
@@ -459,22 +538,22 @@ export default function AuthPage() {
                   type="button"
                   onClick={() => switchMode('login')}
                   aria-label="Kembali ke halaman login"
-                  className="mb-6 flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-2 text-[12px] font-bold text-slate-300 transition hover:bg-slate-700 hover:text-white focus-visible:ring-2 focus-visible:ring-kaffe-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] outline-none"
+                  className="mb-8 flex items-center gap-2 text-[12px] font-black text-[#FF6A00] transition hover:gap-3 outline-none uppercase tracking-widest italic"
                 >
-                  <ArrowLeft size={14} aria-hidden="true" />
-                  Kembali ke login
+                  <ArrowLeft size={16} aria-hidden="true" />
+                  KEMBALI KE LOGIN
                 </button>
               )}
 
               {!registered && mode === 'reset' && invalidResetLink && (
-                <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
-                  <p className="text-[13px] leading-relaxed text-amber-100">
+                <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+                  <p className="text-[13px] leading-relaxed text-amber-900">
                     Link reset ini sudah tidak berlaku. Minta tautan baru agar proses ganti password tetap aman.
                   </p>
                   <button
                     type="button"
                     onClick={() => switchMode('forgot')}
-                    className="mt-3 inline-flex items-center gap-2 rounded-lg bg-amber-500/20 px-3 py-2 text-[12px] font-bold text-amber-100 transition hover:bg-amber-500/30 focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] outline-none"
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-2 text-[12px] font-bold text-amber-900 transition hover:bg-amber-100 outline-none"
                   >
                     Minta tautan baru
                   </button>
@@ -484,10 +563,10 @@ export default function AuthPage() {
               {(err || ok) && (
                 <div className="mb-6">
                   {err && (
-                    <div className="flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3.5 py-3 shake" role="alert" aria-live="assertive">
-                      <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-500" aria-hidden="true" />
+                    <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 shake" role="alert" aria-live="assertive">
+                      <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-700" aria-hidden="true" />
                       <div className="flex-1 space-y-2">
-                        <p className="text-[13px] leading-relaxed text-red-200">
+                        <p className="text-[13px] leading-relaxed text-red-800">
                           {err === 'email_not_confirmed'
                             ? 'Email belum terkonfirmasi. Silakan periksa inbox OTP.'
                             : err}
@@ -498,7 +577,7 @@ export default function AuthPage() {
                               type="button"
                               disabled={resending || resendCooldown > 0}
                               onClick={handleResendVerification}
-                              className="rounded bg-red-500/20 px-2 py-1 text-[11px] font-bold text-red-300 hover:bg-red-500/30 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] outline-none"
+                              className="rounded border border-red-300 bg-white px-2 py-1 text-[11px] font-bold text-red-800 hover:bg-red-100 disabled:opacity-50 outline-none"
                             >
                               {resending ? '...' : (resendCooldown > 0 ? `Tunggu ${resendCooldown}s` : 'Kirim Ulang OTP')}
                             </button>
@@ -508,9 +587,9 @@ export default function AuthPage() {
                     </div>
                   )}
                   {ok && (
-                    <div className="flex items-start gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-3 animate-in slide-up" role="status" aria-live="polite">
-                      <CheckCircle size={16} className="mt-0.5 shrink-0 text-emerald-500" aria-hidden="true" />
-                      <p className="text-[13px] leading-relaxed text-emerald-200">{ok}</p>
+                    <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-3 animate-in slide-up" role="status" aria-live="polite">
+                      <CheckCircle size={16} className="mt-0.5 shrink-0 text-emerald-700" aria-hidden="true" />
+                      <p className="text-[13px] leading-relaxed text-emerald-800">{ok}</p>
                     </div>
                   )}
                 </div>
@@ -526,15 +605,15 @@ export default function AuthPage() {
                         return (
                           <div
                             key={idx}
-                            className={`flex h-12 w-12 sm:h-14 sm:w-12 items-center justify-center rounded-lg border text-[22px] font-bold transition-all duration-300 ${
+                            className={`flex h-12 w-12 sm:h-14 sm:w-12 items-center justify-center rounded-xl border text-[24px] font-black transition-all duration-300 ${
                               isActive
-                                ? 'border-kaffe-500 bg-slate-900 ring-2 ring-kaffe-500/20 text-white'
+                                ? 'border-[#FF6A00] bg-white ring-4 ring-[#FF6A00]/10 text-slate-900'
                                 : val
-                                  ? 'border-slate-700 bg-slate-800/80 text-white shadow-inner'
-                                  : 'border-slate-800 bg-slate-900/50 text-slate-500'
+                                  ? 'border-slate-200 bg-slate-50 text-slate-900 shadow-inner'
+                                  : 'border-slate-100 bg-slate-50/50 text-slate-300'
                             }`}
                           >
-                            {val || (isActive ? <span className="h-5 w-[2px] animate-pulse bg-kaffe-500 rounded-full" /> : '')}
+                            {val || (isActive ? <span className="h-6 w-[2.5px] animate-pulse bg-[#FF6A00] rounded-full" /> : '')}
                           </div>
                         );
                       })}
@@ -557,17 +636,17 @@ export default function AuthPage() {
                     type="button"
                     disabled={confirming || verificationCode.length !== 6}
                     onClick={handleVerificationCheck}
-                    className="w-full flex items-center justify-center gap-2 rounded-lg py-3.5 mt-2 text-[14px] font-bold text-slate-950 transition-all hover:opacity-90 disabled:opacity-50 disabled:pointer-events-none focus-visible:ring-2 focus-visible:ring-kaffe-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] outline-none shadow-[0_0_15px_rgba(216,130,59,0.15)] bg-kaffe-500"
+                    className="w-full flex items-center justify-center gap-3 rounded-2xl py-4 mt-6 text-[16px] font-black text-white transition-all shadow-premium disabled:opacity-50 disabled:pointer-events-none bg-[#FF6A00] uppercase italic tracking-widest"
                   >
-                    {confirming ? <RefreshCw size={18} className="animate-spin" aria-hidden="true" /> : 'Selesaikan Verifikasi'}
+                    {confirming ? <RefreshCw size={22} className="animate-spin" aria-hidden="true" /> : 'Verifikasi Akun'}
                   </button>
 
-                  <div className="flex items-center justify-between gap-3 pt-5 border-t border-slate-800/60 mt-4">
+                  <div className="flex items-center justify-between gap-4 pt-6 border-t border-slate-100 mt-6">
                     <button
                       type="button"
                       onClick={openInbox}
                       aria-label="Buka inbox email di tab baru"
-                      className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-slate-900 border border-slate-800 px-3 py-2.5 text-[12px] font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition focus-visible:ring-2 focus-visible:ring-kaffe-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] outline-none"
+                      className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-slate-50 border border-slate-200 px-3 py-3 text-[12px] font-black text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all uppercase italic"
                     >
                       Buka Inbox <ExternalLink size={14} aria-hidden="true" className="opacity-70" />
                     </button>
@@ -575,9 +654,9 @@ export default function AuthPage() {
                       type="button"
                       disabled={resending || resendCooldown > 0}
                       onClick={handleResendVerification}
-                      className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-slate-900 border border-slate-800 px-3 py-2.5 text-[12px] font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-kaffe-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] outline-none"
+                      className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-slate-50 border border-slate-200 px-3 py-3 text-[12px] font-black text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all disabled:opacity-50 uppercase italic"
                     >
-                      <RefreshCw size={13} className={`${resending ? 'animate-spin' : ''} opacity-70`} aria-hidden="true" />
+                      <RefreshCw size={14} className={`${resending ? 'animate-spin' : ''} opacity-70`} aria-hidden="true" />
                       {resendCooldown > 0 ? `Tunggu ${resendCooldown}s` : 'Kirim Ulang'}
                     </button>
                   </div>
@@ -586,9 +665,9 @@ export default function AuthPage() {
                 <form onSubmit={(e) => { e.preventDefault(); submit(); }} className="space-y-4 animate-in slide-up">
                   {mode === 'register' && (
                     <div className="space-y-2">
-                      <label htmlFor="auth-uname" className="text-[13px] font-medium text-slate-400 pl-0.5">Nama Bisnis</label>
-                      <div className="relative">
-                        <Store size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+                      <label htmlFor="auth-uname" className="text-[11px] font-black text-slate-400 pl-1 uppercase tracking-widest">Nama Bisnis</label>
+                      <div className="relative group">
+                        <Store size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-[#FF6A00] transition-colors" aria-hidden="true" />
                         <input
                           id="auth-uname"
                           ref={mode === 'register' ? emailRef : undefined}
@@ -596,20 +675,25 @@ export default function AuthPage() {
                           value={uname}
                           onChange={(e) => setUname(e.target.value)}
                           aria-invalid={!!formErrors.uname}
-                          className={`w-full h-12 rounded-lg bg-slate-900 border pl-11 pr-4 text-[16px] text-white placeholder-slate-500 outline-none transition focus-visible:ring-2 focus-visible:ring-kaffe-500 focus-visible:ring-offset-0 focus:bg-slate-950 ${
-                            formErrors.uname ? 'border-red-500/50' : 'border-slate-800 focus:border-kaffe-500'
+                          aria-describedby={formErrors.uname ? 'auth-uname-error' : undefined}
+                          className={`w-full h-14 rounded-2xl bg-slate-50/50 border pl-12 pr-4 text-[16px] font-bold text-slate-900 placeholder-slate-300 outline-none transition-all focus:bg-white focus:ring-4 focus:ring-[#FF6A00]/5 ${
+                            formErrors.uname ? 'border-red-700' : 'border-slate-100 focus:border-[#FF6A00]/20'
                           }`}
                           placeholder="Kopi Senja"
                         />
                       </div>
+                      {formErrors.uname && (
+                        <p id="auth-uname-error" role="alert" className="pl-1 text-[12px] font-semibold text-red-800">
+                          {formErrors.uname}
+                        </p>
+                      )}
                     </div>
                   )}
 
                   {(mode === 'login' || mode === 'register' || mode === 'forgot') && (
                     <div className="space-y-2">
-                      <label htmlFor="auth-email" className="text-[13px] font-medium text-slate-400 pl-0.5">Alamat Email</label>
-                      <div className="relative">
-                        <Mail size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+                      <label htmlFor="auth-email" className="text-[11px] font-black text-slate-400 pl-1 uppercase tracking-widest">Email atau No. HP</label>
+                      <div className="relative group">
                         <input
                           id="auth-email"
                           ref={mode === 'login' || mode === 'forgot' ? emailRef : undefined}
@@ -617,31 +701,36 @@ export default function AuthPage() {
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           aria-invalid={!!formErrors.email}
-                          className={`w-full h-12 rounded-lg bg-slate-900 border pl-11 pr-4 text-[16px] text-white placeholder-slate-500 outline-none transition focus-visible:ring-2 focus-visible:ring-kaffe-500 focus-visible:ring-offset-0 focus:bg-slate-950 ${
-                            formErrors.email ? 'border-red-500/50' : 'border-slate-800 focus:border-kaffe-500'
+                          aria-describedby={formErrors.email ? 'auth-email-error' : undefined}
+                          className={`w-full h-14 rounded-2xl bg-slate-50/50 border px-5 text-[16px] font-bold text-slate-900 placeholder-slate-300 outline-none transition-all focus:bg-white focus:ring-4 focus:ring-[#FF6A00]/5 ${
+                            formErrors.email ? 'border-red-700' : 'border-slate-100 focus:border-[#FF6A00]/20'
                           }`}
-                          placeholder="admin@bisnis.com"
+                          placeholder="toko@email.com"
                         />
                       </div>
+                      {formErrors.email && (
+                        <p id="auth-email-error" role="alert" className="pl-1 text-[12px] font-semibold text-red-800">
+                          {formErrors.email}
+                        </p>
+                      )}
                     </div>
                   )}
 
                   {(mode === 'login' || mode === 'register' || mode === 'reset') && (
                     <div className="space-y-2 pt-1">
-                      <div className="flex items-center justify-between pl-0.5">
-                        <label htmlFor="auth-pass" className="text-[13px] font-medium text-slate-400">Kata Sandi</label>
+                      <div className="flex items-center justify-between pl-1">
+                        <label htmlFor="auth-pass" className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Password</label>
                         {mode === 'login' && (
                           <button
                             type="button"
                             onClick={() => switchMode('forgot')}
-                            className="text-[13px] font-medium text-kaffe-500 hover:text-kaffe-400 transition outline-none rounded-sm px-1 py-1 -mr-1"
+                            className="text-[11px] font-black text-slate-300 hover:text-[#FF6A00] transition-all outline-none uppercase tracking-widest italic"
                           >
-                            Lupa sandi?
+                            Lupa password?
                           </button>
                         )}
                       </div>
-                      <div className="relative">
-                        <Lock size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+                      <div className="relative group">
                         <input
                           id="auth-pass"
                           ref={mode === 'reset' ? emailRef : undefined}
@@ -649,8 +738,9 @@ export default function AuthPage() {
                           value={pass}
                           onChange={(e) => setPass(e.target.value)}
                           aria-invalid={!!formErrors.pass}
-                          className={`w-full h-12 rounded-lg bg-slate-900 border pl-11 pr-11 text-[16px] text-white placeholder-slate-500 outline-none transition focus-visible:ring-2 focus-visible:ring-kaffe-500 focus-visible:ring-offset-0 focus:bg-slate-950 ${
-                            formErrors.pass ? 'border-red-500/50' : 'border-slate-800 focus:border-kaffe-500'
+                          aria-describedby={formErrors.pass ? 'auth-pass-error' : undefined}
+                          className={`w-full h-14 rounded-2xl bg-slate-50/50 border px-5 pr-12 text-[16px] font-bold text-slate-900 placeholder-slate-300 outline-none transition-all focus:bg-white focus:ring-4 focus:ring-[#FF6A00]/5 ${
+                            formErrors.pass ? 'border-red-700' : 'border-slate-100 focus:border-[#FF6A00]/20'
                           }`}
                           placeholder="••••••••••"
                         />
@@ -658,25 +748,30 @@ export default function AuthPage() {
                           type="button"
                           onClick={() => setShow(!show)}
                           aria-label={show ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 w-10 h-10 flex items-center justify-center hover:text-slate-200 transition outline-none rounded-md"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 w-10 h-10 flex items-center justify-center hover:text-[#FF6A00] transition outline-none rounded-md"
                         >
                           {show ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
                         </button>
                       </div>
+                      {formErrors.pass && (
+                        <p id="auth-pass-error" role="alert" className="pl-1 text-[12px] font-semibold text-red-800">
+                          {formErrors.pass}
+                        </p>
+                      )}
                     </div>
                   )}
 
                   {mode === 'reset' && (
                     <div className="space-y-2 pt-1">
-                      <label htmlFor="auth-confirm" className="text-[13px] font-medium text-slate-400 pl-0.5">Konfirmasi Sandi Baru</label>
-                      <div className="relative">
-                        <Lock size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+                      <label htmlFor="auth-confirm" className="text-[11px] font-black text-slate-400 pl-1 uppercase tracking-widest">Konfirmasi Sandi Baru</label>
+                      <div className="relative group">
+                        <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-[#FF6A00] transition-colors" aria-hidden="true" />
                         <input
                           id="auth-confirm"
                           type={show ? 'text' : 'password'}
                           value={confirmPass}
                           onChange={(e) => setConfirmPass(e.target.value)}
-                          className="w-full h-12 rounded-lg bg-slate-900 border border-slate-800 pl-11 pr-10 text-[16px] text-white placeholder-slate-500 outline-none transition focus-visible:ring-2 focus-visible:ring-kaffe-500 focus-visible:ring-offset-0 focus:bg-slate-950"
+                          className="w-full h-14 rounded-2xl bg-slate-50/50 border border-slate-100 pl-12 pr-4 text-[16px] font-bold text-slate-900 placeholder-slate-300 outline-none transition-all focus:bg-white focus:ring-4 focus:ring-[#FF6A00]/5 focus:border-[#FF6A00]/20"
                           placeholder="••••••••••"
                         />
                       </div>
@@ -686,44 +781,48 @@ export default function AuthPage() {
                   <button
                     type="submit"
                     disabled={busy || isInvalid || invalidResetLink}
-                    className="w-full mt-6 flex items-center justify-center gap-2 rounded-lg h-12 text-[15px] font-bold text-slate-950 transition-all hover:opacity-90 disabled:opacity-50 disabled:pointer-events-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#111827] outline-none bg-kaffe-500"
+                    className="w-full mt-6 flex items-center justify-center gap-3 rounded-2xl h-14 text-[16px] font-black text-white transition-all shadow-premium disabled:opacity-50 disabled:pointer-events-none bg-[#FF6A00] uppercase italic tracking-widest"
                   >
                     {busy ? (
-                      <RefreshCw size={18} className="animate-spin" aria-hidden="true" />
+                      <RefreshCw size={22} className="animate-spin" aria-hidden="true" />
                     ) : (
                       <>
-                        {mode === 'login' ? 'Masuk Sekarang' : mode === 'register' ? 'Buat Akun Gratis' : mode === 'forgot' ? 'Kirim Tautan Reset' : 'Simpan Sandi Baru'}
+                        {mode === 'login' ? 'Masuk' : mode === 'register' ? 'Daftar Gratis' : mode === 'forgot' ? 'Reset Password' : 'Update Password'}
                       </>
                     )}
                   </button>
+
                 </form>
               )}
 
               {/* Branding Footer */}
               {!registered && (
-                <div className="mt-8 pt-6 border-t border-slate-800/50 text-center space-y-4">
-                  <p className="text-[11px] text-slate-500 leading-relaxed max-w-[280px] mx-auto">
-                    Dengan masuk ke KaffePOS, kamu menyetujui{' '}
-                    <button
-                      type="button"
-                      onClick={() => navigate('/terms')}
-                      className="text-slate-400 hover:text-white underline decoration-slate-600 underline-offset-2"
-                    >
-                      Terms of Service
-                    </button>
-                    {' '}dan{' '}
-                    <button
-                      type="button"
-                      onClick={() => navigate('/privacy')}
-                      className="text-slate-400 hover:text-white underline decoration-slate-600 underline-offset-2"
-                    >
-                      Privacy Policy
-                    </button>
+                <div className="mt-8 pt-6 border-t border-slate-100 text-center">
+                  <p className="text-[14px] text-slate-500 font-medium">
+                    {mode === 'login' ? (
+                      <>
+                        Belum punya akun?{' '}
+                        <button
+                          type="button"
+                          onClick={() => switchMode('register')}
+                          className="text-[#FF6A00] font-black hover:underline italic"
+                        >
+                          Daftar sekarang
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        Sudah punya akun?{' '}
+                        <button
+                          type="button"
+                          onClick={() => switchMode('login')}
+                          className="text-[#FF6A00] font-black hover:underline italic"
+                        >
+                          Masuk sekarang
+                        </button>
+                      </>
+                    )}
                   </p>
-                  <div className="flex items-center justify-center gap-2 text-emerald-500/60">
-                    <Shield size={12} />
-                    <span className="text-[10px] font-bold uppercase tracking-widest">Koneksi Aman & Verifikasi OTP</span>
-                  </div>
                 </div>
               )}
 

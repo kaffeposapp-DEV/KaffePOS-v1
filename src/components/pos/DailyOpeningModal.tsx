@@ -170,59 +170,61 @@ export default function DailyOpeningModal({ cashierName, toast, onDone }: Props)
         <style>{`@keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }`}</style>
 
         {/* Header gradient */}
-        <div className="bg-gradient-to-br from-orange-500 to-amber-500 px-5 pt-6 pb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
-              <Coffee size={24} className="text-white" />
+        <div className="bg-slate-900 px-6 pt-7 pb-10 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-8 opacity-10">
+             <Coffee size={80} strokeWidth={1} className="text-white" />
+          </div>
+          <div className="flex items-center gap-4 mb-3 relative z-10">
+            <div className="w-12 h-12 bg-[#FF6A00]/20 rounded-2xl flex items-center justify-center border border-[#FF6A00]/30">
+              <Coffee size={24} className="text-[#FF6A00]" />
             </div>
             <div>
-              <p className="text-white/80 text-xs font-bold">Selamat Datang ☀️</p>
-              <h3 className="text-white font-black text-lg leading-tight">Buka Toko Hari Ini</h3>
+              <p className="text-slate-400 text-[11px] font-bold uppercase tracking-widest mb-1">Selamat Datang</p>
+              <h3 className="font-display text-white font-extrabold text-xl leading-tight">Buka Toko Hari Ini</h3>
             </div>
             {!isOnline && (
-              <div className="ml-auto flex items-center gap-1 bg-white/20 rounded-full px-2 py-1">
-                <WifiOff size={11} className="text-white" />
-                <span className="text-white text-[10px] font-bold">Offline</span>
+              <div className="ml-auto flex items-center gap-1.5 bg-rose-500/20 border border-rose-500/30 rounded-full px-2.5 py-1">
+                <WifiOff size={12} className="text-rose-400" />
+                <span className="text-rose-400 text-[10px] font-bold uppercase tracking-wider">Offline</span>
               </div>
             )}
           </div>
-          <p className="text-white/80 text-sm">
+          <p className="text-slate-400 text-sm font-medium relative z-10">
             {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </div>
 
         {/* Body */}
-        <div className="px-5 pt-4 pb-6 space-y-3" style={{ marginTop: -16 }}>
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <Wallet size={15} className="text-orange-500" />
-              <p className="font-black text-slate-800 text-sm">Saldo Awal Kasir</p>
-              <span className="ml-auto text-[10px] bg-orange-100 text-orange-600 font-bold px-2 py-0.5 rounded-full">
-                Hari ini
-              </span>
+        <div className="px-6 pt-5 pb-8 space-y-4" style={{ marginTop: -20 }}>
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-premium p-5 space-y-4 relative z-20">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-xl bg-[#FF6A00]/10 flex items-center justify-center text-[#FF6A00]">
+                <Wallet size={16} />
+              </div>
+              <p className="font-bold text-slate-800 text-[14px]">Saldo Awal Kasir</p>
             </div>
 
             {/* Input */}
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">Rp</span>
+              <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg">Rp</span>
               <input
                 type="number" inputMode="numeric"
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
                 placeholder="0"
                 autoFocus
-                className="w-full border-2 border-slate-200 rounded-2xl pl-10 pr-4 py-3.5 text-2xl font-black text-slate-800 focus:outline-none focus:border-orange-400 text-right"
+                className="w-full border-2 border-slate-50 bg-slate-50/50 rounded-2xl pl-12 pr-5 py-4 text-3xl font-extrabold text-slate-800 focus:outline-none focus:border-[#FF6A00]/30 focus:bg-white focus:ring-4 focus:ring-[#FF6A00]/5 text-right transition-all"
               />
             </div>
-            {numVal > 0 && <p className="text-center text-orange-500 font-bold text-sm -mt-1">{fRp(numVal)}</p>}
+            {numVal > 0 && <p className="text-center text-[#FF6A00] font-extrabold text-sm">{fRp(numVal)}</p>}
 
             {/* Quick amounts */}
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-3 gap-2">
               {QUICK.map(q => (
                 <button key={q} onClick={() => setAmount(String(q))}
-                  className={`py-2 rounded-xl text-xs font-black border-2 transition-all active:scale-95
-                    ${numVal === q ? 'border-orange-400 bg-orange-50 text-orange-600' : 'border-slate-100 bg-slate-50 text-slate-600'}`}>
-                  {fRp(q)}
+                  className={`py-3 rounded-xl text-[12px] font-bold border-2 transition-all active:scale-95
+                    ${numVal === q ? 'border-[#FF6A00]/50 bg-[#FF6A00]/5 text-[#FF6A00]' : 'border-slate-50 bg-slate-50/50 text-slate-600 hover:border-slate-100 hover:bg-slate-50'}`}>
+                  {fRp(q).replace('Rp', '').trim()}
                 </button>
               ))}
             </div>
@@ -231,22 +233,22 @@ export default function DailyOpeningModal({ cashierName, toast, onDone }: Props)
             <input
               value={note} onChange={e => setNote(e.target.value)}
               placeholder="Catatan (opsional)"
-              className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-orange-300"
+              className="w-full border border-slate-100 bg-slate-50 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-[#FF6A00]/30 focus:bg-white transition-all"
             />
           </div>
 
           {/* Tombol Simpan */}
           <button onClick={handleSave} disabled={saving || numVal <= 0}
-            className="w-full py-4 bg-orange-500 text-white font-black text-base rounded-2xl flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 transition-all shadow-lg shadow-orange-200">
+            className="w-full py-5 bg-[#FF6A00] text-white font-bold text-[16px] rounded-2xl flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 transition-all shadow-premium hover:-translate-y-0.5">
             {saving
-              ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              : <><span>{isOnline ? 'Mulai Jualan' : 'Simpan (Offline)'}</span><ChevronRight size={18} /></>
+              ? <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              : <><span>{isOnline ? 'Mulai Jualan Sekarang' : 'Simpan Saldo (Offline)'}</span><ChevronRight size={18} strokeWidth={3} /></>
             }
           </button>
 
           <button onClick={handleSkip}
-            className="w-full py-2 text-slate-400 text-sm font-bold active:text-slate-600 transition-colors">
-            Lewati (tanpa saldo awal)
+            className="w-full py-2 text-slate-400 text-[13px] font-bold hover:text-slate-600 transition-colors uppercase tracking-widest">
+            Lewati Saldo Awal
           </button>
         </div>
       </div>

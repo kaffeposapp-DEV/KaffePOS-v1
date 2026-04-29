@@ -5,7 +5,7 @@
  
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo } from 'react';
-import { Plus, Archive, Trash2, X, AlertTriangle, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { Plus, Archive, X, AlertTriangle, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import DeleteConfirmSheet from '@/components/ui/DeleteConfirmSheet';
 import type { InventoryItem, InventoryItemUpdate, MenuItem } from '@/types';
@@ -98,53 +98,57 @@ export default function WarehouseTab({ toast }: { toast:any }) {
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
-      <div className="bg-white border-b border-slate-100 px-4 pt-3 pb-3">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-black text-slate-800 text-lg">Gudang Bahan</h2>
+    <div className="flex-1 flex flex-col overflow-hidden bg-white lg:bg-slate-50/50">
+      <div className="bg-white border-b border-slate-100 px-6 pt-6 pb-4 z-10">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="font-black text-xl text-slate-800 italic uppercase tracking-tighter">Gudang Bahan</h2>
+            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">Manajemen Stok & HPP</p>
+          </div>
           <div className="flex gap-2">
-            <button onClick={openNew} className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold active:scale-95">
-              <Plus size={13}/>Bahan Baru
+            <button onClick={openNew} className="flex items-center gap-2 h-10 px-4 bg-slate-100 text-slate-600 rounded-2xl text-[12px] font-black uppercase tracking-widest active:scale-95 transition-all">
+              <Plus size={16}/>Baru
             </button>
             <button onClick={()=>{setForm({id:'',name:'',qty:'',cost:'',unit:'gr',minStock:'5',type:'restock'});setShowModal(true);}}
-              className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 text-white rounded-xl text-xs font-bold active:scale-95">
-              <Archive size={13}/>Restock
+              className="flex items-center gap-2 h-10 px-4 bg-[#FF6A00] text-white rounded-2xl text-[12px] font-black uppercase italic tracking-widest active:scale-95 transition-all shadow-premium">
+              <Archive size={16}/>Restock
             </button>
           </div>
         </div>
-        <p className="text-[11px] text-slate-400 mb-3">
-          Restock dari Gudang tercatat sebagai pembelian bahan baku dan tidak mengurangi saldo awal kasir.
+        <p className="text-[10px] text-slate-400 mb-4 font-bold uppercase tracking-widest leading-relaxed">
+          Restock tercatat sebagai pembelian bahan baku dan tidak mengurangi saldo awal kasir.
         </p>
 
         {lowStock.length > 0 && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 mb-2 flex items-start gap-2">
-            <AlertTriangle size={15} className="text-red-500 shrink-0 mt-0.5"/>
+          <div className="bg-rose-50 border border-rose-100 rounded-2xl p-3 mb-4 flex items-start gap-3">
+            <AlertTriangle size={18} className="text-rose-500 shrink-0 mt-0.5"/>
             <div>
-              <p className="text-red-600 text-xs font-black">{lowStock.length} bahan stok kritis!</p>
-              <p className="text-red-400 text-xs">{lowStock.map(i=>i.name).join(', ')}</p>
+              <p className="text-rose-600 text-[11px] font-black uppercase tracking-widest">{lowStock.length} BAHAN STOK KRITIS!</p>
+              <p className="text-rose-400 text-xs font-bold mt-0.5 italic">{lowStock.map(i=>i.name).join(', ')}</p>
             </div>
           </div>
         )}
 
-        <div className="relative mb-3">
-          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"/>
+        {/* Search */}
+        <div className="relative mb-2">
+          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"/>
           <input 
             value={search} 
             onChange={e=>setSearch(e.target.value)} 
             placeholder="Cari bahan baku..."
-            className="w-full h-12 bg-slate-100 rounded-2xl pl-11 pr-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:bg-white transition-all border border-transparent focus:border-orange-200"
+            className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl pl-12 pr-4 text-[15px] focus:outline-none focus:ring-4 focus:ring-[#FF6A00]/5 focus:border-[#FF6A00]/20 transition-all font-bold text-slate-700 placeholder:text-slate-300 shadow-sm"
           />
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-40 text-slate-400">
-            <p className="text-3xl mb-2">📦</p><p className="text-sm">Belum ada bahan baku</p>
-            <p className="text-xs text-slate-300 mt-1">Tambahkan bahan untuk pantau stok & resep menu</p>
+          <div className="flex flex-col items-center justify-center h-60 text-slate-300">
+             <Archive size={48} className="mb-4 opacity-10" />
+             <p className="text-[12px] font-black uppercase tracking-[0.2em]">Stok Kosong</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
             {filtered.map(item => {
           const isLow = item.stock <= item.min_stock;
           const stockMeta = getStockMeta(item);
@@ -152,65 +156,61 @@ export default function WarehouseTab({ toast }: { toast:any }) {
           const expanded = expandedId === item.id;
 
           return (
-            <div key={item.id} className={`bg-white rounded-2xl border-2 overflow-hidden ${isLow?'border-red-200':'border-slate-100'}`}>
-              <div className="p-4">
-                <div className="flex items-start justify-between mb-2">
+            <div key={item.id} className={`group bg-white rounded-[32px] border-2 transition-all duration-300 hover:shadow-premium hover:border-[#FF6A00]/20 ${isLow?'border-rose-100 bg-rose-50/10 shadow-soft':'border-slate-50 shadow-soft'}`}>
+              <div className="p-6">
+                <div className="flex items-start justify-between mb-5">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-black text-slate-800">{item.name}</p>
-                      {isLow && <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">⚠ Kritis</span>}
+                    <div className="flex items-center gap-2 flex-wrap mb-3">
+                      <p className="font-bold text-slate-800 text-[16px] group-hover:text-[#FF6A00] transition-colors">{item.name}</p>
+                      {isLow && <span className="text-[9px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md uppercase tracking-widest">Kritis</span>}
                       {inMenus.length>0 && (
                         <button onClick={()=>setExpandedId(expanded?null:item.id)}
-                          className="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                          {inMenus.length} menu {expanded?<ChevronUp size={10}/>:<ChevronDown size={10}/>}
+                          className="text-[9px] font-black text-blue-500 bg-blue-50 px-2 py-0.5 rounded-md flex items-center gap-1.5 uppercase tracking-widest">
+                          {inMenus.length} resep {expanded?<ChevronUp size={12}/>:<ChevronDown size={12}/>}
                         </button>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className={`text-xl font-black ${isLow?'text-red-500':'text-slate-800'}`}>
-                        {item.stock.toLocaleString('id-ID')} <span className="text-sm font-bold text-slate-400">{item.unit}</span>
+                    <div className="flex items-baseline gap-2">
+                      <span className={`font-black text-3xl tracking-tighter italic ${isLow?'text-rose-500':'text-slate-900'}`}>
+                        {item.stock.toLocaleString('id-ID')}
                       </span>
+                      <span className="text-[11px] font-black text-slate-300 uppercase tracking-widest">{item.unit}</span>
                     </div>
-                    <div className="flex gap-3 mt-1 text-xs text-slate-400">
-                      <span>Min: {item.min_stock} {item.unit}</span>
-                      <span>HPP: {fRp(item.cost_per_unit)}/{item.unit}</span>
-                      <span>Nilai: {fRp(item.stock * item.cost_per_unit)}</span>
-                    </div>
-                    <div className="flex gap-3 mt-1 text-xs text-slate-400 flex-wrap">
-                      <span>Terpakai: {stockMeta.used.toLocaleString('id-ID')} {item.unit}</span>
-                      <span>Total tercatat: {stockMeta.baseline.toLocaleString('id-ID')} {item.unit}</span>
+                    <div className="flex flex-col gap-1 mt-4">
+                       <div className="flex items-center gap-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.05em]">
+                         <span>HPP: {fRp(item.cost_per_unit)}/{item.unit}</span>
+                         <div className="w-1 h-1 rounded-full bg-slate-100" />
+                         <span>Aset: {fRp(item.stock * item.cost_per_unit)}</span>
+                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-1.5 ml-2 shrink-0">
-                    <button onClick={()=>openRestock(item)} className="px-3 py-1.5 bg-orange-100 text-orange-600 rounded-lg text-xs font-bold active:scale-95">Restock</button>
-                    <button onClick={()=>openEdit(item)} className="px-2 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold active:scale-95">Edit</button>
-                    <button onClick={() => setDeleteTarget({ id: item.id, name: item.name })}
-                      className="p-1.5 text-slate-300 hover:text-red-400 active:scale-95"><Trash2 size={14}/></button>
+                  <div className="flex flex-col gap-2 ml-4 shrink-0">
+                    <button onClick={()=>openRestock(item)} className="p-2.5 bg-orange-50 text-[#FF6A00] rounded-2xl hover:bg-orange-100 transition-colors border border-orange-100"><Archive size={18}/></button>
+                    <button onClick={()=>openEdit(item)} className="p-2.5 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100 transition-colors border border-slate-100"><Plus size={18} className="rotate-45"/></button>
                   </div>
                 </div>
 
                 {/* Stock bar */}
-                <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                  <div className="h-2.5 rounded-full transition-all" style={{width:`${stockMeta.fillPct}%`, backgroundColor:stockMeta.barColor}}/>
+                <div className="w-full bg-slate-50 rounded-full h-3 overflow-hidden border border-slate-100/50">
+                  <div className="h-3 rounded-full transition-all" style={{width:`${stockMeta.fillPct}%`, backgroundColor:stockMeta.barColor}}/>
                 </div>
-                <div className="flex justify-between text-[10px] mt-1">
-                  <span className={isLow ? 'text-red-500 font-bold' : 'text-slate-300'}>{stockMeta.label}</span>
-                  <span className="text-slate-400">{stockMeta.fillPct}% sisa dari total stok tercatat</span>
+                <div className="flex justify-between text-[10px] mt-2 font-bold uppercase tracking-widest">
+                  <span className={isLow ? 'text-rose-500' : 'text-slate-300'}>{stockMeta.label}</span>
+                  <span className="text-slate-300">{stockMeta.fillPct}% sisa stok</span>
                 </div>
               </div>
 
               {/* Menu yang menggunakan bahan ini */}
               {expanded && inMenus.length>0 && (
-                <div className="border-t border-slate-100 bg-blue-50 px-4 py-3">
-                  <p className="text-xs font-black text-blue-400 mb-2">DIGUNAKAN DI MENU</p>
+                <div className="border-t border-slate-50 bg-blue-50/30 px-6 py-4">
+                  <p className="text-[10px] font-black text-blue-300 uppercase tracking-widest mb-3">DIGUNAKAN DI MENU</p>
                   <div className="flex flex-wrap gap-2">
                     {inMenus.map((name,i)=>(
-                      <span key={i} className="text-xs font-bold bg-white text-blue-700 border border-blue-200 px-2.5 py-1 rounded-full">
+                      <span key={i} className="text-[11px] font-black bg-white text-blue-600 border border-blue-100 px-3 py-1 rounded-xl shadow-sm">
                         {name}
                       </span>
                     ))}
                   </div>
-                  <p className="text-xs text-blue-400 mt-2">Stok berkurang otomatis saat menu ini terjual di POS</p>
                 </div>
               )}
             </div>
@@ -291,7 +291,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
               <button 
                 type="submit" 
                 disabled={saving}
-                className="w-full h-14 bg-slate-900 text-white font-black rounded-2xl active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-slate-900/10 transition-all"
+                className="w-full h-14 bg-[#FF6A00] text-white font-black rounded-2xl active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 shadow-premium transition-all italic uppercase tracking-wider"
               >
                 {saving&&<div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/>}
                 {saving?'Menyimpan...':'Simpan Perubahan'}

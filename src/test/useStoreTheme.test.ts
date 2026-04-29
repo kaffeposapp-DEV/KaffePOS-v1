@@ -7,7 +7,7 @@ describe('useStore theme persistence', () => {
     useStore.setState({
       appTheme: 'classic',
       customTheme: {
-        primary: '#d8823b',
+        primary: '#FF6A00',
         accent: '#0f766e',
         surface: '#fff7ed',
       },

@@ -1,82 +1,155 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ChevronRight, CreditCard, Loader2, Percent, ShieldCheck, WalletCards, X } from 'lucide-react';
-import { createSubscriptionPayment, getSubscriptionPaymentQuote, type SubscriptionPaymentConfig } from '@/lib/backendApi';
-import { type SubscriptionBillingQuote, type SubscriptionPaymentMethodId, groupSubscriptionPaymentMethods } from '@/lib/subscriptionBilling';
-import { BILLING_CYCLE_LABELS, formatRupiah, getPlanDefinition } from '@/lib/subscriptionPlans';
+import {
+  CheckCircle2, ChevronLeft, ChevronRight, CreditCard,
+  Loader2, Percent, ShieldCheck, WalletCards, X,
+  Lock, ArrowRight, Wallet
+} from 'lucide-react';
+import { createSubscriptionPayment, getSubscriptionPaymentQuote } from '@/lib/backendApi';
+import {
+  type SubscriptionBillingQuote,
+  type SubscriptionPaymentMethodId,
+  groupSubscriptionPaymentMethods,
+} from '@/lib/subscriptionBilling';
+import {
+  BILLING_CYCLE_LABELS,
+  type BillingCycle,
+  type SubscriptionPlanId,
+  formatRupiah,
+  getPlanDefinition,
+  getPlanPrice,
+} from '@/lib/subscriptionPlans';
+import { canStartOnlineBillingFlow, getOnlineBillingBlockedMessage } from '@/lib/offlinePolicy';
+
+type PaidPlan = Exclude<SubscriptionPlanId, 'secangkir'>;
+type PaidCycle = Exclude<BillingCycle, 'free'>;
 
 type Props = {
   open: boolean;
-  plan: 'kopi_susu' | 'signature' | 'founder';
-  billingCycle: 'monthly' | 'quarterly' | 'yearly';
+  plan: PaidPlan;
+  billingCycle: PaidCycle;
   onClose: () => void;
   toast: { showToast: (message: string, type?: string) => void };
 };
 
-type FlowStep = 'method' | 'checkout';
+type FlowStep = 'plan' | 'method' | 'review';
+
+const PAID_PLANS: PaidPlan[] = ['kopi_susu', 'signature', 'founder'];
+const PAID_CYCLES: PaidCycle[] = ['monthly', 'quarterly', 'yearly'];
+
+function stepNumber(step: FlowStep) {
+  if (step === 'plan') return 1;
+  if (step === 'method') return 2;
+  return 3;
+}
+
+function stepTitle(step: FlowStep) {
+  if (step === 'plan') return 'Pilih Paket';
+  if (step === 'method') return 'Pilih Pembayaran';
+  return 'Review Checkout';
+}
 
 export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onClose, toast }: Props) {
-  const [step, setStep] = useState<FlowStep>('method');
+  const [step, setStep] = useState<FlowStep>('plan');
+  const [selectedPlan, setSelectedPlan] = useState<PaidPlan>(plan);
+  const [selectedCycle, setSelectedCycle] = useState<PaidCycle>(billingCycle);
   const [selectedMethod, setSelectedMethod] = useState<SubscriptionPaymentMethodId>('qris');
   const [quote, setQuote] = useState<SubscriptionBillingQuote | null>(null);
-  const [paymentConfig, setPaymentConfig] = useState<SubscriptionPaymentConfig | null>(null);
   const [voucherInput, setVoucherInput] = useState('');
   const [showVoucherInput, setShowVoucherInput] = useState(false);
   const [appliedVoucher, setAppliedVoucher] = useState<string | null>(null);
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
+
   const methods = useMemo(() => groupSubscriptionPaymentMethods(), []);
-  const planDef = getPlanDefinition(plan);
+  const selectedPlanDef = getPlanDefinition(selectedPlan);
+  const selectedPrice = getPlanPrice(selectedPlan, selectedCycle);
+
+  const resetFlow = useCallback(() => {
+    setStep('plan');
+    setSelectedPlan(plan);
+    setSelectedCycle(billingCycle);
+    setSelectedMethod('qris');
+    setQuote(null);
+    setVoucherInput('');
+    setShowVoucherInput(false);
+    setAppliedVoucher(null);
+    setLoadingQuote(false);
+    setSubmitting(false);
+  }, [billingCycle, plan]);
+
+  useEffect(() => {
+    if (open) resetFlow();
+  }, [open, resetFlow]);
+
+  useEffect(() => {
+    if (!open || typeof window === 'undefined') return undefined;
+    const updateOnlineState = () => setIsOnline(typeof navigator === 'undefined' ? true : navigator.onLine);
+    updateOnlineState();
+    window.addEventListener('online', updateOnlineState);
+    window.addEventListener('offline', updateOnlineState);
+    return () => {
+      window.removeEventListener('online', updateOnlineState);
+      window.removeEventListener('offline', updateOnlineState);
+    };
+  }, [open]);
 
   const loadQuote = async (voucherCode?: string | null) => {
+    if (!canStartOnlineBillingFlow(isOnline)) {
+      throw new Error(getOnlineBillingBlockedMessage());
+    }
     setLoadingQuote(true);
     try {
       const resolvedVoucherCode = voucherCode === undefined ? appliedVoucher : voucherCode;
       const response = await getSubscriptionPaymentQuote({
-        plan,
-        billingCycle,
+        plan: selectedPlan,
+        billingCycle: selectedCycle,
         paymentMethod: selectedMethod,
         ...(resolvedVoucherCode ? { voucherCode: resolvedVoucherCode } : {}),
       });
-      setPaymentConfig(response.paymentConfig ?? null);
       if (response.paymentConfig && !response.paymentConfig.onlinePaymentAvailable) {
         throw new Error(response.paymentConfig.message);
       }
       setQuote(response.quote);
-      return response.quote as SubscriptionBillingQuote;
+      return response.quote;
     } finally {
       setLoadingQuote(false);
     }
   };
 
-  const handleConfirmMethod = async () => {
+  const goToReview = async () => {
     try {
       await loadQuote(appliedVoucher);
-      setStep('checkout');
+      setStep('review');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Gagal menyiapkan checkout.';
       toast.showToast(message, 'error');
     }
   };
 
-  const handleApplyVoucher = async () => {
+  const applyVoucher = async () => {
     try {
       const code = voucherInput.trim().toUpperCase();
       const nextQuote = await loadQuote(code || null);
       setAppliedVoucher(nextQuote.voucher?.code ?? null);
       if (nextQuote.voucher) setShowVoucherInput(false);
-      toast.showToast(nextQuote.voucher ? `Voucher ${nextQuote.voucher.code} diterapkan.` : 'Voucher dihapus.', nextQuote.voucher ? 'success' : 'info');
+      toast.showToast(nextQuote.voucher ? `Voucher ${nextQuote.voucher.code} berhasil dipasang!` : 'Voucher dihapus.', nextQuote.voucher ? 'success' : 'info');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Voucher tidak bisa dipakai.';
+      const message = error instanceof Error ? error.message : 'Voucher tidak valid.';
       toast.showToast(message, 'error');
     }
   };
 
   const handlePay = async () => {
+    if (!canStartOnlineBillingFlow(isOnline)) {
+      toast.showToast(getOnlineBillingBlockedMessage(), 'warning');
+      return;
+    }
     setSubmitting(true);
     try {
       const result = await createSubscriptionPayment({
-        plan,
-        billingCycle,
+        plan: selectedPlan,
+        billingCycle: selectedCycle,
         paymentMethod: selectedMethod,
         voucherCode: appliedVoucher,
       });
@@ -85,10 +158,10 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
         throw new Error('Link pembayaran tidak tersedia.');
       }
 
-      toast.showToast(result.reused ? 'Melanjutkan checkout yang masih aktif.' : 'Mengarahkan ke pembayaran aman...', 'success');
+      toast.showToast(result.reused ? 'Melanjutkan pembayaran Anda...' : 'Membuka gerbang pembayaran aman...', 'success');
       window.location.assign(result.payment.redirect_url);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Gagal memulai transaksi langganan.';
+      const message = error instanceof Error ? error.message : 'Gagal memulai pembayaran.';
       toast.showToast(message, 'error');
     } finally {
       setSubmitting(false);
@@ -96,26 +169,16 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
   };
 
   const closeFlow = useCallback(() => {
-    setStep('method');
-    setQuote(null);
-    setPaymentConfig(null);
-    setVoucherInput('');
-    setShowVoucherInput(false);
-    setAppliedVoucher(null);
-    setSelectedMethod('qris');
+    resetFlow();
     onClose();
-  }, [onClose]);
+  }, [onClose, resetFlow]);
 
   useEffect(() => {
     if (!open) return undefined;
-
-    // Mencegah background body ikut terscroll ketika modal terbuka
     document.body.style.overflow = 'hidden';
 
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !submitting) {
-        closeFlow();
-      }
+      if (event.key === 'Escape' && !submitting) closeFlow();
     };
 
     window.addEventListener('keydown', handleEscape);
@@ -129,316 +192,400 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
 
   return (
     <div
-      className="modal-overlay md:items-center md:[&>.modal-content]:rounded-[24px] md:[&>.modal-content]:m-4"
+      className="modal-overlay md:items-center md:[&>.modal-content]:m-4"
       onClick={(event) => {
-        if (event.target === event.currentTarget && !submitting) {
-          closeFlow();
-        }
+        if (event.target === event.currentTarget && !submitting) closeFlow();
       }}
     >
-      <div className="modal-content bg-white shadow-[0_24px_90px_rgba(15,23,42,0.22)] md:max-w-[880px] md:rounded-[28px] md:flex md:flex-row md:max-h-[85vh] overflow-hidden">
-        {/* Left Pane: Order Summary (Desktop Only) */}
-        <div className="hidden md:flex md:w-[320px] bg-slate-50 border-r border-slate-100 flex-col p-8">
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">Ringkasan Pesanan</p>
-
-          <div className="mt-8 flex-1">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-kaffe-600 flex items-center justify-center shrink-0 shadow-lg shadow-kaffe-600/20">
-                <ShieldCheck className="text-white" size={20} />
-              </div>
-              <div>
-                <p className="font-bold text-slate-900">{planDef.name}</p>
-                <p className="text-xs text-slate-500 mt-0.5">{BILLING_CYCLE_LABELS[billingCycle]}</p>
-              </div>
-            </div>
-
-            <div className="mt-8 space-y-4">
-              {planDef.features.slice(0, 4).map((f) => (
-                <div key={f} className="flex items-center gap-2 text-xs text-slate-600">
-                  <CheckCircle2 size={14} className="text-emerald-500" />
-                  <span>{f}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-auto pt-6 border-t border-slate-200">
-            <div className="flex items-center justify-between text-sm text-slate-500 mb-1">
-              <span>Subtotal</span>
-              <span>{formatRupiah(planDef.prices[billingCycle] ?? 0)}</span>
-            </div>
-            <div className="flex items-center justify-between mt-2">
-              <span className="text-sm font-bold text-slate-900">Total</span>
-              <span className="text-xl font-black text-kaffe-600">
-                {step === 'checkout' && quote ? formatRupiah(quote.total) : formatRupiah(planDef.prices[billingCycle] ?? 0)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Pane: Content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white/80 backdrop-blur-md px-6 py-5">
+      <div className="modal-content flex max-h-[100vh] w-full flex-col overflow-hidden bg-white shadow-[0_24px_100px_rgba(0,0,0,0.25)] md:max-h-[90vh] md:max-w-[850px] md:rounded-[32px]">
+        {/* HEADER SECTION */}
+        <div className="shrink-0 border-b border-slate-100 bg-white px-6 py-5 md:px-10">
+          <div className="flex items-start justify-between">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-kaffe-600">Langkah {step === 'method' ? '1' : '2'} dari 2</p>
-              <h3 className="text-lg font-bold text-slate-900">{step === 'method' ? 'Pilih Metode Pembayaran' : 'Detail Checkout'}</h3>
+              <div className="flex items-center gap-3">
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[10px] font-black text-white">
+                  {stepNumber(step)}
+                </div>
+                <h3 className="text-xl font-black text-slate-800">{stepTitle(step)}</h3>
+              </div>
+              <p className="mt-1 text-xs font-bold uppercase tracking-widest text-slate-400">
+                Langkah {stepNumber(step)} dari 3
+              </p>
             </div>
             <button
               onClick={closeFlow}
-              className="rounded-full hover:bg-slate-100 p-2 text-slate-400 transition-colors"
+              disabled={submitting}
+              className="rounded-full p-2 text-slate-300 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"
             >
-              <X size={20} />
+              <X size={24} />
             </button>
           </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6 md:px-8 md:py-8">
+          <div className="mt-6 flex gap-2">
+            {(['plan', 'method', 'review'] as FlowStep[]).map((item, index) => {
+              const active = step === item;
+              const done = stepNumber(step) > index + 1;
+              return (
+                <div
+                  key={item}
+                  className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${active || done ? 'bg-slate-900' : 'bg-slate-100'}`}
+                />
+              );
+            })}
+          </div>
+          {!isOnline && (
+            <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-700">
+              Pembayaran langganan butuh internet. Coba lagi setelah koneksi kembali.
+            </div>
+          )}
+        </div>
+
+        {/* CONTENT SECTION */}
+        <div className="flex-1 overflow-y-auto px-6 py-8 md:px-10 md:py-10 custom-scrollbar">
+          {step === 'plan' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="grid gap-4 md:grid-cols-3">
+                {PAID_PLANS.map((item) => {
+                  const planDef = getPlanDefinition(item);
+                  const active = selectedPlan === item;
+                  return (
+                    <button
+                      key={item}
+                      onClick={() => {
+                        setSelectedPlan(item);
+                        setQuote(null);
+                        setAppliedVoucher(null);
+                      }}
+                      className={`relative flex flex-col rounded-[28px] border-2 p-5 text-left transition-all ${
+                        active
+                          ? 'border-slate-900 bg-slate-50 shadow-md'
+                          : 'border-slate-100 bg-white hover:border-slate-200'
+                      }`}
+                    >
+                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">{planDef.badge}</p>
+                      <p className="mt-2 text-lg font-black text-slate-900">{planDef.name}</p>
+                      <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400 min-h-[44px]">
+                        {planDef.description}
+                      </p>
+                      <div className="mt-6">
+                        <p className="text-xl font-black text-slate-900">{formatRupiah(getPlanPrice(item, selectedCycle))}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">{BILLING_CYCLE_LABELS[selectedCycle]}</p>
+                      </div>
+                      {active && (
+                        <div className="absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white">
+                          <CheckCircle2 size={16} />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="rounded-[28px] bg-slate-50 p-6 border border-slate-100">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Pilih Durasi Langganan</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {PAID_CYCLES.map((cycle) => {
+                    const active = selectedCycle === cycle;
+                    return (
+                      <button
+                        key={cycle}
+                        onClick={() => {
+                          setSelectedCycle(cycle);
+                          setQuote(null);
+                          setAppliedVoucher(null);
+                        }}
+                        className={`flex-1 rounded-2xl border-2 px-5 py-3 text-sm font-black transition-all ${
+                          active
+                            ? 'border-slate-900 bg-white text-slate-900 shadow-sm'
+                            : 'border-transparent bg-slate-200/50 text-slate-500 hover:bg-slate-200'
+                        }`}
+                      >
+                        {BILLING_CYCLE_LABELS[cycle]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
           {step === 'method' && (
-            <div className="space-y-8">
-              {/* Mobile Only Summary */}
-              <div className="md:hidden rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-bold text-slate-900">{planDef.name}</p>
-                <p className="mt-1 text-sm text-slate-500">{BILLING_CYCLE_LABELS[billingCycle]} · {formatRupiah(planDef.prices[billingCycle] ?? 0)}</p>
+            <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+              <div className="flex items-center justify-between rounded-[24px] bg-slate-900 p-5 text-white shadow-lg">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Paket Pilihan</p>
+                  <p className="mt-1 text-lg font-black">{selectedPlanDef.name} · {BILLING_CYCLE_LABELS[selectedCycle]}</p>
+                </div>
+                <p className="text-xl font-black text-orange-400">{formatRupiah(selectedPrice)}</p>
               </div>
 
               <div>
-                <div className="mb-4 flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-kaffe-50 flex items-center justify-center text-kaffe-600">
-                    <WalletCards size={16} />
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-100 text-orange-600">
+                    <Wallet size={18} />
                   </div>
-                  <p className="text-sm font-bold text-slate-900">QRIS</p>
+                  <h4 className="text-sm font-black uppercase tracking-widest text-slate-800">QRIS (Otomatis & Cepat)</h4>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {methods.qris.map((method) => (
                     <button
                       key={method.id}
                       onClick={() => setSelectedMethod(method.id)}
-                      className={`group relative rounded-xl border p-4 text-left transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-kaffe-600 focus-visible:ring-offset-2 ${
+                      className={`flex items-center justify-between rounded-[24px] border-2 p-5 transition-all ${
                         selectedMethod === method.id
-                          ? 'border-kaffe-600 bg-kaffe-50/30 ring-1 ring-kaffe-600'
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+                          ? 'border-slate-900 bg-slate-50 shadow-md'
+                          : 'border-slate-100 bg-white hover:border-slate-200'
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <p className="text-sm font-bold text-slate-900">{method.label}</p>
-                          <p className="mt-1 text-[11px] leading-relaxed text-slate-500 line-clamp-2">{method.description}</p>
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-slate-100 shadow-sm">
+                          <WalletCards size={20} className="text-slate-400" />
                         </div>
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                          selectedMethod === method.id ? 'border-kaffe-600 bg-kaffe-600' : 'border-slate-200 group-hover:border-slate-300'
-                        }`}>
-                          {selectedMethod === method.id && <CheckCircle2 size={12} className="text-white" />}
+                        <div>
+                          <p className="text-sm font-black text-slate-800">{method.label}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase">{method.description}</p>
                         </div>
                       </div>
+                      {selectedMethod === method.id && <CheckCircle2 size={20} className="text-emerald-600" />}
                     </button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <div className="mb-4 flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-kaffe-50 flex items-center justify-center text-kaffe-600">
-                    <CreditCard size={16} />
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
+                    <CreditCard size={18} />
                   </div>
-                  <p className="text-sm font-bold text-slate-900">Virtual Account</p>
+                  <h4 className="text-sm font-black uppercase tracking-widest text-slate-800">Virtual Account</h4>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {methods.virtualAccount.map((method) => (
                     <button
                       key={method.id}
                       onClick={() => setSelectedMethod(method.id)}
-                      className={`group relative rounded-xl border p-4 text-left transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-kaffe-600 focus-visible:ring-offset-2 ${
+                      className={`flex items-center justify-between rounded-[24px] border-2 p-5 transition-all ${
                         selectedMethod === method.id
-                          ? 'border-kaffe-600 bg-kaffe-50/30 ring-1 ring-kaffe-600'
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+                          ? 'border-slate-900 bg-slate-50 shadow-md'
+                          : 'border-slate-100 bg-white hover:border-slate-200'
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <p className="text-sm font-bold text-slate-900">{method.shortLabel}</p>
-                          <p className="mt-1 text-[11px] leading-relaxed text-slate-500 line-clamp-2">{method.description}</p>
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-slate-100 shadow-sm">
+                          <CreditCard size={20} className="text-slate-400" />
                         </div>
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                          selectedMethod === method.id ? 'border-kaffe-600 bg-kaffe-600' : 'border-slate-200 group-hover:border-slate-300'
-                        }`}>
-                          {selectedMethod === method.id && <CheckCircle2 size={12} className="text-white" />}
+                        <div>
+                          <p className="text-sm font-black text-slate-800">{method.shortLabel}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase">{method.description}</p>
                         </div>
                       </div>
+                      {selectedMethod === method.id && <CheckCircle2 size={20} className="text-emerald-600" />}
                     </button>
                   ))}
                 </div>
               </div>
-
-              <div className="pt-4 border-t border-slate-100 flex flex-col gap-4">
-                <div className="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-100">
-                  <ShieldCheck size={18} className="text-slate-400 mt-0.5" />
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Data Anda aman dan terenkripsi. Dengan melanjutkan, Anda menyetujui Syarat Layanan KaffePOS.
-                  </p>
-                </div>
-                <button
-                  onClick={() => void handleConfirmMethod()}
-                  disabled={loadingQuote}
-                  className="w-full h-12 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 px-4 text-sm font-bold text-white shadow-lg shadow-slate-900/10 transition-all flex items-center justify-center gap-2"
-                >
-                  {loadingQuote ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      Menyiapkan...
-                    </>
-                  ) : (
-                    <>
-                      Lanjutkan ke Checkout
-                      <ChevronRight size={18} />
-                    </>
-                  )}
-                </button>
-              </div>
             </div>
           )}
-          {step === 'checkout' && quote && (
-            <div className="space-y-6">
-              {/* Mobile Only Summary */}
-              <div className="md:hidden rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-bold text-slate-900">{quote.planName}</p>
-                <p className="mt-1 text-sm text-slate-500">{BILLING_CYCLE_LABELS[quote.billingCycle]} · {quote.selectedPaymentMethod.label}</p>
-              </div>
 
-              <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">Rincian Pembayaran</p>
-                <div className="mt-5 space-y-4 text-sm">
-                  <div className="flex items-center justify-between text-slate-600">
-                    <span>Harga Paket</span>
-                    <span className="font-bold text-slate-900">{formatRupiah(quote.subtotal)}</span>
+          {step === 'review' && quote && (
+            <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500">
+              <div className="rounded-[32px] border border-slate-100 bg-white p-6 shadow-xl md:p-8">
+                <h4 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Ringkasan Pesanan</h4>
+
+                <div className="mt-8 space-y-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-bold text-slate-500">Paket {quote.planName}</span>
+                    <span className="font-black text-slate-800">{formatRupiah(quote.subtotal)}</span>
                   </div>
-                  <div className="flex items-center justify-between text-slate-600">
-                    <span>Diskon</span>
-                    <span className={`font-bold ${quote.discount > 0 ? 'text-emerald-600' : 'text-slate-900'}`}>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-bold text-slate-500">Durasi: {BILLING_CYCLE_LABELS[quote.billingCycle]}</span>
+                    <span className="text-xs font-black text-slate-400">TERPILIH</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-bold text-slate-500">Metode</span>
+                    <span className="font-black text-slate-800">{quote.selectedPaymentMethod.label}</span>
+                    <span className="text-xs font-black text-slate-400 uppercase">MIDTRANS</span>
+                  </div>
+
+                  <div className="border-t border-slate-50 pt-4" />
+
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-bold text-slate-500">Diskon</span>
+                    <span className={`font-black ${quote.discount > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
                       {quote.discount > 0 ? `- ${formatRupiah(quote.discount)}` : 'Rp 0'}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-slate-600">
-                    <span>Biaya Layanan</span>
-                    <span className="font-bold text-slate-900">{quote.adminFee > 0 ? formatRupiah(quote.adminFee) : 'Gratis'}</span>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-bold text-slate-500">Biaya Layanan</span>
+                    <span className="font-black text-slate-800">{quote.adminFee > 0 ? formatRupiah(quote.adminFee) : 'Gratis'}</span>
                   </div>
-                  <div className="border-t border-slate-100 pt-4 flex items-center justify-between">
-                    <span className="text-base font-bold text-slate-900">Total Tagihan</span>
-                    <span className="text-2xl font-black text-kaffe-600">{formatRupiah(quote.total)}</span>
+
+                  <div className="rounded-[24px] bg-slate-900 p-6 text-white shadow-lg mt-6">
+                    <div className="flex items-center justify-between">
+                      <span className="text-base font-black">Total Pembayaran</span>
+                      <span className="text-3xl font-black text-orange-400">{formatRupiah(quote.total)}</span>
+                    </div>
                   </div>
                 </div>
 
-                {(!showVoucherInput && !quote.voucher) ? (
-                  <button
-                    onClick={() => setShowVoucherInput(true)}
-                    className="mt-6 w-full h-11 rounded-xl border border-emerald-100 bg-emerald-50/50 px-4 text-xs font-bold text-emerald-700 hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Percent size={14} />
-                    Gunakan Kode Voucher?
-                  </button>
-                ) : (
-                  <div className="mt-6 rounded-xl border border-emerald-100 bg-emerald-50/30 p-3">
-                    <div className="flex gap-2">
-                      <input
-                        value={voucherInput}
-                        onChange={(event) => setVoucherInput(event.target.value.toUpperCase())}
-                        placeholder="KODE VOUCHER"
-                        className="flex-1 h-11 rounded-lg border border-emerald-100 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:ring-1 focus:ring-emerald-400"
-                      />
-                      <button
-                        onClick={() => void handleApplyVoucher()}
-                        className="rounded-lg h-11 bg-emerald-600 px-4 font-bold text-white flex items-center justify-center hover:bg-emerald-700 transition-colors"
-                      >
-                        Pakai
-                      </button>
-                    </div>
-                    {quote.voucher && (
-                      <div className="mt-3 flex items-center justify-between px-1">
-                        <p className="text-[11px] font-bold text-emerald-700">
-                          PROMO: {quote.voucher.code} TERPASANG
-                        </p>
+                <div className="mt-8">
+                  {!showVoucherInput && !quote.voucher ? (
+                    <button
+                      onClick={() => setShowVoucherInput(true)}
+                      className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700 transition-colors"
+                    >
+                      <Percent size={14} />
+                      Punya Kode Voucher
+                    </button>
+                  ) : (
+                    <div className="flex flex-col gap-3 rounded-2xl bg-emerald-50 p-4 border border-emerald-100">
+                      <div className="flex gap-2">
+                        <input
+                          value={voucherInput}
+                          onChange={(e) => setVoucherInput(e.target.value.toUpperCase())}
+                          placeholder="KODE VOUCHER"
+                          className="h-10 flex-1 rounded-xl border border-emerald-100 bg-white px-4 text-xs font-black outline-none focus:ring-2 focus:ring-emerald-200"
+                        />
                         <button
-                          onClick={() => {
-                            setVoucherInput('');
-                            setAppliedVoucher(null);
-                            setShowVoucherInput(false);
-                            void loadQuote(null);
-                          }}
-                          className="text-[11px] text-red-500 font-bold hover:underline"
+                          onClick={() => void applyVoucher()}
+                          disabled={loadingQuote}
+                          className="h-10 rounded-xl bg-emerald-600 px-5 text-xs font-black text-white hover:bg-emerald-700 disabled:opacity-50"
                         >
-                          Hapus
+                          {loadingQuote ? '...' : 'Pakai'}
                         </button>
                       </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center shadow-sm">
-                      <CreditCard size={20} className="text-slate-400" />
+                      {quote.voucher && (
+                        <div className="flex items-center justify-between px-1">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">✓ Voucher Aktif: {quote.voucher.code}</p>
+                          <button
+                            onClick={() => {
+                              setVoucherInput('');
+                              setAppliedVoucher(null);
+                              setShowVoucherInput(false);
+                              void loadQuote(null);
+                            }}
+                            className="text-[10px] font-black uppercase text-red-500 hover:underline"
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Metode Terpilih</p>
-                      <p className="text-sm font-bold text-slate-900">{quote.selectedPaymentMethod.label}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setStep('method')}
-                    className="text-xs font-bold text-kaffe-600 hover:underline"
-                  >
-                    Ubah
-                  </button>
-                </div>
-
-                <div className="flex items-start gap-3 p-4 rounded-xl bg-white border border-emerald-100">
-                  <ShieldCheck size={20} className="text-emerald-500 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-bold text-slate-900">Pembayaran Terenkripsi</p>
-                    <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
-                      {paymentConfig?.mode === 'midtrans_sandbox'
-                        ? 'Sandbox Mode: Hanya untuk testing internal.'
-                        : quote.trustLabel || 'Transaksi Anda dilindungi dengan enkripsi SSL 256-bit.'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="space-y-3 px-1">
-                  <label className="flex items-start gap-3 cursor-pointer group">
-                    <input type="checkbox" defaultChecked className="mt-1 w-4 h-4 rounded border-slate-300 text-kaffe-600 focus:ring-kaffe-500" />
-                    <span className="text-[11px] text-slate-500 leading-normal group-hover:text-slate-700 transition-colors">
-                      Saya menyetujui <span className="text-kaffe-600 font-bold underline">Syarat Penggunaan</span> dan <span className="text-kaffe-600 font-bold underline">Kebijakan Privasi</span> KaffePOS.
-                    </span>
-                  </label>
-                </div>
-
-                <button
-                  onClick={() => void handlePay()}
-                  disabled={submitting}
-                  className="w-full h-14 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 px-4 text-base font-bold text-white shadow-lg shadow-emerald-600/10 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 size={20} className="animate-spin" />
-                      Memproses...
-                    </>
-                  ) : (
-                    <>
-                      Bayar Sekarang · {formatRupiah(quote.total)}
-                    </>
                   )}
-                </button>
-                <p className="text-center text-[10px] text-slate-400">
-                  Aktivasi otomatis segera setelah pembayaran dikonfirmasi.
-                </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4 rounded-[28px] border border-blue-100 bg-blue-50/50 p-6">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 shadow-sm">
+                  <ShieldCheck size={22} />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-blue-900 leading-tight">Keamanan Terjamin</p>
+                  <p className="mt-1 text-[11px] font-medium leading-relaxed text-blue-700">
+                    Lisensi aktif otomatis setelah pembayaran sukses. Seluruh data transaksi dienkripsi dengan standar keamanan tinggi.
+                  </p>
+                </div>
               </div>
             </div>
           )}
         </div>
+
+        {/* FOOTER ACTIONS */}
+        <div className="shrink-0 border-t border-slate-100 bg-white px-6 py-6 md:px-10">
+          {step === 'plan' && (
+            <button
+              onClick={() => setStep('method')}
+              className="group flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-slate-900 px-6 text-sm font-black text-white shadow-xl transition-all active:scale-[0.98] hover:bg-slate-800"
+            >
+              Lanjut Pilih Pembayaran
+              <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
+            </button>
+          )}
+
+          {step === 'method' && (
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                onClick={() => setStep('plan')}
+                className="flex h-14 flex-1 items-center justify-center gap-3 rounded-2xl border-2 border-slate-100 bg-white px-6 text-sm font-bold text-slate-500 transition-all active:scale-[0.98] hover:bg-slate-50"
+              >
+                <ChevronLeft size={18} />
+                Kembali
+              </button>
+              <button
+                onClick={() => void goToReview()}
+                disabled={loadingQuote || !isOnline}
+                className="group flex h-14 flex-[1.5] items-center justify-center gap-3 rounded-2xl bg-slate-900 px-6 text-sm font-black text-white shadow-xl transition-all active:scale-[0.98] disabled:opacity-50"
+              >
+                {loadingQuote ? (
+                  <Loader2 size={20} className="animate-spin" />
+                ) : (
+                  <>
+                    Lanjut Review
+                    <ChevronRight size={18} className="transition-transform group-hover:translate-x-1" />
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {step === 'review' && quote && (
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                onClick={() => setStep('method')}
+                disabled={submitting}
+                className="flex h-14 flex-1 items-center justify-center gap-3 rounded-2xl border-2 border-slate-100 bg-white px-6 text-sm font-bold text-slate-500 transition-all active:scale-[0.98] disabled:opacity-50"
+              >
+                <ChevronLeft size={18} />
+                Ganti Metode
+              </button>
+              <button
+                onClick={() => void handlePay()}
+                disabled={submitting || !isOnline}
+                className="group flex h-14 flex-[2] items-center justify-center gap-3 rounded-2xl bg-emerald-600 px-6 text-sm font-black text-white shadow-xl shadow-emerald-600/20 transition-all active:scale-[0.98] hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {submitting ? (
+                  <Loader2 size={20} className="animate-spin" />
+                ) : (
+                  <>
+                    <Lock size={18} />
+                    Bayar Sekarang · {formatRupiah(quote.total)}
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </div>
+
+      <style>{`
+        .modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(15, 23, 42, 0.6);
+          backdrop-filter: blur(8px);
+          display: flex;
+          justify-content: center;
+          align-items: flex-end;
+          z-index: 100;
+        }
+        .modal-content {
+          animation: modal-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes modal-up {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #e2e8f0;
+          border-radius: 10px;
+        }
+      `}</style>
     </div>
   );
 }

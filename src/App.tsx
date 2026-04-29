@@ -30,7 +30,7 @@ const LandingPage = IS_MOBILE_TARGET_BUILD
 
 function SplashScreen() {
   return (
-    <div style={{ position:'fixed', inset:0, background:'#0b121e', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+    <div style={{ position:'fixed', inset:0, background:'#ffffff', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
       <style>{`
         @keyframes ws{0%{opacity:0;transform:translateY(28px);filter:blur(4px)}100%{opacity:1;transform:none;filter:none}}
         @keyframes lg{0%{width:0;opacity:0}100%{width:48px;opacity:1}}
@@ -48,15 +48,15 @@ function SplashScreen() {
       `}</style>
       <div style={{ textAlign:'center', padding:'0 36px' }}>
         <div style={{ marginBottom:6 }}>
-          <span className="s-w1" style={{ display:'inline-block', fontSize:38, fontWeight:900, color:'#ffffff', lineHeight:1.15 }}>Atur</span>
+          <span className="s-w1" style={{ display:'inline-block', fontSize:42, fontStyle: 'italic', fontWeight:900, color:'#1e293b', lineHeight:1.15, textTransform: 'uppercase', letterSpacing: 0 }}>Kaffe</span>
           {' '}
-          <span className="s-w2" style={{ display:'inline-block', fontSize:38, fontWeight:900, color:'#d8823b', lineHeight:1.15 }}>Kafemu</span>
+          <span className="s-w2" style={{ display:'inline-block', fontSize:42, fontStyle: 'italic', fontWeight:900, color:'#FF6A00', lineHeight:1.15, textTransform: 'uppercase', letterSpacing: 0 }}>POS</span>
         </div>
         <div style={{ marginBottom:20 }}>
         <div className="s-dw" style={{ display:'flex', gap:9, justifyContent:'center' }}>
-          <div className="s-d1" style={{ width:7, height:7, borderRadius:'50%', backgroundColor:'#C8843A' }} />
-          <div className="s-d2" style={{ width:7, height:7, borderRadius:'50%', backgroundColor:'#C8843A' }} />
-          <div className="s-d3" style={{ width:7, height:7, borderRadius:'50%', backgroundColor:'#C8843A' }} />
+          <div className="s-d1" style={{ width:8, height:8, borderRadius:'50%', backgroundColor:'#FF6A00' }} />
+          <div className="s-d2" style={{ width:8, height:8, borderRadius:'50%', backgroundColor:'#FF6A00' }} />
+          <div className="s-d3" style={{ width:8, height:8, borderRadius:'50%', backgroundColor:'#FF6A00' }} />
         </div>
       </div>
     </div>
@@ -66,9 +66,9 @@ function SplashScreen() {
 
 function AuthLoading() {
   return (
-    <div style={{ position:'fixed', inset:0, background:'#0b121e', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:16 }}>
-      <div style={{ fontSize:36 }}>☕</div>
-      <div style={{ width:32, height:32, border:'3px solid #d8823b', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
+    <div style={{ position:'fixed', inset:0, background:'#ffffff', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:16 }}>
+      <div style={{ fontSize:42 }}>☕</div>
+      <div style={{ width:32, height:32, border:'4px solid #FF6A0010', borderTopColor:'#FF6A00', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );

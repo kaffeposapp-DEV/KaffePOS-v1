@@ -15,6 +15,31 @@ import { DEFAULT_CUSTOM_THEME, applyThemeToDocument, type CustomThemeConfig, typ
 import { runAppUpgradeBootstrap } from './lib/appUpgrade';
 import { initCriticalStorageBackupBridge, persistCriticalStorageBackup, restoreCriticalStorageBackup } from './lib/appStorageBackup';
 
+function registerOfflineShell() {
+  if (import.meta.env.DEV) return;
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then((registration) => {
+      registration.addEventListener('updatefound', () => {
+        const worker = registration.installing;
+        if (!worker) return;
+        worker.addEventListener('statechange', () => {
+          if (worker.state !== 'installed' || !navigator.serviceWorker.controller) return;
+          window.dispatchEvent(new CustomEvent('kaffepos-toast', {
+            detail: {
+              message: 'Update aplikasi tersedia. Tutup dan buka kembali saat operasional sedang longgar.',
+              type: 'info',
+            },
+          }));
+        });
+      });
+    }).catch((error) => {
+      console.warn('[OfflineShell] Service worker registration failed', error);
+    });
+  });
+}
+
 function applyPersistedTheme() {
   try {
     const theme = (localStorage.getItem('kpos_app_theme') as ThemePresetId | null) || 'classic';
@@ -62,6 +87,7 @@ async function bootstrap() {
         </AuthProvider>
       </BrowserRouter>
     );
+    registerOfflineShell();
   } catch (e) {
     console.error('Bootstrap error:', e);
     applyPersistedTheme();

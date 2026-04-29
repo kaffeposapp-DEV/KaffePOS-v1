@@ -1,18 +1,15 @@
 /* eslint-disable react-hooks/exhaustive-deps */
- 
- 
- 
- 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Check, ChevronRight, ExternalLink, History, Shield } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, Check, Clock3, ExternalLink, History, RefreshCw, Shield, Sparkles, CreditCard, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { getSubscriptions, type SubscriptionPaymentConfig } from '@/lib/backendApi';
 import {
   BILLING_CYCLE_LABELS,
   INSTAGRAM_ADMIN_URL,
-  RENEWAL_URL,
+  type BillingCycle,
+  type SubscriptionPlanId,
   formatDateId,
   formatRupiah,
   getPlanDefinition,
@@ -60,12 +57,27 @@ type PendingPaymentRow = {
   created_at: string;
 };
 
-const DEFAULT_SELECTIONS = [
-  { plan: 'secangkir', billingCycle: 'free' },
-  { plan: 'kopi_susu', billingCycle: 'monthly' },
-  { plan: 'signature', billingCycle: 'monthly' },
-  { plan: 'founder', billingCycle: 'yearly' },
-];
+type PaidPlan = Exclude<SubscriptionPlanId, 'secangkir'>;
+type PaidCycle = Exclude<BillingCycle, 'free'>;
+
+const PAID_PLANS: PaidPlan[] = ['kopi_susu', 'signature', 'founder'];
+
+function isPaidPlan(plan: string | null | undefined): plan is PaidPlan {
+  return plan === 'kopi_susu' || plan === 'signature' || plan === 'founder';
+}
+
+function isPaidCycle(cycle: string | null | undefined): cycle is PaidCycle {
+  return cycle === 'monthly' || cycle === 'quarterly' || cycle === 'yearly';
+}
+
+function getPaymentStatusLabel(status: string | null | undefined) {
+  const normalized = status?.toLowerCase();
+  if (normalized === 'settlement' || normalized === 'success') return 'Berhasil';
+  if (normalized === 'pending' || normalized === 'capture') return 'Menunggu pembayaran';
+  if (normalized === 'expire') return 'Kedaluwarsa';
+  if (normalized === 'deny' || normalized === 'cancel' || normalized === 'failure') return 'Gagal';
+  return status || '-';
+}
 
 export default function SubscriptionSection({ isPro, profile, toast, onRefreshStatus }: SubscriptionSectionProps) {
   const navigate = useNavigate();
@@ -78,8 +90,9 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState('signature');
-  const [selectedCycle, setSelectedCycle] = useState('quarterly');
+  const [checkoutPlan, setCheckoutPlan] = useState<PaidPlan>('signature');
+  const [checkoutCycle, setCheckoutCycle] = useState<PaidCycle>('monthly');
+  const billingNoticeShown = useRef(false);
 
   const loadSubscriptionData = async () => {
     if (!user?.id) return;
@@ -91,7 +104,7 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
       setPendingPayments(response.pendingPayments || []);
       setPaymentConfig(response.paymentConfig || null);
     } catch {
-      toast.showToast('Gagal memuat data langganan.', 'error');
+      toast.showToast('Gagal memuat data lisensi.', 'error');
     } finally {
       setLoading(false);
     }
@@ -102,6 +115,24 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
   }, [user?.id]);
 
   useEffect(() => {
+    if (!user?.id || billingNoticeShown.current || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const billing = params.get('billing');
+    if (!billing) return;
+
+    billingNoticeShown.current = true;
+    if (billing === 'success') toast.showToast('Pembayaran berhasil. Status lisensi sedang diperbarui.', 'success');
+    if (billing === 'pending') toast.showToast('Pembayaran masih menunggu konfirmasi.', 'info');
+    if (billing === 'failed') toast.showToast('Pembayaran gagal atau dibatalkan.', 'warning');
+
+    onRefreshStatus().catch(() => {});
+    loadSubscriptionData().catch(() => {});
+    params.delete('billing');
+    const nextSearch = params.toString();
+    window.history.replaceState({}, '', `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}`);
+  }, [user?.id]);
+
+  useEffect(() => {
     if (!user?.id) return;
     const poll = setInterval(() => {
       loadSubscriptionData().catch(() => {});
@@ -109,315 +140,342 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
     return () => { clearInterval(poll); };
   }, [user?.id]);
 
-  const resolvedPlan = getPlanDefinition(currentSubscription?.plan || profile?.pro_plan || 'secangkir');
-  const resolvedCycle = currentSubscription?.billing_cycle || (resolvedPlan.isFree ? 'free' : 'monthly');
   const expiryDate = currentSubscription?.expires_at ? new Date(currentSubscription.expires_at) : null;
   const daysRemaining = expiryDate ? Math.ceil((expiryDate.getTime() - Date.now()) / 86_400_000) : null;
   const isExpired = currentSubscription?.status === 'expired' || (!!expiryDate && expiryDate.getTime() <= Date.now());
-  const expiringSoon = !isExpired && daysRemaining !== null && daysRemaining <= 7;
+  const isCancelled = currentSubscription?.status === 'cancelled';
+  const hasLegacyPaidAccess = Boolean(isPro && !currentSubscription && isPaidPlan(profile?.pro_plan));
+  const isActivePaid = Boolean(
+    (currentSubscription && currentSubscription.status === 'active' && !isExpired && !isCancelled && isPaidPlan(currentSubscription.plan)) ||
+    hasLegacyPaidAccess,
+  );
+  const activePlanId = currentSubscription && isActivePaid && isPaidPlan(currentSubscription.plan)
+    ? currentSubscription.plan
+    : hasLegacyPaidAccess && isPaidPlan(profile?.pro_plan)
+      ? profile.pro_plan
+      : 'secangkir';
+  const activePlan = getPlanDefinition(activePlanId);
+  const activeCycle = currentSubscription?.billing_cycle || (activePlan.isFree ? 'free' : 'monthly');
+  const expiringSoon = isActivePaid && daysRemaining !== null && daysRemaining <= 7;
   const paidHistory = useMemo(() => paymentHistory.filter((entry) => entry.amount > 0), [paymentHistory]);
   const activePendingPayment = useMemo(
     () => pendingPayments.find((entry) => ['pending', 'capture'].includes(entry.transaction_status)) || null,
     [pendingPayments],
   );
+  const failedPayment = useMemo(
+    () => pendingPayments.find((entry) => ['deny', 'cancel', 'expire', 'failure'].includes(entry.transaction_status)) || null,
+    [pendingPayments],
+  );
   const onlinePaymentAvailable = paymentConfig?.onlinePaymentAvailable === true;
-  const paymentModeMessage = paymentConfig?.message || 'Pembayaran online belum dibuka. Aktivasi langganan dilakukan manual oleh admin sampai Midtrans production aktif.';
+  const paymentModeMessage = paymentConfig?.message || 'Pembayaran online belum dibuka. Aktivasi sementara dibantu admin.';
+
+  const primaryCta = isActivePaid ? 'Perpanjang Langganan' : isExpired || isCancelled ? 'Aktifkan Kembali' : 'Langganan Sekarang';
+
+  const statusLabel = activePendingPayment
+    ? 'Menunggu Pembayaran'
+    : isActivePaid
+      ? 'Langganan Aktif'
+      : isExpired
+        ? 'Masa Aktif Habis'
+        : isCancelled
+          ? 'Lisensi Dibatalkan'
+          : 'Paket Gratis';
+
+  const openCheckout = (plan?: PaidPlan, cycle?: PaidCycle) => {
+    if (!onlinePaymentAvailable) {
+      toast.showToast('Pembayaran online belum aktif. Admin akan membantu aktivasi lisensi.', 'info');
+      window.open(INSTAGRAM_ADMIN_URL, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    const fallbackPlan = isPaidPlan(currentSubscription?.plan) ? currentSubscription.plan : 'signature';
+    const fallbackCycle = isPaidCycle(currentSubscription?.billing_cycle) ? currentSubscription.billing_cycle : 'monthly';
+    setCheckoutPlan(plan ?? fallbackPlan);
+    setCheckoutCycle(cycle ?? fallbackCycle);
+    setCheckoutOpen(true);
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
       await onRefreshStatus();
       await loadSubscriptionData();
-      toast.showToast('Data langganan berhasil diperbarui.', 'success');
+      toast.showToast('Status lisensi berhasil diperbarui.', 'success');
     } catch {
-      toast.showToast('Gagal memperbarui data langganan.', 'error');
+      toast.showToast('Gagal sinkron status lisensi.', 'error');
     } finally {
       setRefreshing(false);
     }
   };
 
-  const goToConfirmation = (plan: string, billingCycle: string) => {
-    navigate(`/plan-confirmation?plan=${plan}&billingCycle=${billingCycle}`);
-  };
-
-  const handleOpenCheckout = () => {
-    if (selectedPlan === 'secangkir') {
-      toast.showToast('Paket gratis tidak membutuhkan pembayaran.', 'info');
-      return;
-    }
-    if (!onlinePaymentAvailable) {
-      toast.showToast('Pembayaran online belum aktif. Mengarahkan ke admin untuk aktivasi manual.', 'info');
-      window.open(INSTAGRAM_ADMIN_URL, '_blank', 'noopener,noreferrer');
-      return;
-    }
-    setCheckoutOpen(true);
-  };
-
   return (
-    <div className="space-y-4">
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="p-5" style={{ background: resolvedPlan.gradient }}>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-white/70">Langganan Saat Ini</p>
-              <h3 className="mt-2 text-2xl font-black text-white">{resolvedPlan.name}</h3>
-              <p className="mt-1 text-sm text-white/80">
-                {BILLING_CYCLE_LABELS[(resolvedCycle as keyof typeof BILLING_CYCLE_LABELS) || 'monthly']} · {currentSubscription?.status === 'cancelled' ? 'Dibatalkan' : isExpired ? 'Expired' : 'Aktif'}
-              </p>
-            </div>
+    <div className="space-y-6">
+      <div>
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Billing dan Langganan</p>
+        <h2 className="mt-1 text-xl font-black text-slate-900">Paket Aktif</h2>
+      </div>
 
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="rounded-2xl border border-white/20 bg-white/15 px-4 py-2 text-xs font-black text-white backdrop-blur disabled:opacity-60"
-            >
-              {refreshing ? 'Memuat...' : 'Refresh'}
-            </button>
+      {/* ── HERO STATUS CARD ── */}
+      <div className="relative overflow-hidden rounded-[32px] bg-slate-900 p-6 shadow-xl md:p-8">
+        {/* Decorative elements */}
+        <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-orange-500/10 blur-3xl" />
+        <div className="absolute -bottom-16 -left-16 h-64 w-64 rounded-full bg-emerald-500/5 blur-3xl" />
+
+        <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-3">
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
+                isActivePaid ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-slate-400'
+              }`}>
+                <div className={`h-1.5 w-1.5 rounded-full ${isActivePaid ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`} />
+                {statusLabel}
+              </span>
+              {loading && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-300">
+                  <RefreshCw size={10} className="animate-spin" />
+                  Sinkron
+                </span>
+              )}
+              {activePendingPayment && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-400 animate-pulse">
+                  <Clock3 size={10} />
+                  Menunggu
+                </span>
+              )}
+            </div>
+            <h3 className="mt-4 text-3xl font-black text-white md:text-4xl">
+              {activePlan.name}
+            </h3>
+            <p className="mt-2 max-w-md text-sm font-medium text-slate-400 leading-relaxed">
+              {activePlan.description}
+            </p>
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl bg-white/15 p-4 backdrop-blur">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-white/70">Status Paket</p>
-              <p className="mt-2 text-sm font-bold text-white">
-                {resolvedPlan.isFree ? 'Gratis aktif otomatis' : isPro ? 'Paket berbayar aktif' : 'Belum aktif'}
-              </p>
-              <p className="mt-1 text-xs text-white/75">{resolvedPlan.description}</p>
+          <div className="flex shrink-0 flex-col gap-2 rounded-3xl bg-white/5 p-5 backdrop-blur-sm border border-white/5 min-w-[240px]">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2 text-slate-400">
+                <Calendar size={14} />
+                <span className="text-[11px] font-black uppercase tracking-wider">Masa Aktif</span>
+              </div>
+              <span className="text-[11px] font-black text-white">{expiryDate ? formatDateId(expiryDate) : 'Selamanya'}</span>
             </div>
-            <div className="rounded-2xl bg-white/15 p-4 backdrop-blur">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-white/70">Tanggal Berakhir</p>
-              <p className="mt-2 text-sm font-bold text-white">{expiryDate ? formatDateId(expiryDate) : 'Tidak ada batas waktu'}</p>
-              <p className="mt-1 text-xs text-white/75">
-                {expiryDate ? `${Math.max(daysRemaining || 0, 0)} hari tersisa` : 'Paket gratis selalu aktif'}
-              </p>
+            <div className="flex items-center justify-between gap-4 border-t border-white/5 pt-2">
+              <div className="flex items-center gap-2 text-slate-400">
+                <CreditCard size={14} />
+                <span className="text-[11px] font-black uppercase tracking-wider">Metode</span>
+              </div>
+              <span className="text-[11px] font-black text-white">{BILLING_CYCLE_LABELS[(activeCycle as BillingCycle) || 'free']}</span>
             </div>
+            {expiryDate && (
+              <div className="mt-3 overflow-hidden rounded-full bg-white/5 h-1.5">
+                <div
+                  className={`h-full rounded-full transition-all duration-1000 ${expiringSoon ? 'bg-orange-500' : 'bg-emerald-500'}`}
+                  style={{ width: `${Math.max(5, Math.min(100, (daysRemaining || 0) / 30 * 100))}%` }}
+                />
+              </div>
+            )}
+            {expiryDate && (
+              <p className={`mt-1 text-center text-[10px] font-black uppercase tracking-widest ${expiringSoon ? 'text-orange-400' : 'text-slate-500'}`}>
+                {daysRemaining} Hari Tersisa
+              </p>
+            )}
           </div>
         </div>
 
-        <div className="space-y-3 p-5">
-          {expiringSoon && (
-            <div className="rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-bold text-orange-700">
-              Langganan kamu hampir habis!
-            </div>
-          )}
-
-          {isExpired && (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
-              Langganan habis. Aktifkan lagi dari pembayaran online supaya fitur premium langsung kembali aktif.
-            </div>
-          )}
-
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <button
-              onClick={() => document.getElementById('subscription-purchase-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white"
-            >
-              <ChevronRight size={16} />
-              Perpanjang / Upgrade
-            </button>
-            <button
-              onClick={() => setShowHistory((value) => !value)}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600"
-            >
-              <History size={16} />
-              Lihat Riwayat Pembayaran
-            </button>
-          </div>
-
-          {activePendingPayment && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
-              <p className="font-black">Ada pembayaran yang masih pending.</p>
-              <p className="mt-1">
-                Paket {getPlanDefinition(activePendingPayment.plan).name} · {BILLING_CYCLE_LABELS[(activePendingPayment.billing_cycle as keyof typeof BILLING_CYCLE_LABELS) || 'monthly']} · {formatRupiah(activePendingPayment.amount)}
-              </p>
-              {activePendingPayment.expires_at && (
-                <p className="mt-1 text-xs text-amber-700">Berlaku sampai {formatDateId(activePendingPayment.expires_at)}</p>
-              )}
-              {activePendingPayment.redirect_url && (
-                <a
-                  href={activePendingPayment.redirect_url}
-                  className="mt-3 inline-flex items-center gap-2 rounded-xl bg-amber-600 px-3 py-2 text-xs font-black text-white"
-                >
-                  Lanjutkan Pembayaran
-                  <ExternalLink size={14} />
-                </a>
-              )}
-            </div>
-          )}
-
-          {isAdminEmail(profile?.email) && (
-            <button
-              onClick={() => navigate('/admin')}
-              className="inline-flex items-center gap-2 text-xs font-bold text-slate-400"
-            >
-              <Shield size={14} />
-              Buka panel admin internal
-            </button>
-          )}
+        <div className="relative z-10 mt-8 flex flex-col gap-3 sm:flex-row">
+          <button
+            onClick={() => openCheckout()}
+            className="group inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-orange-500 px-6 text-sm font-black text-white shadow-lg shadow-orange-500/20 transition-all active:scale-95"
+          >
+            <Sparkles size={18} className="transition-transform group-hover:rotate-12" />
+            {primaryCta}
+          </button>
+          <button
+            onClick={handleRefresh}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-white/10 px-6 text-sm font-black text-white backdrop-blur-sm transition-all active:scale-95"
+          >
+            <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
+            {refreshing ? 'Sinkron...' : 'Refresh Status'}
+          </button>
         </div>
       </div>
 
-      {showHistory && (
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Riwayat Pembayaran</p>
-              <p className="mt-1 text-sm text-slate-500">Daftar pembayaran yang sudah tercatat di akunmu.</p>
-            </div>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
-              {paidHistory.length} transaksi
-            </span>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            {paidHistory.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500">
-                Belum ada pembayaran yang tercatat.
+      {/* ── ALERTS & NOTICES ── */}
+      {(expiringSoon || activePendingPayment || failedPayment || !onlinePaymentAvailable) && (
+        <div className="space-y-3">
+          {activePendingPayment && (
+            <div className="flex items-start gap-4 rounded-3xl border border-amber-100 bg-amber-50 p-5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-200/50 text-amber-600">
+                <Clock3 size={20} />
               </div>
-            )}
+              <div className="flex-1">
+                <p className="text-sm font-black text-amber-900">Pembayaran sedang diproses</p>
+                <p className="mt-1 text-xs font-medium text-amber-700 leading-relaxed">
+                  Paket {getPlanDefinition(activePendingPayment.plan).name} ({BILLING_CYCLE_LABELS[(activePendingPayment.billing_cycle as BillingCycle) || 'monthly']}) sebesar {formatRupiah(activePendingPayment.amount)} belum terverifikasi.
+                </p>
+                <p className="mt-1 text-xs font-bold text-amber-800">Lisensi belum aktif sampai pembayaran sukses.</p>
+                {activePendingPayment.redirect_url && (
+                  <a
+                    href={activePendingPayment.redirect_url}
+                    className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl bg-amber-600 px-4 text-xs font-black text-white shadow-sm transition-all active:scale-95"
+                  >
+                    Lanjutkan Pembayaran
+                    <ExternalLink size={14} />
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
 
-            {paidHistory.map((entry) => {
-              const plan = getPlanDefinition(entry.plan);
-              return (
-                <div key={entry.id} className="rounded-2xl border border-slate-100 px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-bold text-slate-800">{plan.name}</p>
-                      <p className="text-xs text-slate-500">
-                        {BILLING_CYCLE_LABELS[(entry.billing_cycle as keyof typeof BILLING_CYCLE_LABELS) || 'monthly']} · {formatDateId(entry.paid_at)}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-black text-slate-900">{formatRupiah(entry.amount)}</p>
-                      <p className="text-xs uppercase tracking-[0.15em] text-emerald-600">{entry.status}</p>
-                    </div>
-                  </div>
-                  {entry.payment_note && (
-                    <p className="mt-2 text-xs text-slate-500">{entry.payment_note}</p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          {expiringSoon && (
+            <div className="flex items-center gap-4 rounded-3xl border border-orange-100 bg-orange-50 p-5">
+              <AlertCircle size={20} className="text-orange-500" />
+              <p className="text-sm font-bold text-orange-800">
+                Langganan akan habis dalam <span className="font-black underline">{daysRemaining} hari</span>. Perpanjang sekarang untuk menjaga operasional toko tetap lancar.
+              </p>
+            </div>
+          )}
+
+          {!onlinePaymentAvailable && (
+            <div className="rounded-3xl border border-blue-100 bg-blue-50 p-5">
+              <p className="text-sm font-black text-blue-900">Info Pembayaran Online</p>
+              <p className="mt-1 text-xs font-medium text-blue-700 leading-relaxed">{paymentModeMessage}</p>
+            </div>
+          )}
         </div>
       )}
 
-      <div id="subscription-purchase-panel" className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
+      {/* ── PLAN COMPARISON / SELECTION ── */}
+      <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Pilih Paket</p>
-            <p className="mt-1 text-sm text-slate-500">
-              Pilih paket yang paling pas untuk tahap bisnismu. {onlinePaymentAvailable ? 'Pembayaran diproses otomatis dan status akan sinkron ke Web maupun APK.' : 'Saat Midtrans production belum aktif, aktivasi diproses manual oleh admin.'}
-            </p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Pilihan Paket</p>
+            <h4 className="mt-2 text-2xl font-black text-slate-900">Upgrade ke Premium</h4>
           </div>
-          {loading && <span className="text-xs font-bold text-slate-400">Memuat...</span>}
+          <p className="text-xs font-bold text-slate-400">Bebas ganti paket kapan saja</p>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {DEFAULT_SELECTIONS.map(({ plan, billingCycle }) => {
+        <div className="mt-8 grid gap-4 lg:grid-cols-3">
+          {PAID_PLANS.map((plan) => {
             const planDef = getPlanDefinition(plan);
-            const active = selectedPlan === plan && selectedCycle === billingCycle;
+            const isCurrent = activePlan.id === plan && isActivePaid;
+            const isRecommended = plan === 'signature';
+
             return (
               <button
-                key={`${plan}-${billingCycle}`}
-                onClick={() => {
-                  setSelectedPlan(plan);
-                  setSelectedCycle(billingCycle);
-                }}
-                className={`rounded-3xl border p-4 text-left transition ${active ? 'border-slate-900 shadow-sm' : 'border-slate-200'}`}
+                key={plan}
+                onClick={() => openCheckout(plan, 'monthly')}
+                className={`group relative flex flex-col rounded-[28px] border-2 p-6 text-left transition-all hover:shadow-lg ${
+                  isCurrent
+                    ? 'border-slate-900 bg-slate-50'
+                    : isRecommended ? 'border-orange-100 bg-white hover:border-orange-500' : 'border-slate-100 bg-white hover:border-slate-300'
+                }`}
               >
-                <div className="rounded-2xl p-4" style={{ background: planDef.gradient }}>
-                  <p className="text-xs font-black uppercase tracking-[0.2em] text-white/70">{planDef.badge}</p>
-                  <p className="mt-2 text-xl font-black text-white">{planDef.name}</p>
-                  <p className="mt-1 text-sm text-white/80">{formatRupiah(getPlanPrice(plan, billingCycle))}</p>
-                  <p className="mt-1 text-xs text-white/70">{BILLING_CYCLE_LABELS[billingCycle as keyof typeof BILLING_CYCLE_LABELS]}</p>
+                {isRecommended && !isCurrent && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-orange-500 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-white">
+                    Paling Populer
+                  </div>
+                )}
+
+                <div className="mb-4 flex items-start justify-between">
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${isCurrent ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-orange-50 group-hover:text-orange-500'}`}>
+                    <Sparkles size={24} />
+                  </div>
+                  {isCurrent && <Check size={20} className="text-emerald-600" />}
                 </div>
-                <div className="mt-3 flex items-center justify-between">
-                  <p className="text-sm font-bold text-slate-700">{planDef.description}</p>
-                  {active && <Check size={16} className="text-emerald-500" />}
+
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{planDef.badge}</p>
+                <h5 className="mt-1 text-xl font-black text-slate-900">{planDef.name}</h5>
+                <p className="mt-2 text-xs font-medium text-slate-500 leading-relaxed min-h-[40px]">
+                  {planDef.description}
+                </p>
+
+                <div className="mt-6">
+                  <p className="text-2xl font-black text-slate-900">{formatRupiah(getPlanPrice(plan, 'monthly'))}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Per Bulan</p>
+                </div>
+
+                <div className={`mt-6 flex h-10 items-center justify-center rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                  isCurrent ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-900 text-white group-hover:bg-orange-500'
+                }`}>
+                  {isCurrent ? 'Paket Aktif' : 'Pilih'}
                 </div>
               </button>
             );
           })}
         </div>
+      </div>
 
-        <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${onlinePaymentAvailable ? 'border-blue-100 bg-blue-50 text-blue-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-          {onlinePaymentAvailable
-            ? 'Paket gratis cocok untuk mulai jalan. Saat transaksi makin ramai, upgrade ke Kopi Susu atau Signature supaya laporan, printing, dan operasional tim ikut naik kelas.'
-            : paymentModeMessage}
-        </div>
-
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+      {/* ── FOOTER ACTIONS ── */}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <button
+          onClick={() => setShowHistory((v) => !v)}
+          className="flex h-14 flex-1 items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-6 text-sm font-black text-slate-700 shadow-sm transition-all active:scale-95"
+        >
+          <History size={18} />
+          {showHistory ? 'Tutup Riwayat' : 'Lihat Riwayat Pembayaran'}
+        </button>
+        {isAdminEmail(profile?.email) && (
           <button
-            onClick={handleOpenCheckout}
-            disabled={selectedPlan === 'secangkir'}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={() => navigate('/admin')}
+            className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-slate-100 px-6 text-xs font-bold text-slate-500 transition-all active:scale-95"
           >
-            {onlinePaymentAvailable ? 'Langganan Online' : 'Aktivasi Manual'}
-            <ChevronRight size={16} />
+            <Shield size={16} />
+            Internal Admin
           </button>
-          <button
-            onClick={() => goToConfirmation(selectedPlan, selectedCycle)}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white"
-          >
-            Lihat Konfirmasi Paket
-            <ChevronRight size={16} />
-          </button>
-          <a
-            href={INSTAGRAM_ADMIN_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600"
-          >
-            <ExternalLink size={16} />
-            Hubungi Admin
-          </a>
-        </div>
-
-        <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Cara Berlangganan</p>
-          <div className="mt-3 space-y-2">
-            {[
-              'Pilih paket yang paling cocok untuk kebutuhan tokomu.',
-              onlinePaymentAvailable
-                ? 'Klik Langganan Online untuk memilih metode pembayaran yang paling nyaman.'
-                : 'Klik Aktivasi Manual atau Hubungi Admin untuk proses pembayaran sementara.',
-              onlinePaymentAvailable
-                ? 'Konfirmasi detail checkout, voucher, dan total pembayaran sebelum lanjut.'
-                : 'Admin akan mengonfirmasi paket, periode, nominal, dan instruksi pembayaran.',
-              onlinePaymentAvailable
-                ? 'Selesaikan pembayaran dengan QRIS atau Virtual Account yang kamu pilih.'
-                : 'Setelah pembayaran manual diterima, admin mengaktifkan lisensi dari panel internal.',
-              onlinePaymentAvailable
-                ? 'Setelah settlement, status langganan akan sinkron otomatis ke akun Web dan APK.'
-                : 'Status langganan tetap sinkron ke Web dan APK setelah aktivasi manual.',
-            ].map((step, index) => (
-              <div key={step} className="flex items-start gap-3 text-sm text-slate-600">
-                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-black text-white">
-                  {index + 1}
-                </span>
-                <span>{step}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {!resolvedPlan.isFree && (
-          <a
-            href={RENEWAL_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-slate-400"
-          >
-            <AlertTriangle size={14} />
-            Halaman perpanjang cepat: {RENEWAL_URL}
-          </a>
         )}
       </div>
 
+      {/* ── HISTORY LIST ── */}
+      {showHistory && (
+        <div className="animate-in fade-in slide-in-from-top-4 duration-300 rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-6 flex items-center justify-between">
+            <h4 className="text-lg font-black text-slate-800">Riwayat Transaksi</h4>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+              {paidHistory.length} Transaksi
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {paidHistory.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-300">
+                <History size={40} className="mb-3 opacity-20" />
+                <p className="text-xs font-bold uppercase tracking-widest">Belum ada catatan pembayaran</p>
+              </div>
+            ) : (
+              paidHistory.map((entry) => {
+                const plan = getPlanDefinition(entry.plan);
+                return (
+                  <div key={entry.id} className="group flex items-center justify-between gap-4 rounded-2xl border border-slate-50 bg-slate-50/50 p-4 transition-all hover:bg-white hover:border-slate-200 hover:shadow-sm">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm border border-slate-100">
+                        <CreditCard size={18} className="text-slate-400" />
+                      </div>
+                      <div>
+                        <p className="font-black text-slate-800 text-sm">{plan.name}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                          {formatDateId(entry.paid_at)} · {BILLING_CYCLE_LABELS[(entry.billing_cycle as BillingCycle) || 'monthly']}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-black text-slate-900 text-sm">{formatRupiah(entry.amount)}</p>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600">
+                        {getPaymentStatusLabel(entry.status)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
       <SubscriptionCheckoutFlow
         open={checkoutOpen}
-        plan={selectedPlan as 'kopi_susu' | 'signature' | 'founder'}
-        billingCycle={selectedCycle as 'monthly' | 'quarterly' | 'yearly'}
+        plan={checkoutPlan}
+        billingCycle={checkoutCycle}
         onClose={() => setCheckoutOpen(false)}
         toast={toast}
       />

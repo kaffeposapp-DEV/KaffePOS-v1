@@ -15,6 +15,7 @@ import PrintActionSheet from '@/components/pos/PrintActionSheet';
 import ProductPlaceholder from '@/components/ui/ProductPlaceholder';
 import type { Profile, MenuItem, Transaction } from '@/types';
 import type { SubscriptionAccess } from '@/lib/subscriptionAccess';
+import { canProcessPosPaymentOffline, getOfflinePaymentBlockedMessage } from '@/lib/offlinePolicy';
 
 const fRp = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
@@ -134,8 +135,8 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
 
   const handleCheckout = useCallback(async () => {
     if (!cart.length) return;
-    if (!isOnline) {
-      toast.showToast('Checkout offline dinonaktifkan agar stok tetap akurat di semua perangkat.', 'warning');
+    if (!isOnline && !canProcessPosPaymentOffline(method)) {
+      toast.showToast(getOfflinePaymentBlockedMessage(method), 'warning');
       return;
     }
     if (method === 'Tunai' && paid < total) {
@@ -209,7 +210,12 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
       setCustName('');
       setShowPay(false);
       setShowRcpt(true);
-      toast.showToast('Transaksi berhasil! ✅', 'success');
+      toast.showToast(
+        savedTx.sync_status === 'pending'
+          ? 'Transaksi tersimpan offline dan akan disinkronkan otomatis.'
+          : 'Transaksi berhasil! ✅',
+        'success',
+      );
     } catch (e:any) {
       toast.showToast(e instanceof Error ? e.message : 'Checkout gagal diproses', 'warning');
     } finally {
@@ -227,34 +233,36 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
     <div className="flex-1 flex overflow-hidden bg-slate-50">
       {/* ── KIRI: GRID MENU ── */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
-        <div className="bg-white/95 backdrop-blur-xl border-b border-slate-200/60 px-5 pt-4 pb-3 z-10">
-          <div className="flex items-center justify-between mb-3">
+        <div className="bg-white border-b border-slate-200/60 px-6 pt-5 pb-4 z-10">
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="font-extrabold text-slate-800 text-xl tracking-tight">Katalog Menu</h2>
+              <h2 className="font-display text-xl font-extrabold text-slate-800 tracking-tight">Katalog Menu</h2>
               {lowStock.length > 0 && (
-                <p className="text-[10px] text-red-500 font-bold mt-0.5">⚠ {lowStock.length} bahan kritis</p>
+                <p className="text-[11px] text-rose-500 font-bold mt-0.5 flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-rose-500 animate-pulse" />
+                  {lowStock.length} bahan kritis
+                </p>
               )}
+            </div>
+            <div
+              onClick={() => { if(!isOnline) window.location.reload(); }}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer active:scale-95 transition-all ${isOnline?'bg-emerald-50 border-emerald-100 text-emerald-600':'bg-rose-50 border-rose-100 text-rose-600 animate-bounce shadow-lg shadow-rose-200/50'}`}
+            >
+              <div className={`w-1.5 h-1.5 rounded-full ${isOnline?'bg-emerald-500 animate-pulse':'bg-rose-500'}`} />
+              <span className="text-[10px] font-bold uppercase tracking-widest">{isOnline?'Terhubung':'Offline'}</span>
             </div>
           </div>
           <div className="relative">
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"/>
+            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"/>
             <input value={search} onChange={e => handleSearch(e.target.value)}
               placeholder="Cari menu kopi, snack..."
-              className="w-full h-12 bg-slate-100/80 border border-slate-200/50 rounded-2xl pl-11 pr-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 transition-all font-medium text-slate-700"
+              className="w-full h-12 bg-slate-50 border border-slate-200/60 rounded-2xl pl-12 pr-4 text-[15px] focus:outline-none focus:ring-4 focus:ring-[#FF6A00]/10 focus:border-[#FF6A00]/30 transition-all font-medium text-slate-700 placeholder:text-slate-400 shadow-soft"
             />
-            <div
-              onClick={() => { if(!isOnline) window.location.reload(); }}
-              className={`absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-2.5 py-1 rounded-full border cursor-pointer active:scale-95 transition-all ${isOnline?'bg-green-50 border-green-100 text-green-600':'bg-red-50 border-red-100 text-red-600 animate-bounce'}`}
-              title={isOnline ? 'Terhubung ke Cloud' : 'Klik untuk muat ulang'}
-            >
-              <div className={`w-1.5 h-1.5 rounded-full ${isOnline?'bg-green-500 animate-pulse':'bg-red-500'}`} />
-              <span className="text-[10px] font-black uppercase tracking-wider">{isOnline?'Online':'Offline'}</span>
-            </div>
           </div>
-          <div className="flex gap-2 mt-3 overflow-x-auto pb-1 scrollbar-none">
+          <div className="flex gap-2 mt-4 overflow-x-auto pb-1 scrollbar-hide">
             {cats.map(c => (
               <button key={c} onClick={() => setCat(c)}
-                className={`shrink-0 h-10 px-4 rounded-xl text-[13px] font-extrabold transition-all duration-200 ${cat===c?'bg-slate-800 text-white shadow-md shadow-slate-800/20':'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}>
+                className={`shrink-0 h-10 px-5 rounded-xl text-[13px] font-bold transition-all duration-300 ${cat===c?'bg-[#FF6A00] text-white shadow-premium':'bg-slate-50 text-slate-500 border border-slate-200 hover:bg-white hover:border-slate-300'}`}>
                 {c}
               </button>
             ))}
@@ -263,38 +271,38 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
 
         <div className="flex-1 overflow-y-auto p-4 md:p-5">
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400">
-              <ShoppingBag size={48} className="mb-4 opacity-20"/>
-              <p className="text-sm font-medium">Belum ada menu di kategori ini.</p>
+            <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
+              <ShoppingBag size={48} strokeWidth={1.5} className="opacity-20" />
+              <p className="font-bold text-sm tracking-tight">Menu tidak ditemukan</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-24 md:pb-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 pb-24 md:pb-4">
               {filtered.map(item => {
-                const inCart = cart.find(c => c.id === item.id || c._baseId === item.id);
                 const totalQty = cart.filter(c => c.id === item.id || c._baseId === item.id).reduce((s,c)=>s+c.qty,0);
                 return (
                   <div key={item.id} onClick={() => handleAdd(item)}
-                    className="group bg-white rounded-3xl overflow-hidden shadow-[0_2px_10px_rgb(0,0,0,0.02)] border border-slate-100 cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] active:scale-[0.95] flex flex-col relative"
+                    className="group bg-white rounded-3xl overflow-hidden shadow-soft border border-slate-100 cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-premium active:scale-[0.98] flex flex-col relative"
                   >
                     {item.image_url ? (
-                      <div className="relative pt-[70%] w-full overflow-hidden bg-slate-100">
-                        <img src={item.image_url} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" style={{ willChange: 'transform' }} />
+                      <div className="relative pt-[75%] w-full overflow-hidden bg-slate-50">
+                        <img src={item.image_url} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" />
                       </div>
                     ) : (
-                      <div className="pt-[70%] w-full relative">
+                      <div className="pt-[75%] w-full relative">
                         <ProductPlaceholder category={item.category} className="absolute inset-0" iconSize={32} />
                       </div>
                     )}
                     <div className="p-4 flex-1 flex flex-col">
-                      <p className="font-extrabold text-slate-800 text-sm leading-snug mb-1">{item.name}</p>
-                      <p className="text-orange-500 font-black text-sm mt-auto z-0">{fRp(item.price)}</p>
+                      <p className="font-bold text-slate-800 text-[14px] leading-tight mb-2 group-hover:text-[#FF6A00] transition-colors">{item.name}</p>
+                      <p className="text-[#FF6A00] font-extrabold text-[15px] mt-auto">{fRp(item.price)}</p>
                     </div>
 
-                    {inCart && (
-                      <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md rounded-2xl shadow-lg border border-slate-100 p-1 flex items-center gap-2 z-10" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => updateQty(item.id, totalQty - 1)} className="w-7 h-7 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center transition-colors"><Minus size={14}/></button>
-                        <span className="font-black text-sm text-slate-800 w-4 text-center">{totalQty}</span>
-                        <button onClick={() => handleAdd(item)} className="w-7 h-7 rounded-xl bg-orange-500 text-white shadow-md shadow-orange-500/30 flex items-center justify-center transition-transform active:scale-90"><Plus size={14}/></button>
+                    {totalQty > 0 && (
+                      <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-md rounded-2xl shadow-premium border border-white/50 px-3 py-1.5 flex items-center gap-2 z-10 animate-in zoom-in">
+                        <span className="font-bold text-xs text-slate-800">{totalQty}x</span>
+                        <div className="w-6 h-6 rounded-lg bg-[#FF6A00] text-white flex items-center justify-center">
+                           <Plus size={12} strokeWidth={3} />
+                        </div>
                       </div>
                     )}
                   </div>
@@ -376,25 +384,30 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
             <p className="text-slate-400 text-xs mt-2 leading-relaxed max-w-[200px] font-medium">Pilih menu di sebelah kiri untuk memulai pesanan baru.</p>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
             {cart.map(c => (
-              <div key={c.id} className="flex gap-3 bg-white p-3 rounded-2xl border border-slate-100 shadow-[0_2px_8px_rgb(0,0,0,0.02)] transition-all">
+              <div key={c.id} className="flex gap-4 bg-white p-4 rounded-2xl border border-slate-100 shadow-soft transition-all hover:border-[#FF6A00]/20">
                 <div className="flex-1 overflow-hidden">
-                  <p className="font-bold text-slate-800 text-sm truncate">{c.name}</p>
-                  <p className="text-slate-500 text-xs font-medium mt-0.5">{fRp(c.price)}</p>
+                  <div className="flex justify-between items-start gap-2 mb-1">
+                    <p className="font-bold text-slate-800 text-[14px] truncate">{c.name}</p>
+                    <button onClick={() => updateQty(c.id, 0)} className="text-slate-300 hover:text-rose-500 transition-colors">
+                       <X size={14} />
+                    </button>
+                  </div>
+                  <p className="text-slate-500 text-[12px] font-medium mb-3">{fRp(c.price)}</p>
                   <input
                     value={c.note || ''}
                     onChange={(e) => setCartItemNote(c.id, e.target.value)}
-                    placeholder="Catatan: less ice, no sugar..."
-                    className="mt-2 w-full rounded-lg border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs font-semibold text-slate-700 outline-none transition focus:border-amber-300 focus:bg-white"
+                    placeholder="Catatan..."
+                    className="w-full rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-[12px] font-semibold text-slate-600 outline-none transition focus:border-[#FF6A00]/30 focus:bg-white focus:ring-4 focus:ring-[#FF6A00]/5"
                   />
                 </div>
-                <div className="flex flex-col items-end justify-between">
-                  <p className="font-black text-slate-800 text-sm">{fRp(c.price * c.qty)}</p>
-                  <div className="flex items-center gap-2 mt-2 bg-slate-50 rounded-xl border border-slate-200 p-0.5">
-                    <button onClick={() => updateQty(c.id, c.qty - 1)} className="w-6 h-6 flex items-center justify-center text-slate-500 hover:bg-white rounded-lg shadow-sm transition-colors"><Minus size={12}/></button>
+                <div className="flex flex-col items-end justify-between py-1">
+                  <p className="font-extrabold text-slate-800 text-[14px]">{fRp(c.price * c.qty)}</p>
+                  <div className="flex items-center gap-2.5 mt-2 bg-slate-50 rounded-xl border border-slate-200/60 p-1 shadow-inner">
+                    <button onClick={() => updateQty(c.id, c.qty - 1)} className="w-7 h-7 flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-800 rounded-lg shadow-sm transition-all"><Minus size={12} strokeWidth={3}/></button>
                     <span className="font-bold text-xs w-4 text-center">{c.qty}</span>
-                    <button onClick={() => updateQty(c.id, c.qty + 1)} className="w-6 h-6 flex items-center justify-center text-slate-500 hover:bg-white rounded-lg shadow-sm transition-colors"><Plus size={12}/></button>
+                    <button onClick={() => updateQty(c.id, c.qty + 1)} className="w-7 h-7 flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-800 rounded-lg shadow-sm transition-all"><Plus size={12} strokeWidth={3}/></button>
                   </div>
                 </div>
               </div>
@@ -404,143 +417,125 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
 
         {/* Panel Checkout Bawah */}
         {cart.length > 0 && (
-          <div className="bg-white border-t border-slate-100 p-5 shadow-[0_-10px_40px_rgb(0,0,0,0.04)]">
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-black tracking-wider text-slate-400 uppercase block mb-1.5 ml-1">Pelanggan</label>
-                  <input value={custName} onChange={e => setCustName(e.target.value)} placeholder="Nama / Meja..." className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900/10 transition-all placeholder:font-normal"/>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1.5 ml-1">
-                    <label className="text-[10px] font-black tracking-wider text-slate-400 uppercase">Diskon / Voucher</label>
-                    <button onClick={() => setShowVouchers(true)} className="text-[10px] font-black text-orange-500 hover:text-orange-600 transition-colors uppercase tracking-widest">Pilih Voucher</button>
-                  </div>
-                  <div className="relative">
-                    <input
-                      value={discount || ''}
-                      onChange={e => setDiscount(e.target.value)}
-                      placeholder="Contoh: 10% atau 5000"
-                      className={`w-full bg-slate-50 border rounded-xl px-4 py-2.5 text-xs font-bold focus:outline-none transition-all placeholder:font-normal ${discAmt > 0 ? 'border-green-300 bg-green-50/50 text-green-700' : 'border-slate-200 focus:ring-2 focus:ring-slate-900/10'}`}
-                    />
-                    {discAmt > 0 && <CheckCircle2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500" />}
-                  </div>
-                </div>
+          <div className="bg-white border-t border-slate-100 p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.02)]">
+            <div className="space-y-4 mb-6">
+              <div className="flex justify-between text-sm font-medium text-slate-500">
+                <span>Subtotal ({cart.length} item)</span>
+                <span>{fRp(subtotal)}</span>
               </div>
-
-              <div className="bg-slate-50 rounded-2xl p-4 space-y-2 border border-slate-100/60">
-                <div className="flex justify-between text-xs text-slate-500 font-medium"><span>Subtotal</span><span>{fRp(subtotal)}</span></div>
-                {discAmt>0 && <div className="flex justify-between text-xs text-green-600 font-bold"><span>Diskon Potongan</span><span>-{fRp(discAmt)}</span></div>}
-                {taxAmt>0 && <div className="flex justify-between text-xs text-slate-500 font-medium"><span>Pajak Resto ({taxPct}%)</span><span>{fRp(taxAmt)}</span></div>}
-                <div className="flex justify-between text-xl font-black text-slate-800 pt-2 border-t border-slate-200/50 mt-2"><span>Total Tagihan</span><span className="text-orange-500">{fRp(total)}</span></div>
-              </div>
-
-              <div className="flex bg-slate-100 p-1.5 rounded-2xl">
-                {(['Tunai','Transfer','QRIS'] as const).map(m => (
-                  <button key={m} onClick={() => setMethod(m)}
-                    className={`flex-1 py-2.5 rounded-xl text-xs font-extrabold transition-all duration-300 ${method===m?'bg-white text-slate-900 shadow-[0_2px_10px_rgb(0,0,0,0.06)]':'text-slate-500 hover:text-slate-700'}`}>
-                    {m}
-                  </button>
-                ))}
-              </div>
-
-              {method === 'Tunai' && (
-                <div className="animate-in slide-in-from-bottom-2 duration-300">
-                  <input type="number" value={cash} onChange={e => setCash(e.target.value)} placeholder={fRp(total)} className="w-full bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-xl font-black focus:outline-none focus:border-slate-800 transition-colors text-slate-800 mb-2"/>
-                  <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
-                    {quickAmounts(total).map(amt => (
-                      <button key={amt} onClick={() => setCash(String(amt))} className="shrink-0 px-4 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 transition-colors">
-                        {fRp(amt)}
-                      </button>
-                    ))}
-                  </div>
+              {discAmt > 0 && (
+                <div className="flex justify-between text-sm font-bold text-rose-500">
+                  <span>Diskon</span>
+                  <span>-{fRp(discAmt)}</span>
                 </div>
               )}
+              {taxAmt > 0 && (
+                <div className="flex justify-between text-sm font-medium text-slate-500">
+                  <span>Pajak ({taxPct}%)</span>
+                  <span>{fRp(taxAmt)}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center pt-4 border-t border-slate-100 mt-2">
+                <span className="text-base font-black text-slate-900 uppercase italic tracking-tighter">Total Tagihan</span>
+                <span className="text-2xl font-black text-[#FF6A00] italic tracking-tighter">{fRp(total)}</span>
+              </div>
+            </div>
 
-              <button onClick={handleCheckout} disabled={checkingOut || method === 'Tunai' && paid < total}
-                className="w-full relative overflow-hidden bg-slate-900 text-white p-4 rounded-2xl font-black text-sm uppercase tracking-wider active:scale-[0.98] transition-all disabled:opacity-50 shadow-[0_8px_20px_rgb(15,23,42,0.2)] group">
-                <span className="relative z-10 flex items-center justify-center gap-2">
-                  {checkingOut ? <><RefreshCw size={16} className="animate-spin" /> MEMPROSES...</> : 'SELESAIKAN PEMBAYARAN'}
-                  {method === 'Tunai' && paid >= total && paid > total && <span className="text-green-400 ml-1 bg-white/10 py-1 px-2.5 rounded-lg border border-white/5">Kembali: {fRp(change)}</span>}
-                </span>
-                <div className="absolute inset-0 block bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"/>
+            <div className="flex gap-3">
+              <button
+                onClick={clearCart}
+                className="flex-1 h-14 rounded-2xl border-2 border-slate-100 text-slate-400 font-bold hover:bg-slate-50 hover:border-slate-200 transition-all"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => setShowPay(true)}
+                className="flex-[2] h-14 rounded-2xl bg-[#FF6A00] text-white font-black uppercase italic tracking-wider shadow-premium hover:shadow-xl hover:scale-[1.02] active:scale-100 transition-all flex items-center justify-center gap-2"
+              >
+                Bayar <ChevronRight size={20} />
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* ── MOBILE: PAY MODAL (Hanya Tampil di HP) ── */}
+      {/* ── UNIFIED PAYMENT MODAL ── */}
       {showPay && (
-        <div className="md:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-end justify-center">
-          <div className="bg-white w-full rounded-t-[32px] p-6 max-h-[92vh] overflow-y-auto shadow-2xl">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="font-black text-xl text-slate-800">Pembayaran</h3>
-              <button onClick={() => setShowPay(false)} className="p-2 bg-slate-100 rounded-full active:scale-90 text-slate-500"><X size={18}/></button>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-100 rounded-3xl p-4 mb-5 space-y-2 text-sm">
-              {cart.map(c => (
-                <div key={c.id} className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-slate-600 truncate flex-1 mr-2 font-medium">{c.name} <span className="font-bold text-slate-800 ml-1">x{c.qty}</span></span>
-                    <span className="font-bold text-slate-800">{fRp(c.price * c.qty)}</span>
-                  </div>
-                  <input
-                    value={c.note || ''}
-                    onChange={(e) => setCartItemNote(c.id, e.target.value)}
-                    placeholder="Catatan item..."
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[14px] font-semibold text-slate-700 outline-none focus:border-amber-300"
-                  />
-                </div>
-              ))}
-              <div className="border-t border-slate-200/60 pt-2 space-y-1.5 mt-2">
-                <div className="flex justify-between text-slate-500 text-xs"><span>Subtotal</span><span>{fRp(subtotal)}</span></div>
-                {discAmt>0 && <div className="flex justify-between text-green-600 font-bold text-xs"><span>Diskon</span><span>-{fRp(discAmt)}</span></div>}
-                {taxAmt>0 && <div className="flex justify-between text-slate-500 text-xs"><span>Pajak {taxPct}%</span><span>{fRp(taxAmt)}</span></div>}
-                <div className="flex justify-between font-black text-lg pt-2 border-t border-slate-200/60 mt-2"><span>Total</span><span className="text-orange-500">{fRp(total)}</span></div>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-end md:items-center justify-center p-0 md:p-6">
+          <div className="bg-white w-full max-w-[500px] rounded-t-[32px] md:rounded-[40px] p-8 max-h-[95vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom-20 duration-500">
+            <div className="flex items-center justify-between mb-10">
+              <div>
+                <h3 className="font-black text-2xl text-slate-800 italic uppercase tracking-tighter">Pembayaran 💰</h3>
+                <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-1">Konfirmasi Pesanan Anda</p>
               </div>
+              <button onClick={() => setShowPay(false)} className="p-3 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 transition-colors"><X size={24}/></button>
             </div>
 
-            <div className="mb-5 grid grid-cols-2 gap-3">
+            <div className="text-center mb-10 bg-slate-50 rounded-[32px] p-8 border border-slate-100">
+              <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest mb-2">Total Tagihan</p>
+              <h3 className="text-5xl font-black text-slate-900 tracking-tighter italic">{fRp(total)}</h3>
+            </div>
+
+            <div className="space-y-4 mb-10">
                <div>
-                  <label className="text-[11px] font-black tracking-wider text-slate-400 uppercase block mb-1.5 ml-1">Pelanggan (Opsional)</label>
-                  <input value={custName} onChange={e => setCustName(e.target.value)} placeholder="Nama..." className="w-full h-12 bg-slate-50 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:border-slate-400"/>
+                  <label className="text-[11px] font-black tracking-wider text-slate-400 uppercase block mb-2 ml-1">Nama Pelanggan (Opsional)</label>
+                  <input value={custName} onChange={e => setCustName(e.target.value)} placeholder="Contoh: Budi - Meja 05" className="w-full h-14 bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 text-[16px] font-bold focus:outline-none focus:border-[#FF6A00] transition-all"/>
                </div>
+
                <div>
-                  <div className="flex items-center justify-between mb-1.5 ml-1">
-                    <label className="text-[11px] font-black tracking-wider text-slate-400 uppercase">Diskon</label>
-                    <button onClick={() => setShowVouchers(true)} className="text-[11px] font-black text-orange-500 uppercase tracking-widest">Cek Voucher</button>
+                  <div className="flex items-center justify-between mb-2 ml-1">
+                    <label className="text-[11px] font-black tracking-wider text-slate-400 uppercase">Promo & Diskon</label>
+                    <button onClick={() => setShowVouchers(true)} className="text-[11px] font-black text-orange-500 uppercase tracking-widest hover:underline">Pilih Promo</button>
                   </div>
                   <div className="relative">
                     <input
                       value={discount || ''}
                       onChange={e => setDiscount(e.target.value)}
-                      placeholder="10% / 5000"
-                      className={`w-full h-12 bg-slate-50 border rounded-2xl px-4 text-[16px] focus:outline-none transition-all font-bold ${discAmt > 0 ? 'border-green-300 bg-green-50 text-green-600' : 'border-slate-200'}`}
+                      placeholder="10% atau 5000"
+                      className={`w-full h-14 bg-slate-50 border-2 rounded-2xl px-5 text-[16px] focus:outline-none transition-all font-bold ${discAmt > 0 ? 'border-green-300 bg-green-50 text-green-600' : 'border-slate-100 focus:border-[#FF6A00]'}`}
                     />
-                    {discAmt > 0 && <CheckCircle2 size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-green-500" />}
+                    {discAmt > 0 && <CheckCircle2 size={18} className="absolute right-5 top-1/2 -translate-y-1/2 text-green-500" />}
                   </div>
                </div>
             </div>
 
-            <div className="flex gap-2 mb-5">
-              {(['Tunai','Transfer','QRIS'] as const).map(m => (
-                <button key={m} onClick={() => setMethod(m)}
-                  className={`flex-1 h-12 rounded-2xl border-2 font-black text-[13px] transition-all ${method===m?'border-orange-500 bg-orange-500 text-white shadow-lg shadow-orange-500/30':'border-slate-200 text-slate-500 bg-white'}`}>
-                  {m}
-                </button>
-              ))}
+            <div className="space-y-3 mb-10">
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Metode Pembayaran</p>
+              <div className="grid grid-cols-1 gap-3">
+                {([
+                  { id: 'Tunai', icon: '💵' },
+                  { id: 'QRIS', icon: '📱' },
+                  { id: 'Transfer', icon: '🏦' }
+                ] as const).map(m => (
+                  <button key={m.id} onClick={() => setMethod(m.id)}
+                    disabled={!isOnline && !canProcessPosPaymentOffline(m.id)}
+                    className={`flex items-center justify-between p-5 rounded-2xl border-2 font-black text-[15px] transition-all disabled:opacity-30 ${method===m.id?'border-[#FF6A00] bg-orange-50 text-[#FF6A00] shadow-sm':'border-slate-100 text-slate-500 bg-white hover:border-slate-200'}`}>
+                    <div className="flex items-center gap-4">
+                      <span className="text-xl">{m.icon}</span>
+                      <span>{m.id}</span>
+                    </div>
+                    {method === m.id && <CheckCircle2 size={18} strokeWidth={4} />}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {method === 'Tunai' && (
-              <div className="mb-5 animate-in fade-in slide-in-from-bottom-2">
-                <label className="text-[10px] font-black tracking-wider text-slate-400 uppercase block mb-2">Uang Diterima</label>
-                <input type="number" value={cash} onChange={e => setCash(e.target.value)} placeholder={String(total)} className="w-full border-2 border-slate-200 rounded-2xl px-4 py-4 text-2xl font-black focus:outline-none focus:border-orange-500 transition-colors" autoFocus inputMode="numeric"/>
-                {paid >= total && paid > 0 && <p className="text-green-600 font-black mt-2 text-sm bg-green-50 px-3 py-2 rounded-xl inline-block">✅ Kembali: {fRp(change)}</p>}
-                <div className="flex gap-2 mt-3 overflow-x-auto scrollbar-none pb-1">
+              <div className="mb-10 animate-in slide-up duration-300">
+                <label className="text-[11px] font-black tracking-wider text-slate-400 uppercase block mb-2 ml-1">Uang Diterima</label>
+                <div className="relative">
+                   <span className="absolute left-5 top-1/2 -translate-y-1/2 font-black text-slate-400">Rp</span>
+                   <input type="number" value={cash} onChange={e => setCash(e.target.value)} placeholder={String(total)} className="w-full border-2 border-slate-100 rounded-2xl pl-12 pr-5 py-5 text-3xl font-black focus:outline-none focus:border-[#FF6A00] transition-all bg-slate-50" autoFocus inputMode="numeric"/>
+                </div>
+                {paid >= total && paid > 0 && (
+                  <div className="mt-4 flex justify-between items-center bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                    <span className="text-sm font-bold text-emerald-700 uppercase tracking-widest">Kembalian</span>
+                    <span className="text-2xl font-black text-emerald-600 italic">{fRp(change)}</span>
+                  </div>
+                )}
+                <div className="flex gap-2 mt-4 overflow-x-auto scrollbar-hide pb-1">
                   {quickAmounts(total).map(amt => (
-                    <button key={amt} onClick={() => setCash(String(amt))} className="shrink-0 px-4 py-2.5 bg-slate-100 rounded-xl text-sm font-bold text-slate-700 active:scale-95">
+                    <button key={amt} onClick={() => setCash(String(amt))} className="shrink-0 px-5 py-3 bg-white border-2 border-slate-100 rounded-xl text-xs font-black text-slate-600 active:scale-95 hover:border-[#FF6A00]/30">
                       {fRp(amt)}
                     </button>
                   ))}
@@ -549,8 +544,8 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
             )}
 
             <button onClick={handleCheckout} disabled={checkingOut || !cart.length || (method === 'Tunai' && paid < total)}
-              className="w-full py-4 bg-slate-900 border border-slate-700 text-white font-black text-base rounded-2xl active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 shadow-[0_8px_30px_rgb(15,23,42,0.3)]">
-              {checkingOut ? <><RefreshCw size={18} className="animate-spin" /> MEMPROSES...</> : 'BAYAR SEKARANG'}
+              className="w-full py-6 bg-[#FF6A00] text-white font-black text-lg rounded-[24px] active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 shadow-premium transition-all hover:shadow-xl hover:scale-[1.01]">
+              {checkingOut ? <><RefreshCw size={24} className="animate-spin" /> MEMPROSES...</> : <>KONFIRMASI BAYAR <CheckCircle2 size={24}/></>}
             </button>
           </div>
         </div>
@@ -564,6 +559,11 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
               <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3 text-3xl shadow-[0_0_30px_rgb(34,197,94,0.2)]">✓</div>
               <h3 className="font-extrabold text-xl text-slate-800">Lunas!</h3>
               <p className="text-slate-400 text-xs font-medium mt-1">#{lastTx.id}</p>
+              {lastTx.sync_status === 'pending' && (
+                <p className="mx-auto mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-amber-700">
+                  Menunggu Sync
+                </p>
+              )}
             </div>
 
             {lastTx.customer_name && (

@@ -1,8 +1,8 @@
 /* eslint-disable react-hooks/exhaustive-deps */
- 
- 
- 
- 
+
+
+
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useMemo, useState } from 'react';
@@ -16,8 +16,8 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import {
-  BarChart,
-  Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -39,7 +39,7 @@ const fRp = (n: number) =>
 
 type RangeKey = 'today' | 'week' | 'month';
 
-const COLORS = ['#f97316', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#eab308'];
+const COLORS = ['#FF6A00', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#eab308'];
 
 function isSameDay(a: Date, b: Date) {
   return a.toDateString() === b.toDateString();
@@ -77,18 +77,20 @@ function DashboardCard({
   color: string;
 }) {
   return (
-    <div className="bg-white p-5 rounded-[28px] border border-slate-200 shadow-sm">
-      <div className="flex items-start justify-between mb-4">
+    <div className="kaffe-metric-card p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[var(--brand-panel-shadow-hover)]">
+      <div className="flex items-center gap-3 mb-3">
         <div
-          className="w-12 h-12 rounded-2xl flex items-center justify-center"
-          style={{ backgroundColor: `${color}15`, color }}
+          className="w-9 h-9 rounded-lg flex items-center justify-center border"
+          style={{ backgroundColor: `${color}10`, borderColor: `${color}20`, color }}
         >
           {icon}
         </div>
+        <p className="text-[11px] font-semibold text-slate-400">{title}</p>
       </div>
-      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{title}</p>
-      <p className="text-2xl font-black text-slate-800 leading-tight">{value}</p>
-      <p className="text-[11px] text-slate-500 font-semibold mt-1">{sub}</p>
+      <p className="font-display text-xl font-extrabold text-slate-900 leading-tight">{value}</p>
+      <div className="mt-2 flex items-center gap-2">
+         <span className="text-[11px] text-slate-500 font-semibold">{sub}</span>
+      </div>
     </div>
   );
 }
@@ -268,22 +270,23 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="p-4 md:p-6 pb-6 lg:pb-6 max-w-7xl mx-auto space-y-6">
+    <div className="kaffe-app-bg flex-1 min-h-0 overflow-y-auto">
+      <div className="p-4 md:p-6 pb-6 lg:pb-6 max-w-7xl mx-auto space-y-5">
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-black text-slate-800 tracking-tight">Overview</h1>
-              <p className="text-slate-400 font-bold text-[11px] uppercase tracking-widest mt-0.5">
-                {storeSettings?.store_name || 'KaffePOS'} · {isOnline ? 'Online' : 'Offline'}
+              <h1 className="font-display text-2xl font-extrabold text-slate-900">Dashboard</h1>
+              <p className="text-slate-500 font-semibold text-[12px] mt-1 flex items-center gap-2">
+                <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-rose-500'} animate-pulse`} />
+                {storeSettings?.store_name || 'KaffePOS'} · {isOnline ? 'Terhubung Cloud' : 'Offline Mode'}
               </p>
             </div>
             <button
               onClick={handleRefresh}
               disabled={!storeId || refreshing || syncing}
-              className="w-10 h-10 rounded-2xl bg-white border border-slate-200 shadow-sm text-slate-500 flex items-center justify-center disabled:opacity-50 active:scale-95"
+              className="w-10 h-10 rounded-lg bg-white border border-slate-200/80 shadow-sm text-slate-500 flex items-center justify-center disabled:opacity-50 active:scale-95 transition-all hover:bg-orange-50 hover:text-[#FF6A00]"
             >
-              <RefreshCw size={18} className={refreshing || syncing ? 'animate-spin' : ''} />
+              <RefreshCw size={20} className={refreshing || syncing ? 'animate-spin text-[#FF6A00]' : ''} />
             </button>
           </div>
 
@@ -296,10 +299,10 @@ export default function Dashboard() {
               <button
                 key={item.id}
                 onClick={() => setRange(item.id as RangeKey)}
-                className={`shrink-0 px-6 py-2.5 rounded-2xl text-[13px] font-bold transition-all border ${
-                  range === item.id 
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-md' 
-                    : 'bg-white text-slate-500 border-slate-100 hover:border-slate-200'
+                className={`shrink-0 px-5 py-2.5 rounded-lg text-[13px] font-bold transition-all border ${
+                  range === item.id
+                    ? 'bg-[#FF6A00] text-white border-[#FF6A00] shadow-[0_12px_26px_rgba(255,106,0,0.16)]'
+                    : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
                 }`}
               >
                 {item.label}
@@ -309,11 +312,13 @@ export default function Dashboard() {
         </div>
 
         {!hasAnyBusinessData && (
-          <div className="bg-white border border-dashed border-slate-200 rounded-[28px] p-8 text-center">
-            <p className="text-base font-black text-slate-800 mb-2">Dashboard masih kosong</p>
-            <p className="text-sm text-slate-500 max-w-xl mx-auto">
-              Belum ada transaksi, stok, kasir, atau pengeluaran yang bisa ditampilkan. Mulai dari input menu,
-              buka kas harian, lalu lakukan transaksi pertama agar overview ini terisi otomatis.
+          <div className="bg-white border border-dashed border-slate-200 rounded-lg p-10 text-center shadow-sm">
+            <div className="w-16 h-16 bg-slate-50 rounded-lg flex items-center justify-center mx-auto mb-6 text-slate-200">
+               <Package size={40} />
+            </div>
+            <p className="font-display text-lg font-extrabold text-slate-800 mb-2">Dashboard masih kosong</p>
+            <p className="text-[13px] text-slate-400 max-w-md mx-auto font-medium leading-relaxed">
+              Mulai dengan input menu dan lakukan transaksi pertama agar overview ini terisi otomatis secara realtime.
             </p>
           </div>
         )}
@@ -323,8 +328,8 @@ export default function Dashboard() {
             title="Penjualan Hari Ini"
             value={fRp(salesToday)}
             sub={`${nonVoidTransactions.filter((t: any) => isSameDay(new Date(t.date), now)).length} transaksi`}
-            icon={<TrendingUp size={20} />}
-            color="#f97316"
+            icon={<TrendingUp size={22} />}
+            color="#FF6A00"
           />
           <DashboardCard
             title="Penjualan Minggu Ini"
@@ -350,20 +355,20 @@ export default function Dashboard() {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <div className="xl:col-span-2 bg-white rounded-[28px] p-5 md:p-6 border border-slate-200 shadow-sm">
+          <div className="kaffe-panel xl:col-span-2 rounded-2xl p-5 md:p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                  <TrendingUp size={18} className="text-orange-500" />
-                  Revenue Chart
+                <h3 className="font-display text-lg font-extrabold text-slate-800 flex items-center gap-2">
+                  <TrendingUp size={20} className="text-[#FF6A00]" />
+                  Grafik Penjualan
                 </h3>
-                <p className="text-xs text-slate-400 mt-1">Update mengikuti perubahan transaksi toko secara realtime</p>
+                <p className="text-[11px] font-semibold text-slate-400 mt-1">Live data transaksi cloud</p>
               </div>
-              {syncing && <RefreshCw size={16} className="text-orange-500 animate-spin" />}
+              {syncing && <RefreshCw size={18} className="text-[#FF6A00] animate-spin" />}
             </div>
             <div className="h-[280px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={trendData}>
+                <LineChart data={trendData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis
                     dataKey="label"
@@ -378,20 +383,16 @@ export default function Dashboard() {
                     tickFormatter={(value) => `${Math.round(value / 1000)}k`}
                   />
                   <Tooltip formatter={(value: number) => [fRp(value), 'Penjualan']} />
-                  <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                    {trendData.map((entry, index) => (
-                      <Cell key={`${entry.label}-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
+                  <Line type="monotone" dataKey="value" stroke="#FF6A00" strokeWidth={3} dot={{ r: 3, fill: '#FF6A00' }} activeDot={{ r: 5 }} />
+                </LineChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          <div className="bg-white rounded-[28px] p-5 md:p-6 border border-slate-200 shadow-sm">
-            <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2">
-              <Wallet size={18} className="text-emerald-500" />
-              Metode Pembayaran
+          <div className="kaffe-panel rounded-2xl p-5 md:p-6">
+            <h3 className="font-display text-lg font-extrabold text-slate-800 mb-6 flex items-center gap-2">
+              <Wallet size={20} className="text-emerald-500" />
+              Metode Bayar
             </h3>
             {paymentData.length === 0 ? (
               <div className="h-[280px] flex items-center justify-center text-sm text-slate-400">
@@ -440,19 +441,19 @@ export default function Dashboard() {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <div className="bg-white rounded-[28px] p-5 md:p-6 border border-slate-200 shadow-sm">
-            <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2">
-              <Package size={18} className="text-orange-500" />
-              Produk Terlaris
+          <div className="kaffe-panel rounded-2xl p-5 md:p-6">
+            <h3 className="font-display text-lg font-extrabold text-slate-800 mb-6 flex items-center gap-2">
+              <Package size={20} className="text-[#FF6A00]" />
+              Terlaris
             </h3>
             {topProducts.length === 0 ? (
               <p className="text-sm text-slate-400">Belum ada produk terjual pada periode ini.</p>
             ) : (
               <div className="space-y-3">
                 {topProducts.map((product, index) => (
-                  <div key={product.label} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50">
+                  <div key={product.label} className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 font-black text-xs shrink-0">
+                      <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center text-orange-600 font-black text-xs shrink-0">
                         #{index + 1}
                       </div>
                       <div className="min-w-0">
@@ -467,9 +468,9 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div className="bg-white rounded-[28px] p-5 md:p-6 border border-slate-200 shadow-sm">
-            <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2">
-              <AlertTriangle size={18} className="text-rose-500" />
+          <div className="kaffe-panel rounded-2xl p-5 md:p-6">
+            <h3 className="font-display text-lg font-extrabold text-slate-800 mb-6 flex items-center gap-2">
+              <AlertTriangle size={20} className="text-rose-500" />
               Peringatan Stok
             </h3>
             {lowStockItems.length === 0 ? (
@@ -503,21 +504,21 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div className="bg-white rounded-[28px] p-5 md:p-6 border border-slate-200 shadow-sm">
-            <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2">
-              <TrendingUp size={18} className="text-blue-500" />
-              Ringkasan Operasional
+          <div className="kaffe-panel rounded-2xl p-5 md:p-6">
+            <h3 className="font-display text-lg font-extrabold text-slate-800 mb-6 flex items-center gap-2">
+              <TrendingUp size={20} className="text-blue-500" />
+              Operasional
             </h3>
             <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100">
+              <div className="p-4 rounded-lg bg-blue-50 border border-blue-100">
                 <p className="text-[11px] font-black text-blue-500 uppercase tracking-wider">Revenue Periode</p>
                 <p className="text-xl font-black text-slate-800 mt-1">{fRp(totalRangeRevenue)}</p>
               </div>
-              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-100">
+              <div className="p-4 rounded-lg bg-rose-50 border border-rose-100">
                 <p className="text-[11px] font-black text-rose-500 uppercase tracking-wider">Pengeluaran Operasional</p>
                 <p className="text-xl font-black text-slate-800 mt-1">{fRp(totalRangeExpenses)}</p>
               </div>
-              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100">
+              <div className="p-4 rounded-lg bg-emerald-50 border border-emerald-100">
                 <p className="text-[11px] font-black text-emerald-600 uppercase tracking-wider">Nilai Stok Gudang</p>
                 <p className="text-xl font-black text-slate-800 mt-1">
                   {fRp(inventory.reduce((sum: number, item: any) => sum + (item.stock || 0) * (item.cost_per_unit || 0), 0))}

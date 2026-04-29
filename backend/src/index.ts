@@ -8,6 +8,7 @@ import express, { type NextFunction, type Request, type RequestHandler, type Res
 import { Pool, type PoolClient } from 'pg';
 import { z } from 'zod';
 import { appendMidtransRedirectOptions, buildMidtransCreateTransactionPayload, createMidtransWebhookSignature } from './lib/midtrans';
+import { validateBackendDeploymentConfig } from './lib/deploymentReadiness';
 import { buildPasswordResetLink } from './lib/emailLinks';
 import {
   KitchenStatusError,
@@ -24,12 +25,28 @@ import {
   type SubscriptionPaymentMethodId,
   type SubscriptionPlanId,
 } from './lib/subscriptionBilling';
+import {
+  getPermissionsForRole,
+  hasPermission,
+  normalizeUserRole,
+  type Permission,
+  type UserRole,
+} from './lib/accessControl';
+import {
+  canCashierLogin,
+  cashierCreateInputSchema,
+  cashierUpdateInputSchema,
+  normalizeCashierStatus,
+} from './lib/cashierManagement';
 
 type AuthenticatedUser = {
   id: string;
   email: string | null;
   email_verified_at?: string | null;
   created_at?: string | null;
+  role: UserRole;
+  permissions: Permission[];
+  account_status?: string | null;
 };
 
 type AuthenticatedSession = {
@@ -343,6 +360,21 @@ function normalizeStore(row: Record<string, unknown>) {
   };
 }
 
+function serializeCashier(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    display_name: row.display_name,
+    email: row.email,
+    username: row.username,
+    role: 'cashier',
+    status: normalizeCashierStatus(row.account_status ?? row.status),
+    store_id: row.store_id,
+    store_name: row.store_name,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
 function normalizeInventory(row: Record<string, unknown>) {
   return {
     ...row,
@@ -574,7 +606,7 @@ async function revokeUserSessions(client: PoolClient, userId: string) {
   );
 }
 
-async function createSession(client: PoolClient, user: AuthenticatedUser, req: Request) {
+async function createSession(client: PoolClient, user: Pick<AuthenticatedUser, 'id'>, req: Request) {
   const token = createOpaqueToken();
   const tokenHash = hashToken(token);
   const expiresAt = addDays(new Date(), env.SESSION_TTL_DAYS).toISOString();
@@ -824,9 +856,18 @@ async function authenticate(req: Request, _res: Response, next: NextFunction) {
           s.expires_at,
           c.user_id,
           c.email,
-          c.email_verified_at
+          c.email_verified_at,
+          p.role,
+          p.account_status,
+          exists (
+            select 1
+            from public.cashier_outlet_assignments a
+            where a.cashier_id = c.user_id
+              and a.status = 'active'
+          ) as has_active_assignment
         from public.app_auth_sessions s
         join public.app_auth_credentials c on c.user_id = s.user_id
+        left join public.profiles p on p.id = c.user_id
         where s.token_hash = $1
           and s.revoked_at is null
           and s.expires_at > now()
@@ -840,10 +881,22 @@ async function authenticate(req: Request, _res: Response, next: NextFunction) {
       throw new ApiError(401, 'Sesi tidak valid atau sudah kedaluwarsa.');
     }
 
+    const role = normalizeUserRole(session.role);
+    const accountStatus = normalizeCashierStatus(session.account_status);
+    if (role === 'cashier' && !canCashierLogin(accountStatus)) {
+      throw new ApiError(403, 'Akun kasir nonaktif. Hubungi Owner/Admin.');
+    }
+    if (role === 'cashier' && !session.has_active_assignment) {
+      throw new ApiError(403, 'Akun kasir belum terhubung ke outlet aktif.');
+    }
+
     req.authUser = {
       id: session.user_id as string,
       email: (session.email as string | null) ?? null,
       email_verified_at: (session.email_verified_at as string | null) ?? null,
+      role,
+      permissions: getPermissionsForRole(role),
+      account_status: accountStatus,
     };
     req.authSession = {
       id: session.session_id as string,
@@ -875,6 +928,26 @@ function requireAdmin(req: Request, _res: Response, next: NextFunction) {
   next();
 }
 
+function requirePermission(permission: Permission): RequestHandler {
+  return (req, _res, next) => {
+    const role = req.authUser?.role;
+    if (!role || !hasPermission(role, permission)) {
+      log('warn', 'authz.denied', {
+        requestId: req.requestId ?? null,
+        userId: req.authUser?.id ?? null,
+        role: role ?? null,
+        permission,
+        path: req.originalUrl,
+        method: req.method,
+      });
+      next(new ApiError(403, 'Akses tidak diizinkan untuk role akun ini.'));
+      return;
+    }
+
+    next();
+  };
+}
+
 const profileColumns = `
   id,
   username,
@@ -888,9 +961,59 @@ const profileColumns = `
   pro_order_id,
   pro_activated_at,
   pro_expires_at,
+  role,
+  account_status,
   created_at,
   updated_at
 `;
+
+function serializeProfile(row: Record<string, unknown> | null | undefined) {
+  if (!row) return row;
+  const role = normalizeUserRole(row.role);
+  return {
+    ...row,
+    role,
+    account_status: normalizeCashierStatus(row.account_status),
+    permissions: getPermissionsForRole(role),
+  };
+}
+
+async function getCashierAssignment(client: PoolClient, cashierId: string) {
+  const result = await client.query(
+    `
+      select
+        a.owner_id,
+        a.store_id,
+        a.status as assignment_status,
+        s.store_name
+      from public.cashier_outlet_assignments a
+      join public.stores s on s.id = a.store_id
+      where a.cashier_id = $1
+      order by a.updated_at desc
+      limit 1
+    `,
+    [cashierId],
+  );
+
+  const row = result.rows[0];
+  if (!row) return {};
+
+  return {
+    owner_id: row.owner_id,
+    assigned_store_id: row.store_id,
+    assigned_store_name: row.store_name,
+    assignment_status: normalizeCashierStatus(row.assignment_status),
+  };
+}
+
+async function serializeProfileWithAssignment(client: PoolClient, row: Record<string, unknown> | null | undefined) {
+  const profile = serializeProfile(row) as Record<string, unknown> | null | undefined;
+  if (!profile || profile.role !== 'cashier') return profile;
+  return {
+    ...profile,
+    ...(await getCashierAssignment(client, String(profile.id))),
+  };
+}
 
 const storeColumns = `
   id,
@@ -1318,12 +1441,14 @@ async function ensureProfile(client: PoolClient, user: AuthenticatedUser) {
 
   const inserted = await client.query(
     `
-      insert into public.profiles (id, username, display_name, email)
-      values ($1, $2, $3, $4)
+      insert into public.profiles (id, username, display_name, email, role, account_status)
+      values ($1, $2, $3, $4, 'owner_admin', 'active')
       on conflict (id) do update
       set
         email = excluded.email,
-        display_name = coalesce(public.profiles.display_name, excluded.display_name)
+        display_name = coalesce(public.profiles.display_name, excluded.display_name),
+        role = coalesce(public.profiles.role, excluded.role),
+        account_status = coalesce(public.profiles.account_status, excluded.account_status)
       returning ${profileColumns}
     `,
     [user.id, username, displayName, email],
@@ -1619,7 +1744,25 @@ async function activatePaidSubscription(client: PoolClient, payload: {
 
 async function assertStoreOwned(client: PoolClient, storeId: string, userId: string) {
   const result = await client.query(
-    `select ${storeColumns} from public.stores where id = $1 and owner_id = $2 limit 1`,
+    `
+      select ${storeColumns}
+      from public.stores s
+      where s.id = $1
+        and (
+          s.owner_id = $2
+          or exists (
+            select 1
+            from public.cashier_outlet_assignments a
+            join public.profiles p on p.id = a.cashier_id
+            where a.store_id = s.id
+              and a.cashier_id = $2
+              and a.status = 'active'
+              and p.role = 'cashier'
+              and p.account_status = 'active'
+          )
+        )
+      limit 1
+    `,
     [storeId, userId],
   );
 
@@ -1919,6 +2062,21 @@ function buildReadinessScore(params: {
 function getOperationalWarnings() {
   const warnings: string[] = [];
   const paymentConfig = resolveSubscriptionPaymentConfig();
+  const deploymentValidation = validateBackendDeploymentConfig({
+    nodeEnv: env.NODE_ENV,
+    webBaseUrl: env.WEB_BASE_URL,
+    apiBaseUrl: env.API_BASE_URL,
+    corsOrigin: env.CORS_ORIGIN,
+    midtransEnvironment: env.MIDTRANS_ENVIRONMENT,
+    subscriptionPaymentMode: env.SUBSCRIPTION_PAYMENT_MODE,
+    midtransSnapEnabled: env.MIDTRANS_SNAP_ENABLED === 'true',
+    midtransServerKey: env.MIDTRANS_SERVER_KEY,
+    midtransMerchantId: env.MIDTRANS_MERCHANT_ID,
+    resendApiKey: env.RESEND_API_KEY,
+    resendFromEmail: env.RESEND_FROM_EMAIL,
+  });
+
+  warnings.push(...deploymentValidation.errors, ...deploymentValidation.warnings);
 
   if (!env.RESEND_API_KEY || !env.RESEND_FROM_EMAIL) {
     warnings.push('Email delivery belum dikonfigurasi penuh.');
@@ -1930,10 +2088,6 @@ function getOperationalWarnings() {
     warnings.push('Pembayaran online subscription dinonaktifkan. Gunakan aktivasi manual sampai Midtrans production siap.');
   } else if (!paymentConfig.commerciallyReady) {
     warnings.push('Pembayaran online belum commercial-ready karena masih memakai mode sandbox/QA.');
-  }
-
-  if (!allowedOrigins.has('https://kaffepos.my.id')) {
-    warnings.push('Origin production frontend belum ada di whitelist CORS.');
   }
 
   return warnings;
@@ -1987,6 +2141,65 @@ async function bootstrapAuthSchema() {
   `);
 
   await pool.query(`
+    alter table public.profiles
+      add column if not exists role text not null default 'owner_admin';
+
+    alter table public.profiles
+      add column if not exists account_status text not null default 'active';
+
+    update public.profiles
+    set role = 'owner_admin'
+    where role is null
+       or role not in ('owner_admin', 'cashier');
+
+    update public.profiles
+    set account_status = 'active'
+    where account_status is null
+       or account_status not in ('active', 'inactive');
+
+    do $$
+    begin
+      if not exists (
+        select 1
+        from pg_constraint
+        where conname = 'profiles_role_check'
+      ) then
+        alter table public.profiles
+          add constraint profiles_role_check
+          check (role in ('owner_admin', 'cashier'));
+      end if;
+
+      if not exists (
+        select 1
+        from pg_constraint
+        where conname = 'profiles_account_status_check'
+      ) then
+        alter table public.profiles
+          add constraint profiles_account_status_check
+          check (account_status in ('active', 'inactive'));
+      end if;
+    end $$;
+  `);
+
+  await pool.query(`
+    create table if not exists public.cashier_outlet_assignments (
+      id uuid primary key default gen_random_uuid(),
+      owner_id uuid not null references public.profiles(id) on delete cascade,
+      cashier_id uuid not null references public.profiles(id) on delete cascade,
+      store_id uuid not null references public.stores(id) on delete cascade,
+      status text not null default 'active' check (status in ('active', 'inactive')),
+      created_by uuid references public.profiles(id) on delete set null,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      unique (owner_id, cashier_id)
+    );
+
+    create index if not exists cashier_outlet_assignments_owner_idx
+      on public.cashier_outlet_assignments (owner_id, updated_at desc);
+
+    create index if not exists cashier_outlet_assignments_cashier_idx
+      on public.cashier_outlet_assignments (cashier_id, status);
+
     create table if not exists public.app_auth_credentials (
       user_id uuid primary key references public.profiles(id) on delete cascade,
       email text not null unique,
@@ -2480,8 +2693,8 @@ app.post('/api/auth/register', authEmailRateLimiter, async (req, res, next) => {
       if (!existingCredential.rows[0]) {
         await client.query(
           `
-            insert into public.profiles (id, username, display_name, email)
-            values ($1, $2, $3, $4)
+            insert into public.profiles (id, username, display_name, email, role, account_status)
+            values ($1, $2, $3, $4, 'owner_admin', 'active')
           `,
           [userId, resolvedUsername, displayName, email],
         );
@@ -2500,6 +2713,8 @@ app.post('/api/auth/register', authEmailRateLimiter, async (req, res, next) => {
             set username = coalesce(username, $2),
                 display_name = coalesce(display_name, $3),
                 email = $4,
+                role = coalesce(role, 'owner_admin'),
+                account_status = coalesce(account_status, 'active'),
                 updated_at = now()
             where id = $1
           `,
@@ -2720,6 +2935,8 @@ app.post('/api/auth/login', authLoginRateLimiter, async (req, res, next) => {
             p.pro_order_id,
             p.pro_activated_at,
             p.pro_expires_at,
+            p.role,
+            p.account_status,
             p.created_at,
             p.updated_at
           from public.app_auth_credentials c
@@ -2747,8 +2964,6 @@ app.post('/api/auth/login', authLoginRateLimiter, async (req, res, next) => {
       await revokeUserSessions(client, credential.user_id as string);
       const session = await createSession(client, {
         id: credential.user_id as string,
-        email: credential.email as string,
-        email_verified_at: credential.email_verified_at as string,
       }, req);
 
       await client.query(
@@ -2769,6 +2984,17 @@ app.post('/api/auth/login', authLoginRateLimiter, async (req, res, next) => {
         { ip: req.ip },
       );
 
+      const role = normalizeUserRole(credential.role);
+      const accountStatus = normalizeCashierStatus(credential.account_status);
+      if (role === 'cashier' && !canCashierLogin(accountStatus)) {
+        throw new ApiError(403, 'Akun kasir nonaktif. Hubungi Owner/Admin.');
+      }
+      const permissions = getPermissionsForRole(role);
+      const assignment = role === 'cashier' ? await getCashierAssignment(client, credential.user_id as string) : {};
+      if (role === 'cashier' && (!assignment.assigned_store_id || assignment.assignment_status !== 'active')) {
+        throw new ApiError(403, 'Akun kasir belum terhubung ke outlet aktif.');
+      }
+
       return {
         session,
         user: {
@@ -2778,6 +3004,7 @@ app.post('/api/auth/login', authLoginRateLimiter, async (req, res, next) => {
           user_metadata: {
             display_name: credential.display_name ?? null,
             username: credential.username ?? null,
+            role,
           },
         },
         profile: {
@@ -2793,6 +3020,10 @@ app.post('/api/auth/login', authLoginRateLimiter, async (req, res, next) => {
           pro_order_id: credential.pro_order_id,
           pro_activated_at: credential.pro_activated_at,
           pro_expires_at: credential.pro_expires_at,
+          role,
+          account_status: accountStatus,
+          permissions,
+          ...assignment,
           created_at: credential.created_at,
           updated_at: credential.updated_at,
         },
@@ -2951,14 +3182,16 @@ app.get('/api/auth/session', authenticate, async (req, res, next) => {
       const ensured = await ensureProfile(client, req.authUser!);
       await syncProfileSubscriptionState(client, req.authUser!.id);
       const refreshed = await client.query(`select ${profileColumns} from public.profiles where id = $1 limit 1`, [req.authUser!.id]);
-      return refreshed.rows[0] ?? ensured;
+      return serializeProfileWithAssignment(client, refreshed.rows[0] ?? ensured);
     });
+    const profileRecord = profile as Record<string, unknown>;
     res.json({
       user: {
         ...req.authUser,
         user_metadata: {
-          display_name: profile.display_name ?? null,
-          username: profile.username ?? null,
+          display_name: profileRecord.display_name ?? null,
+          username: profileRecord.username ?? null,
+          role: profileRecord.role ?? req.authUser?.role ?? null,
         },
       },
       profile,
@@ -2991,7 +3224,7 @@ app.get('/api/profile/me', async (req, res, next) => {
       const ensured = await ensureProfile(client, req.authUser!);
       await syncProfileSubscriptionState(client, req.authUser!.id);
       const refreshed = await client.query(`select ${profileColumns} from public.profiles where id = $1 limit 1`, [req.authUser!.id]);
-      return refreshed.rows[0] ?? ensured;
+      return serializeProfileWithAssignment(client, refreshed.rows[0] ?? ensured);
     });
     res.json(profile);
   } catch (error) {
@@ -2999,7 +3232,7 @@ app.get('/api/profile/me', async (req, res, next) => {
   }
 });
 
-app.patch('/api/profile/me', async (req, res, next) => {
+app.patch('/api/profile/me', requirePermission('can_manage_settings'), async (req, res, next) => {
   try {
     const payload = pickDefined(req.body as Record<string, unknown>, [
       'display_name',
@@ -3022,7 +3255,7 @@ app.patch('/api/profile/me', async (req, res, next) => {
       );
     });
 
-    res.json(result.rows[0]);
+    res.json(serializeProfile(result.rows[0]));
   } catch (error) {
     next(error);
   }
@@ -3031,13 +3264,26 @@ app.patch('/api/profile/me', async (req, res, next) => {
 app.get('/api/stores', async (req, res, next) => {
   try {
     const storeId = typeof req.query.storeId === 'string' ? req.query.storeId : null;
+    const cashierFilter = req.authUser!.role === 'cashier'
+      ? `
+          and exists (
+            select 1
+            from public.cashier_outlet_assignments a
+            join public.profiles p on p.id = a.cashier_id
+            where a.store_id = public.stores.id
+              and a.cashier_id = $1
+              and a.status = 'active'
+              and p.account_status = 'active'
+          )
+        `
+      : `and owner_id = $1`;
     const query = storeId
       ? {
-          text: `select ${storeColumns} from public.stores where owner_id = $1 and id = $2 order by created_at asc`,
+          text: `select ${storeColumns} from public.stores where id = $2 ${cashierFilter} order by created_at asc`,
           values: [req.authUser!.id, storeId],
         }
       : {
-          text: `select ${storeColumns} from public.stores where owner_id = $1 order by created_at asc`,
+          text: `select ${storeColumns} from public.stores where true ${cashierFilter} order by created_at asc`,
           values: [req.authUser!.id],
         };
 
@@ -3048,7 +3294,7 @@ app.get('/api/stores', async (req, res, next) => {
   }
 });
 
-app.post('/api/stores', async (req, res, next) => {
+app.post('/api/stores', requirePermission('can_manage_settings'), async (req, res, next) => {
   try {
     const payload = pickDefined(req.body as Record<string, unknown>, ['store_name']);
     const storeName =
@@ -3071,7 +3317,7 @@ app.post('/api/stores', async (req, res, next) => {
   }
 });
 
-app.patch('/api/stores/:storeId', async (req, res, next) => {
+app.patch('/api/stores/:storeId', requirePermission('can_manage_settings'), async (req, res, next) => {
   try {
     const storeId = storeIdSchema.parse(req.params.storeId);
     const payload = pickDefined(req.body as Record<string, unknown>, [
@@ -3123,6 +3369,240 @@ app.patch('/api/stores/:storeId', async (req, res, next) => {
   }
 });
 
+app.get('/api/cashiers', requirePermission('can_manage_users'), async (req, res, next) => {
+  try {
+    const result = await pool.query(
+      `
+        select
+          p.id,
+          p.display_name,
+          p.email,
+          p.username,
+          p.role,
+          p.account_status,
+          p.created_at,
+          p.updated_at,
+          a.store_id,
+          s.store_name
+        from public.cashier_outlet_assignments a
+        join public.profiles p on p.id = a.cashier_id
+        join public.stores s on s.id = a.store_id
+        where a.owner_id = $1
+          and p.role = 'cashier'
+        order by p.created_at desc
+      `,
+      [req.authUser!.id],
+    );
+
+    res.json({ items: result.rows.map((row: Record<string, unknown>) => serializeCashier(row)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/cashiers', requirePermission('can_manage_users'), async (req, res, next) => {
+  try {
+    const payload = cashierCreateInputSchema.parse(req.body);
+    const result = await withTransaction(async (client) => {
+      await assertStoreOwned(client, payload.storeId, req.authUser!.id);
+
+      const existingEmail = await client.query(
+        `select user_id from public.app_auth_credentials where email = $1 limit 1`,
+        [payload.email],
+      );
+      if (existingEmail.rows[0]) {
+        throw new ApiError(409, 'Email kasir sudah digunakan.');
+      }
+
+      const userId = randomUUID();
+      const username = await resolveUniqueUsername(client, payload.email.split('@')[0] || payload.displayName);
+      const passwordHash = await bcrypt.hash(payload.password, 12);
+      const status = normalizeCashierStatus(payload.status);
+
+      await client.query(
+        `
+          insert into public.profiles (id, username, display_name, email, role, account_status)
+          values ($1, $2, $3, $4, 'cashier', $5)
+        `,
+        [userId, username, payload.displayName, payload.email, status],
+      );
+
+      await client.query(
+        `
+          insert into public.app_auth_credentials (
+            user_id,
+            email,
+            password_hash,
+            email_verified_at,
+            updated_at
+          ) values ($1, $2, $3, now(), now())
+        `,
+        [userId, payload.email, passwordHash],
+      );
+
+      await client.query(
+        `
+          insert into public.cashier_outlet_assignments (
+            owner_id,
+            cashier_id,
+            store_id,
+            status,
+            created_by
+          ) values ($1, $2, $3, $4, $1)
+        `,
+        [req.authUser!.id, userId, payload.storeId, status],
+      );
+
+      const cashier = await client.query(
+        `
+          select
+            p.id,
+            p.display_name,
+            p.email,
+            p.username,
+            p.role,
+            p.account_status,
+            p.created_at,
+            p.updated_at,
+            a.store_id,
+            s.store_name
+          from public.cashier_outlet_assignments a
+          join public.profiles p on p.id = a.cashier_id
+          join public.stores s on s.id = a.store_id
+          where a.owner_id = $1 and a.cashier_id = $2
+          limit 1
+        `,
+        [req.authUser!.id, userId],
+      );
+
+      return serializeCashier(cashier.rows[0]);
+    });
+
+    res.status(201).json({ cashier: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/api/cashiers/:cashierId', requirePermission('can_manage_users'), async (req, res, next) => {
+  try {
+    const cashierId = storeIdSchema.parse(req.params.cashierId);
+    const payload = cashierUpdateInputSchema.parse(req.body);
+    const result = await withTransaction(async (client) => {
+      const existing = await client.query(
+        `
+          select p.id, p.email, p.account_status
+          from public.cashier_outlet_assignments a
+          join public.profiles p on p.id = a.cashier_id
+          where a.owner_id = $1
+            and a.cashier_id = $2
+            and p.role = 'cashier'
+          limit 1
+        `,
+        [req.authUser!.id, cashierId],
+      );
+      if (!existing.rows[0]) {
+        throw new ApiError(404, 'Kasir tidak ditemukan.');
+      }
+
+      if (payload.storeId) {
+        await assertStoreOwned(client, payload.storeId, req.authUser!.id);
+      }
+
+      if (payload.email && payload.email !== existing.rows[0].email) {
+        const conflict = await client.query(
+          `select user_id from public.app_auth_credentials where email = $1 and user_id <> $2 limit 1`,
+          [payload.email, cashierId],
+        );
+        if (conflict.rows[0]) {
+          throw new ApiError(409, 'Email kasir sudah digunakan.');
+        }
+      }
+
+      const profileUpdates: Record<string, unknown> = {};
+      if (payload.displayName) profileUpdates.display_name = payload.displayName;
+      if (payload.email) profileUpdates.email = payload.email;
+      if (payload.status) profileUpdates.account_status = normalizeCashierStatus(payload.status);
+      if (Object.keys(profileUpdates).length > 0) {
+        const { clause, values } = buildUpdateClause(profileUpdates);
+        await client.query(
+          `
+            update public.profiles
+            set ${clause}, updated_at = now()
+            where id = $${values.length + 1}
+              and role = 'cashier'
+          `,
+          [...values, cashierId],
+        );
+      }
+
+      const credentialUpdates: Record<string, unknown> = {};
+      if (payload.email) credentialUpdates.email = payload.email;
+      if (payload.password) credentialUpdates.password_hash = await bcrypt.hash(payload.password, 12);
+      if (Object.keys(credentialUpdates).length > 0) {
+        credentialUpdates.updated_at = new Date().toISOString();
+        const { clause, values } = buildUpdateClause(credentialUpdates);
+        await client.query(
+          `
+            update public.app_auth_credentials
+            set ${clause}
+            where user_id = $${values.length + 1}
+          `,
+          [...values, cashierId],
+        );
+      }
+
+      const assignmentUpdates: Record<string, unknown> = {};
+      if (payload.storeId) assignmentUpdates.store_id = payload.storeId;
+      if (payload.status) assignmentUpdates.status = normalizeCashierStatus(payload.status);
+      if (Object.keys(assignmentUpdates).length > 0) {
+        const { clause, values } = buildUpdateClause(assignmentUpdates);
+        await client.query(
+          `
+            update public.cashier_outlet_assignments
+            set ${clause}, updated_at = now()
+            where owner_id = $${values.length + 1}
+              and cashier_id = $${values.length + 2}
+          `,
+          [...values, req.authUser!.id, cashierId],
+        );
+      }
+
+      if (payload.status === 'inactive') {
+        await revokeUserSessions(client, cashierId);
+      }
+
+      const cashier = await client.query(
+        `
+          select
+            p.id,
+            p.display_name,
+            p.email,
+            p.username,
+            p.role,
+            p.account_status,
+            p.created_at,
+            p.updated_at,
+            a.store_id,
+            s.store_name
+          from public.cashier_outlet_assignments a
+          join public.profiles p on p.id = a.cashier_id
+          join public.stores s on s.id = a.store_id
+          where a.owner_id = $1 and a.cashier_id = $2
+          limit 1
+        `,
+        [req.authUser!.id, cashierId],
+      );
+
+      return serializeCashier(cashier.rows[0]);
+    });
+
+    res.json({ cashier: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get('/api/menu-items', async (req, res, next) => {
   try {
     const storeId = storeIdSchema.parse(req.query.storeId);
@@ -3140,7 +3620,7 @@ app.get('/api/menu-items', async (req, res, next) => {
   }
 });
 
-app.post('/api/menu-items', async (req, res, next) => {
+app.post('/api/menu-items', requirePermission('can_manage_products'), async (req, res, next) => {
   try {
     const payload = menuItemWriteSchema.parse(req.body);
     const result = await withTransaction(async (client) => {
@@ -3177,7 +3657,7 @@ app.post('/api/menu-items', async (req, res, next) => {
   }
 });
 
-app.patch('/api/menu-items/:id', async (req, res, next) => {
+app.patch('/api/menu-items/:id', requirePermission('can_manage_products'), async (req, res, next) => {
   try {
     const itemId = storeIdSchema.parse(req.params.id);
     const payload = pickDefined(req.body as Record<string, unknown>, [
@@ -3225,7 +3705,7 @@ app.patch('/api/menu-items/:id', async (req, res, next) => {
   }
 });
 
-app.delete('/api/menu-items/:id', async (req, res, next) => {
+app.delete('/api/menu-items/:id', requirePermission('can_manage_products'), async (req, res, next) => {
   try {
     const itemId = storeIdSchema.parse(req.params.id);
     await withTransaction(async (client) => {
@@ -3268,7 +3748,7 @@ app.get('/api/inventory', async (req, res, next) => {
   }
 });
 
-app.post('/api/inventory', async (req, res, next) => {
+app.post('/api/inventory', requirePermission('can_manage_inventory'), async (req, res, next) => {
   try {
     const payload = inventoryWriteSchema.parse(req.body);
     const result = await withTransaction(async (client) => {
@@ -3301,7 +3781,7 @@ app.post('/api/inventory', async (req, res, next) => {
   }
 });
 
-app.patch('/api/inventory/:id', async (req, res, next) => {
+app.patch('/api/inventory/:id', requirePermission('can_manage_inventory'), async (req, res, next) => {
   try {
     const itemId = storeIdSchema.parse(req.params.id);
     const payload = pickDefined(req.body as Record<string, unknown>, [
@@ -3345,7 +3825,7 @@ app.patch('/api/inventory/:id', async (req, res, next) => {
   }
 });
 
-app.delete('/api/inventory/:id', async (req, res, next) => {
+app.delete('/api/inventory/:id', requirePermission('can_manage_inventory'), async (req, res, next) => {
   try {
     const itemId = storeIdSchema.parse(req.params.id);
     await withTransaction(async (client) => {
@@ -3388,7 +3868,7 @@ app.get('/api/expenses', async (req, res, next) => {
   }
 });
 
-app.post('/api/expenses', async (req, res, next) => {
+app.post('/api/expenses', requirePermission('can_view_reports'), async (req, res, next) => {
   try {
     const payload = expenseWriteSchema.parse(req.body);
     const result = await withTransaction(async (client) => {
@@ -3422,7 +3902,7 @@ app.post('/api/expenses', async (req, res, next) => {
   }
 });
 
-app.delete('/api/expenses/:id', async (req, res, next) => {
+app.delete('/api/expenses/:id', requirePermission('can_view_reports'), async (req, res, next) => {
   try {
     const expenseId = storeIdSchema.parse(req.params.id);
     await withTransaction(async (client) => {
@@ -3465,7 +3945,7 @@ app.get('/api/cash-flow', async (req, res, next) => {
   }
 });
 
-app.post('/api/cash-flow', async (req, res, next) => {
+app.post('/api/cash-flow', requirePermission('can_view_reports'), async (req, res, next) => {
   try {
     const payload = cashFlowWriteSchema.parse(req.body);
     const result = await withTransaction(async (client) => {
@@ -3585,7 +4065,7 @@ app.patch('/api/cash-register/:id', async (req, res, next) => {
   }
 });
 
-app.get('/api/subscriptions', async (req, res, next) => {
+app.get('/api/subscriptions', requirePermission('can_manage_billing'), async (req, res, next) => {
   try {
     const [subscriptions, paymentHistory, pendingPayments] = await Promise.all([
       pool.query(
@@ -3678,7 +4158,7 @@ app.get('/api/subscriptions', async (req, res, next) => {
   }
 });
 
-app.post('/api/subscriptions/payments/quote', async (req, res, next) => {
+app.post('/api/subscriptions/payments/quote', requirePermission('can_manage_billing'), async (req, res, next) => {
   try {
     const payload = subscriptionPaymentRequestSchema.parse(req.body);
     const paymentConfig = resolveSubscriptionPaymentConfig();
@@ -3700,7 +4180,7 @@ app.post('/api/subscriptions/payments/quote', async (req, res, next) => {
   }
 });
 
-app.post('/api/subscriptions/payments/create', paymentCreateRateLimiter, async (req, res, next) => {
+app.post('/api/subscriptions/payments/create', requirePermission('can_manage_billing'), paymentCreateRateLimiter, async (req, res, next) => {
   try {
     const paymentConfig = requireOnlineSubscriptionPayment();
 
@@ -3918,7 +4398,7 @@ app.post('/api/ops/events', async (req, res, next) => {
   }
 });
 
-app.post('/api/ai-insight', async (req, res, next) => {
+app.post('/api/ai-insight', requirePermission('can_view_reports'), async (req, res, next) => {
   try {
     if (!env.GEMINI_API_KEY) {
       throw new ApiError(502, 'GEMINI_API_KEY belum dikonfigurasi di backend.');
@@ -4027,7 +4507,7 @@ app.get('/api/admin/subscriptions/overview', requireAdmin, async (_req, res, nex
     const [profiles, subscriptions, paymentHistory] = await Promise.all([
       pool.query(
         `
-          select id, email, display_name, username
+          select id, email, display_name, username, role
           from public.profiles
           order by created_at desc
         `,
@@ -4175,7 +4655,7 @@ app.post('/api/admin/subscriptions/:id/cancel', requireAdmin, async (req, res, n
   }
 });
 
-app.post('/api/import/local-storage', async (req, res, next) => {
+app.post('/api/import/local-storage', requirePermission('can_manage_settings'), async (req, res, next) => {
   try {
     const payload = localStorageImportSchema.parse(req.body);
 
@@ -4495,7 +4975,7 @@ app.patch('/api/notifications/read-all', async (req, res, next) => {
   }
 });
 
-app.get('/api/kitchen/orders', async (req, res, next) => {
+app.get('/api/kitchen/orders', requirePermission('can_view_kitchen'), async (req, res, next) => {
   try {
     const storeId = storeIdSchema.parse(req.query.storeId);
     const status = typeof req.query.status === 'string' && req.query.status.trim()
@@ -4577,7 +5057,7 @@ app.get('/api/kitchen/orders', async (req, res, next) => {
   }
 });
 
-app.get('/api/kitchen/events', async (req, res, next) => {
+app.get('/api/kitchen/events', requirePermission('can_view_kitchen'), async (req, res, next) => {
   try {
     const storeId = storeIdSchema.parse(req.query.storeId);
     await withTransaction(async (client) => {
@@ -4624,7 +5104,7 @@ app.get('/api/kitchen/events', async (req, res, next) => {
   }
 });
 
-app.patch('/api/kitchen/orders/:id/status', async (req, res, next) => {
+app.patch('/api/kitchen/orders/:id/status', requirePermission('can_manage_kitchen_status'), async (req, res, next) => {
   try {
     const orderId = z.string().uuid().parse(req.params.id);
     const body = z
@@ -4717,7 +5197,7 @@ app.patch('/api/kitchen/orders/:id/status', async (req, res, next) => {
   }
 });
 
-app.patch('/api/kitchen/items/:id/status', async (req, res, next) => {
+app.patch('/api/kitchen/items/:id/status', requirePermission('can_manage_kitchen_status'), async (req, res, next) => {
   try {
     const itemId = z.string().uuid().parse(req.params.id);
     const body = z
@@ -4811,7 +5291,7 @@ app.patch('/api/kitchen/items/:id/status', async (req, res, next) => {
   }
 });
 
-app.get('/api/transactions', async (req, res, next) => {
+app.get('/api/transactions', requirePermission('can_view_transaction_history'), async (req, res, next) => {
   try {
     const storeId = storeIdSchema.parse(req.query.storeId);
     const result = await withTransaction(async (client) => {
@@ -4828,7 +5308,7 @@ app.get('/api/transactions', async (req, res, next) => {
   }
 });
 
-app.post('/api/transactions/checkout', async (req, res, next) => {
+app.post('/api/transactions/checkout', requirePermission('can_use_pos'), async (req, res, next) => {
   try {
     const payload = checkoutSchema.parse(req.body);
 
@@ -4836,11 +5316,22 @@ app.post('/api/transactions/checkout', async (req, res, next) => {
       await assertStoreOwned(client, payload.store_id, req.authUser!.id);
 
       const existing = await client.query(
-        `select id from public.transactions where id = $1 and store_id = $2 limit 1`,
+        `select ${transactionColumns} from public.transactions where id = $1 and store_id = $2 limit 1`,
         [payload.id, payload.store_id],
       );
       if (existing.rows[0]) {
-        throw new ApiError(409, 'ID transaksi sudah digunakan. Coba checkout lagi.');
+        const existingKitchen = await client.query(
+          `select id from public.kitchen_orders where store_id = $1 and transaction_id = $2 limit 1`,
+          [payload.store_id, payload.id],
+        );
+        const kitchenOrder = existingKitchen.rows[0]?.id
+          ? await fetchKitchenOrder(client, String(existingKitchen.rows[0].id))
+          : null;
+        return {
+          transaction: existing.rows[0],
+          kitchenOrder,
+          replayed: true,
+        };
       }
 
       const safeSubtotal = Math.max(0, Math.round(payload.subtotal));
@@ -4979,10 +5470,11 @@ app.post('/api/transactions/checkout', async (req, res, next) => {
       return {
         transaction: insertResult.rows[0],
         kitchenOrder,
+        replayed: false,
       };
     });
 
-    if (result.kitchenOrder) {
+    if (result.kitchenOrder && !result.replayed) {
       const kitchenOrder = result.kitchenOrder as Record<string, unknown>;
       broadcastKitchenEvent({
         id: randomUUID(),
@@ -4994,7 +5486,7 @@ app.post('/api/transactions/checkout', async (req, res, next) => {
       });
     }
 
-    res.status(201).json({
+    res.status(result.replayed ? 200 : 201).json({
       ...normalizeTransaction(result.transaction),
       kitchen_order: result.kitchenOrder,
     });
@@ -5003,7 +5495,7 @@ app.post('/api/transactions/checkout', async (req, res, next) => {
   }
 });
 
-app.post('/api/transactions/:id/void', async (req, res, next) => {
+app.post('/api/transactions/:id/void', requirePermission('can_void_transaction'), async (req, res, next) => {
   try {
     const transactionId = req.params.id;
     const body = z
