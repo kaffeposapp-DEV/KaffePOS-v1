@@ -19,6 +19,10 @@ const INTERNAL_ERROR_PATTERNS = [
   'pg_',
 ];
 
+const CONNECTION_ERROR_MESSAGE = 'Tidak bisa terhubung ke server. Pastikan internet aktif atau coba lagi beberapa saat.';
+const OFFLINE_ERROR_MESSAGE = 'Perangkat sedang offline. Sambungkan internet lalu coba lagi.';
+const TIMEOUT_ERROR_MESSAGE = 'Koneksi ke server terlalu lama. Coba lagi beberapa saat.';
+
 function readErrorLike(error: unknown): ErrorLike {
   if (!error) return {};
   if (typeof error === 'string') return { message: error };
@@ -52,11 +56,40 @@ export function normalizeUserFacingError(
   const trimmed = message.trim();
   const lower = trimmed.toLowerCase();
 
-  if (lower.includes('failed to fetch') || lower.includes('network') || lower.includes('timeout')) {
-    return 'Koneksi ke server terputus. Periksa internet lalu coba lagi.';
+  if (lower.includes('internet disconnected') || lower.includes('err_internet_disconnected') || lower.includes('offline')) {
+    return OFFLINE_ERROR_MESSAGE;
   }
 
-  if (status === 401) return 'Sesi login berakhir. Silakan masuk ulang.';
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    return TIMEOUT_ERROR_MESSAGE;
+  }
+
+  if (
+    lower.includes('failed to fetch') ||
+    lower.includes('network') ||
+    lower.includes('load failed') ||
+    lower.includes('cors') ||
+    lower.includes('ssl') ||
+    lower.includes('certificate') ||
+    lower.includes('err_cleartext_not_permitted')
+  ) {
+    return CONNECTION_ERROR_MESSAGE;
+  }
+
+  if (status === 401) {
+    const looksLikeLoginOrAccountMessage = [
+      'email atau password salah',
+      'email atau kata sandi salah',
+      'email belum terverifikasi',
+      'akun belum aktif',
+      'akun kasir nonaktif',
+      'akun tidak aktif',
+    ].some((pattern) => lower.includes(pattern));
+
+    return trimmed && looksLikeLoginOrAccountMessage && !isUnsafeMessage(trimmed)
+      ? trimmed
+      : 'Sesi login berakhir. Silakan masuk ulang.';
+  }
   if (status === 403) return 'Akses akun ini tidak diizinkan untuk tindakan tersebut.';
   if (status === 404) return 'Data tidak ditemukan. Coba muat ulang halaman.';
   if (status === 409 && !isUnsafeMessage(trimmed)) return trimmed || 'Data sudah berubah. Muat ulang lalu coba lagi.';

@@ -2,9 +2,30 @@
 
 ## KaffePOS v2
 
-Versi dokumen: 1.0  
-Tanggal: 20 April 2026  
-Basis dokumen: codebase `kaffepos-v2`, konfigurasi aplikasi, migrasi database, dan implementasi UI/flow yang ada saat ini.
+Versi dokumen: 1.1
+Tanggal: 5 Mei 2026
+Basis dokumen: codebase `kaffepos-v2`, backend API self-hosted, PostgreSQL production, konfigurasi aplikasi, migrasi database, dan implementasi UI/flow yang ada saat ini.
+
+---
+
+## 0. Status Dokumen dan Aturan Scope
+
+PRD ini adalah rujukan produk utama untuk KaffePOS v2. Semua fitur besar, perubahan alur bisnis, perubahan arsitektur data, perubahan pricing/entitlement, dan perubahan release gate harus merujuk ke PRD ini atau ke RFC yang sudah diterima.
+
+Dokumen pendamping:
+
+- RFC index: [docs/rfc/README.md](/Users/macbook/kaffepos-new/kaffepos-v2/docs/rfc/README.md)
+- RFC scope dan arsitektur awal: [docs/rfc/0001-product-scope-and-architecture.md](/Users/macbook/kaffepos-new/kaffepos-v2/docs/rfc/0001-product-scope-and-architecture.md)
+- Go-live checklist: [GO_LIVE_CHECKLIST.md](/Users/macbook/kaffepos-new/kaffepos-v2/GO_LIVE_CHECKLIST.md)
+- Final release checklist: [docs/final-release-checklist.md](/Users/macbook/kaffepos-new/kaffepos-v2/docs/final-release-checklist.md)
+
+Aturan perubahan:
+
+1. Perubahan kecil yang hanya memperbaiki bug atau copy boleh langsung masuk selama tidak mengubah kontrak produk.
+2. Perubahan fitur yang memengaruhi user journey, data model, subscription, payment, offline sync, printer, auth, atau release gate wajib punya RFC.
+3. Jika PRD dan implementasi berbeda, implementasi boleh dianggap sementara, tetapi PRD/RFC harus diperbarui sebelum perubahan dinyatakan selesai.
+4. Fitur yang tidak tertulis di bagian "In scope" atau RFC accepted dianggap out of scope sampai disetujui.
+5. Commercial release hanya boleh dianggap `GO` jika release gate di PRD dan checklist terkait sudah hijau.
 
 ---
 
@@ -21,7 +42,7 @@ Karakter utama produk saat ini:
 - Insight bisnis berbasis AI
 - Dukungan printer thermal browser, Bluetooth, dan USB
 - Mode web dan Android dari satu codebase
-- Backend cloud menggunakan API self-hosted
+- Backend API self-hosted
 - Pendekatan offline-first terbatas untuk cache dan sinkronisasi ulang
 
 ---
@@ -53,8 +74,9 @@ Menjadi sistem POS cafe yang sederhana, cepat, dan cukup cerdas untuk membantu o
 
 - Meningkatkan retensi pengguna dengan pengalaman kasir yang ringan dan stabil.
 - Mengonversi pengguna gratis ke paket berbayar lewat fitur laporan, printer, dan AI Insight.
-- Menjaga biaya operasional backend tetap ramping dengan arsitektur managed service.
+- Menjaga biaya operasional backend tetap ramping dengan backend API self-hosted yang sederhana.
 - Mendukung distribusi via web dan APK Android dari codebase yang sama.
+- Menjaga arah produk tetap sempit: POS F&B ringan untuk operasional harian, bukan ERP umum.
 
 ### Tujuan pengguna
 
@@ -78,6 +100,10 @@ Fitur berikut bukan fokus inti implementasi saat ini atau belum benar-benar tere
 - Integrasi akuntansi eksternal
 - Backoffice desktop native terpisah
 - Marketplace plugin pihak ketiga
+- Fitur marketplace, delivery aggregator, dan ordering customer-facing
+- Sistem HR/payroll
+- Inventory multi-gudang kompleks
+- Custom workflow per pelanggan tanpa RFC
 
 Catatan: struktur data `stores` sudah membuka kemungkinan ekspansi ke multi-store, tetapi implementasi saat ini masih mengasumsikan satu owner memiliki satu store aktif.
 
@@ -117,7 +143,8 @@ Kebutuhan:
 
 ### In scope
 
-- Auth email/password, reset password, Google sign-in, verifikasi email
+- Auth email/password, reset password, verifikasi email
+- Google sign-in sebagai flow opsional/non-blocker commercial baseline
 - Pembuatan profil dan store awal otomatis
 - POS checkout
 - Menu management
@@ -142,6 +169,17 @@ Kebutuhan:
 - Audit log inventori checkout
 - Telegram admin workflow
 - Operational metrics dashboard
+- Midtrans production payment flow
+- Production observability dan alerting eksternal
+
+### Explicitly out of scope tanpa RFC baru
+
+- Multi-store penuh dan multi-branch report
+- Loyalty, CRM customer, dan delivery/order online
+- Integrasi akuntansi eksternal
+- Payment provider selain Midtrans
+- Mode offline checkout penuh yang tetap memotong stok lintas device
+- Custom feature per merchant yang membuat flow POS berbeda dari baseline produk
 
 ---
 
@@ -150,7 +188,7 @@ Kebutuhan:
 ### 8.1 Onboarding
 
 1. User membuka web atau APK.
-2. User register dengan email dan password, atau login Google.
+2. User register dengan email dan password; Google sign-in boleh tersedia sebagai flow opsional.
 3. Sistem membuat `profile` dan free subscription default.
 4. User verifikasi email melalui OTP / email flow.
 5. Saat login pertama, sistem menyiapkan `store` default otomatis jika belum ada.
@@ -182,7 +220,7 @@ Kebutuhan:
 
 - Login email/password
 - Registrasi akun
-- Google OAuth
+- Google OAuth opsional/non-blocker commercial baseline
 - Forgot password dan reset password
 - Verifikasi email dengan OTP
 - Welcome email, login alert, password changed email
@@ -197,10 +235,14 @@ Kebutuhan:
 ### Implementasi saat ini
 
 - Auth backend internal
-- PKCE auth flow
+- Email verification dan reset password diproses backend API
 - Capacitor Preferences untuk native session cache
-- Edge Function `verify-email-code`
-- Edge Function `send-notification`
+- Resend untuk email transaksional
+
+### Batasan produk
+
+- OAuth Google bukan blocker commercial release jika email/password, OTP verification, session restore, dan reset password stabil.
+- Auth/email tidak boleh kembali ke dependency client-side lama atau provider lama tanpa RFC.
 
 ---
 
@@ -461,6 +503,8 @@ Kebutuhan:
 
 - Current source of truth plan dan harga ada di `src/lib/subscriptionPlans.ts`.
 - Landing page publik masih memuat copy marketing yang tidak sepenuhnya sinkron dengan definisi paket internal, sehingga perlu alignment produk/marketing di iterasi berikutnya.
+- Sampai Midtrans production dinyatakan hijau, commercial flow yang boleh dipakai adalah aktivasi manual admin atau pilot terbatas.
+- Paid launch umum wajib menunggu production payment settlement, webhook idempotency, subscription activation, dan smoke readiness production hijau.
 
 ---
 
@@ -502,7 +546,7 @@ Kebutuhan:
 ## 10.3 Security
 
 - Semua data store harus terisolasi lewat RLS.
-- Aksi sensitif harus diproses lewat Edge Function atau DB function terproteksi.
+- Aksi sensitif harus diproses lewat backend API atau DB function terproteksi.
 - Secret tidak boleh dibundle ke frontend.
 - Rate limit diperlukan untuk email verification dan endpoint sensitif.
 
@@ -515,8 +559,28 @@ Kebutuhan:
 ## 10.5 Maintainability
 
 - Satu codebase untuk web dan Android
-- Managed backend untuk menekan beban infra
+- Backend API self-hosted yang kecil, eksplisit, dan mudah dioperasikan
 - Dokumentasi operasional non-engineering tersedia di repo
+- Perubahan kontrak API, database, auth, payment, sync, dan printer harus tercatat di RFC atau migration doc
+
+## 10.6 Release Readiness
+
+Commercial release dinyatakan `GO` hanya jika:
+
+- `npm run check` hijau.
+- `npm run build:mobile` hijau.
+- `npm run smoke:production:readiness` hijau.
+- `/health` dan `/system-status` production hijau tanpa warning blocker.
+- Midtrans production aktif jika paid checkout online dibuka.
+- Backend dan frontend error tracking production aktif.
+- CORS mengizinkan web production dan origin APK final.
+- UAT device nyata mencakup auth, POS, checkout, void, offline/reconnect, stock integrity, dan printer.
+
+Status release yang boleh dipakai:
+
+- `Internal`: hanya developer/admin, data boleh reset.
+- `Pilot`: merchant terbatas, payment boleh manual, monitoring manual harian wajib.
+- `Commercial`: payment, support, monitoring, backup, dan QA lapangan sudah memenuhi release gate.
 
 ---
 
@@ -546,8 +610,11 @@ Kebutuhan:
 
 - Auth backend internal
 - PostgreSQL production
-- API polling / refresh terjadwal
-- Backend route internal
+- Express backend API self-hosted
+- Coolify deployment
+- JSON stdout/stderr logging
+- Health check `/health`
+- System status `/system-status`
 - Upload storage saat ini masih nonaktif
 
 ## 11.4 Reporting & Documents
@@ -573,9 +640,10 @@ Kebutuhan:
 
 ## 11.8 Ops / Monitoring
 
-- Edge function event logging
-- Ops metrics dashboard view di database
+- Backend request/error logging
+- Ops metrics dashboard view di database/API
 - Firebase Crashlytics direkomendasikan untuk APK
+- Sentry untuk frontend/backend error tracking production
 
 ---
 
@@ -587,21 +655,26 @@ Kebutuhan:
 2. Frontend React berinteraksi dengan backend API internal.
 3. Auth dikelola oleh backend API internal.
 4. Data inti disimpan di PostgreSQL production.
-5. Realtime dipakai untuk sebagian sinkronisasi dan badge update.
-6. Edge Functions menangani logic server-side seperti:
-   - verifikasi email
-   - kirim notifikasi email
-   - aktivasi subscription
-   - AI insight proxy
-   - ops metrics logging
+5. Backend API memproses checkout, void, inventory, auth/email, subscription, AI insight proxy, admin action, dan ops metrics.
+6. Client memakai cache lokal dan refresh terkontrol untuk pengalaman offline-assisted.
 7. APK Android dibangun dari frontend yang sama melalui Capacitor.
 
 ## 12.2 Architectural style
 
 - Monolithic frontend app
-- Managed BaaS backend
+- Express API backend
+- PostgreSQL sebagai source of truth data bisnis
 - Offline-assisted client cache
-- Security by RLS + server-side privileged actions
+- Security by server-side authorization, role checks, session token, dan constraint database
+
+## 12.3 Architecture Decision Boundaries
+
+- Frontend tidak boleh langsung menulis data bisnis utama ke database.
+- Secret payment, email, AI, dan database hanya boleh berada di backend/server environment.
+- Checkout dan void wajib berada di backend agar inventory audit konsisten.
+- Offline mode tidak boleh menjanjikan checkout penuh lintas device sebelum ada RFC khusus conflict resolution.
+- APK dan web harus memakai backend API yang sama untuk data bisnis.
+- Perubahan auth, payment, subscription, inventory, sync, atau printer wajib punya RFC bila mengubah behavior publik.
 
 ---
 
@@ -809,17 +882,17 @@ Rate limit / usage log AI Insight.
 
 ## 13.4 Security & operations tables
 
-### `edge_rate_limits`
+### `app_rate_limits` / in-memory rate limit
 
-Rate limiting internal Edge Functions.
-
-### `edge_function_events`
-
-Log event Edge Functions.
+Rate limiting untuk endpoint auth, email, payment, dan endpoint sensitif lain.
 
 ### `ops_event_logs`
 
-Log login dan checkout success/failure.
+Log event operasional seperti login, checkout, dan failure penting.
+
+### `backend_error_events` / external error tracking
+
+Error tracking backend production melalui provider eksternal seperti Sentry.
 
 ### `admin_action_logs`
 
@@ -847,20 +920,20 @@ Legacy/offline sync support log.
 - Akses store-based dibatasi lewat relasi `store_id -> stores.owner_id`.
 - User hanya boleh melihat data sendiri untuk profile, subscription, payment history, notifications.
 - Admin internal mendapatkan akses tambahan via fungsi `is_admin_email()`.
-- Tabel sensitif operasional hanya dapat diakses `service_role`.
+- Tabel sensitif operasional hanya dapat diakses oleh backend/admin path yang terotorisasi.
 
 ### Proteksi penting
 
 - `process_checkout(...)` melakukan validasi owner store dan stok sebelum insert transaksi
 - `void_transaction_secure(...)` mengembalikan stok dan update status transaksi
-- `activate-subscription` berjalan di Edge Function dengan service role/admin whitelist
-- `verify-email-code` memakai rate limit dan service role
+- Aktivasi subscription berjalan server-side dengan admin whitelist dan audit log
+- Verifikasi email memakai rate limit dan token/code yang kedaluwarsa
 
 ---
 
-## 15. Edge Functions
+## 15. Backend API Services
 
-### `activate-subscription`
+### Subscription activation/admin
 
 Fungsi:
 
@@ -869,7 +942,7 @@ Fungsi:
 - Insert payment history
 - Kirim email aktivasi subscription
 
-### `ai-insight`
+### AI insight proxy
 
 Fungsi:
 
@@ -878,7 +951,7 @@ Fungsi:
 - Cek limit berdasarkan paket
 - Balikkan JSON insight
 
-### `send-notification`
+### Auth/email notification
 
 Fungsi:
 
@@ -890,7 +963,7 @@ Fungsi:
 - Login alert
 - Password changed
 
-### `verify-email-code`
+### Email verification
 
 Fungsi:
 
@@ -900,7 +973,7 @@ Fungsi:
 - Buat notification sukses
 - Kirim welcome email
 
-### `track-ops-event`
+### Ops event tracking
 
 Fungsi:
 
@@ -910,9 +983,11 @@ Fungsi:
 
 ## 16. Realtime & Offline Behavior
 
-## 16.1 Realtime
+## 16.1 Refresh / realtime
 
-Realtime diaktifkan untuk tabel yang relevan seperti:
+Data utama dibaca melalui backend API dengan refresh terkontrol. Realtime/push boleh digunakan untuk area yang benar-benar membutuhkan update cepat, tetapi bukan syarat untuk semua modul.
+
+Area yang harus tetap konsisten saat refresh/sync:
 
 - `transactions`
 - `inventory`
@@ -947,16 +1022,17 @@ Batasan:
 Sistem sudah mulai memiliki lapisan observability:
 
 - `ops_event_logs` untuk login dan checkout
-- `edge_function_events` untuk edge execution
+- request/error logging backend
 - view `ops_daily_metrics` untuk dashboard operasional
 - retention cleanup function `cleanup_operational_retention(...)`
+- Sentry frontend/backend untuk production error tracking
 
 Metric utama yang bisa dipantau:
 
 - login success rate
 - checkout success rate
 - OTP verification success rate
-- edge failure trend
+- backend/API failure trend
 
 ---
 
@@ -1027,9 +1103,9 @@ KaffePOS v2 saat ini sudah berada pada tahap produk operasional yang cukup lengk
 Secara teknis, fondasi produk sudah kuat:
 
 - frontend modern dan ringan
-- backend managed di Coolify
-- kontrol keamanan berbasis RLS
-- server-side function untuk flow sensitif
+- backend API self-hosted di Coolify
+- kontrol keamanan berbasis authorization backend, role checks, session token, dan constraint database
+- server-side API untuk flow sensitif
 - dukungan Android melalui Capacitor
 
-Fokus pengembangan berikutnya paling masuk akal adalah konsolidasi model subscription, penyempurnaan offline/reliability, alignment marketing-product, dan ekspansi ke fitur operasional owner yang lebih dalam.
+Fokus pengembangan berikutnya paling masuk akal adalah menyelesaikan release gate commercial, konsolidasi model subscription/payment production, penyempurnaan offline/reliability, alignment marketing-product, dan ekspansi fitur operasional owner hanya setelah gate utama hijau.

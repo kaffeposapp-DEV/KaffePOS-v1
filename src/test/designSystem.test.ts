@@ -68,4 +68,103 @@ describe('white and orange professional design system', () => {
     expect(landing).toContain('break-words');
     expect(landing).toContain('max-w-[340px]');
   });
+
+  it('guards app surfaces against common mobile overflow bugs', () => {
+    const css = readProjectFile('src/index.css');
+    const appShell = readProjectFile('src/components/AppShell.tsx');
+    const dashboard = readProjectFile('src/components/dashboard/Dashboard.tsx');
+    const pos = readProjectFile('src/components/pos/POSTab.tsx');
+    const warehouse = readProjectFile('src/components/warehouse/WarehouseTab.tsx');
+
+    expect(css).toContain('.kaffe-responsive-surface');
+    expect(css).toContain('.kaffe-card-grid');
+    expect(css).toContain('.kaffe-scroll-tabs');
+    expect(css).toContain('.kaffe-bottom-nav');
+    expect(css).toContain('100dvh');
+    expect(css).toContain('scrollbar-gutter: stable');
+    expect(css).toContain('overflow-wrap: anywhere');
+    expect(css).toContain('max-height: min(92dvh');
+    expect(css).toContain('safe-area-inset-bottom');
+    expect(appShell).toContain('kaffe-responsive-surface');
+    expect(appShell).toContain('kaffe-bottom-nav');
+    expect(dashboard).toContain('kaffe-card-grid');
+    expect(dashboard).toContain('kaffe-scroll-tabs');
+    expect(pos).toContain('kaffe-card-grid');
+    expect(pos).toContain('kaffe-scroll-tabs');
+    expect(warehouse).toContain('kaffe-card-grid');
+    expect(warehouse).toContain('kaffe-scroll-tabs');
+  });
+
+  it('keeps modal, status, and OTP surfaces compact on small screens', () => {
+    const css = readProjectFile('src/index.css');
+    const landing = readProjectFile('src/pages/LandingPage.tsx');
+    const appShell = readProjectFile('src/components/AppShell.tsx');
+    const auth = readProjectFile('src/components/auth/AuthPage.tsx');
+
+    expect(css).toContain('.kaffe-modal-overlay');
+    expect(css).toContain('.kaffe-modal-panel');
+    expect(css).toContain('.kaffe-modal-scroll');
+    expect(css).toContain('.kaffe-safe-text');
+    expect(css).toContain('max-height: calc(100dvh');
+    expect(css).toContain('scroll-snap-type: x proximity');
+    expect(css).toContain('.kaffe-status-banner');
+    expect(css).toContain('.kaffe-otp-grid');
+    expect(css).toContain('.kaffe-otp-cell');
+    expect(landing).toContain('kaffe-modal-panel');
+    expect(landing).toContain('kaffe-modal-scroll');
+    expect(landing).toContain('[--kaffe-modal-max-width:900px]');
+    expect(landing).not.toContain('rounded-[60px]');
+    expect(landing).not.toContain('rounded-[50px]');
+    expect(landing).not.toContain('text-7xl');
+    expect(appShell).toContain('kaffe-status-banner');
+    expect(auth).toContain('kaffe-otp-grid');
+    expect(auth).toContain('kaffe-otp-cell');
+  });
+
+  it('applies competitor-inspired POS polish across operational screens', () => {
+    const css = readProjectFile('src/index.css');
+    const pos = readProjectFile('src/components/pos/POSTab.tsx');
+    const menu = readProjectFile('src/components/menu/MenuTab.tsx');
+    const history = readProjectFile('src/components/history/HistoryTab.tsx');
+    const report = readProjectFile('src/components/report/ReportTab.tsx');
+    const kitchen = readProjectFile('src/components/kitchen/KitchenTab.tsx');
+    const settings = readProjectFile('src/components/settings/SettingsTab.tsx');
+
+    expect(css).toContain('.kaffe-command-bar');
+    expect(css).toContain('.kaffe-action-card');
+    expect(css).toContain('.kaffe-empty-state');
+    expect(css).toContain('.kaffe-checkout-panel');
+    expect(css).toContain('.kaffe-sticky-action');
+    expect(css).toContain('.kaffe-filter-chip[data-active="true"]::after');
+    expect(css).toContain('outline: 2px solid');
+    expect(pos).toContain('kaffe-quick-grid');
+    expect(pos).toContain('kaffe-checkout-panel');
+    expect(pos).toContain('kaffe-sticky-action');
+    [menu, history, report, kitchen, settings].forEach((screen) => {
+      expect(screen).toContain('kaffe-responsive-surface');
+      expect(screen).toContain('kaffe-scroll-tabs');
+    });
+  });
+
+  it('keeps subscription billing in the clean white and orange system', () => {
+    const css = readProjectFile('src/index.css');
+    const subscription = readProjectFile('src/components/settings/SubscriptionSection.tsx');
+    const checkout = readProjectFile('src/components/settings/SubscriptionCheckoutFlow.tsx');
+
+    expect(css).toContain('.kaffe-gradient-cta');
+    expect(css).toContain('.kaffe-subscription-card');
+    expect(css).toContain('.kaffe-subscription-detail-panel');
+    expect(css).toContain('.kaffe-checkout-highlight');
+    expect(subscription).toContain('kaffe-subscription-card');
+    expect(subscription).toContain('kaffe-subscription-detail-panel');
+    expect(subscription).toContain('kaffe-gradient-cta');
+    expect(checkout).toContain('kaffe-gradient-cta');
+    expect(checkout).toContain('kaffe-checkout-highlight');
+    expect(subscription).not.toContain('bg-slate-900');
+    expect(subscription).not.toContain('border-slate-900');
+    expect(subscription).not.toContain('bg-blue-50');
+    expect(checkout).not.toContain('bg-slate-900');
+    expect(checkout).not.toContain('border-slate-900');
+    expect(checkout).not.toContain('bg-emerald-600');
+  });
 });

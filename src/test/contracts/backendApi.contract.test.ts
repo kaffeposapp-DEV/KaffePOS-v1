@@ -4,6 +4,7 @@ import {
   apiFetch,
   commitStockBulkImport,
   createCashier,
+  createInventoryAdjustment,
   createStockUnitConversion,
   createSubscriptionPayment,
   deleteStockUnitConversion,
@@ -15,6 +16,7 @@ import {
   getSubscriptionPaymentQuote,
   loginRequest,
   resetPasswordRequest,
+  trackOpsEventRequest,
   updateCashier,
   updateKitchenOrderStatus,
   updateStockUnitConversion,
@@ -278,6 +280,41 @@ describe('backend API contract', () => {
     });
   });
 
+  it('keeps stock opname adjustments on one authenticated backend contract', async () => {
+    seedStoredAuthSession({ accessToken: 'token-stock-adjust' });
+    const { calls } = installFetchMock(() =>
+      createJsonResponse({
+        id: 'ingredient-1',
+        store_id: 'store-1',
+        name: 'Gula Aren',
+        stock: 12,
+        unit: 'kg',
+        min_stock: 2,
+        cost_per_unit: 10000,
+      }),
+    );
+
+    await createInventoryAdjustment({
+      store_id: 'store-1',
+      inventory_id: 'ingredient-1',
+      counted_stock: 12,
+      reason: 'Opname bulanan',
+      note: 'Rak A',
+    });
+
+    expect(calls.map((call) => [call.url, call.init.method ?? 'GET'])).toEqual([
+      ['/api/inventory/adjustments', 'POST'],
+    ]);
+    expect(getRequestHeader(calls[0], 'Authorization')).toBe('Bearer token-stock-adjust');
+    expect(getJsonRequestBody(calls[0])).toEqual({
+      store_id: 'store-1',
+      inventory_id: 'ingredient-1',
+      counted_stock: 12,
+      reason: 'Opname bulanan',
+      note: 'Rak A',
+    });
+  });
+
   it('fails protected requests before fetch when auth session is missing', async () => {
     const { fetchMock } = installFetchMock(() => createJsonResponse({ ok: true }));
 
@@ -326,5 +363,40 @@ describe('backend API contract', () => {
       message: 'Terjadi gangguan pada server. Coba lagi beberapa saat.',
       status: 500,
     } satisfies Partial<ApiError>);
+  });
+
+  it('maps login network failures to a safe message instead of raw Failed to fetch', async () => {
+    installFetchMock(() => {
+      throw new TypeError('Failed to fetch');
+    });
+
+    await expect(loginRequest({ email: 'owner@kaffepos.test', password: 'password' })).rejects.toMatchObject({
+      name: 'ApiError',
+      message: 'Tidak bisa terhubung ke server. Pastikan internet aktif atau coba lagi beberapa saat.',
+      status: 0,
+    } satisfies Partial<ApiError>);
+  });
+
+  it('keeps client error telemetry on the authenticated ops event contract', async () => {
+    seedStoredAuthSession({ accessToken: 'token-ops' });
+    const { calls } = installFetchMock(() => createJsonResponse({ success: true }, { status: 201 }));
+
+    await trackOpsEventRequest({
+      event_name: 'client_error',
+      status: 'failure',
+      error_message: 'Render gagal',
+      metadata: { source: 'global_error_boundary' },
+    });
+
+    expect(calls.map((call) => [call.url, call.init.method ?? 'GET'])).toEqual([
+      ['/api/ops/events', 'POST'],
+    ]);
+    expect(getRequestHeader(calls[0], 'Authorization')).toBe('Bearer token-ops');
+    expect(getJsonRequestBody(calls[0])).toEqual({
+      event_name: 'client_error',
+      status: 'failure',
+      error_message: 'Render gagal',
+      metadata: { source: 'global_error_boundary' },
+    });
   });
 });

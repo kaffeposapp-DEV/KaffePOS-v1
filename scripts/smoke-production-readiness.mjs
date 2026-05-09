@@ -16,6 +16,8 @@ const warn = (message) => {
   console.warn(`[WARN] ${message}`);
 };
 
+const finalCorsOrigins = ['http://localhost', 'https://localhost', 'capacitor://localhost'];
+
 const fetchJson = async (url) => {
   const response = await fetch(url, {
     headers: { accept: 'application/json' },
@@ -56,6 +58,28 @@ try {
   fail(`API health failed: ${error instanceof Error ? error.message : String(error)}`);
 }
 
+for (const origin of finalCorsOrigins) {
+  try {
+    const response = await fetch(`${apiBase}/api/auth/login`, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: origin,
+        'Access-Control-Request-Method': 'POST',
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const allowedOrigin = response.headers.get('access-control-allow-origin');
+
+    if (response.ok && allowedOrigin === origin) {
+      pass(`CORS preflight allows final APK origin ${origin}`);
+    } else {
+      fail(`CORS preflight rejected ${origin} (status=${response.status}, allow-origin=${allowedOrigin ?? 'empty'})`);
+    }
+  } catch (error) {
+    fail(`CORS preflight failed for ${origin}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 try {
   const status = await fetchJson(`${apiBase}/system-status`);
   const payment = status.checks?.payment;
@@ -80,6 +104,12 @@ try {
     pass('Subscription payment sync is enabled');
   } else {
     fail('Subscription payment sync is not enabled');
+  }
+
+  if (status.checks?.monitoring?.backendErrorTracking === true) {
+    pass('Backend error tracking is configured');
+  } else {
+    fail('Backend error tracking is not configured');
   }
 
   for (const message of status.warnings || []) {

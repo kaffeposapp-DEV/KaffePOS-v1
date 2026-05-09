@@ -15,7 +15,7 @@ Checklist ini dipakai sebelum go-live production atau sebelum APK debug/release 
   - `NODE_ENV=production`
   - `WEB_BASE_URL=https://kaffepos.my.id`
   - `API_BASE_URL=https://api.kaffepos.my.id`
-  - `CORS_ORIGIN=https://kaffepos.my.id,https://www.kaffepos.my.id,capacitor://localhost,http://localhost`
+  - `CORS_ORIGIN=https://kaffepos.my.id,https://www.kaffepos.my.id,https://api.kaffepos.my.id,https://localhost,capacitor://localhost,http://localhost`
   - `DATABASE_URL` atau `DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD`
   - `RESEND_API_KEY`
   - `RESEND_FROM_EMAIL=KaffePOS <no-reply@kaffepos.my.id>`
@@ -39,12 +39,15 @@ RELEASE_CHANNEL=production \
 NODE_ENV=production \
 WEB_BASE_URL=https://kaffepos.my.id \
 API_BASE_URL=https://api.kaffepos.my.id \
+CORS_ORIGIN=https://kaffepos.my.id,https://www.kaffepos.my.id,https://api.kaffepos.my.id,https://localhost,capacitor://localhost,http://localhost \
 MIDTRANS_ENVIRONMENT=production \
 VITE_MIDTRANS_ENVIRONMENT=production \
 MIDTRANS_SERVER_KEY=*** \
 MIDTRANS_MERCHANT_ID=*** \
 VITE_MIDTRANS_CLIENT_KEY=*** \
 VITE_CLARITY_PROJECT_ID=wf7x39iiqr \
+SENTRY_DSN=https://public@sentry.example/1 \
+VITE_SENTRY_DSN=https://public@sentry.example/1 \
 RESEND_API_KEY=*** \
 RESEND_FROM_EMAIL='KaffePOS <no-reply@kaffepos.my.id>' \
 npm run release:verify-config
@@ -83,6 +86,10 @@ npm run release:verify-config
 ## 4. Clarity
 
 - `VITE_CLARITY_PROJECT_ID=wf7x39iiqr` ada di frontend production.
+- `SENTRY_DSN` ada di backend production.
+- `VITE_SENTRY_DSN` ada di frontend production.
+- Jalankan `npm run backup:postgres` sebelum deploy/migration.
+- Jalankan `npm --prefix backend run migrate` di staging lalu production setelah backup hijau.
 - Tracking script hanya muncul satu kali dengan id `kaffepos-clarity`.
 - Verifikasi setelah deploy:
   - buka `https://kaffepos.my.id`
@@ -93,6 +100,12 @@ npm run release:verify-config
 ## 5. PostgreSQL / Backend
 
 - Jalankan backup sebelum migration/bootstrap.
+- Jalankan migration versioned terbaru:
+
+```bash
+npm --prefix backend run migrate
+```
+
 - Jalankan `database/production-bootstrap.sql` ke DB production-like/production.
 - Validasi:
 
@@ -119,6 +132,8 @@ KAFFEPOS_STOCK_SMOKE_CONFIRM=1 \
 npm run smoke:staging:stock
 ```
 
+Smoke ini wajib membuktikan import stok, checkout pemotongan stok, replay idempotent, void restore, alias `/api/v1/transactions`, pagination metadata, dan opname stok tersimpan lalu terbaca ulang.
+
 ## 6. Android USB Debugging
 
 - Aktifkan Developer Options dan USB Debugging di device.
@@ -143,6 +158,7 @@ INSTALL=1 npm run android:usb-debug
   - printer config tetap ada
   - nav Stok dan subtabnya terbuka
   - POS produk dengan resep mengurangi stok bahan
+  - Opname stok di `Stok > Bahan Baku` mengubah stok dan tetap muncul setelah refresh
 
 ## 7. Go / No-Go
 
@@ -153,6 +169,7 @@ Go-live jika:
 - `npm run android:usb-debug` hijau minimal sampai APK debug terbentuk.
 - `npm run smoke:production:readiness` hijau.
 - `npm run smoke:staging:stock` hijau di staging production-like.
+- `/api/v1/auth/login`, `/api/v1/transactions`, pagination, checkout stock deduction, void restore, dan `POST /api/inventory/adjustments` hijau lewat `npm run smoke:staging:stock`.
 - `/health`, `/health/db`, `/system-status` hijau.
 - Payment production settlement berhasil membuka lisensi.
 - Clarity menerima session.

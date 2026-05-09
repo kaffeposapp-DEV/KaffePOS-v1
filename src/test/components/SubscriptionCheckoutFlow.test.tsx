@@ -91,6 +91,25 @@ describe('SubscriptionCheckoutFlow interaction', () => {
     expect(toast.showToast).not.toHaveBeenCalled();
   });
 
+  it('uses subscription-specific modal classes so checkout layout is not squeezed by generic app modals', () => {
+    render(
+      <SubscriptionCheckoutFlow
+        open
+        plan="signature"
+        billingCycle="monthly"
+        onClose={vi.fn()}
+        toast={{ showToast: vi.fn() }}
+      />,
+    );
+
+    expect(document.querySelector('.subscription-checkout-overlay')).toBeInTheDocument();
+    expect(document.querySelector('.subscription-checkout-shell')).toBeInTheDocument();
+    expect(document.querySelector('.subscription-checkout-body')).toBeInTheDocument();
+    expect(document.querySelector('.subscription-checkout-footer')).toBeInTheDocument();
+    expect(document.querySelector('.modal-overlay')).not.toBeInTheDocument();
+    expect(document.querySelector('.modal-content')).not.toBeInTheDocument();
+  });
+
   it('surfaces unavailable payment config as a toast instead of getting stuck loading', async () => {
     vi.mocked(getSubscriptionPaymentQuote).mockResolvedValueOnce({
       quote,

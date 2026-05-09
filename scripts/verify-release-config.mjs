@@ -27,6 +27,16 @@ function requirePresent(name) {
   });
 }
 
+function requireContains(name, expected) {
+  const actual = process.env[name] || '';
+  checks.push({
+    ok: actual.split(',').map((item) => item.trim()).includes(expected),
+    severity: isProduction ? 'error' : 'warning',
+    name,
+    message: `${name} harus memuat ${expected}${actual ? `, saat ini ${actual}` : ', saat ini kosong'}.`,
+  });
+}
+
 function forbidPrefix(prefix) {
   const matches = Object.keys(process.env).filter((key) => key.startsWith(prefix));
   checks.push({
@@ -67,8 +77,12 @@ if (isProduction) {
   requirePresent('MIDTRANS_MERCHANT_ID');
   requirePresent('VITE_MIDTRANS_CLIENT_KEY');
   requirePresent('VITE_CLARITY_PROJECT_ID');
+  requirePresent('SENTRY_DSN');
+  requirePresent('VITE_SENTRY_DSN');
   requirePresent('RESEND_API_KEY');
   requirePresent('RESEND_FROM_EMAIL');
+  requireContains('CORS_ORIGIN', 'http://localhost');
+  requireContains('CORS_ORIGIN', 'https://localhost');
 }
 
 forbidPrefix('SUPABASE_');

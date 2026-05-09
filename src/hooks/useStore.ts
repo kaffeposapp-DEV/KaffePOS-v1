@@ -15,6 +15,7 @@ import {
   createCashFlow,
   createCashRegister,
   createExpense,
+  createInventoryAdjustment,
   createInventoryItem,
   createMenuItem,
   getCashFlow,
@@ -498,6 +499,7 @@ interface AppStore {
   saveMenuItem:        (item: Partial<MenuItem>) => Promise<void>;
   deleteMenuItem:      (id: string) => Promise<void>;
   saveInventoryItem:   (item: InventoryItemUpdate) => Promise<void>;
+  adjustInventoryStock: (input: { inventoryId: string; countedStock: number; reason: string; note?: string | null }) => Promise<InventoryItem>;
   deleteInventoryItem: (id: string) => Promise<void>;
   saveStockUnitConversion: (conversion: Partial<StockUnitConversion> & { from_unit: string; to_unit: string; ratio: number }) => Promise<StockUnitConversion>;
   deleteStockUnitConversion: (id: string) => Promise<void>;
@@ -1136,6 +1138,32 @@ export const useStore = create<AppStore>((set, get) => ({
         }
       }
     }
+  },
+
+  adjustInventoryStock: async ({ inventoryId, countedStock, reason, note }) => {
+    const { storeId, inventory, isOnline } = get();
+    if (!storeId) throw new Error('Store belum dimuat.');
+    if (!isOnline) {
+      throw new Error('Opname stok membutuhkan koneksi internet agar stok fisik dan sistem tetap sinkron.');
+    }
+    if (!Number.isFinite(countedStock) || countedStock < 0) {
+      throw new Error('Jumlah stok hasil opname tidak boleh negatif.');
+    }
+    const existing = inventory.find((item) => item.id === inventoryId);
+    if (!existing) {
+      throw new Error('Bahan baku tidak ditemukan. Muat ulang halaman lalu coba lagi.');
+    }
+
+    const updated = await createInventoryAdjustment({
+      store_id: storeId,
+      inventory_id: inventoryId,
+      counted_stock: countedStock,
+      reason,
+      note: note ?? null,
+    });
+    set(s => ({ inventory: s.inventory.map(item => item.id === inventoryId ? updated : item) }));
+    persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister, get().unitConversions);
+    return updated;
   },
 
   deleteInventoryItem: async (id) => {

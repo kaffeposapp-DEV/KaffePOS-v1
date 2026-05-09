@@ -11,7 +11,7 @@ const config: CapacitorConfig = {
   },
 
   android: {
-    // allowMixedContent: JANGAN aktifkan — security risk, konflik dengan androidScheme https
+    // allowMixedContent: JANGAN aktifkan — semua API production wajib HTTPS.
     captureInput: true,
     webContentsDebuggingEnabled: false,
     appendUserAgent: 'KaffePOS/9.0',
@@ -35,6 +35,9 @@ const config: CapacitorConfig = {
       resize: 'body',
       style: 'DARK',
       resizeOnFullScreen: true,
+    },
+    CapacitorHttp: {
+      enabled: true,
     },
     CapacitorCookies: { enabled: true }
   },

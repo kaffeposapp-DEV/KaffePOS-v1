@@ -19,7 +19,10 @@
     "smoke:staging:offline-sync": "node scripts/smoke-offline-sync.mjs",
     "smoke:staging:stock": "node scripts/smoke-stock-flow.mjs",
     "smoke:production:readiness": "node scripts/smoke-production-readiness.mjs",
+    "smoke:production:billing": "node scripts/smoke-billing-production.mjs",
+    "smoke:mobile:fresh-login": "node scripts/smoke-mobile-fresh-login.mjs",
     "release:verify-config": "node scripts/verify-release-config.mjs",
+    "backup:postgres": "bash scripts/backup-postgres.sh",
     "android:usb-debug": "bash scripts/android-usb-debug-build.sh",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -47,6 +50,7 @@
     "@capacitor/status-bar": "^6.0.1",
     "@capacitor/toast": "^6.0.1",
     "@kduma-autoid/capacitor-bluetooth-printer": "^0.2.1",
+    "@sentry/react": "^10.51.0",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "jspdf": "^4.2.1",
@@ -61,7 +65,7 @@
     "zustand": "^4.5.2"
   },
   "devDependencies": {
-    "@capacitor/cli": "^6.1.2",
+    "@capacitor/cli": "^7.6.4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/deno": "^2.5.0",
@@ -85,5 +89,8 @@
     "typescript": "5.4.5",
     "vite": "^8.0.3",
     "vitest": "^4.1.2"
+  },
+  "overrides": {
+    "tar": "^7.5.1"
   }
 }

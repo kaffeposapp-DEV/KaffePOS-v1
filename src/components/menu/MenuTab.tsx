@@ -93,7 +93,7 @@ export default function MenuTab({ toast }:any) {
   };
 
   return (
-    <div className="kaffe-app-bg flex-1 flex flex-col overflow-hidden">
+    <div className="kaffe-app-bg kaffe-responsive-surface flex-1 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="bg-white/95 border-b border-slate-200/70 px-4 pt-5 pb-4 z-10 backdrop-blur-xl sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
@@ -119,7 +119,7 @@ export default function MenuTab({ toast }:any) {
         </div>
 
         {/* Category Tabs */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6">
+        <div className="kaffe-scroll-tabs kaffe-command-bar flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6">
           {cats.map(c=>(
             <button
               key={c}
@@ -136,7 +136,7 @@ export default function MenuTab({ toast }:any) {
       {/* List */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-5">
         {filtered.length===0 ? (
-          <div className="flex flex-col items-center justify-center h-48 text-slate-400">
+          <div className="kaffe-empty-state flex flex-col items-center justify-center h-48 rounded-3xl text-slate-400">
             <div className="w-16 h-16 bg-slate-100 rounded-[24px] flex items-center justify-center mb-4 text-slate-300">
                <ShoppingBag size={32} />
             </div>
@@ -144,12 +144,12 @@ export default function MenuTab({ toast }:any) {
           </div>
         ) : (
           <>
-            <div className="kaffe-product-grid grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden">
+            <div className="kaffe-card-grid kaffe-product-grid grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden">
               {filtered.map(item => {
                 const stockStatus = getStockStatus(item);
                 const status = getProductStatus(item);
                 return (
-                  <div key={item.id} className={`group bg-white rounded-2xl border border-slate-200/80 p-4 transition-all duration-300 hover:shadow-premium hover:border-[#FF6A00]/20 ${!item.is_available ? 'opacity-70 bg-slate-50/50' : 'shadow-sm'}`}>
+                  <div key={item.id} className={`kaffe-action-card group min-w-0 bg-white rounded-2xl border border-slate-200/80 p-4 transition-all duration-300 hover:shadow-premium hover:border-[#FF6A00]/20 ${!item.is_available ? 'opacity-70 bg-slate-50/50' : 'shadow-sm'}`}>
                     <div className="flex items-center gap-4">
                       <div className="w-20 h-20 rounded-xl overflow-hidden shrink-0 border border-slate-100 bg-slate-50 relative group">
                         {item.image_url
@@ -189,7 +189,7 @@ export default function MenuTab({ toast }:any) {
                             onClick={()=>toggleAvailable(item)}
                             className={`w-10 h-6 rounded-full transition-all relative ${item.is_available ? 'bg-emerald-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]' : 'bg-slate-200'}`}
                           >
-                            <div className={`w-4.5 h-4.5 bg-white rounded-full absolute top-0.75 transition-all duration-300 ${item.is_available ? 'left-[22px]' : 'left-0.75'}`}/>
+                            <div className={`h-[18px] w-[18px] bg-white rounded-full absolute top-[3px] transition-all duration-300 ${item.is_available ? 'left-[19px]' : 'left-[3px]'}`}/>
                           </button>
                         </div>
                       </div>
@@ -432,8 +432,8 @@ export default function MenuTab({ toast }:any) {
                   <p className="text-sm font-black text-slate-800">Tersedia untuk dijual</p>
                   <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Tampil di halaman POS</p>
                 </div>
-                <div className={`w-12 h-6.5 rounded-full transition-all relative shrink-0 ${form.is_available?'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]':'bg-slate-200'}`}>
-                  <div className={`w-5.5 h-5.5 bg-white rounded-full absolute top-0.5 shadow-sm transition-all duration-300 ${form.is_available?'left-[24px]':'left-0.5'}`}/>
+                <div className={`h-[26px] w-12 rounded-full transition-all relative shrink-0 ${form.is_available?'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]':'bg-slate-200'}`}>
+                  <div className={`h-[22px] w-[22px] bg-white rounded-full absolute top-0.5 shadow-sm transition-all duration-300 ${form.is_available?'left-[24px]':'left-0.5'}`}/>
                 </div>
               </div>
 

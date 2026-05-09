@@ -30,6 +30,19 @@ describe('Auth session storage', () => {
     expect(isSessionExpired(expiredSession)).toBe(true);
   });
 
+  it('tidak mengembalikan token yang sudah kedaluwarsa dari storage', async () => {
+    const expiredSession = {
+      accessToken: 'token-expired',
+      expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      user: { id: '123', email: 'test@example.com' },
+    };
+
+    localStorage.setItem('kaffepos_auth_session', JSON.stringify(expiredSession));
+
+    await expect(getStoredAuthSession()).resolves.toBeNull();
+    expect(localStorage.getItem('kaffepos_auth_session')).toBeNull();
+  });
+
   it('membersihkan session cache yang korup tanpa me-reset storage lain', async () => {
     localStorage.setItem('kaffepos_auth_session', '{"broken":true}');
     localStorage.setItem('kpos_app_theme', 'custom');

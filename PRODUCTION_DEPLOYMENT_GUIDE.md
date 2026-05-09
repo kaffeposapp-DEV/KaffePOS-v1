@@ -46,6 +46,8 @@ DB_NAME=kaffepos_production
 DB_USER=kaffepos
 DB_PASSWORD=replace-me
 DB_SSL=false
+DB_SSL_REJECT_UNAUTHORIZED=true
+DB_SSL_CA=
 
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=KaffePOS <no-reply@kaffepos.my.id>
@@ -64,8 +66,10 @@ AUTH_EMAIL_RATE_LIMIT_MAX=5
 AUTH_VERIFY_RATE_LIMIT_MAX=20
 PAYMENT_CREATE_RATE_LIMIT_MAX=12
 GEMINI_API_KEY=
-CORS_ORIGIN=https://kaffepos.my.id,https://www.kaffepos.my.id,https://api.kaffepos.my.id,capacitor://localhost,http://localhost,http://localhost:4173,http://127.0.0.1:4173
+CORS_ORIGIN=https://kaffepos.my.id,https://www.kaffepos.my.id,https://api.kaffepos.my.id,https://localhost,capacitor://localhost,http://localhost
 ```
+
+APK build baru memakai origin final `https://localhost`. `http://localhost` tetap ada di allowlist hanya untuk APK lama/transisi; jangan tambahkan origin dev seperti `http://localhost:4173` ke env production.
 
 ## 3. Cloudflare
 

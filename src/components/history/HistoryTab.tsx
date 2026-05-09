@@ -109,17 +109,17 @@ export default function HistoryTab({
   ];
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-white lg:bg-slate-50/50">
+    <div className="kaffe-responsive-surface flex-1 flex flex-col overflow-hidden bg-white lg:bg-slate-50/50">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 px-6 pt-6 pb-4 z-10">
-        <div className="flex items-center justify-between mb-4">
-          <div>
+      <div className="bg-white border-b border-slate-100 px-4 sm:px-6 pt-6 pb-4 z-10">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+          <div className="min-w-0">
             <h2 className="font-black text-xl text-slate-800 italic uppercase tracking-tighter">Riwayat Transaksi</h2>
             <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">
               {totalCount} SUKSES {totalVoid > 0 && <span className="text-rose-400 ml-1">· {totalVoid} VOID</span>}
             </p>
           </div>
-          <div className="text-right">
+          <div className="shrink-0 text-left sm:text-right">
             <p className="font-black text-2xl text-[#FF6A00] tracking-tighter italic">{fRp(totalRev)}</p>
             <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-1">Total Pendapatan</p>
           </div>
@@ -137,7 +137,7 @@ export default function HistoryTab({
         </div>
 
         {/* Period filter */}
-        <div className="flex gap-4 overflow-x-auto no-scrollbar -mx-6 px-6 border-b border-slate-50">
+        <div className="kaffe-scroll-tabs kaffe-command-bar flex gap-4 overflow-x-auto no-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6 border-b border-slate-50">
           {PERIODS.map(p => (
             <button
               key={p.id}
@@ -157,16 +157,16 @@ export default function HistoryTab({
 
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
         {paginated.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-60 text-slate-300">
+          <div className="kaffe-empty-state flex flex-col items-center justify-center h-60 rounded-3xl text-slate-300">
             <Search size={40} className="mb-3 opacity-20" />
             <p className="text-[12px] font-black uppercase tracking-[0.2em]">Data Tidak Ditemukan</p>
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="kaffe-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {paginated.map(tx => (
               <div key={tx.id} onClick={() => setDetail(tx)}
-                className={`group bg-white rounded-[28px] border p-5 cursor-pointer transition-all duration-300 hover:shadow-premium hover:border-[#FF6A00]/20 active:scale-[0.98]
+                className={`kaffe-action-card group min-w-0 bg-white rounded-[28px] border p-5 cursor-pointer transition-all duration-300 hover:shadow-premium hover:border-[#FF6A00]/20 active:scale-[0.98]
                   ${tx.is_void?'border-rose-100 bg-rose-50/10 opacity-70':'border-slate-100 shadow-soft'}`}>
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">

@@ -302,6 +302,46 @@ export default function PrintActionSheet({
           </div>
         </div>
 
+        <div className="px-4 pt-3">
+          <div
+            aria-label="Preview struk"
+            className="max-h-52 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 font-mono text-[11px] text-slate-700"
+          >
+            <div className="text-center font-black text-slate-900">{storeName}</div>
+            <div className="mt-1 text-center text-[10px] text-slate-500">{tx.id}</div>
+            {tx.customer_name && <div className="mt-1 text-center font-bold text-slate-800">{tx.customer_name}</div>}
+            <div className="my-3 border-t border-dashed border-slate-300" />
+            <div className="space-y-2">
+              {(tx.items || []).map((item: any, index: number) => (
+                <div key={`${item.name}-${index}`}>
+                  <div className="flex justify-between gap-3">
+                    <span className="min-w-0 truncate">{item.name}</span>
+                    <span className="shrink-0">{fRp(item.subtotal)}</span>
+                  </div>
+                  <div className="text-[10px] text-slate-400">{item.qty} x {fRp(item.price)}</div>
+                </div>
+              ))}
+            </div>
+            <div className="my-3 border-t border-dashed border-slate-300" />
+            {tx.discount > 0 && (
+              <div className="flex justify-between text-slate-500">
+                <span>Diskon</span>
+                <span>-{fRp(tx.discount)}</span>
+              </div>
+            )}
+            {tx.tax > 0 && (
+              <div className="flex justify-between text-slate-500">
+                <span>Pajak</span>
+                <span>{fRp(tx.tax)}</span>
+              </div>
+            )}
+            <div className="mt-1 flex justify-between text-sm font-black text-slate-900">
+              <span>Total</span>
+              <span>{fRp(tx.total)}</span>
+            </div>
+          </div>
+        </div>
+
         {/* Options */}
         <div className="px-4 py-3 space-y-2.5 pb-safe">
 

@@ -91,15 +91,25 @@ export async function getStoredAuthSession(): Promise<AuthSession | null> {
   try {
     const raw = await readStorage(AUTH_SESSION_KEY);
     if (!raw) return null;
-    return normalizeStoredAuthSession(JSON.parse(raw));
+    const normalized = normalizeStoredAuthSession(JSON.parse(raw));
+    if (!normalized) {
+      await removeStorage(AUTH_SESSION_KEY);
+      return null;
+    }
+    if (isSessionExpired(normalized)) {
+      await removeStorage(AUTH_SESSION_KEY);
+      return null;
+    }
+    return normalized;
   } catch {
+    await removeStorage(AUTH_SESSION_KEY);
     return null;
   }
 }
 
 export async function saveStoredAuthSession(session: AuthSession | null) {
   const normalized = normalizeStoredAuthSession(session);
-  if (!normalized) {
+  if (!normalized || isSessionExpired(normalized)) {
     await removeStorage(AUTH_SESSION_KEY);
     return;
   }
@@ -134,7 +144,7 @@ export async function ensureStoredAuthSessionShape(): Promise<'empty' | 'ok' | '
     if (!raw) return 'empty';
 
     const normalized = normalizeStoredAuthSession(JSON.parse(raw));
-    if (!normalized) {
+    if (!normalized || isSessionExpired(normalized)) {
       await removeStorage(AUTH_SESSION_KEY);
       return 'cleared';
     }

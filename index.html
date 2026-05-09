@@ -77,6 +77,13 @@
     body { padding-top: env(safe-area-inset-top, 0px); }
     * { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
   </style>
+  <script id="kaffepos-capacitor-startup-guard">
+    (function () {
+      window.Capacitor = window.Capacitor || { Plugins: {} };
+      window.Capacitor.Plugins = window.Capacitor.Plugins || {};
+      window.Capacitor.triggerEvent = window.Capacitor.triggerEvent || function () { return false; };
+    })();
+  </script>
 </head>
 <body>
   <div id="root"></div>

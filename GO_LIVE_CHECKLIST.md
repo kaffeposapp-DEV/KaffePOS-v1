@@ -2,6 +2,13 @@
 
 Gunakan dokumen ini sebagai gerbang rilis sebelum APK dipublikasikan ke pengguna komersial.
 
+Catatan status terkini, 5 Mei 2026:
+
+- Status release saat ini: `Pilot`, belum `Commercial`.
+- Nilai kesiapan praktis terkini: `7/10`.
+- `npm run smoke:production:readiness` masih gagal karena CORS `https://localhost`, Midtrans sandbox, `subscription_payments=false`, dan backend error tracking belum aktif.
+- Commercial launch umum hanya boleh dilakukan setelah gate di [docs/rfc/0002-commercial-readiness-hardening.md](/Users/macbook/kaffepos-new/kaffepos-v2/docs/rfc/0002-commercial-readiness-hardening.md) hijau.
+
 Baseline operasional yang dipakai saat ini:
 - Domain + hosting aktif di `kaffepos.my.id`
 - Backend utama di API KaffePOS self-hosted
@@ -127,11 +134,11 @@ Status:
 
 ---
 
-## Catatan Status Saat Ini (estimasi cepat)
+## Catatan Status Saat Ini (terverifikasi 5 Mei 2026)
 
-- **Nilai saat ini: 9.0 / 10**
-- Kekuatan: arsitektur auth + database + pemisahan mobile/web build sudah bagus.
-- Gap utama: QA lapangan, deliverability inbox nyata, monitoring produksi pertama, matrix test printer nyata, dan closed testing distribusi.
+- **Nilai saat ini: 7.0 / 10**
+- Kekuatan: arsitektur auth + database + pemisahan mobile/web build sudah bagus; web/API/database/email production hidup.
+- Blocker utama: production smoke test belum hijau, Midtrans masih sandbox, payment subscription sync belum aktif, backend error tracking belum aktif, CORS APK final belum lengkap, QA lapangan dan matrix printer nyata belum selesai.
 
 ---
 

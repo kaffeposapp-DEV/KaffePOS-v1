@@ -1,6 +1,6 @@
 import { trackOpsEventRequest } from '@/lib/backendApi';
 
-type OpsEventName = 'login' | 'checkout';
+type OpsEventName = 'login' | 'checkout' | 'client_error' | 'printer_error' | 'sync_error';
 type OpsEventStatus = 'success' | 'failure';
 
 type TrackOpsEventPayload = {
@@ -19,4 +19,46 @@ export async function trackOpsEvent(payload: TrackOpsEventPayload) {
   } catch {
     // fire-and-forget: metrics collection must never block auth or checkout flows
   }
+}
+
+function readErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object' && typeof (error as Record<string, unknown>).message === 'string') {
+    return String((error as Record<string, unknown>).message);
+  }
+  return 'Unknown client error';
+}
+
+function sanitizeErrorMessage(message: string) {
+  return message
+    .replace(/\s+/g, ' ')
+    .replace(/(token|password|secret|key)=\S+/gi, '$1=[redacted]')
+    .slice(0, 240)
+    .trim();
+}
+
+export function buildClientErrorPayload(
+  error: unknown,
+  context: { source: string; store_id?: string | undefined; metadata?: Record<string, unknown> },
+): TrackOpsEventPayload {
+  const payload: TrackOpsEventPayload = {
+    event_name: 'client_error',
+    status: 'failure',
+    error_message: sanitizeErrorMessage(readErrorMessage(error)),
+    metadata: {
+      source: context.source,
+      ...context.metadata,
+    },
+  };
+
+  if (context.store_id) payload.store_id = context.store_id;
+  return payload;
+}
+
+export async function trackClientError(
+  error: unknown,
+  context: { source: string; store_id?: string | undefined; metadata?: Record<string, unknown> },
+) {
+  await trackOpsEvent(buildClientErrorPayload(error, context));
 }

@@ -19,6 +19,7 @@ Kolom utama:
 
 - Login: `public.ops_event_logs` dari tracker app
 - Checkout: `public.ops_event_logs` dari flow checkout app
+- Client runtime errors: `public.ops_event_logs` dengan `event_name='client_error'` dari `GlobalErrorBoundary` dan tab-level boundary
 - OTP verification: `public.edge_function_events` dari edge function `verify-email-code`
 
 ## Query dasar
@@ -32,6 +33,6 @@ limit 30;
 
 ## Catatan operasional
 
-- Data login dan checkout mulai terisi setelah build/app yang memuat tracker event dipakai
+- Data login, checkout, dan client runtime error mulai terisi setelah build/app yang memuat tracker event dipakai
 - OTP success rate langsung memanfaatkan event backend yang sudah aktif
 - View ini ditujukan untuk dashboard operasional admin/owner, bukan untuk client publik

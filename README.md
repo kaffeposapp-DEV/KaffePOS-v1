@@ -14,6 +14,8 @@ KaffePOS sekarang berjalan tanpa dependensi backend lama, dengan arsitektur:
 
 - [frontend env](/Users/macbook/kaffepos-new/kaffepos-v2/.env.example)
 - [backend env](/Users/macbook/kaffepos-new/kaffepos-v2/backend/.env.example)
+- [PRD / product source of truth](/Users/macbook/kaffepos-new/kaffepos-v2/PRD_KAFFEPOS_V2.md)
+- [RFC index / decision records](/Users/macbook/kaffepos-new/kaffepos-v2/docs/rfc/README.md)
 - [backend API](/Users/macbook/kaffepos-new/kaffepos-v2/backend/src/index.ts)
 - [midtrans switch guide](/Users/macbook/kaffepos-new/kaffepos-v2/MIDTRANS_SANDBOX_TO_PRODUCTION_SWITCH.md)
 - [frontend API client](/Users/macbook/kaffepos-new/kaffepos-v2/src/lib/backendApi.ts)
@@ -72,6 +74,8 @@ DB_NAME=kaffepos_production
 DB_USER=kaffepos
 DB_PASSWORD=replace-me
 DB_SSL=false
+DB_SSL_REJECT_UNAUTHORIZED=true
+DB_SSL_CA=
 
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=KaffePOS <no-reply@kaffepos.my.id>
@@ -90,7 +94,7 @@ AUTH_EMAIL_RATE_LIMIT_MAX=5
 AUTH_VERIFY_RATE_LIMIT_MAX=20
 PAYMENT_CREATE_RATE_LIMIT_MAX=12
 GEMINI_API_KEY=
-CORS_ORIGIN=https://kaffepos.my.id,https://www.kaffepos.my.id,https://api.kaffepos.my.id,capacitor://localhost,http://localhost,http://localhost:4173,http://127.0.0.1:4173
+CORS_ORIGIN=https://kaffepos.my.id,https://www.kaffepos.my.id,https://api.kaffepos.my.id,capacitor://localhost,https://localhost,http://localhost,http://localhost:4173,http://127.0.0.1:4173
 ```
 
 ## Command run/build
@@ -123,7 +127,8 @@ cd android && ./gradlew assembleRelease
 
 - `GET /health`
 - `GET /health/db`
-- `GET /system-status`
+- `GET /system-status` publik, sudah direduksi untuk display readiness
+- `GET /api/admin/system-status` detail operasional untuk admin
 - `POST /api/auth/register`
 - `POST /api/auth/login`
 - `POST /api/auth/verification/resend`

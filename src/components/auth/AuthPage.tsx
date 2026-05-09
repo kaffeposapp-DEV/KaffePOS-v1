@@ -598,14 +598,14 @@ export default function AuthPage() {
               {registered ? (
                 <div className="space-y-6 animate-in slide-up">
                   <div className="space-y-3 pb-2 pt-2">
-                    <div className="relative flex justify-center gap-3 mx-auto w-full max-w-[340px]">
+                    <div className="kaffe-otp-grid relative flex justify-center gap-2.5 sm:gap-3 mx-auto w-full max-w-[340px]">
                       {[0, 1, 2, 3, 4, 5].map((idx) => {
                         const val = verificationCode[idx] || '';
                         const isActive = verificationCode.length === idx || (verificationCode.length === 6 && idx === 5);
                         return (
                           <div
                             key={idx}
-                            className={`flex h-12 w-12 sm:h-14 sm:w-12 items-center justify-center rounded-xl border text-[24px] font-black transition-all duration-300 ${
+                            className={`kaffe-otp-cell flex h-12 w-12 sm:h-14 sm:w-12 items-center justify-center rounded-xl border text-[24px] font-black transition-all duration-300 ${
                               isActive
                                 ? 'border-[#FF6A00] bg-white ring-4 ring-[#FF6A00]/10 text-slate-900'
                                 : val

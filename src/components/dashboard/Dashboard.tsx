@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   Clock3,
   RefreshCw,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   LineChart,
@@ -29,6 +30,8 @@ import {
 } from 'recharts';
 import { useStore } from '@/hooks/useStore';
 import { getInventoryUsageMap } from '@/utils/receipt';
+import { getOnboardingChecklist } from '@/lib/onboarding';
+import type { Tab } from '@/types';
 
 const fRp = (n: number) =>
   new Intl.NumberFormat('id-ID', {
@@ -228,6 +231,11 @@ export default function Dashboard() {
     [inventory]
   );
 
+  const onboarding = useMemo(
+    () => getOnboardingChecklist({ storeSettings, menu, inventory, transactions }),
+    [storeSettings, menu, inventory, transactions],
+  );
+
   const stockUsageRows = useMemo(
     () => getInventoryUsageMap(inventory, menu, transactions, unitConversions),
     [inventory, menu, transactions, unitConversions]
@@ -261,6 +269,10 @@ export default function Dashboard() {
     }
   };
 
+  const openTab = (targetTab: Tab) => {
+    window.dispatchEvent(new CustomEvent('kaffepos-open-tab', { detail: { tab: targetTab } }));
+  };
+
   if (loading && transactions.length === 0 && inventory.length === 0) {
     return (
       <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 text-slate-400">
@@ -271,11 +283,11 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="kaffe-app-bg flex-1 min-h-0 overflow-y-auto">
-      <div className="p-4 md:p-6 pb-6 lg:pb-6 max-w-7xl mx-auto space-y-5">
+    <div className="kaffe-app-bg kaffe-responsive-surface flex-1 min-h-0 overflow-y-auto">
+      <div className="min-w-0 p-4 md:p-6 pb-6 lg:pb-6 max-w-7xl mx-auto space-y-5">
         <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <div className="min-w-0">
               <h1 className="font-display text-2xl font-extrabold text-slate-900">Dashboard</h1>
               <p className="text-slate-500 font-semibold text-[12px] mt-1 flex items-center gap-2">
                 <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-rose-500'} animate-pulse`} />
@@ -285,13 +297,13 @@ export default function Dashboard() {
             <button
               onClick={handleRefresh}
               disabled={!storeId || refreshing || syncing}
-              className="w-10 h-10 rounded-lg bg-white border border-slate-200/80 shadow-sm text-slate-500 flex items-center justify-center disabled:opacity-50 active:scale-95 transition-all hover:bg-orange-50 hover:text-[#FF6A00]"
+              className="w-10 h-10 shrink-0 rounded-lg bg-white border border-slate-200/80 shadow-sm text-slate-500 flex items-center justify-center disabled:opacity-50 active:scale-95 transition-all hover:bg-orange-50 hover:text-[#FF6A00]"
             >
               <RefreshCw size={20} className={refreshing || syncing ? 'animate-spin text-[#FF6A00]' : ''} />
             </button>
           </div>
 
-          <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4">
+          <div className="kaffe-scroll-tabs flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4">
             {[
               { id: 'today', label: 'Hari Ini' },
               { id: 'week', label: '7 Hari' },
@@ -324,7 +336,72 @@ export default function Dashboard() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {!onboarding.complete && (
+          <div className="kaffe-panel rounded-2xl p-5 md:p-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-widest text-[#FF6A00]">Checklist onboarding</p>
+                <h2 className="mt-1 font-display text-xl font-extrabold text-slate-900">
+                  {onboarding.completedCount}/{onboarding.totalCount} langkah siap dipakai
+                </h2>
+                <p className="mt-1 text-[13px] font-semibold text-slate-500">
+                  Selesaikan setup inti agar toko siap transaksi, stok, dan laporan.
+                </p>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 md:w-44">
+                <div className="h-full rounded-full bg-[#FF6A00]" style={{ width: `${onboarding.progressPercent}%` }} />
+              </div>
+            </div>
+            <div className="kaffe-card-grid mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {onboarding.steps.map((step) => (
+                <button
+                  key={step.id}
+                  type="button"
+                  onClick={() => openTab(step.targetTab)}
+                  className={`rounded-xl border p-4 text-left transition-all active:scale-[0.98] ${
+                    step.done
+                      ? 'border-emerald-100 bg-emerald-50'
+                      : 'border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/40'
+                  }`}
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <span className={`text-xs font-black ${step.done ? 'text-emerald-700' : 'text-slate-800'}`}>{step.title}</span>
+                    {step.done ? <CheckCircle2 size={18} className="text-emerald-600" /> : <span className="h-4 w-4 rounded-full border-2 border-slate-200" />}
+                  </div>
+                  <p className="min-h-[34px] text-[11px] font-semibold leading-relaxed text-slate-500">{step.description}</p>
+                  <p className={`mt-3 text-[10px] font-black uppercase tracking-wider ${step.done ? 'text-emerald-700' : 'text-[#FF6A00]'}`}>
+                    {step.done ? 'Selesai' : step.ctaLabel}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {lowStockItems.length > 0 && (
+          <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 md:flex md:items-center md:justify-between md:gap-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-rose-500">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <p className="text-sm font-black text-rose-700">Stok kritis perlu dicek</p>
+                <p className="mt-1 text-xs font-semibold text-rose-600">
+                  {lowStockItems.slice(0, 3).map((item) => `${item.name} ${item.stock} ${item.unit}`).join(' · ')}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => openTab('warehouse')}
+              className="mt-4 w-full rounded-xl bg-rose-600 px-4 py-3 text-xs font-black uppercase tracking-wider text-white active:scale-95 md:mt-0 md:w-auto"
+            >
+              Buka Stok
+            </button>
+          </div>
+        )}
+
+        <div className="kaffe-card-grid grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <DashboardCard
             title="Penjualan Hari Ini"
             value={fRp(salesToday)}
@@ -355,7 +432,7 @@ export default function Dashboard() {
           />
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="kaffe-card-grid grid grid-cols-1 xl:grid-cols-3 gap-6">
           <div className="kaffe-panel xl:col-span-2 rounded-2xl p-5 md:p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -441,7 +518,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="kaffe-card-grid grid grid-cols-1 xl:grid-cols-3 gap-6">
           <div className="kaffe-panel rounded-2xl p-5 md:p-6">
             <h3 className="font-display text-lg font-extrabold text-slate-800 mb-6 flex items-center gap-2">
               <Package size={20} className="text-[#FF6A00]" />

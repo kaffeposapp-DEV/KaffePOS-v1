@@ -48,4 +48,13 @@ describe('authFlow helpers', () => {
     expect(normalizeSignupErrorMessage({ message: 'User already registered', status: 400 })).toContain('Email sudah terdaftar');
     expect(normalizeSignupErrorMessage({ message: 'Database error saving new user', status: 500 })).toContain('Server pendaftaran sedang bermasalah');
   });
+
+  it('normalizes raw fetch failures without exposing Failed to fetch', () => {
+    expect(normalizeSignupErrorMessage({ message: 'Failed to fetch' })).toBe(
+      'Tidak bisa terhubung ke server. Pastikan internet aktif atau coba lagi beberapa saat.',
+    );
+    expect(normalizeSignupErrorMessage({ message: 'net::ERR_INTERNET_DISCONNECTED' })).toBe(
+      'Perangkat sedang offline. Sambungkan internet lalu coba lagi.',
+    );
+  });
 });

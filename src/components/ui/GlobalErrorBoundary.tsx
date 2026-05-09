@@ -1,5 +1,7 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Coffee } from 'lucide-react';
+import { trackClientError } from '@/lib/opsMetrics';
+import { captureFrontendError } from '@/lib/errorTracking';
 
 interface Props { children: ReactNode; }
 interface State { hasError: boolean; error: Error | null; }
@@ -16,6 +18,18 @@ export class GlobalErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('[GlobalErrorBoundary]', error, info);
+    void trackClientError(error, {
+      source: 'global_error_boundary',
+      metadata: {
+        componentStack: info.componentStack?.slice(0, 500) ?? null,
+      },
+    });
+    captureFrontendError(error, {
+      source: 'global_error_boundary',
+      metadata: {
+        componentStack: info.componentStack?.slice(0, 500) ?? null,
+      },
+    });
   }
 
   handleReload = () => {

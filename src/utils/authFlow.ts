@@ -103,17 +103,37 @@ export function normalizeSignupErrorMessage(error: { message?: string; status?: 
   }
 
   if (
+    lower.includes('internet disconnected') ||
+    lower.includes('err_internet_disconnected') ||
+    lower.includes('offline')
+  ) {
+    return 'Perangkat sedang offline. Sambungkan internet lalu coba lagi.';
+  }
+
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    return 'Koneksi ke server terlalu lama. Coba lagi beberapa saat.';
+  }
+
+  if (
+    lower.includes('failed to fetch') ||
+    lower.includes('network') ||
+    lower.includes('fetch') ||
+    lower.includes('load failed') ||
+    lower.includes('cors') ||
+    lower.includes('ssl') ||
+    lower.includes('certificate') ||
+    lower.includes('err_cleartext_not_permitted')
+  ) {
+    return 'Tidak bisa terhubung ke server. Pastikan internet aktif atau coba lagi beberapa saat.';
+  }
+
+  if (
     error.status === 500 ||
     lower.includes('server error') ||
     lower.includes('unexpected_failure') ||
-    lower.includes('database error saving new user') ||
-    lower.includes('failed to fetch')
+    lower.includes('database error saving new user')
   ) {
     return 'Server pendaftaran sedang bermasalah. Akun belum dibuat. Coba lagi beberapa saat.';
-  }
-
-  if (lower.includes('network') || lower.includes('fetch') || lower.includes('timeout')) {
-    return `Jaringan (SignUp): ${message}`;
   }
 
   return message;

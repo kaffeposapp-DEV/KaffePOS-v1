@@ -136,7 +136,7 @@ export default function KitchenTab({ toast, profile }: Props) {
   };
 
   return (
-    <div className="flex-1 min-h-0 bg-slate-50 text-slate-900 flex flex-col overflow-hidden font-sans">
+    <div className="kaffe-responsive-surface flex-1 min-h-0 bg-slate-50 text-slate-900 flex flex-col overflow-hidden font-sans">
       {/* ── HEADER: CLEAN & FAMILIAR APK STYLE ── */}
       <header className="shrink-0 bg-white border-b border-slate-200/60 px-5 pt-5 pb-4 md:px-8 z-10">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -175,7 +175,7 @@ export default function KitchenTab({ toast, profile }: Props) {
 
         {/* ── FILTER TABS: ONE-TONE WITH POS ── */}
         <div className="mt-6 flex flex-col gap-4">
-          <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-5 px-5">
+          <div className="kaffe-scroll-tabs kaffe-command-bar flex gap-2 overflow-x-auto no-scrollbar -mx-5 px-5">
             {STATUS_TABS.map((tab) => (
               <button
                 key={tab.id}
@@ -196,7 +196,7 @@ export default function KitchenTab({ toast, profile }: Props) {
             ))}
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-5 px-5 pb-1">
+          <div className="kaffe-scroll-tabs kaffe-command-bar flex items-center gap-2 overflow-x-auto no-scrollbar -mx-5 px-5 pb-1">
             <SlidersHorizontal size={14} className="shrink-0 text-slate-300 mr-1" />
             {STATIONS.map((st) => (
               <button
@@ -218,7 +218,7 @@ export default function KitchenTab({ toast, profile }: Props) {
       {/* ── MAIN CONTENT: CONSISTENT GRID ── */}
       <main className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
         {filteredOrders.length === 0 ? (
-          <div className="flex h-full min-h-[360px] flex-col items-center justify-center text-center opacity-40">
+          <div className="kaffe-empty-state flex h-full min-h-[360px] flex-col items-center justify-center rounded-3xl text-center opacity-60">
             <div className="w-24 h-24 bg-slate-100 rounded-[40px] flex items-center justify-center mb-6">
               <ChefHat size={48} className="text-slate-300" />
             </div>
@@ -226,7 +226,7 @@ export default function KitchenTab({ toast, profile }: Props) {
             <p className="mt-1 text-xs font-bold text-slate-400 uppercase tracking-widest">Belum ada pesanan yang masuk.</p>
           </div>
         ) : (
-          <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 animate-in fade-in duration-300">
+          <div className="kaffe-card-grid grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 animate-in fade-in duration-300">
             {filteredOrders.map((order) => {
               const action = nextAction(order.overall_status);
               const minutes = minutesSince(order.created_at);
@@ -236,7 +236,7 @@ export default function KitchenTab({ toast, profile }: Props) {
               return (
                 <article
                   key={order.id}
-                  className={`group relative flex flex-col rounded-[32px] bg-white border border-slate-200/80 shadow-[0_4px_20px_rgb(0,0,0,0.03)] transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:-translate-y-1 ${
+                  className={`kaffe-action-card group relative flex min-w-0 flex-col rounded-[32px] bg-white border border-slate-200/80 shadow-[0_4px_20px_rgb(0,0,0,0.03)] transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:-translate-y-1 ${
                     isFresh ? 'bg-amber-50/30 border-amber-200' : ''
                   }`}
                 >

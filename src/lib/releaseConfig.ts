@@ -9,6 +9,7 @@ export type FrontendReleaseValidationInput = {
   webBaseUrl?: string | null | undefined;
   midtransEnvironment?: string | null | undefined;
   clarityProjectId?: string | null | undefined;
+  sentryDsn?: string | null | undefined;
   appTarget?: string | null | undefined;
 };
 
@@ -23,7 +24,24 @@ function trimTrailingSlash(value: string) {
 }
 
 function isLocalHostname(hostname: string) {
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.local');
+  const normalized = hostname.toLowerCase();
+  return (
+    normalized === 'localhost' ||
+    normalized === '127.0.0.1' ||
+    normalized === '0.0.0.0' ||
+    normalized === '10.0.2.2' ||
+    normalized === '::1' ||
+    normalized === '[::1]' ||
+    normalized.endsWith('.local')
+  );
+}
+
+function readUrlHostname(value: string) {
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return '';
+  }
 }
 
 export function normalizeReleaseUrl(value?: string | null) {
@@ -57,6 +75,7 @@ export function validateFrontendReleaseConfig(input: FrontendReleaseValidationIn
   const webBaseUrl = normalizeReleaseUrl(input.webBaseUrl) || PRODUCTION_WEB_ORIGIN;
   const midtransEnvironment = input.midtransEnvironment?.trim().toLowerCase() || 'sandbox';
   const clarityProjectId = input.clarityProjectId?.trim() || '';
+  const sentryDsn = input.sentryDsn?.trim() || '';
 
   if (input.releaseChannel === 'production') {
     if (apiBaseUrl && apiBaseUrl !== PRODUCTION_API_ORIGIN) {
@@ -74,10 +93,21 @@ export function validateFrontendReleaseConfig(input: FrontendReleaseValidationIn
     if (!clarityProjectId) {
       errors.push('VITE_CLARITY_PROJECT_ID wajib diisi untuk verifikasi Clarity production.');
     }
+
+    if (!sentryDsn) {
+      errors.push('VITE_SENTRY_DSN wajib diisi untuk error tracking production.');
+    }
   }
 
-  if (input.appTarget === 'mobile' && apiBaseUrl && !apiBaseUrl.startsWith('https://')) {
-    errors.push('APK/mobile build harus memakai API HTTPS agar aman di device Android.');
+  if (input.appTarget === 'mobile' && apiBaseUrl) {
+    if (!apiBaseUrl.startsWith('https://')) {
+      errors.push('APK/mobile build harus memakai API HTTPS agar aman di device Android.');
+    }
+
+    const apiHostname = readUrlHostname(apiBaseUrl);
+    if (!apiHostname || isLocalHostname(apiHostname)) {
+      errors.push('APK/mobile build tidak boleh memakai API lokal seperti localhost, 127.0.0.1, atau 10.0.2.2.');
+    }
   }
 
   if (!apiBaseUrl) {
@@ -94,6 +124,7 @@ export function getCurrentFrontendReleaseValidation() {
     webBaseUrl: PRODUCTION_WEB_ORIGIN,
     midtransEnvironment: import.meta.env.VITE_MIDTRANS_ENVIRONMENT,
     clarityProjectId: import.meta.env.VITE_CLARITY_PROJECT_ID,
+    sentryDsn: import.meta.env.VITE_SENTRY_DSN,
     appTarget: import.meta.env.VITE_APP_TARGET,
   });
 }

@@ -47,6 +47,7 @@ describe('WarehouseTab as Stok center', () => {
       expenses: [],
       cashFlow: [],
       cashRegister: [],
+      adjustInventoryStock: vi.fn(),
     });
   });
 
@@ -93,5 +94,13 @@ describe('WarehouseTab as Stok center', () => {
         'error',
       );
     });
+  });
+
+  it('exposes stock opname action from the Stok ingredients surface', () => {
+    render(<WarehouseTab toast={{ showToast: vi.fn() }} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Bahan Baku/i }));
+
+    expect(screen.getByRole('button', { name: /Opname Mika Frozen/i })).toBeInTheDocument();
   });
 });

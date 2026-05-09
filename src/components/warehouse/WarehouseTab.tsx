@@ -5,7 +5,7 @@
  
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo } from 'react';
-import { Plus, Archive, X, AlertTriangle, ChevronDown, ChevronUp, Search, RefreshCw, ChefHat, Calculator, Upload, CheckCircle2, FileSpreadsheet } from 'lucide-react';
+import { Plus, Archive, X, AlertTriangle, ChevronDown, ChevronUp, Search, RefreshCw, ChefHat, Calculator, Upload, CheckCircle2, FileSpreadsheet, ClipboardCheck } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import DeleteConfirmSheet from '@/components/ui/DeleteConfirmSheet';
 import type { BulkImportMode } from '@/lib/stockEngine';
@@ -39,6 +39,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
     transactions,
     unitConversions,
     saveInventoryItem,
+    adjustInventoryStock,
     deleteInventoryItem,
     saveStockUnitConversion,
     deleteStockUnitConversion,
@@ -59,6 +60,9 @@ export default function WarehouseTab({ toast }: { toast:any }) {
   const [importText, setImportText] = useState('');
   const [importRows, setImportRows] = useState<BulkImportRow[]>([]);
   const [importing, setImporting] = useState(false);
+  const [opnameTarget, setOpnameTarget] = useState<InventoryItem | null>(null);
+  const [opnameForm, setOpnameForm] = useState({ countedStock: '', reason: 'Opname stok fisik', note: '' });
+  const [opnameSaving, setOpnameSaving] = useState(false);
 
   const filtered = useMemo(() =>
     inventory.filter(i => !search || i.name.toLowerCase().includes(search.toLowerCase()))
@@ -99,6 +103,10 @@ export default function WarehouseTab({ toast }: { toast:any }) {
   const openNew     = () => { setForm({ id:'', name:'', qty:'', cost:'', unit:'gr', minStock:'5', type:'new' }); setShowModal(true); };
   const openRestock = (item: InventoryItem) => { setForm({ id:item.id, name:item.name, qty:'', cost:'', unit:item.unit, minStock:String(item.min_stock||5), type:'restock' }); setShowModal(true); };
   const openEdit    = (item: InventoryItem) => { setForm({ id:item.id, name:item.name, qty:String(item.stock), cost:String(Math.round(item.cost_per_unit * item.stock)), unit:item.unit, minStock:String(item.min_stock||5), type:'edit' }); setShowModal(true); };
+  const openOpname = (item: InventoryItem) => {
+    setOpnameTarget(item);
+    setOpnameForm({ countedStock: String(item.stock), reason: 'Opname stok fisik', note: '' });
+  };
 
   const sectionItems = [
     { id: 'summary', label: 'Ringkasan Stok', icon: Archive },
@@ -129,6 +137,36 @@ export default function WarehouseTab({ toast }: { toast:any }) {
       toast.showToast(normalizeUserFacingError(e, 'Bahan baku belum bisa disimpan. Periksa kembali isian stok.'), 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveOpname = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!opnameTarget) return;
+    const countedStock = Number(opnameForm.countedStock);
+    if (!Number.isFinite(countedStock) || countedStock < 0) {
+      toast.showToast('Jumlah stok hasil opname tidak boleh negatif.', 'warning');
+      return;
+    }
+    if (!opnameForm.reason.trim()) {
+      toast.showToast('Alasan opname wajib diisi.', 'warning');
+      return;
+    }
+
+    setOpnameSaving(true);
+    try {
+      await adjustInventoryStock({
+        inventoryId: opnameTarget.id,
+        countedStock,
+        reason: opnameForm.reason.trim(),
+        note: opnameForm.note.trim() || null,
+      });
+      setOpnameTarget(null);
+      toast.showToast('Opname stok disimpan', 'success');
+    } catch (error: any) {
+      toast.showToast(normalizeUserFacingError(error, 'Opname stok belum bisa disimpan. Periksa stok fisik lalu coba lagi.'), 'error');
+    } finally {
+      setOpnameSaving(false);
     }
   };
 
@@ -243,19 +281,19 @@ export default function WarehouseTab({ toast }: { toast:any }) {
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-white lg:bg-slate-50/50">
-      <div className="bg-white border-b border-slate-100 px-6 pt-6 pb-4 z-10">
-        <div className="flex items-center justify-between mb-4">
-          <div>
+    <div className="kaffe-responsive-surface flex-1 flex flex-col overflow-hidden bg-white lg:bg-slate-50/50">
+      <div className="bg-white border-b border-slate-100 px-4 sm:px-6 pt-6 pb-4 z-10">
+        <div className="flex min-w-0 items-center justify-between gap-3 mb-4">
+          <div className="min-w-0">
             <h2 className="font-black text-xl text-slate-800 italic uppercase tracking-tighter">Stok</h2>
             <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">Bahan, Konversi, Resep, HPP</p>
           </div>
-          <div className={`gap-2 ${section === 'ingredients' || section === 'summary' ? 'flex' : 'hidden md:flex'}`}>
-            <button onClick={openNew} className="flex items-center gap-2 h-10 px-4 bg-slate-100 text-slate-600 rounded-2xl text-[12px] font-black uppercase tracking-widest active:scale-95 transition-all">
+          <div className={`shrink-0 gap-2 ${section === 'ingredients' || section === 'summary' ? 'flex' : 'hidden md:flex'}`}>
+            <button onClick={openNew} className="flex items-center gap-2 h-10 px-4 bg-white text-slate-600 rounded-xl border border-slate-200 text-[12px] font-black uppercase tracking-widest active:scale-95 transition-all hover:border-orange-200 hover:text-[#FF6A00]">
               <Plus size={16}/>Baru
             </button>
             <button onClick={()=>{setForm({id:'',name:'',qty:'',cost:'',unit:'gr',minStock:'5',type:'restock'});setShowModal(true);}}
-              className="flex items-center gap-2 h-10 px-4 bg-[#FF6A00] text-white rounded-2xl text-[12px] font-black uppercase italic tracking-widest active:scale-95 transition-all shadow-premium">
+              className="kaffe-gradient-button flex items-center gap-2 h-10 px-4 rounded-xl text-[12px] font-black uppercase tracking-widest active:scale-95 transition-all">
               <Archive size={16}/>Restock
             </button>
           </div>
@@ -264,7 +302,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
           Restock tercatat sebagai pembelian bahan baku dan tidak mengurangi saldo awal kasir.
         </p>
 
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
+        <div className="kaffe-scroll-tabs flex gap-2 overflow-x-auto pb-2 mb-3">
           {sectionItems.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -305,7 +343,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
         {section === 'summary' && (
           <div className="space-y-5">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="kaffe-card-grid grid grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-soft">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bahan Aktif</p>
                 <p className="mt-2 text-2xl font-black text-slate-900">{activeInventory.length}</p>
@@ -352,12 +390,12 @@ export default function WarehouseTab({ toast }: { toast:any }) {
         )}
 
         {section === 'ingredients' && (filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-60 text-slate-300">
+          <div className="kaffe-empty-state flex flex-col items-center justify-center h-60 rounded-3xl text-slate-300">
              <Archive size={48} className="mb-4 opacity-10" />
              <p className="text-[12px] font-black uppercase tracking-[0.2em]">Stok Kosong</p>
           </div>
         ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            <div className="kaffe-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
             {filtered.map(item => {
           const isLow = item.stock <= item.min_stock;
           const stockMeta = getStockMeta(item);
@@ -365,7 +403,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
           const expanded = expandedId === item.id;
 
           return (
-            <div key={item.id} className={`group bg-white rounded-[32px] border-2 transition-all duration-300 hover:shadow-premium hover:border-[#FF6A00]/20 ${isLow?'border-rose-100 bg-rose-50/10 shadow-soft':'border-slate-50 shadow-soft'}`}>
+            <div key={item.id} className={`kaffe-action-card group bg-white rounded-2xl border transition-all duration-300 hover:shadow-premium hover:border-[#FF6A00]/20 ${isLow?'border-rose-100 bg-rose-50/10 shadow-soft':'border-slate-100 shadow-soft'}`}>
               <div className="p-6">
                 <div className="flex items-start justify-between mb-5">
                   <div className="flex-1 min-w-0">
@@ -395,6 +433,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
                   </div>
                   <div className="flex flex-col gap-2 ml-4 shrink-0">
                     <button onClick={()=>openRestock(item)} className="p-2.5 bg-orange-50 text-[#FF6A00] rounded-2xl hover:bg-orange-100 transition-colors border border-orange-100"><Archive size={18}/></button>
+                    <button aria-label={`Opname ${item.name}`} onClick={()=>openOpname(item)} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-2xl hover:bg-emerald-100 transition-colors border border-emerald-100"><ClipboardCheck size={18}/></button>
                     <button onClick={()=>openEdit(item)} className="p-2.5 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100 transition-colors border border-slate-100"><Plus size={18} className="rotate-45"/></button>
                   </div>
                 </div>
@@ -653,6 +692,70 @@ export default function WarehouseTab({ toast }: { toast:any }) {
               >
                 {saving&&<div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/>}
                 {saving?'Menyimpan...':'Simpan Perubahan'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {opnameTarget && (
+        <div
+          className="modal-overlay"
+          onClick={(e) => e.target === e.currentTarget && setOpnameTarget(null)}
+        >
+          <div className="modal-content bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="font-black text-xl text-slate-900 tracking-tight">Opname Stok</h3>
+                <p className="text-xs font-bold text-slate-400 mt-1">{opnameTarget.name}</p>
+              </div>
+              <button
+                onClick={()=>setOpnameTarget(null)}
+                className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 active:bg-slate-100"
+              >
+                <X size={20}/>
+              </button>
+            </div>
+            <form onSubmit={handleSaveOpname} className="space-y-3">
+              <div className="rounded-2xl bg-slate-50 border border-slate-100 p-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Stok sistem sekarang</p>
+                <p className="text-lg font-black text-slate-900 mt-1">{opnameTarget.stock.toLocaleString('id-ID')} {opnameTarget.unit}</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-bold text-slate-700 pl-0.5">Stok fisik hasil hitung *</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.0001"
+                  value={opnameForm.countedStock}
+                  onChange={e=>setOpnameForm(f=>({...f,countedStock:e.target.value}))}
+                  className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-bold text-slate-700 pl-0.5">Alasan *</label>
+                <input
+                  value={opnameForm.reason}
+                  onChange={e=>setOpnameForm(f=>({...f,reason:e.target.value}))}
+                  className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-bold text-slate-700 pl-0.5">Catatan</label>
+                <textarea
+                  value={opnameForm.note}
+                  onChange={e=>setOpnameForm(f=>({...f,note:e.target.value}))}
+                  className="w-full min-h-20 border border-slate-200 rounded-2xl px-4 py-3 text-[14px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all"
+                  placeholder="Opsional"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={opnameSaving}
+                className="w-full h-14 bg-[#FF6A00] text-white font-black rounded-2xl active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 shadow-premium transition-all italic uppercase tracking-wider"
+              >
+                {opnameSaving&&<div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/>}
+                {opnameSaving?'Menyimpan...':'Simpan Opname'}
               </button>
             </form>
           </div>

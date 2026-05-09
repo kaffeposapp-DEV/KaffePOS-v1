@@ -25,6 +25,8 @@ import { isPostUpdateSyncPending, markPostUpdateSyncComplete, readUpgradeReport 
 import { subscriptionManager } from '@/services/SubscriptionManager';
 import { canAccessTab, getDefaultTabForRole, getVisibleTabs } from '@/lib/accessControl';
 import { selectStoreForBootstrap } from '@/lib/storeContext';
+import { trackClientError } from '@/lib/opsMetrics';
+import { captureFrontendError } from '@/lib/errorTracking';
 import LOGO_ICON from '@/assets/logo-kaffeposappicon.svg';
 
 const DashboardTab = lazy(() => import('./dashboard/Dashboard'));
@@ -54,7 +56,17 @@ const EXPLICIT_SIGNOUT_KEY = 'kaffepos_explicit_signout';
 class TabError extends React.Component<{ name: string; children: React.ReactNode }, { err: boolean }> {
   state = { err: false };
   static getDerivedStateFromError() { return { err: true }; }
-  componentDidCatch(e: Error) { console.error('[TabError]', e); }
+  componentDidCatch(e: Error) {
+    console.error('[TabError]', e);
+    void trackClientError(e, {
+      source: 'tab_error_boundary',
+      metadata: { tabName: this.props.name },
+    });
+    captureFrontendError(e, {
+      source: 'tab_error_boundary',
+      metadata: { tabName: this.props.name },
+    });
+  }
   render() {
     if (this.state.err) return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
@@ -384,7 +396,7 @@ export default function AppShell() {
     return (
       <section
         key={tabId}
-        className={isActive ? 'flex-1 min-h-0 flex flex-col' : 'hidden'}
+        className={isActive ? 'kaffe-responsive-surface flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden' : 'hidden'}
         aria-hidden={!isActive}
       >
         <TabError name={name}>{node}</TabError>
@@ -395,7 +407,7 @@ export default function AppShell() {
   if (!ready) return <AppLoading message={message} />;
 
   return (
-    <div className="kaffe-app-bg fixed inset-0 flex overflow-hidden"
+    <div className="kaffe-app-bg kaffe-responsive-surface fixed inset-0 flex overflow-hidden"
       style={{ paddingTop: 'env(safe-area-inset-top,0px)' }}>
 
       {/* ── DESKTOP SIDEBAR ── */}
@@ -448,7 +460,7 @@ export default function AppShell() {
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+      <div className="kaffe-responsive-surface flex-1 flex flex-col min-w-0 overflow-hidden relative">
         {postUpdateNotice && (postUpdateNotice.firstLaunchAfterUpdate || postUpdateNotice.recoveredKeys.length > 0) ? (
           <div className="px-3 pt-2 flex-shrink-0">
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-900 shadow-sm">
@@ -476,7 +488,7 @@ export default function AppShell() {
 
         {/* ── Status Banner ───────────────────────────── */}
         {(!isOnline || syncStatus === 'syncing' || syncStatus === 'sync_failed' || syncStatus === 'sync_success') && (
-          <div className={`px-4 py-2 flex items-center justify-center gap-3 flex-shrink-0 shadow-sm z-50 animate-in slide-up ${
+          <div className={`kaffe-status-banner px-3 sm:px-4 py-2 flex items-center justify-center gap-2 sm:gap-3 flex-shrink-0 shadow-sm z-50 animate-in slide-up ${
             syncStatus === 'sync_failed'
               ? 'bg-rose-500'
               : syncStatus === 'sync_success'
@@ -486,7 +498,7 @@ export default function AppShell() {
                   : 'bg-amber-500'
           }`}>
             {syncStatus === 'syncing' ? <RefreshCw size={12} className="text-white animate-spin" /> : <WifiOff size={12} className="text-white" />}
-            <p className="text-white text-[10px] font-black uppercase tracking-widest leading-none">
+            <p className="min-w-0 break-words text-white text-[10px] font-black uppercase tracking-[0.16em] sm:tracking-widest leading-tight">
               {syncStatus === 'sync_failed'
                 ? `${failedSyncCount || pendingSyncCount} data gagal sinkron`
                 : syncStatus === 'sync_success'
@@ -525,7 +537,7 @@ export default function AppShell() {
           </div>
         )}
 
-        <main className="flex-1 min-h-0 overflow-hidden flex flex-col"
+        <main className="kaffe-responsive-surface flex-1 min-h-0 min-w-0 overflow-hidden flex flex-col"
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom,0px))' }}>
           <Suspense fallback={<TabSpinner />}>
             {renderTabPanel('dashboard', 'Beranda', <DashboardTab />)}
@@ -540,7 +552,7 @@ export default function AppShell() {
         </main>
 
         {/* ── MOBILE NAV (Bottom) ── */}
-        <nav className="lg:hidden flex items-stretch justify-start overflow-x-auto bg-white/95 backdrop-blur-xl border-t border-orange-100/80 z-40 px-1 shadow-[0_-12px_32px_rgba(255,106,0,0.10)]"
+        <nav className="kaffe-bottom-nav lg:hidden flex items-stretch justify-start overflow-x-auto bg-white/95 backdrop-blur-xl border-t border-orange-100/80 z-40 px-1 shadow-[0_-12px_32px_rgba(255,106,0,0.10)]"
           style={{ height: 'calc(64px + env(safe-area-inset-bottom,0px))', paddingBottom: 'env(safe-area-inset-bottom,0px)' }}>
           {NAV.filter((entry) => getVisibleTabs(role).includes(entry.id)).map(({ id, label, icon: Icon }) => {
             const active = tab === id;
@@ -548,9 +560,10 @@ export default function AppShell() {
               <button
                 key={id}
                 onClick={() => changeTab(id)}
-                className={`flex h-full w-[74px] flex-none flex-col items-center justify-center transition-all relative ${
+                className={`flex h-full w-[74px] flex-none flex-col items-center justify-center transition-all relative min-w-0 ${
                   active ? 'text-[#FF6A00]' : 'text-slate-400 hover:text-slate-600'
                 }`}
+                aria-label={`Buka tab ${label}`}
               >
                 <div className="flex flex-col items-center gap-1 transition-all duration-200">
                   <div className="relative">

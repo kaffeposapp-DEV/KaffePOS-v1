@@ -14,6 +14,7 @@ import { Capacitor } from '@capacitor/core';
 import { DEFAULT_CUSTOM_THEME, applyThemeToDocument, type CustomThemeConfig, type ThemePresetId } from './lib/theme';
 import { runAppUpgradeBootstrap } from './lib/appUpgrade';
 import { initCriticalStorageBackupBridge, persistCriticalStorageBackup, restoreCriticalStorageBackup } from './lib/appStorageBackup';
+import { captureFrontendError, initFrontendErrorTracking } from './lib/errorTracking';
 
 function registerOfflineShell() {
   if (import.meta.env.DEV) return;
@@ -58,6 +59,7 @@ function applyPersistedTheme() {
 }
 
 async function bootstrap() {
+  initFrontendErrorTracking();
   const hideSplash = async () => {
     try {
       if (Capacitor.isNativePlatform()) {
@@ -90,6 +92,7 @@ async function bootstrap() {
     registerOfflineShell();
   } catch (e) {
     console.error('Bootstrap error:', e);
+    captureFrontendError(e, { source: 'frontend_bootstrap' });
     applyPersistedTheme();
   } finally {
     setTimeout(hideSplash, 400);

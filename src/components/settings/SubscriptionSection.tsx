@@ -209,65 +209,61 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
   };
 
   return (
-    <div className="space-y-6">
+    <div className="kaffe-responsive-surface space-y-6">
       <div>
         <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Billing dan Langganan</p>
         <h2 className="mt-1 text-xl font-black text-slate-900">Paket Aktif</h2>
       </div>
 
       {/* ── HERO STATUS CARD ── */}
-      <div className="relative overflow-hidden rounded-[32px] bg-slate-900 p-6 shadow-xl md:p-8">
-        {/* Decorative elements */}
-        <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-orange-500/10 blur-3xl" />
-        <div className="absolute -bottom-16 -left-16 h-64 w-64 rounded-full bg-emerald-500/5 blur-3xl" />
-
-        <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-3">
+      <div className="kaffe-subscription-card relative overflow-hidden rounded-[32px] p-6 md:p-8">
+        <div className="relative flex min-w-0 flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
               <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${
-                isActivePaid ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-slate-400'
+                isActivePaid ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100' : 'bg-orange-50 text-orange-700 ring-1 ring-orange-100'
               }`}>
-                <div className={`h-1.5 w-1.5 rounded-full ${isActivePaid ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`} />
+                <div className={`h-1.5 w-1.5 rounded-full ${isActivePaid ? 'bg-emerald-500 animate-pulse' : 'bg-orange-500'}`} />
                 {statusLabel}
               </span>
               {loading && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-300">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600 ring-1 ring-slate-100">
                   <RefreshCw size={10} className="animate-spin" />
                   Sinkron
                 </span>
               )}
               {activePendingPayment && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-400 animate-pulse">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-700 ring-1 ring-amber-100">
                   <Clock3 size={10} />
                   Menunggu
                 </span>
               )}
             </div>
-            <h3 className="mt-4 text-3xl font-black text-white md:text-4xl">
+            <h3 className="mt-4 break-words text-3xl font-black text-slate-900 md:text-4xl">
               {activePlan.name}
             </h3>
-            <p className="mt-2 max-w-md text-sm font-medium text-slate-400 leading-relaxed">
+            <p className="mt-2 max-w-md text-sm font-medium text-slate-600 leading-relaxed">
               {activePlan.description}
             </p>
           </div>
 
-          <div className="flex shrink-0 flex-col gap-2 rounded-3xl bg-white/5 p-5 backdrop-blur-sm border border-white/5 min-w-[240px]">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2 text-slate-400">
+          <div className="kaffe-subscription-detail-panel flex shrink-0 flex-col gap-2 rounded-3xl p-5 min-w-0 w-full lg:min-w-[240px] lg:w-auto">
+            <div className="flex min-w-0 items-center justify-between gap-4">
+              <div className="flex items-center gap-2 text-slate-500">
                 <Calendar size={14} />
                 <span className="text-[11px] font-black uppercase tracking-wider">Masa Aktif</span>
               </div>
-              <span className="text-[11px] font-black text-white">{expiryDate ? formatDateId(expiryDate) : 'Selamanya'}</span>
+              <span className="min-w-0 break-words text-right text-[11px] font-black text-slate-900">{expiryDate ? formatDateId(expiryDate) : 'Selamanya'}</span>
             </div>
-            <div className="flex items-center justify-between gap-4 border-t border-white/5 pt-2">
-              <div className="flex items-center gap-2 text-slate-400">
+            <div className="flex min-w-0 items-center justify-between gap-4 border-t border-orange-100/70 pt-2">
+              <div className="flex items-center gap-2 text-slate-500">
                 <CreditCard size={14} />
                 <span className="text-[11px] font-black uppercase tracking-wider">Metode</span>
               </div>
-              <span className="text-[11px] font-black text-white">{BILLING_CYCLE_LABELS[(activeCycle as BillingCycle) || 'free']}</span>
+              <span className="min-w-0 break-words text-right text-[11px] font-black text-slate-900">{BILLING_CYCLE_LABELS[(activeCycle as BillingCycle) || 'free']}</span>
             </div>
             {expiryDate && (
-              <div className="mt-3 overflow-hidden rounded-full bg-white/5 h-1.5">
+              <div className="mt-3 overflow-hidden rounded-full bg-orange-100 h-1.5">
                 <div
                   className={`h-full rounded-full transition-all duration-1000 ${expiringSoon ? 'bg-orange-500' : 'bg-emerald-500'}`}
                   style={{ width: `${Math.max(5, Math.min(100, (daysRemaining || 0) / 30 * 100))}%` }}
@@ -275,24 +271,24 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
               </div>
             )}
             {expiryDate && (
-              <p className={`mt-1 text-center text-[10px] font-black uppercase tracking-widest ${expiringSoon ? 'text-orange-400' : 'text-slate-500'}`}>
+              <p className={`mt-1 text-center text-[10px] font-black uppercase tracking-widest ${expiringSoon ? 'text-orange-600' : 'text-slate-500'}`}>
                 {daysRemaining} Hari Tersisa
               </p>
             )}
           </div>
         </div>
 
-        <div className="relative z-10 mt-8 flex flex-col gap-3 sm:flex-row">
+        <div className="relative mt-8 flex flex-col gap-3 sm:flex-row">
           <button
             onClick={() => openCheckout()}
-            className="group inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-orange-500 px-6 text-sm font-black text-white shadow-lg shadow-orange-500/20 transition-all active:scale-95"
+            className="kaffe-gradient-cta group inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl px-6 text-sm font-black transition-all active:scale-95"
           >
             <Sparkles size={18} className="transition-transform group-hover:rotate-12" />
             {primaryCta}
           </button>
           <button
             onClick={handleRefresh}
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-white/10 px-6 text-sm font-black text-white backdrop-blur-sm transition-all active:scale-95"
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-orange-100 bg-white px-6 text-sm font-black text-slate-800 shadow-sm transition-all active:scale-95 hover:border-orange-200 hover:text-orange-700"
           >
             <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
             {refreshing ? 'Sinkron...' : 'Refresh Status'}
@@ -308,16 +304,16 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-200/50 text-amber-600">
                 <Clock3 size={20} />
               </div>
-              <div className="flex-1">
+          <div className="min-w-0 flex-1">
                 <p className="text-sm font-black text-amber-900">Pembayaran sedang diproses</p>
-                <p className="mt-1 text-xs font-medium text-amber-700 leading-relaxed">
+                <p className="mt-1 break-words text-xs font-medium text-amber-700 leading-relaxed">
                   Paket {getPlanDefinition(activePendingPayment.plan).name} ({BILLING_CYCLE_LABELS[(activePendingPayment.billing_cycle as BillingCycle) || 'monthly']}) sebesar {formatRupiah(activePendingPayment.amount)} belum terverifikasi.
                 </p>
                 <p className="mt-1 text-xs font-bold text-amber-800">Lisensi belum aktif sampai pembayaran sukses.</p>
                 {activePendingPayment.redirect_url && (
                   <a
                     href={activePendingPayment.redirect_url}
-                    className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl bg-amber-600 px-4 text-xs font-black text-white shadow-sm transition-all active:scale-95"
+                    className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl bg-amber-700 px-4 text-xs font-black text-white shadow-sm transition-all active:scale-95"
                   >
                     Lanjutkan Pembayaran
                     <ExternalLink size={14} />
@@ -337,9 +333,9 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
           )}
 
           {!onlinePaymentAvailable && (
-            <div className="rounded-3xl border border-blue-100 bg-blue-50 p-5">
-              <p className="text-sm font-black text-blue-900">Info Pembayaran Online</p>
-              <p className="mt-1 text-xs font-medium text-blue-700 leading-relaxed">{paymentModeMessage}</p>
+            <div className="rounded-3xl border border-orange-100 bg-orange-50 p-5">
+              <p className="text-sm font-black text-orange-950">Info Pembayaran Online</p>
+              <p className="mt-1 text-xs font-medium text-orange-900 leading-relaxed">{paymentModeMessage}</p>
             </div>
           )}
         </div>
@@ -355,7 +351,7 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
           <p className="text-xs font-bold text-slate-400">Bebas ganti paket kapan saja</p>
         </div>
 
-        <div className="mt-8 grid gap-4 lg:grid-cols-3">
+        <div className="kaffe-card-grid mt-8 grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {PAID_PLANS.map((plan) => {
             const planDef = getPlanDefinition(plan);
             const isCurrent = activePlan.id === plan && isActivePaid;
@@ -365,20 +361,20 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
               <button
                 key={plan}
                 onClick={() => openCheckout(plan, 'monthly')}
-                className={`group relative flex flex-col rounded-[28px] border-2 p-6 text-left transition-all hover:shadow-lg ${
+                className={`group relative flex min-w-0 flex-col rounded-[28px] border-2 p-6 text-left transition-all hover:shadow-lg ${
                   isCurrent
-                    ? 'border-slate-900 bg-slate-50'
-                    : isRecommended ? 'border-orange-100 bg-white hover:border-orange-500' : 'border-slate-100 bg-white hover:border-slate-300'
+                    ? 'border-orange-300 bg-orange-50/70 shadow-sm shadow-orange-100'
+                    : isRecommended ? 'border-orange-100 bg-white hover:border-orange-500' : 'border-slate-100 bg-white hover:border-orange-200'
                 }`}
               >
                 {isRecommended && !isCurrent && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-orange-500 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-white">
+                  <div className="kaffe-gradient-cta absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-widest">
                     Paling Populer
                   </div>
                 )}
 
                 <div className="mb-4 flex items-start justify-between">
-                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${isCurrent ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-orange-50 group-hover:text-orange-500'}`}>
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${isCurrent ? 'bg-orange-600 text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-orange-50 group-hover:text-orange-500'}`}>
                     <Sparkles size={24} />
                   </div>
                   {isCurrent && <Check size={20} className="text-emerald-600" />}
@@ -386,17 +382,17 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
 
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{planDef.badge}</p>
                 <h5 className="mt-1 text-xl font-black text-slate-900">{planDef.name}</h5>
-                <p className="mt-2 text-xs font-medium text-slate-500 leading-relaxed min-h-[40px]">
+                <p className="mt-2 min-h-[40px] break-words text-xs font-medium leading-relaxed text-slate-500">
                   {planDef.description}
                 </p>
 
                 <div className="mt-6">
-                  <p className="text-2xl font-black text-slate-900">{formatRupiah(getPlanPrice(plan, 'monthly'))}</p>
+                  <p className="break-words text-2xl font-black text-slate-900">{formatRupiah(getPlanPrice(plan, 'monthly'))}</p>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Per Bulan</p>
                 </div>
 
                 <div className={`mt-6 flex h-10 items-center justify-center rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                  isCurrent ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-900 text-white group-hover:bg-orange-500'
+                  isCurrent ? 'bg-emerald-100 text-emerald-700' : 'kaffe-gradient-cta'
                 }`}>
                   {isCurrent ? 'Paket Aktif' : 'Pilih'}
                 </div>
@@ -446,19 +442,19 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
               paidHistory.map((entry) => {
                 const plan = getPlanDefinition(entry.plan);
                 return (
-                  <div key={entry.id} className="group flex items-center justify-between gap-4 rounded-2xl border border-slate-50 bg-slate-50/50 p-4 transition-all hover:bg-white hover:border-slate-200 hover:shadow-sm">
-                    <div className="flex items-center gap-4">
+                  <div key={entry.id} className="group flex min-w-0 flex-col gap-3 rounded-2xl border border-slate-50 bg-slate-50/50 p-4 transition-all hover:bg-white hover:border-slate-200 hover:shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-4">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm border border-slate-100">
                         <CreditCard size={18} className="text-slate-400" />
                       </div>
-                      <div>
-                        <p className="font-black text-slate-800 text-sm">{plan.name}</p>
+                      <div className="min-w-0">
+                        <p className="truncate font-black text-slate-800 text-sm">{plan.name}</p>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
                           {formatDateId(entry.paid_at)} · {BILLING_CYCLE_LABELS[(entry.billing_cycle as BillingCycle) || 'monthly']}
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="shrink-0 text-left sm:text-right">
                       <p className="font-black text-slate-900 text-sm">{formatRupiah(entry.amount)}</p>
                       <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600">
                         {getPaymentStatusLabel(entry.status)}

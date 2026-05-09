@@ -21,6 +21,7 @@ import { buildSubscriptionAccess, hasSubscriptionFeature, type SubscriptionAcces
 import type { SubscriptionPlanId } from '@/lib/subscriptionPlans';
 import { APP_PRESERVED_STORAGE_KEYS } from '@/lib/appUpgrade';
 import { getPermissionsForRole, hasPermission, normalizeUserRole, type Permission, type UserRole } from '@/lib/accessControl';
+import { normalizeUserFacingError } from '@/lib/errorMessages';
 
 type AuthCtx = {
   user: AuthUser | null;
@@ -232,7 +233,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return { error: null };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Login gagal.';
+      const message = normalizeUserFacingError(error, 'Login belum bisa diproses. Coba lagi beberapa saat.');
       if (message === 'email_not_confirmed') {
         return { error: 'email_not_confirmed' };
       }
@@ -262,7 +263,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
     } catch (error) {
       const normalized = normalizeSignupErrorMessage(
-        error instanceof Error ? { message: error.message } : { message: 'Pendaftaran gagal.' },
+        error instanceof Error
+          ? { message: error.message, status: (error as Error & { status?: number }).status }
+          : { message: 'Pendaftaran gagal.' },
       );
       return { error: normalized || 'Pendaftaran gagal.' };
     }

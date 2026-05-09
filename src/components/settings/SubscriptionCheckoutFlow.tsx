@@ -193,21 +193,21 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
 
   return (
     <div
-      className="modal-overlay md:items-center md:[&>.modal-content]:m-4"
+      className="subscription-checkout-overlay fixed inset-0 z-[100] flex h-[100dvh] items-end justify-center bg-slate-950/60 p-0 backdrop-blur-md md:items-center md:p-4"
       onClick={(event) => {
         if (event.target === event.currentTarget && !submitting) closeFlow();
       }}
     >
-      <div className="modal-content flex max-h-[100vh] w-full flex-col overflow-hidden bg-white shadow-[0_24px_100px_rgba(0,0,0,0.25)] md:max-h-[90vh] md:max-w-[850px] md:rounded-[32px]">
+      <div className="subscription-checkout-shell kaffe-responsive-surface flex max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-[30px] bg-white shadow-[0_24px_100px_rgba(0,0,0,0.25)] md:max-h-[92dvh] md:max-w-[900px] md:rounded-[32px]">
         {/* HEADER SECTION */}
-        <div className="shrink-0 border-b border-slate-100 bg-white px-6 py-5 md:px-10">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-3">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[10px] font-black text-white">
+        <div className="shrink-0 border-b border-slate-100 bg-white px-4 py-4 sm:px-6 md:px-10 md:py-5">
+          <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-100 text-[10px] font-black text-orange-800 ring-1 ring-orange-200">
                   {stepNumber(step)}
                 </div>
-                <h3 className="text-xl font-black text-slate-800">{stepTitle(step)}</h3>
+                <h3 className="min-w-0 truncate text-lg font-black text-slate-800 sm:text-xl">{stepTitle(step)}</h3>
               </div>
               <p className="mt-1 text-xs font-bold uppercase tracking-widest text-slate-400">
                 Langkah {stepNumber(step)} dari 3
@@ -216,7 +216,8 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
             <button
               onClick={closeFlow}
               disabled={submitting}
-              className="rounded-full p-2 text-slate-300 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"
+              className="shrink-0 rounded-full p-2 text-slate-300 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"
+              aria-label="Tutup checkout langganan"
             >
               <X size={24} />
             </button>
@@ -229,7 +230,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
               return (
                 <div
                   key={item}
-                  className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${active || done ? 'bg-slate-900' : 'bg-slate-100'}`}
+                  className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${active || done ? 'bg-orange-500' : 'bg-slate-100'}`}
                 />
               );
             })}
@@ -242,10 +243,10 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
         </div>
 
         {/* CONTENT SECTION */}
-        <div className="flex-1 overflow-y-auto px-6 py-8 md:px-10 md:py-10 custom-scrollbar">
+        <div className="subscription-checkout-body min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 md:px-10 md:py-8 custom-scrollbar">
           {step === 'plan' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="kaffe-card-grid grid gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
                 {PAID_PLANS.map((item) => {
                   const planDef = getPlanDefinition(item);
                   const active = selectedPlan === item;
@@ -259,7 +260,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                       }}
                       className={`relative flex flex-col rounded-[28px] border-2 p-5 text-left transition-all ${
                         active
-                          ? 'border-slate-900 bg-slate-50 shadow-md'
+                          ? 'border-orange-400 bg-orange-50/70 shadow-md shadow-orange-100'
                           : 'border-slate-100 bg-white hover:border-slate-200'
                       }`}
                     >
@@ -273,7 +274,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                         <p className="text-[10px] font-bold text-slate-400 uppercase">{BILLING_CYCLE_LABELS[selectedCycle]}</p>
                       </div>
                       {active && (
-                        <div className="absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white">
+                        <div className="absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full bg-orange-600 text-white">
                           <CheckCircle2 size={16} />
                         </div>
                       )}
@@ -284,7 +285,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
 
               <div className="rounded-[28px] bg-slate-50 p-6 border border-slate-100">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Pilih Durasi Langganan</p>
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {PAID_CYCLES.map((cycle) => {
                     const active = selectedCycle === cycle;
                     return (
@@ -295,9 +296,9 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                           setQuote(null);
                           setAppliedVoucher(null);
                         }}
-                        className={`flex-1 rounded-2xl border-2 px-5 py-3 text-sm font-black transition-all ${
+                        className={`min-w-0 rounded-2xl border-2 px-4 py-3 text-sm font-black transition-all ${
                           active
-                            ? 'border-slate-900 bg-white text-slate-900 shadow-sm'
+                            ? 'border-orange-400 bg-white text-orange-800 shadow-sm shadow-orange-100'
                             : 'border-transparent bg-slate-200/50 text-slate-500 hover:bg-slate-200'
                         }`}
                       >
@@ -312,12 +313,12 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
 
           {step === 'method' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-              <div className="flex items-center justify-between rounded-[24px] bg-slate-900 p-5 text-white shadow-lg">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Paket Pilihan</p>
-                  <p className="mt-1 text-lg font-black">{selectedPlanDef.name} · {BILLING_CYCLE_LABELS[selectedCycle]}</p>
+              <div className="flex flex-col gap-3 rounded-[24px] border border-orange-100 bg-orange-50/70 p-5 text-slate-900 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-orange-700">Paket Pilihan</p>
+                  <p className="mt-1 break-words text-base font-black sm:text-lg">{selectedPlanDef.name} · {BILLING_CYCLE_LABELS[selectedCycle]}</p>
                 </div>
-                <p className="text-xl font-black text-orange-400">{formatRupiah(selectedPrice)}</p>
+                <p className="shrink-0 text-xl font-black text-orange-800">{formatRupiah(selectedPrice)}</p>
               </div>
 
               <div>
@@ -334,20 +335,20 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                       onClick={() => setSelectedMethod(method.id)}
                       className={`flex items-center justify-between rounded-[24px] border-2 p-5 transition-all ${
                         selectedMethod === method.id
-                          ? 'border-slate-900 bg-slate-50 shadow-md'
+                          ? 'border-orange-400 bg-orange-50/70 shadow-md shadow-orange-100'
                           : 'border-slate-100 bg-white hover:border-slate-200'
                       }`}
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="flex min-w-0 items-center gap-4">
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-slate-100 shadow-sm">
                           <WalletCards size={20} className="text-slate-400" />
                         </div>
-                        <div>
+                        <div className="min-w-0 text-left">
                           <p className="text-sm font-black text-slate-800">{method.label}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">{method.description}</p>
+                          <p className="break-words text-[10px] font-bold uppercase text-slate-400">{method.description}</p>
                         </div>
                       </div>
-                      {selectedMethod === method.id && <CheckCircle2 size={20} className="text-emerald-600" />}
+                      {selectedMethod === method.id && <CheckCircle2 size={20} className="ml-3 shrink-0 text-orange-700" />}
                     </button>
                   ))}
                 </div>
@@ -367,20 +368,20 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                       onClick={() => setSelectedMethod(method.id)}
                       className={`flex items-center justify-between rounded-[24px] border-2 p-5 transition-all ${
                         selectedMethod === method.id
-                          ? 'border-slate-900 bg-slate-50 shadow-md'
+                          ? 'border-orange-400 bg-orange-50/70 shadow-md shadow-orange-100'
                           : 'border-slate-100 bg-white hover:border-slate-200'
                       }`}
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="flex min-w-0 items-center gap-4">
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-slate-100 shadow-sm">
                           <CreditCard size={20} className="text-slate-400" />
                         </div>
-                        <div>
+                        <div className="min-w-0 text-left">
                           <p className="text-sm font-black text-slate-800">{method.shortLabel}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">{method.description}</p>
+                          <p className="break-words text-[10px] font-bold uppercase text-slate-400">{method.description}</p>
                         </div>
                       </div>
-                      {selectedMethod === method.id && <CheckCircle2 size={20} className="text-emerald-600" />}
+                      {selectedMethod === method.id && <CheckCircle2 size={20} className="ml-3 shrink-0 text-orange-700" />}
                     </button>
                   ))}
                 </div>
@@ -402,10 +403,10 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                     <span className="font-bold text-slate-500">Durasi: {BILLING_CYCLE_LABELS[quote.billingCycle]}</span>
                     <span className="text-xs font-black text-slate-400">TERPILIH</span>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
+                  <div className="flex flex-col gap-2 rounded-2xl bg-slate-50 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
                     <span className="font-bold text-slate-500">Metode</span>
-                    <span className="font-black text-slate-800">{quote.selectedPaymentMethod.label}</span>
-                    <span className="text-xs font-black text-slate-400 uppercase">MIDTRANS</span>
+                    <span className="min-w-0 break-words font-black text-slate-800 sm:text-right">{quote.selectedPaymentMethod.label}</span>
+                    <span className="shrink-0 text-xs font-black uppercase text-slate-400">MIDTRANS</span>
                   </div>
 
                   <div className="border-t border-slate-50 pt-4" />
@@ -421,10 +422,10 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                     <span className="font-black text-slate-800">{quote.adminFee > 0 ? formatRupiah(quote.adminFee) : 'Gratis'}</span>
                   </div>
 
-                  <div className="rounded-[24px] bg-slate-900 p-6 text-white shadow-lg mt-6">
-                    <div className="flex items-center justify-between">
+                  <div className="kaffe-checkout-highlight mt-6 rounded-[24px] p-6 text-white">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <span className="text-base font-black">Total Pembayaran</span>
-                      <span className="text-3xl font-black text-orange-400">{formatRupiah(quote.total)}</span>
+                      <span className="break-words text-2xl font-black sm:text-3xl">{formatRupiah(quote.total)}</span>
                     </div>
                   </div>
                 </div>
@@ -433,31 +434,31 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                   {!showVoucherInput && !quote.voucher ? (
                     <button
                       onClick={() => setShowVoucherInput(true)}
-                      className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700 transition-colors"
+                      className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-orange-700 transition-colors hover:text-orange-800"
                     >
                       <Percent size={14} />
                       Punya Kode Voucher
                     </button>
                   ) : (
-                    <div className="flex flex-col gap-3 rounded-2xl bg-emerald-50 p-4 border border-emerald-100">
-                      <div className="flex gap-2">
+                    <div className="flex flex-col gap-3 rounded-2xl border border-orange-100 bg-orange-50 p-4">
+                      <div className="flex flex-col gap-2 sm:flex-row">
                         <input
                           value={voucherInput}
                           onChange={(e) => setVoucherInput(e.target.value.toUpperCase())}
                           placeholder="KODE VOUCHER"
-                          className="h-10 flex-1 rounded-xl border border-emerald-100 bg-white px-4 text-xs font-black outline-none focus:ring-2 focus:ring-emerald-200"
+                          className="h-10 flex-1 rounded-xl border border-orange-100 bg-white px-4 text-xs font-black outline-none focus:ring-2 focus:ring-orange-200"
                         />
                         <button
                           onClick={() => void applyVoucher()}
                           disabled={loadingQuote}
-                          className="h-10 rounded-xl bg-emerald-600 px-5 text-xs font-black text-white hover:bg-emerald-700 disabled:opacity-50"
+                          className="h-10 rounded-xl bg-orange-700 px-5 text-xs font-black text-white hover:bg-orange-800 disabled:opacity-50"
                         >
                           {loadingQuote ? '...' : 'Pakai'}
                         </button>
                       </div>
                       {quote.voucher && (
-                        <div className="flex items-center justify-between px-1">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">✓ Voucher Aktif: {quote.voucher.code}</p>
+                        <div className="flex flex-col gap-2 px-1 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="break-words text-[10px] font-black uppercase tracking-widest text-orange-800">✓ Voucher Aktif: {quote.voucher.code}</p>
                           <button
                             onClick={() => {
                               setVoucherInput('');
@@ -476,13 +477,13 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                 </div>
               </div>
 
-              <div className="flex items-start gap-4 rounded-[28px] border border-blue-100 bg-blue-50/50 p-6">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 shadow-sm">
+              <div className="flex items-start gap-4 rounded-[28px] border border-orange-100 bg-orange-50/50 p-6">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-orange-100 text-orange-700 shadow-sm">
                   <ShieldCheck size={22} />
                 </div>
                 <div>
-                  <p className="text-sm font-black text-blue-900 leading-tight">Keamanan Terjamin</p>
-                  <p className="mt-1 text-[11px] font-medium leading-relaxed text-blue-700">
+                  <p className="text-sm font-black text-orange-950 leading-tight">Keamanan Terjamin</p>
+                  <p className="mt-1 text-[11px] font-medium leading-relaxed text-orange-900">
                     Lisensi aktif otomatis setelah pembayaran sukses. Seluruh data transaksi dienkripsi dengan standar keamanan tinggi.
                   </p>
                 </div>
@@ -492,11 +493,11 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
         </div>
 
         {/* FOOTER ACTIONS */}
-        <div className="shrink-0 border-t border-slate-100 bg-white px-6 py-6 md:px-10">
+        <div className="subscription-checkout-footer shrink-0 border-t border-slate-100 bg-white px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 md:px-10 md:py-5">
           {step === 'plan' && (
             <button
               onClick={() => setStep('method')}
-              className="group flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-slate-900 px-6 text-sm font-black text-white shadow-xl transition-all active:scale-[0.98] hover:bg-slate-800"
+              className="kaffe-gradient-cta group flex h-14 w-full items-center justify-center gap-3 rounded-2xl px-6 text-sm font-black transition-all active:scale-[0.98]"
             >
               Lanjut Pilih Pembayaran
               <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
@@ -515,7 +516,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
               <button
                 onClick={() => void goToReview()}
                 disabled={loadingQuote || !isOnline}
-                className="group flex h-14 flex-[1.5] items-center justify-center gap-3 rounded-2xl bg-slate-900 px-6 text-sm font-black text-white shadow-xl transition-all active:scale-[0.98] disabled:opacity-50"
+                className="kaffe-gradient-cta group flex h-14 flex-[1.5] items-center justify-center gap-3 rounded-2xl px-6 text-sm font-black transition-all active:scale-[0.98] disabled:opacity-50"
               >
                 {loadingQuote ? (
                   <Loader2 size={20} className="animate-spin" />
@@ -542,7 +543,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
               <button
                 onClick={() => void handlePay()}
                 disabled={submitting || !isOnline}
-                className="group flex h-14 flex-[2] items-center justify-center gap-3 rounded-2xl bg-emerald-600 px-6 text-sm font-black text-white shadow-xl shadow-emerald-600/20 transition-all active:scale-[0.98] hover:bg-emerald-700 disabled:opacity-50"
+                className="kaffe-gradient-cta group flex h-14 flex-[2] items-center justify-center gap-3 rounded-2xl px-6 text-sm font-black transition-all active:scale-[0.98] disabled:opacity-50"
               >
                 {submitting ? (
                   <Loader2 size={20} className="animate-spin" />
@@ -559,22 +560,21 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
       </div>
 
       <style>{`
-        .modal-overlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(15, 23, 42, 0.6);
-          backdrop-filter: blur(8px);
-          display: flex;
-          justify-content: center;
-          align-items: flex-end;
-          z-index: 100;
+        .subscription-checkout-shell {
+          animation: subscription-modal-up 0.32s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        .modal-content {
-          animation: modal-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        @keyframes modal-up {
+        @keyframes subscription-modal-up {
           from { transform: translateY(100%); }
           to { transform: translateY(0); }
+        }
+        @media (min-width: 768px) {
+          .subscription-checkout-shell {
+            animation-name: subscription-modal-pop;
+          }
+          @keyframes subscription-modal-pop {
+            from { opacity: 0; transform: translateY(18px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+          }
         }
         .custom-scrollbar::-webkit-scrollbar {
           width: 5px;

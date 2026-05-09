@@ -49,6 +49,10 @@ export type SystemStatusResponse = {
       environment: string;
       merchantId: string | null;
     };
+    monitoring?: {
+      backendErrorTracking: boolean;
+      provider: string;
+    };
   };
   syncMatrix: Record<string, boolean>;
   readiness: Record<string, number>;
@@ -114,11 +118,16 @@ export async function apiFetch<T>(path: string, init: RequestInitWithJson = {}):
 
   const body = json ? JSON.stringify(json) : (requestInit.body ?? null);
 
-  const response = await fetch(buildApiUrl(path), {
-    ...requestInit,
-    headers,
-    body,
-  });
+  let response: Response;
+  try {
+    response = await fetch(buildApiUrl(path), {
+      ...requestInit,
+      headers,
+      body,
+    });
+  } catch (error) {
+    throw new ApiError(normalizeUserFacingError(error, 'Tidak bisa terhubung ke server. Pastikan internet aktif atau coba lagi beberapa saat.'), 0);
+  }
 
   if (!response.ok) {
     const message = await readErrorMessage(response);
@@ -329,6 +338,13 @@ export const updateInventoryItem = (id: string, payload: Record<string, unknown>
   apiFetch<InventoryItem>(`/api/inventory/${id}`, { method: 'PATCH', json: payload });
 export const removeInventoryItem = (id: string) =>
   apiFetch<{ success: boolean }>(`/api/inventory/${id}`, { method: 'DELETE' });
+export const createInventoryAdjustment = (payload: {
+  store_id: string;
+  inventory_id: string;
+  counted_stock: number;
+  reason: string;
+  note?: string | null;
+}) => apiFetch<InventoryItem>('/api/inventory/adjustments', { method: 'POST', json: payload });
 export const getStockUnitConversions = (storeId: string) =>
   apiFetch<ApiListResponse<StockUnitConversion>>(`/api/inventory/conversions?storeId=${encodeURIComponent(storeId)}`);
 export const createStockUnitConversion = (payload: Record<string, unknown>) =>
@@ -407,7 +423,7 @@ export const getSubscriptionPaymentQuote = (payload: {
 });
 
 export const trackOpsEventRequest = (payload: {
-  event_name: 'login' | 'checkout';
+  event_name: 'login' | 'checkout' | 'client_error' | 'printer_error' | 'sync_error';
   status: 'success' | 'failure';
   email?: string;
   store_id?: string;

@@ -87,9 +87,9 @@ const Toggle = ({ label, value, onChange, note }: ToggleProps) => (
       {note&&<p className="text-[10px] text-slate-400 font-bold mt-0.5 italic">{note}</p>}
     </div>
     <div
-      className={`w-12 h-6.5 rounded-full transition-all relative shrink-0 ${value?'bg-[#FF6A00] shadow-[0_0_15px_rgba(255,106,0,0.25)]':'bg-slate-200'}`}
+      className={`h-[26px] w-12 rounded-full transition-all relative shrink-0 ${value?'bg-[#FF6A00] shadow-[0_0_15px_rgba(255,106,0,0.25)]':'bg-slate-200'}`}
     >
-      <div className={`w-5.5 h-5.5 bg-white rounded-full absolute top-0.5 shadow-sm transition-all duration-300 ${value?'left-[24px]':'left-0.5'}`}/>
+      <div className={`h-[22px] w-[22px] bg-white rounded-full absolute top-0.5 shadow-sm transition-all duration-300 ${value?'left-[24px]':'left-0.5'}`}/>
     </div>
   </div>
 );
@@ -355,15 +355,15 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
   ];
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-white lg:bg-slate-50/50">
+    <div className="kaffe-responsive-surface flex-1 flex flex-col overflow-hidden bg-white lg:bg-slate-50/50">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 px-6 pt-6 pb-4">
-        <div className="flex items-center justify-between mb-4">
-          <div>
+      <div className="bg-white border-b border-slate-100 px-4 sm:px-6 pt-6 pb-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+          <div className="min-w-0">
             <h2 className="font-black text-xl text-slate-800 italic uppercase tracking-tighter">Pengaturan</h2>
             <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">Konfigurasi & Akun</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-3">
             {saving&&<div className="w-5 h-5 border-2 border-[#FF6A00] border-t-transparent rounded-full animate-spin"/>}
             {saved&&!saving&&<div className="flex items-center gap-1.5 text-emerald-500 text-[10px] font-black uppercase tracking-widest"><CheckCircle2 size={14}/>Tersimpan</div>}
             <button onClick={handleSaveNow} disabled={saving}
@@ -373,7 +373,7 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
           </div>
         </div>
         {saveErr&&<div className="flex items-center gap-2 bg-rose-50 border border-rose-100 rounded-2xl px-4 py-2.5 mb-3"><AlertCircle size={14} className="text-rose-500 shrink-0"/><p className="text-xs text-rose-700 font-bold">{saveErr}</p></div>}
-        <div className="flex gap-4 overflow-x-auto pb-1 no-scrollbar -mx-6 px-6 border-b border-slate-50">
+        <div className="kaffe-scroll-tabs kaffe-command-bar flex gap-4 overflow-x-auto pb-1 no-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6 border-b border-slate-50">
           {NAV.map(n=>(
             <button
               key={n.id}
@@ -422,7 +422,7 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
 
       <NotificationCenter isOpen={notifsOpen} onClose={() => { setNotifsOpen(false); setUnreadNotifs(0); }} />
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-3 lg:max-w-3xl lg:mx-auto lg:w-full">
+      <div className="flex-1 overflow-y-auto p-3 pb-[calc(0.75rem+64px+env(safe-area-inset-bottom,0px))] space-y-3 lg:max-w-3xl lg:mx-auto lg:w-full lg:pb-3">
 
         {/* ── BRAND ── */}
         {section==='brand'&&<>

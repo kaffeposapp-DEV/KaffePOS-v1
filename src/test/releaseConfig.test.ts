@@ -29,6 +29,36 @@ describe('frontend release config guardrails', () => {
     })).toBe('');
   });
 
+  it('blocks APK/mobile builds that still point to local development API hosts', () => {
+    const localhostResult = validateFrontendReleaseConfig({
+      releaseChannel: 'development',
+      apiBaseUrl: 'http://localhost:8787',
+      webBaseUrl: PRODUCTION_WEB_ORIGIN,
+      midtransEnvironment: 'sandbox',
+      clarityProjectId: '',
+      appTarget: 'mobile',
+    });
+
+    const emulatorResult = validateFrontendReleaseConfig({
+      releaseChannel: 'development',
+      apiBaseUrl: 'https://10.0.2.2:8787',
+      webBaseUrl: PRODUCTION_WEB_ORIGIN,
+      midtransEnvironment: 'sandbox',
+      clarityProjectId: '',
+      appTarget: 'mobile',
+    });
+
+    expect(localhostResult.ok).toBe(false);
+    expect(localhostResult.errors).toEqual(expect.arrayContaining([
+      expect.stringContaining('APK/mobile build tidak boleh memakai API lokal'),
+      expect.stringContaining('HTTPS'),
+    ]));
+    expect(emulatorResult.ok).toBe(false);
+    expect(emulatorResult.errors).toEqual(expect.arrayContaining([
+      expect.stringContaining('APK/mobile build tidak boleh memakai API lokal'),
+    ]));
+  });
+
   it('blocks production release configs that still point payment or API to sandbox/staging values', () => {
     const result = validateFrontendReleaseConfig({
       releaseChannel: 'production',
@@ -36,6 +66,7 @@ describe('frontend release config guardrails', () => {
       webBaseUrl: PRODUCTION_WEB_ORIGIN,
       midtransEnvironment: 'sandbox',
       clarityProjectId: '',
+      sentryDsn: '',
       appTarget: 'mobile',
     });
 
@@ -44,6 +75,7 @@ describe('frontend release config guardrails', () => {
       expect.stringContaining('VITE_API_BASE_URL'),
       expect.stringContaining('VITE_MIDTRANS_ENVIRONMENT'),
       expect.stringContaining('VITE_CLARITY_PROJECT_ID'),
+      expect.stringContaining('VITE_SENTRY_DSN'),
     ]));
   });
 
@@ -54,6 +86,7 @@ describe('frontend release config guardrails', () => {
       webBaseUrl: PRODUCTION_WEB_ORIGIN,
       midtransEnvironment: 'production',
       clarityProjectId: 'clarity-project',
+      sentryDsn: 'https://public@sentry.example/1',
       appTarget: 'web',
     });
 

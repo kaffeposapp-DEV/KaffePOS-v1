@@ -2,6 +2,41 @@
 
 Audit ini merangkum status akhir sistem KaffePOS v2 setelah migrasi data layer utama ke backend API + PostgreSQL production.
 
+## Status Terkini Terverifikasi — 5 Mei 2026
+
+Status komersial saat ini: **7/10**.
+
+Kesimpulan praktis:
+
+- Layak untuk `Pilot` terbatas dengan aktivasi manual dan monitoring harian.
+- Belum layak untuk `Commercial` / paid launch umum.
+- Jangan tambah fitur growth sebelum production readiness gate hijau.
+
+Hasil validasi terbaru:
+
+- Web production reachable.
+- API `/health` dan database production OK.
+- Email Resend terkonfigurasi.
+- `npm run smoke:production:readiness` masih gagal.
+- Backend audit bersih.
+- Frontend audit masih menemukan vulnerability high dari `@capacitor/cli@6.2.1 -> tar@6.2.1`.
+
+Blocker sebelum commercial:
+
+1. CORS production menolak origin APK final `https://localhost`.
+2. Midtrans production belum aktif; `/system-status` masih melaporkan `environment=sandbox`, `mode=midtrans_sandbox`, `commerciallyReady=false`.
+3. `subscription_payments=false`, sehingga payment subscription belum masuk sync matrix production.
+4. Backend error tracking production belum aktif.
+5. UAT lapangan P0 untuk device nyata, printer nyata, offline/reconnect, checkout race, dan stock integrity belum selesai.
+
+Gate berikutnya:
+
+```bash
+npm run smoke:production:readiness
+```
+
+Status lama di bawah ini dipertahankan sebagai histori audit pasca migrasi, tetapi tidak boleh dipakai sebagai status release terkini bila bertentangan dengan bagian "Status Terkini Terverifikasi".
+
 ## Ringkasan Arsitektur
 
 - Auth: backend internal + email verification + reset password

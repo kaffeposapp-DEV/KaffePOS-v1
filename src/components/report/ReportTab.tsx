@@ -108,7 +108,7 @@ function StatCard({ label, value, sub, icon, color='orange' }: { label:string; v
     red:'bg-rose-50 text-rose-600 border-rose-100'
   };
   return (
-    <div className="bg-white rounded-[28px] border border-slate-100 p-5 shadow-soft hover:shadow-premium transition-all group">
+    <div className="kaffe-action-card min-w-0 bg-white rounded-[28px] border border-slate-100 p-5 shadow-soft hover:shadow-premium transition-all group">
       <div className={`w-11 h-11 rounded-2xl flex items-center justify-center mb-4 border transition-transform group-hover:scale-110 ${cls[color] || cls.orange}`}>{icon}</div>
       <p className="font-black text-[18px] text-slate-800 leading-tight italic tracking-tighter">{value}</p>
       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">{label}</p>
@@ -369,14 +369,14 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
   const hasAnyReportData = filtered.length > 0 || filteredExp.length > 0 || filteredCR.length > 0;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-white lg:bg-slate-50/50">
-      <div className="bg-white border-b border-slate-100 px-6 pt-6 pb-4 z-10">
-        <div className="flex items-center justify-between mb-4">
-          <div>
+    <div className="kaffe-responsive-surface flex-1 flex flex-col overflow-hidden bg-white lg:bg-slate-50/50">
+      <div className="bg-white border-b border-slate-100 px-4 sm:px-6 pt-6 pb-4 z-10">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+          <div className="min-w-0">
             <h2 className="font-black text-xl text-slate-800 italic uppercase tracking-tighter">Laporan & Analitik</h2>
             <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">Performa Bisnis Realtime</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <button
               onClick={() => setShowCashRegisterModal(true)}
               title="Edit saldo kasir"
@@ -398,7 +398,7 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
             </button>
           </div>
         </div>
-        <div className="flex gap-6 overflow-x-auto no-scrollbar -mx-6 px-6 border-b border-slate-50">
+        <div className="kaffe-scroll-tabs kaffe-command-bar flex gap-6 overflow-x-auto no-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6 border-b border-slate-50">
           {PERIODS.map((p) => {
             const locked = p.requiresAdvanced && !canUseAdvancedPeriods;
             const active = period === p.id;
@@ -428,7 +428,7 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
 
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {!hasAnyReportData && (
-          <div className="bg-white rounded-[32px] border border-dashed border-slate-200 p-10 text-center shadow-soft">
+          <div className="kaffe-empty-state bg-white rounded-[32px] border border-dashed border-slate-200 p-10 text-center shadow-soft">
             <div className="w-20 h-20 bg-slate-50 rounded-[32px] flex items-center justify-center mx-auto mb-6 text-slate-200">
                <Receipt size={40} />
             </div>
@@ -439,7 +439,7 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
           </div>
         )}
         {/* KPI */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
+        <div className="kaffe-card-grid grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
           <StatCard label="Pendapatan" value={fRp(totalRevenue)} sub={`${filtered.length} transaksi`} icon={<DollarSign size={20}/>} color="orange"/>
           <StatCard label="Laba Bersih" value={fRp(netProfit)} sub={`Margin ${grossMargin}%`} icon={<TrendingUp size={20}/>} color={netProfit>=0?'green':'red'}/>
 

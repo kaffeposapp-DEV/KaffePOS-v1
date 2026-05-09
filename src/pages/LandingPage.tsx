@@ -885,26 +885,26 @@ export default function LandingPage() {
 
       {/* Download Warning Modal */}
       {showDownloadWarning && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-10">
+        <div className="kaffe-modal-overlay fixed inset-0 z-[100] flex justify-center">
            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-300" onClick={() => setShowDownloadWarning(false)} />
-           <div className="relative bg-white border border-slate-100 p-10 md:p-12 rounded-[50px] max-w-[540px] w-full shadow-premium animate-in zoom-in slide-in-from-bottom-10 duration-500">
-              <div className="w-24 h-24 bg-[#FF6A00]/5 rounded-[32px] flex items-center justify-center mb-10 mx-auto border border-[#FF6A00]/10">
+           <div className="kaffe-modal-panel kaffe-modal-scroll relative w-full bg-white border border-slate-100 p-6 sm:p-8 md:p-10 shadow-premium animate-in zoom-in slide-in-from-bottom-10 duration-500 [--kaffe-modal-max-width:540px]">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#FF6A00]/5 rounded-2xl flex items-center justify-center mb-6 sm:mb-8 mx-auto border border-[#FF6A00]/10">
                  <Lock size={48} style={{ color: BRAND_ACCENT }} />
               </div>
-              <h3 className="text-4xl md:text-5xl font-black text-slate-900 text-center mb-6 italic leading-tight uppercase tracking-tighter">PERLU PENDAFTARAN. 🛡️</h3>
-              <p className="text-slate-500 text-lg md:text-xl text-center mb-10 font-medium leading-relaxed">
+              <h3 className="kaffe-safe-text text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 text-center mb-4 sm:mb-5 italic leading-tight uppercase">PERLU PENDAFTARAN</h3>
+              <p className="kaffe-safe-text text-slate-500 text-sm sm:text-base md:text-lg text-center mb-6 sm:mb-8 font-medium leading-relaxed">
                  Fitur unduh APK hanya tersedia untuk pemilik outlet terdaftar guna menjaga keamanan dan lisensi Dashboard Anda.
               </p>
               <div className="flex flex-col gap-4">
                  <button
                    onClick={() => navigate('/register')}
-                   className="w-full bg-[#FF6A00] text-white py-6 rounded-[24px] font-black text-xl shadow-premium hover:scale-[1.02] transition-all uppercase italic"
+                   className="w-full bg-[#FF6A00] text-white py-4 sm:py-5 rounded-2xl font-black text-sm sm:text-base shadow-premium hover:scale-[1.02] transition-all uppercase italic"
                  >
                    Daftar Gratis Sekarang
                  </button>
                  <button
                    onClick={() => setShowDownloadWarning(false)}
-                   className="w-full bg-slate-50 text-slate-400 py-6 rounded-[24px] font-black text-lg hover:bg-slate-100 transition-all uppercase tracking-widest"
+                   className="w-full bg-slate-50 text-slate-400 py-4 sm:py-5 rounded-2xl font-black text-sm hover:bg-slate-100 transition-all uppercase tracking-widest"
                  >
                    Nanti Saja
                  </button>
@@ -915,12 +915,12 @@ export default function LandingPage() {
 
       {/* Feature Intelligence Detail Overlay */}
       {isFeatureDetailOpen && selectedFeature && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 md:p-10">
+        <div className="kaffe-modal-overlay fixed inset-0 z-[110] flex justify-center">
            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-500" onClick={() => setIsFeatureDetailOpen(false)} />
 
-           <div className="relative bg-white border border-slate-100 rounded-[60px] max-w-[900px] w-full max-h-[90vh] overflow-hidden shadow-premium animate-in zoom-in slide-in-from-bottom-20 duration-700 flex flex-col md:flex-row">
+           <div className="kaffe-modal-panel kaffe-modal-scroll relative bg-white border border-slate-100 w-full shadow-premium animate-in zoom-in slide-in-from-bottom-20 duration-700 flex flex-col md:flex-row [--kaffe-modal-max-width:900px]">
               {/* Left Side: Visual/Metric */}
-              <div className={`md:w-1/2 p-12 flex flex-col items-center justify-center relative overflow-hidden bg-slate-50`}>
+              <div className={`md:w-1/2 p-6 sm:p-8 md:p-10 flex flex-col items-center justify-center relative overflow-hidden bg-slate-50`}>
                  <div className="absolute inset-0 opacity-5">
                     <div className="absolute top-0 right-0 w-96 h-96 bg-[#FF6A00] blur-[150px] rounded-full" />
                  </div>
@@ -930,47 +930,48 @@ export default function LandingPage() {
                     const DetailIcon = detail?.icon || HelpCircle;
                     return (
                        <div className="relative z-10 text-center">
-                          <div className={`w-32 h-32 rounded-[40px] flex items-center justify-center mx-auto mb-10 shadow-premium bg-white border border-[#FF6A00]/10 text-[#FF6A00] animate-bounce duration-[4000ms]`}>
-                             <DetailIcon size={64} strokeWidth={1.5} />
+                          <div className={`w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-2xl sm:rounded-[28px] flex items-center justify-center mx-auto mb-6 sm:mb-8 shadow-premium bg-white border border-[#FF6A00]/10 text-[#FF6A00] animate-bounce duration-[4000ms]`}>
+                             <DetailIcon size={52} strokeWidth={1.5} />
                           </div>
-                          <div className="text-[12px] font-black uppercase tracking-[0.6em] text-slate-400 mb-4 opacity-60">{detail.stats.metric}</div>
-                          <div className="text-7xl font-black text-slate-900 italic tracking-tighter mb-2">{detail.stats.value}</div>
-                          <div className="w-16 h-1.5 bg-[#FF6A00] mx-auto rounded-full mt-8" />
+                          <div className="kaffe-safe-text text-[10px] sm:text-[11px] font-black uppercase tracking-[0.24em] sm:tracking-[0.42em] text-slate-400 mb-3 opacity-60">{detail.stats.metric}</div>
+                          <div className="kaffe-safe-text text-4xl sm:text-5xl md:text-6xl font-black text-slate-900 italic leading-none mb-2">{detail.stats.value}</div>
+                          <div className="w-14 h-1.5 bg-[#FF6A00] mx-auto rounded-full mt-6" />
                        </div>
                     );
                  })()}
               </div>
 
               {/* Right Side: Logic/Content */}
-              <div className="md:w-1/2 p-12 md:p-16 overflow-y-auto bg-white">
+              <div className="md:w-1/2 p-6 sm:p-8 md:p-12 bg-white">
                  <button
                    onClick={() => setIsFeatureDetailOpen(false)}
-                   className="absolute top-8 right-8 text-slate-400 hover:text-slate-900 transition-colors"
+                   className="absolute top-4 right-4 sm:top-6 sm:right-6 text-slate-400 hover:text-slate-900 transition-colors"
+                   aria-label="Tutup detail fitur"
                  >
-                    <X size={32} />
+                    <X size={24} />
                  </button>
 
-                 <h3 className="text-4xl md:text-5xl font-black text-slate-900 mb-8 tracking-tighter italic leading-none uppercase">
+                 <h3 className="kaffe-safe-text pr-10 text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 mb-5 sm:mb-6 italic leading-tight uppercase">
                     {selectedFeature.title}
                  </h3>
 
-                 <p className="text-slate-500 text-[18px] md:text-[20px] font-medium leading-relaxed mb-12">
+                 <p className="kaffe-safe-text text-slate-500 text-sm sm:text-base md:text-lg font-medium leading-relaxed mb-8 sm:mb-10">
                     {getFeatureDetail(selectedFeature.title).details}
                  </p>
 
-                 <div className="space-y-6">
-                    <h4 className="text-[11px] font-black text-[#FF6A00] uppercase tracking-[0.5em] mb-4">Technical Advantage</h4>
+                 <div className="space-y-4 sm:space-y-5">
+                    <h4 className="kaffe-safe-text text-[10px] sm:text-[11px] font-black text-[#FF6A00] uppercase tracking-[0.28em] sm:tracking-[0.42em] mb-4">Technical Advantage</h4>
                     {getFeatureDetail(selectedFeature.title).highlights.map((h: string, idx: number) => (
-                       <div key={idx} className="flex items-center gap-5 group/item">
-                          <div className="w-2 h-2 rounded-full bg-[#FF6A00] group-hover/item:scale-150 transition-transform" />
-                          <span className="text-slate-900 font-black text-[16px] tracking-tight group-hover/item:text-[#FF6A00] transition-colors italic uppercase">{h}</span>
+                       <div key={idx} className="flex items-start gap-4 group/item">
+                          <div className="mt-2 w-2 h-2 shrink-0 rounded-full bg-[#FF6A00] group-hover/item:scale-150 transition-transform" />
+                          <span className="kaffe-safe-text text-slate-900 font-black text-sm sm:text-[15px] tracking-tight group-hover/item:text-[#FF6A00] transition-colors italic uppercase">{h}</span>
                        </div>
                     ))}
                  </div>
 
                  <button
                    onClick={() => setIsFeatureDetailOpen(false)}
-                   className="mt-16 w-full py-6 rounded-[24px] bg-slate-50 border border-slate-100 text-slate-500 font-black hover:bg-slate-100 transition-all uppercase tracking-widest italic"
+                   className="mt-10 sm:mt-12 w-full py-4 sm:py-5 rounded-2xl bg-slate-50 border border-slate-100 text-slate-500 font-black hover:bg-slate-100 transition-all uppercase tracking-[0.18em] sm:tracking-widest italic text-xs sm:text-sm"
                  >
                     Kembali Ke Welcome Page
                  </button>
@@ -981,65 +982,66 @@ export default function LandingPage() {
 
       {/* Safe Detail Overlay - Legal & Advisory */}
       {isSafeDetailOpen && selectedSafeItem && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 md:p-10">
+        <div className="kaffe-modal-overlay fixed inset-0 z-[110] flex justify-center">
            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-500" onClick={() => setIsSafeDetailOpen(false)} />
 
-           <div className="relative bg-white border border-slate-100 rounded-[60px] max-w-[800px] w-full max-h-[85vh] overflow-hidden shadow-premium animate-in zoom-in slide-in-from-bottom-20 duration-700 flex flex-col">
+           <div className="kaffe-modal-panel relative bg-white border border-slate-100 w-full shadow-premium animate-in zoom-in slide-in-from-bottom-20 duration-700 flex flex-col [--kaffe-modal-max-width:800px]">
               {/* Header Box */}
-              <div className="p-12 md:p-16 bg-slate-50 border-b border-slate-100 relative">
+              <div className="p-6 sm:p-8 md:p-12 bg-slate-50 border-b border-slate-100 relative">
                  <button
                    onClick={() => setIsSafeDetailOpen(false)}
-                   className="absolute top-8 right-8 text-slate-400 hover:text-slate-900 transition-colors"
+                   className="absolute top-4 right-4 sm:top-6 sm:right-6 text-slate-400 hover:text-slate-900 transition-colors"
+                   aria-label="Tutup dokumen keamanan"
                  >
-                    <X size={32} />
+                    <X size={24} />
                  </button>
 
-                 <div className="flex items-center gap-8 mb-8">
+                 <div className="flex items-start gap-4 sm:gap-6 mb-6 pr-10">
                     {(() => {
                        const item = SAFE_CONTENT[selectedSafeItem];
                        const ItemIcon = item?.icon || Shield;
                        return (
-                          <div className="w-20 h-20 rounded-[28px] bg-white border border-slate-100 shadow-soft flex items-center justify-center text-[#FF6A00]">
-                             <ItemIcon size={40} />
+                          <div className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 rounded-2xl bg-white border border-slate-100 shadow-soft flex items-center justify-center text-[#FF6A00]">
+                             <ItemIcon size={32} />
                           </div>
                        );
                     })()}
-                    <div>
-                       <h3 className="text-4xl md:text-5xl font-black text-slate-900 italic tracking-tighter uppercase leading-none">
+                    <div className="min-w-0">
+                       <h3 className="kaffe-safe-text text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 italic uppercase leading-tight">
                           {selectedSafeItem}
                        </h3>
-                       <p className="text-[#FF6A00] font-black text-[12px] uppercase tracking-[0.5em] mt-3 italic">Kebijakan & Keamanan</p>
+                       <p className="kaffe-safe-text text-[#FF6A00] font-black text-[10px] sm:text-[11px] uppercase tracking-[0.24em] sm:tracking-[0.36em] mt-2 italic">Kebijakan & Keamanan</p>
                     </div>
                  </div>
 
-                 <p className="text-slate-500 text-lg md:text-xl font-medium leading-relaxed max-w-2xl">
+                 <p className="kaffe-safe-text text-slate-500 text-sm sm:text-base md:text-lg font-medium leading-relaxed max-w-2xl">
                     {SAFE_CONTENT[selectedSafeItem]?.description}
                  </p>
               </div>
 
               {/* Scrollable Content Area */}
-              <div className="flex-1 overflow-y-auto p-12 md:p-16 bg-white">
-                 <div className="space-y-12">
+              <div className="kaffe-modal-scroll flex-1 p-6 sm:p-8 md:p-12 bg-white">
+                 <div className="space-y-8 sm:space-y-10">
                     {SAFE_CONTENT[selectedSafeItem]?.points.map((p, idx: number) => (
                        <div key={idx} className="group/safe-item">
-                          <div className="flex items-center gap-5 mb-4">
+                          <div className="flex items-start gap-4 mb-3">
                              <div className="w-6 h-[2.5px] bg-[#FF6A00]/30 group-hover/safe-item:w-10 group-hover/safe-item:bg-[#FF6A00] transition-all" />
-                             <h4 className="text-slate-900 font-black text-xl italic uppercase tracking-tight group-hover/safe-item:text-[#FF6A00] transition-colors">
+                             <h4 className="kaffe-safe-text text-slate-900 font-black text-base sm:text-lg italic uppercase tracking-tight group-hover/safe-item:text-[#FF6A00] transition-colors">
                                 {p.title}
                              </h4>
                           </div>
-                          <p className="text-slate-500 text-lg leading-relaxed ml-11 font-medium">
+                          <p className="kaffe-safe-text text-slate-500 text-sm sm:text-base leading-relaxed sm:ml-10 font-medium">
                              {p.detail}
                           </p>
                        </div>
                     ))}
                  </div>
 
-                 <div className="mt-20 pt-12 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-8">
-                    <div className="text-slate-400 text-sm font-black italic tracking-widest uppercase">Platform Internal Audit &bull; 2026</div>
+                 <div className="mt-12 sm:mt-16 pt-8 sm:pt-10 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-5 sm:gap-6">
+                    <div className="kaffe-safe-text text-center md:text-left text-slate-400 text-xs sm:text-sm font-black italic tracking-widest uppercase">Platform Internal Audit &bull; 2026</div>
                     <button
                       onClick={() => setIsSafeDetailOpen(false)}
-                      className="px-12 py-5 rounded-[20px] bg-slate-50 text-slate-500 font-black text-sm hover:bg-slate-100 transition-all uppercase tracking-[0.3em] italic border border-slate-100"
+                      className="w-full md:w-auto px-8 sm:px-10 py-4 rounded-2xl bg-slate-50 text-slate-500 font-black text-xs sm:text-sm hover:bg-slate-100 transition-all uppercase tracking-[0.2em] sm:tracking-[0.28em] italic border border-slate-100"
                     >
                        Tutup Dokumen
                     </button>

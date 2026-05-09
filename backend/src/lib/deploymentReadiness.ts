@@ -1,3 +1,9 @@
+import {
+  PRODUCTION_API_ORIGIN,
+  PRODUCTION_WEB_ORIGIN,
+  splitCorsOrigins,
+} from './corsOrigins';
+
 export type BackendDeploymentValidationInput = {
   nodeEnv: 'development' | 'test' | 'production' | string;
   webBaseUrl: string;
@@ -10,6 +16,7 @@ export type BackendDeploymentValidationInput = {
   midtransMerchantId?: string | null;
   resendApiKey?: string | null;
   resendFromEmail?: string | null;
+  sentryDsn?: string | null;
 };
 
 export type BackendDeploymentValidationResult = {
@@ -18,17 +25,10 @@ export type BackendDeploymentValidationResult = {
   warnings: string[];
 };
 
-const PRODUCTION_WEB_ORIGIN = 'https://kaffepos.my.id';
-const PRODUCTION_API_ORIGIN = 'https://api.kaffepos.my.id';
-
-function splitOrigins(value?: string | null) {
-  return new Set((value || '').split(',').map((entry) => entry.trim()).filter(Boolean));
-}
-
 export function validateBackendDeploymentConfig(input: BackendDeploymentValidationInput): BackendDeploymentValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
-  const corsOrigins = splitOrigins(input.corsOrigin);
+  const corsOrigins = new Set(splitCorsOrigins(input.corsOrigin));
   const isProduction = input.nodeEnv === 'production';
 
   if (isProduction) {
@@ -47,6 +47,10 @@ export function validateBackendDeploymentConfig(input: BackendDeploymentValidati
     warnings.push('Resend belum lengkap; email register/reset/payment tidak akan terkirim.');
   }
 
+  if (isProduction && !input.sentryDsn) {
+    errors.push('SENTRY_DSN wajib diisi untuk error tracking backend production.');
+  }
+
   if (input.midtransSnapEnabled && (!input.midtransServerKey || !input.midtransMerchantId)) {
     warnings.push('Midtrans Snap aktif tetapi server key atau merchant id belum lengkap.');
   }
@@ -57,6 +61,14 @@ export function validateBackendDeploymentConfig(input: BackendDeploymentValidati
 
   if (!corsOrigins.has('capacitor://localhost')) {
     warnings.push('CORS_ORIGIN belum memuat capacitor://localhost untuk APK.');
+  }
+
+  if (!corsOrigins.has('http://localhost')) {
+    warnings.push('CORS_ORIGIN belum memuat http://localhost untuk APK Android lama/transisi.');
+  }
+
+  if (!corsOrigins.has('https://localhost')) {
+    warnings.push('CORS_ORIGIN belum memuat https://localhost untuk APK Android final dengan androidScheme=https.');
   }
 
   if (input.subscriptionPaymentMode === 'midtrans_sandbox' && isProduction) {

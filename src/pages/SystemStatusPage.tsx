@@ -100,7 +100,7 @@ export default function SystemStatusPage() {
               {[
                 { label: 'Backend', ok: status.checks.backend.ok, detail: status.service },
                 { label: 'Database', ok: status.checks.database.ok, detail: `${status.checks.database.latencyMs ?? '-'} ms` },
-                { label: 'Email', ok: status.checks.email.ok, detail: status.checks.email.fromEmail || 'Belum dikonfigurasi' },
+                { label: 'Email', ok: status.checks.email.ok, detail: status.checks.email.fromEmail || (status.checks.email.ok ? 'Aktif' : 'Belum dikonfigurasi') },
                 {
                   label: 'Payment',
                   ok: status.checks.payment.commerciallyReady ?? status.checks.payment.ok,

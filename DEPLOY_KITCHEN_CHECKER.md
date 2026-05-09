@@ -105,7 +105,7 @@ LOG_LEVEL=info
 
 WEB_BASE_URL=https://kaffepos.my.id
 API_BASE_URL=https://api.kaffepos.my.id
-CORS_ORIGIN=https://kaffepos.my.id,https://www.kaffepos.my.id,https://api.kaffepos.my.id,capacitor://localhost,http://localhost
+CORS_ORIGIN=https://kaffepos.my.id,https://www.kaffepos.my.id,https://api.kaffepos.my.id,capacitor://localhost,https://localhost,http://localhost
 
 DB_HOST=kaffepos-postgres
 DB_PORT=5432

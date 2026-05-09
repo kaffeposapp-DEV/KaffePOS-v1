@@ -4,6 +4,19 @@ dist/
 .env.*
 .agent/
 android/
+!android/
+android/*
+!android/app/
+android/app/*
+!android/app/src/
+android/app/src/*
+!android/app/src/main/
+android/app/src/main/*
+!android/app/src/main/res/
+android/app/src/main/res/*
+!android/app/src/main/res/xml/
+android/app/src/main/res/xml/*
+!android/app/src/main/res/xml/network_security_config.xml
 ios/
 *.jks
 *.keystore
@@ -13,6 +26,8 @@ google-services.json
 android/app/google-services.json
 .DS_Store
 coverage/
+backups/*.sql
+public/downloads/*.apk
 # Optional: Keep these for convenience
 .vscode/
 *.swp

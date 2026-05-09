@@ -77,8 +77,8 @@ async function request(path, options = {}) {
   return data;
 }
 
-async function login(email, password) {
-  return request('/api/auth/login', {
+async function login(email, password, path = '/api/auth/login') {
+  return request(path, {
     method: 'POST',
     json: { email, password },
   });
@@ -98,10 +98,10 @@ async function main() {
   assert(status?.checks?.database?.ok === true, 'Database staging belum sehat menurut /system-status.');
   pass('API and PostgreSQL health');
 
-  const ownerSession = await login(ownerEmail, ownerPassword);
+  const ownerSession = await login(ownerEmail, ownerPassword, '/api/v1/auth/login');
   const ownerToken = ownerSession.accessToken;
   assert(ownerSession.profile?.role === 'owner_admin', 'Akun smoke harus role owner_admin.');
-  pass('owner/admin login');
+  pass('owner/admin login through API v1 auth alias');
 
   const stores = await request('/api/stores', { token: ownerToken });
   const store = stores.items?.[0] || null;
@@ -174,6 +174,16 @@ async function main() {
     token: ownerToken,
     json: checkoutPayload,
   });
+  const versionedTransactions = await request(`/api/v1/transactions?storeId=${encodeURIComponent(store.id)}&limit=5`, {
+    token: ownerToken,
+  });
+  assert(
+    (versionedTransactions.items || []).some((entry) => entry.id === transactionId),
+    'API v1 transactions alias tidak menampilkan transaksi smoke.',
+  );
+  assert(versionedTransactions.pagination?.limit === 5, 'API v1 transactions alias tidak membawa pagination metadata.');
+  pass('API v1 protected transaction alias and pagination');
+
   inventory = await request(`/api/inventory?storeId=${encodeURIComponent(store.id)}`, { token: ownerToken });
   let stockAfterCheckout = Number(findByName(inventory.items, ingredientName)?.stock);
   assert(stockAfterCheckout === 750, `Checkout harus memotong stok menjadi 750, dapat ${stockAfterCheckout}.`);
@@ -202,6 +212,23 @@ async function main() {
   const stockAfterVoid = Number(findByName(inventory.items, ingredientName)?.stock);
   assert(stockAfterVoid === 1000, `Void smoke harus restore stok menjadi 1000, dapat ${stockAfterVoid}.`);
   pass('void restores stock after smoke checkout');
+
+  const countedStock = 930;
+  await request('/api/inventory/adjustments', {
+    method: 'POST',
+    token: ownerToken,
+    json: {
+      store_id: store.id,
+      inventory_id: ingredient.id,
+      counted_stock: countedStock,
+      reason: 'Opname smoke staging',
+      note: `run ${runId}`,
+    },
+  });
+  inventory = await request(`/api/inventory?storeId=${encodeURIComponent(store.id)}`, { token: ownerToken });
+  const stockAfterOpname = Number(findByName(inventory.items, ingredientName)?.stock);
+  assert(stockAfterOpname === countedStock, `Opname smoke harus menyimpan stok ${countedStock}, dapat ${stockAfterOpname}.`);
+  pass('stock opname adjustment persists through API');
 
   menu = await request(`/api/menu-items?storeId=${encodeURIComponent(store.id)}`, { token: ownerToken });
   assert(findByName(menu.items, productName)?.id === product.id, 'Produk smoke hilang setelah checkout/void.');
