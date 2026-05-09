@@ -850,7 +850,7 @@ export default function LandingPage() {
         <section id="pricing" className="px-5 pb-16 sm:px-6 md:pb-20">
           <div className="kaffe-cta-band mx-auto grid max-w-7xl items-center gap-8 rounded-[24px] p-6 md:grid-cols-[0.45fr_1fr_0.45fr] md:p-8">
             <div className="hidden md:block">
-              <div className="mx-auto flex h-36 w-44 items-center justify-center rounded-[22px] border border-white/30 bg-white/92 shadow-[0_16px_40px_rgba(31,41,51,0.12)]">
+              <div className="kaffe-cta-logo-card mx-auto flex h-36 w-44 items-center justify-center rounded-[22px] border border-white bg-white shadow-[0_16px_40px_rgba(31,41,51,0.12)]">
                 <img src={LOGO_ICON} alt="KaffePOS checkout terminal" className="h-16 w-16" />
               </div>
             </div>

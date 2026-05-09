@@ -62,7 +62,10 @@ describe('KaffePOS reference experience', () => {
     expect(screen.getByText(/Mudah digunakan/i)).toBeInTheDocument();
     const previewStage = screen.getByTestId('auth-preview-stage');
     expect(within(previewStage).getAllByTestId('auth-preview-card')).toHaveLength(3);
-    expect(within(previewStage).getByAltText(/Preview dashboard KaffePOS/i)).toBeInTheDocument();
+    expect(within(previewStage).getAllByTestId('auth-preview-card-icon')).toHaveLength(3);
+    expect(within(previewStage).getByText(/Dashboard live/i)).toBeInTheDocument();
+    expect(within(previewStage).getByText(/Brand outlet/i)).toBeInTheDocument();
+    expect(within(previewStage).getByText(/Lisensi sinkron/i)).toBeInTheDocument();
     expect(screen.getByTestId('auth-mobile-preview-strip')).toBeInTheDocument();
     expect(screen.getAllByText(/Sinkronisasi outlet/i).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /^Masuk$/i })).toBeInTheDocument();
@@ -90,5 +93,31 @@ describe('KaffePOS reference experience', () => {
     expect(screen.getByLabelText(/Nama Bisnis/i)).toHaveAttribute('aria-describedby', 'auth-uname-error');
     expect(screen.getByLabelText(/Email atau No. HP/i)).toHaveAttribute('aria-describedby', 'auth-email-error');
     expect(screen.getByLabelText(/^Password$/i)).toHaveAttribute('aria-describedby', 'auth-pass-error');
+  });
+
+  it('lets users return from OTP verification to the registration form', async () => {
+    mocks.auth.signUp.mockResolvedValueOnce({ error: null });
+
+    render(
+      <MemoryRouter initialEntries={['/register']}>
+        <AuthPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(await screen.findByLabelText(/Nama Bisnis/i), { target: { value: 'Kopi Senja' } });
+    fireEvent.change(screen.getByLabelText(/Email atau No. HP/i), { target: { value: 'owner@kaffepos.test' } });
+    fireEvent.change(screen.getByLabelText(/^Password$/i), { target: { value: 'Password123' } });
+    fireEvent.click(screen.getByRole('button', { name: /Daftar Gratis/i }));
+
+    expect(await screen.findByRole('heading', { name: /Verifikasi/i })).toBeInTheDocument();
+    const backButton = screen.getByRole('button', { name: /Kembali ke form daftar/i });
+    expect(backButton).toBeInTheDocument();
+
+    fireEvent.click(backButton);
+
+    expect(await screen.findByRole('heading', { name: /Buat Akun Gratis/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Nama Bisnis/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Email atau No. HP/i)).toHaveValue('owner@kaffepos.test');
+    expect(screen.getByLabelText(/^Password$/i)).toHaveValue('');
   });
 });

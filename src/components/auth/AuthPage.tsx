@@ -12,19 +12,19 @@ import {
   Eye,
   EyeOff,
   Lock,
+  MonitorSmartphone,
+  Palette,
   RefreshCw,
   Shield,
   ShieldCheck,
   Store,
   Zap,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthMode, getAuthModeFromLocation, getAuthPathForMode } from '@/utils/authFlow';
 import { getPasswordResetParams } from '@/utils/authFlow';
-import APP_PREVIEW from '@/assets/app-preview.jpg';
 import LOGO_ICON from '@/assets/logo-kaffeposappicon.svg';
-import BRAND_PREVIEW from '@/assets/preview-brand.jpg';
-import LICENSE_PREVIEW from '@/assets/preview-license.jpg';
 
 const brandHighlights = [
   {
@@ -54,24 +54,38 @@ const authPreviewCards = [
     title: 'Dashboard live',
     label: 'Web & APK',
     copy: 'Pantau penjualan dan laporan dari semua device.',
-    image: APP_PREVIEW,
-    alt: 'Preview dashboard KaffePOS',
+    icon: MonitorSmartphone,
+    supportIcon: BarChart3,
+    accent: 'from-sky-50 via-white to-orange-50 text-sky-700 ring-sky-100',
+    supportAccent: 'bg-orange-500 text-white',
   },
   {
     title: 'Brand outlet',
     label: 'Pengaturan',
     copy: 'Identitas toko, printer, dan pengguna tetap rapi.',
-    image: BRAND_PREVIEW,
-    alt: 'Preview pengaturan brand KaffePOS',
+    icon: Store,
+    supportIcon: Palette,
+    accent: 'from-orange-50 via-white to-amber-50 text-[#FF6A00] ring-orange-100',
+    supportAccent: 'bg-slate-900 text-white',
   },
   {
     title: 'Lisensi sinkron',
     label: 'Billing',
     copy: 'Paket dan masa aktif mudah dicek tanpa berpindah aplikasi.',
-    image: LICENSE_PREVIEW,
-    alt: 'Preview lisensi KaffePOS',
+    icon: ShieldCheck,
+    supportIcon: RefreshCw,
+    accent: 'from-emerald-50 via-white to-orange-50 text-emerald-700 ring-emerald-100',
+    supportAccent: 'bg-emerald-500 text-white',
   },
-];
+] satisfies Array<{
+  title: string;
+  label: string;
+  copy: string;
+  icon: LucideIcon;
+  supportIcon: LucideIcon;
+  accent: string;
+  supportAccent: string;
+}>;
 
 export default function AuthPage() {
   const { signIn, signUp, resetPassword, updatePassword, resendVerification, verifyEmailCode, isAuthenticated } = useAuth();
@@ -240,6 +254,18 @@ export default function AuthPage() {
       setConfirming(false);
     }
   }, [email, verificationCode, verifyEmailCode, switchMode]);
+
+  const handleCancelVerification = useCallback(() => {
+    setRegistered(false);
+    setVerificationCode('');
+    setErr('');
+    setOk('');
+    setPass('');
+    setConfirmPass('');
+    setResendCooldown(0);
+    localStorage.removeItem('kaffepos_registered_email');
+    sessionStorage.removeItem('kaffepos_registered_email');
+  }, []);
 
   const submit = async () => {
     setErr('');
@@ -436,28 +462,35 @@ export default function AuthPage() {
               </div>
 
               <div className="relative z-10 mt-4 grid grid-cols-3 gap-2.5">
-                {authPreviewCards.map((card, index) => (
-                  <article
-                    key={card.title}
-                    data-testid="auth-preview-card"
-                    className="kaffe-preview-card kaffe-float-soft"
-                    style={{ animationDelay: `${index * -1.35}s` }}
-                  >
-                    <div className="overflow-hidden rounded-[16px] border border-slate-100 bg-white shadow-sm">
-                      <img
-                        src={card.image}
-                        alt={card.alt}
-                        className="h-28 w-full object-cover object-top"
-                        loading={index === 0 ? 'eager' : 'lazy'}
-                      />
-                    </div>
-                    <div className="mt-3 min-w-0">
-                      <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#FF6A00]">{card.label}</p>
-                      <h3 className="mt-1 truncate text-[13px] font-extrabold text-slate-900">{card.title}</h3>
-                      <p className="mt-1 hidden text-[11px] font-medium leading-5 text-slate-500 2xl:block">{card.copy}</p>
-                    </div>
-                  </article>
-                ))}
+                {authPreviewCards.map((card, index) => {
+                  const Icon = card.icon;
+                  const SupportIcon = card.supportIcon;
+                  return (
+                    <article
+                      key={card.title}
+                      data-testid="auth-preview-card"
+                      className="kaffe-preview-card kaffe-float-soft"
+                      style={{ animationDelay: `${index * -1.35}s` }}
+                    >
+                      <div className="kaffe-preview-icon-panel flex h-28 w-full items-center justify-center rounded-[16px] border border-orange-100 bg-white shadow-sm">
+                        <div
+                          data-testid="auth-preview-card-icon"
+                          className={`relative z-10 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br shadow-sm ring-1 ${card.accent}`}
+                        >
+                          <Icon size={30} strokeWidth={2.35} aria-hidden="true" />
+                          <span className={`absolute -bottom-1.5 -right-1.5 flex h-7 w-7 items-center justify-center rounded-xl border-2 border-white shadow-sm ${card.supportAccent}`}>
+                            <SupportIcon size={14} strokeWidth={2.7} aria-hidden="true" />
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mt-3 min-w-0">
+                        <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#FF6A00]">{card.label}</p>
+                        <h3 className="mt-1 truncate text-[13px] font-extrabold text-slate-900">{card.title}</h3>
+                        <p className="mt-1 hidden text-[11px] font-medium leading-5 text-slate-500 2xl:block">{card.copy}</p>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             </div>
 
@@ -489,12 +522,21 @@ export default function AuthPage() {
             </div>
 
             <div data-testid="auth-mobile-preview-strip" className="kaffe-mobile-preview-strip lg:hidden" aria-label="Preview fitur KaffePOS">
-              {authPreviewCards.map((card, index) => (
-                <div key={card.title} className="kaffe-mobile-preview-card kaffe-float-soft" style={{ animationDelay: `${index * -1.2}s` }}>
-                  <img src={card.image} alt="" aria-hidden="true" className="h-16 w-full rounded-xl object-cover object-top" loading="lazy" />
-                  <span>{index === 0 ? 'Sinkronisasi outlet' : card.title}</span>
-                </div>
-              ))}
+              {authPreviewCards.map((card, index) => {
+                const Icon = card.icon;
+                const SupportIcon = card.supportIcon;
+                return (
+                  <div key={card.title} className="kaffe-mobile-preview-card kaffe-float-soft" style={{ animationDelay: `${index * -1.2}s` }}>
+                    <div className={`kaffe-mobile-preview-icon bg-gradient-to-br ${card.accent}`}>
+                      <Icon size={22} strokeWidth={2.4} aria-hidden="true" />
+                      <span className={`kaffe-mobile-preview-badge ${card.supportAccent}`}>
+                        <SupportIcon size={11} strokeWidth={2.7} aria-hidden="true" />
+                      </span>
+                    </div>
+                    <span>{card.title}</span>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="kaffe-panel min-w-0 rounded-[24px] p-6 sm:p-7 relative transition-all duration-300 hover:border-[#FF6A00]/20">
@@ -597,6 +639,16 @@ export default function AuthPage() {
 
               {registered ? (
                 <div className="space-y-6 animate-in slide-up">
+                  <button
+                    type="button"
+                    onClick={handleCancelVerification}
+                    aria-label="Kembali ke form daftar"
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-orange-100 bg-orange-50 px-4 text-[12px] font-black uppercase tracking-widest text-[#9A3412] transition-all hover:border-[#FF6A00]/40 hover:bg-orange-100"
+                  >
+                    <ArrowLeft size={16} aria-hidden="true" />
+                    Kembali
+                  </button>
+
                   <div className="space-y-3 pb-2 pt-2">
                     <div className="kaffe-otp-grid relative flex justify-center gap-2.5 sm:gap-3 mx-auto w-full max-w-[340px]">
                       {[0, 1, 2, 3, 4, 5].map((idx) => {

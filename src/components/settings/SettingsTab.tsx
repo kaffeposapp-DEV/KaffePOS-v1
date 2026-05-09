@@ -6,7 +6,28 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/settings/SettingsTab.tsx — KaffePOS v5
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { LogOut, Printer, Image, Save, Eye, EyeOff, CheckCircle2, RotateCcw, Bluetooth, BluetoothOff, AlertCircle, Wifi, Bell, ChevronRight } from 'lucide-react';
+import {
+  LogOut,
+  Printer,
+  Image,
+  Save,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  RotateCcw,
+  Bluetooth,
+  BluetoothOff,
+  AlertCircle,
+  Wifi,
+  Bell,
+  ChevronRight,
+  Store,
+  FileText,
+  Palette,
+  Users,
+  ShieldCheck,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import SubscriptionSection from './SubscriptionSection';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/hooks/useStore';
@@ -345,13 +366,13 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
     }
   };
 
-  const NAV = [
-    {id:'brand',l:'Brand',icon:'🏪'},
-    {id:'receipt',l:'Struk',icon:'🧾'},
-    {id:'printer',l:'Printer',icon:'🖨️'},
-    {id:'theme',l:'Tema',icon:'🎨'},
-    {id:'cashiers',l:'Kasir',icon:'👥'},
-    {id:'license',l:'Lisensi',icon:'🔑'}
+  const NAV: Array<{ id: Section; l: string; icon: LucideIcon }> = [
+    { id: 'brand', l: 'Brand', icon: Store },
+    { id: 'receipt', l: 'Struk', icon: FileText },
+    { id: 'printer', l: 'Printer', icon: Printer },
+    { id: 'theme', l: 'Tema', icon: Palette },
+    { id: 'cashiers', l: 'Kasir', icon: Users },
+    { id: 'license', l: 'Lisensi', icon: ShieldCheck },
   ];
 
   return (
@@ -374,23 +395,26 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
         </div>
         {saveErr&&<div className="flex items-center gap-2 bg-rose-50 border border-rose-100 rounded-2xl px-4 py-2.5 mb-3"><AlertCircle size={14} className="text-rose-500 shrink-0"/><p className="text-xs text-rose-700 font-bold">{saveErr}</p></div>}
         <div className="kaffe-scroll-tabs kaffe-command-bar flex gap-4 overflow-x-auto pb-1 no-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6 border-b border-slate-50">
-          {NAV.map(n=>(
-            <button
-              key={n.id}
-              onClick={()=>setSection(n.id as Section)}
-              className={`shrink-0 pb-3 text-[12px] font-black uppercase tracking-widest transition-all relative ${
-                section===n.id
-                  ? 'text-[#FF6A00]'
-                  : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span>{n.icon}</span>
-                <span>{n.l}</span>
-              </div>
-              {section===n.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#FF6A00] rounded-full animate-in fade-in" />}
-            </button>
-          ))}
+          {NAV.map((n) => {
+            const NavIcon = n.icon;
+            return (
+              <button
+                key={n.id}
+                onClick={() => setSection(n.id)}
+                className={`shrink-0 pb-3 text-[12px] font-black uppercase tracking-widest transition-all relative ${
+                  section === n.id
+                    ? 'text-[#FF6A00]'
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <NavIcon size={15} strokeWidth={2.6} aria-hidden="true" />
+                  <span>{n.l}</span>
+                </div>
+                {section === n.id && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#FF6A00] rounded-full animate-in fade-in" />}
+              </button>
+            );
+          })}
         </div>
       </div>
 
