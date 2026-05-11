@@ -56,6 +56,10 @@ export function normalizeUserFacingError(
   const trimmed = message.trim();
   const lower = trimmed.toLowerCase();
 
+  if (lower === 'email_not_confirmed') {
+    return 'email_not_confirmed';
+  }
+
   if (lower.includes('internet disconnected') || lower.includes('err_internet_disconnected') || lower.includes('offline')) {
     return OFFLINE_ERROR_MESSAGE;
   }
@@ -82,8 +86,10 @@ export function normalizeUserFacingError(
       'email atau kata sandi salah',
       'email belum terverifikasi',
       'akun belum aktif',
+      'akun belum punya password aktif',
       'akun kasir nonaktif',
       'akun tidak aktif',
+      'akun tidak ditemukan',
     ].some((pattern) => lower.includes(pattern));
 
     return trimmed && looksLikeLoginOrAccountMessage && !isUnsafeMessage(trimmed)

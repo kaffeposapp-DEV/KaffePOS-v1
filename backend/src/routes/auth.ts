@@ -19,6 +19,8 @@ import {
   normalizeEmail,
   ensureProfile,
   insertNotification,
+  log,
+  serializeError,
   resolveUniqueUsername,
   addMinutes,
   profileColumns,
@@ -76,6 +78,26 @@ const resetPasswordSchema = z.object({
   token: z.string().trim().min(20),
   password: z.string().min(10),
 });
+
+async function insertAuthNotification(
+  client: Parameters<typeof insertNotification>[0],
+  userId: string,
+  title: string,
+  message: string,
+  type: string,
+  metadata: Record<string, unknown> = {},
+) {
+  try {
+    await insertNotification(client, userId, title, message, type, metadata);
+  } catch (error) {
+    log('warn', 'auth.notification_insert_failed', {
+      userId,
+      title,
+      type,
+      error: serializeError(error),
+    });
+  }
+}
 
 // ── Public auth routes (no authenticate middleware) ────────────
 
@@ -302,7 +324,7 @@ router.post('/api/auth/verification/confirm', authVerifyRateLimiter, async (req,
         [credential.user_id],
       );
 
-      await insertNotification(
+      await insertAuthNotification(
         client,
         credential.user_id as string,
         'Email terverifikasi',
@@ -363,6 +385,10 @@ router.post('/api/auth/login', authLoginRateLimiter, async (req, res, next) => {
       );
 
       const credential = credentialResult.rows[0];
+      if (!credential) {
+        throw new ApiError(401, 'Email atau password salah.');
+      }
+
       if (!credential?.password_hash) {
         throw new ApiError(401, 'Akun belum punya password aktif. Gunakan menu lupa password.');
       }
@@ -390,7 +416,7 @@ router.post('/api/auth/login', authLoginRateLimiter, async (req, res, next) => {
         [credential.user_id],
       );
 
-      await insertNotification(
+      await insertAuthNotification(
         client,
         credential.user_id as string,
         'Login berhasil',
@@ -571,7 +597,7 @@ router.post('/api/auth/password/reset', authEmailRateLimiter, async (req, res, n
 
       await revokeUserSessions(client, tokenRow.user_id as string);
 
-      await insertNotification(
+      await insertAuthNotification(
         client,
         tokenRow.user_id as string,
         'Password diperbarui',
