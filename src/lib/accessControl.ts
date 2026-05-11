@@ -55,8 +55,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 };
 
 const ROLE_TAB_ACCESS: Record<UserRole, Tab[]> = {
-  owner_admin: ['dashboard', 'pos', 'kitchen', 'warehouse', 'menu', 'history', 'report', 'settings'],
-  cashier: ['pos', 'kitchen', 'history'],
+  owner_admin: ['dashboard', 'performance', 'challenges', 'pos', 'loyalty', 'kitchen', 'warehouse', 'menu', 'history', 'report', 'settings'],
+  cashier: ['pos', 'loyalty', 'performance', 'challenges', 'kitchen', 'history'],
 };
 
 export function normalizeUserRole(value: unknown): UserRole {
@@ -84,4 +84,3 @@ export function canAccessTab(role: unknown, tab: Tab): boolean {
 export function getDefaultTabForRole(role: unknown): Tab {
   return normalizeUserRole(role) === 'cashier' ? 'pos' : 'dashboard';
 }
-

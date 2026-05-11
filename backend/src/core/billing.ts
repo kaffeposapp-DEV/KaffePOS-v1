@@ -108,15 +108,15 @@ import { buildSubscriptionBillingQuote, type SubscriptionPlanId, type BillingCyc
 export const subscriptionPaymentMethodSchema = z.enum(['qris', 'bca_va', 'mandiri_bill', 'bni_va', 'bri_va']);
 export const subscriptionPaymentRequestSchema = z.object({
   plan: z.enum(['kopi_susu', 'signature', 'founder']),
-  billingCycle: z.enum(['monthly', 'quarterly', 'yearly']),
+  billingCycle: z.enum(['monthly', 'quarterly', 'semiannual', 'yearly']),
   paymentMethod: subscriptionPaymentMethodSchema,
   voucherCode: z.string().trim().max(64).optional().nullable(),
 });
 
-export function calculateExpiryDate(billingCycle: 'free' | 'monthly' | 'quarterly' | 'yearly') {
+export function calculateExpiryDate(billingCycle: 'free' | 'monthly' | 'quarterly' | 'semiannual' | 'yearly') {
   if (billingCycle === 'free') return null;
   const expiresAt = new Date();
-  const days = billingCycle === 'monthly' ? 30 : billingCycle === 'quarterly' ? 90 : 365;
+  const days = billingCycle === 'monthly' ? 30 : billingCycle === 'quarterly' ? 90 : billingCycle === 'semiannual' ? 180 : 365;
   expiresAt.setDate(expiresAt.getDate() + days);
   return expiresAt;
 }
@@ -138,7 +138,7 @@ export function buildSubscriptionQuoteOrThrow(payload: {
 export async function activatePaidSubscription(client: PoolClient, payload: {
   userId: string;
   plan: 'secangkir' | 'kopi_susu' | 'signature' | 'founder';
-  billingCycle: 'free' | 'monthly' | 'quarterly' | 'yearly';
+  billingCycle: 'free' | 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
   paymentAmount: number;
   paymentMethod: string;
   paymentRef: string;

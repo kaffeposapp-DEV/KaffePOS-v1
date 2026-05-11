@@ -13,11 +13,11 @@ const quote: SubscriptionBillingQuote = {
   plan: 'signature',
   billingCycle: 'quarterly',
   planName: 'Signature',
-  subtotal: 269000,
+  subtotal: 349000,
   discount: 0,
   discountLabel: null,
   adminFee: 0,
-  total: 269000,
+  total: 349000,
   currency: 'IDR',
   selectedPaymentMethod: {
     id: 'bca_va',

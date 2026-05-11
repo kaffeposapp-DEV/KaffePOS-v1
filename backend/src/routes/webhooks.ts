@@ -116,7 +116,7 @@ router.post('/api/payments/midtrans/webhook', async (req, res, next) => {
         activationResult = await activatePaidSubscription(client, {
           userId: paymentSession.user_id as string,
           plan: paymentSession.plan as 'secangkir' | 'kopi_susu' | 'signature' | 'founder',
-          billingCycle: paymentSession.billing_cycle as 'free' | 'monthly' | 'quarterly' | 'yearly',
+          billingCycle: paymentSession.billing_cycle as 'free' | 'monthly' | 'quarterly' | 'semiannual' | 'yearly',
           paymentAmount: Number(paymentSession.amount ?? 0),
           paymentMethod: payload.payment_type ?? 'midtrans',
           paymentRef: paymentSession.midtrans_order_id as string,

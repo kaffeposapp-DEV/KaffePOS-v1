@@ -1,5 +1,5 @@
 export type SubscriptionPlanId = 'kopi_susu' | 'signature' | 'founder';
-export type BillingCycle = 'monthly' | 'quarterly' | 'yearly';
+export type BillingCycle = 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
 export type SubscriptionPaymentMethodId = 'qris' | 'bca_va' | 'mandiri_bill' | 'bni_va' | 'bri_va';
 
 export type SubscriptionPaymentMethod = {
@@ -43,9 +43,9 @@ type VoucherRule = {
 };
 
 const PLAN_PRICES: Record<SubscriptionPlanId, Record<BillingCycle, number>> = {
-  kopi_susu: { monthly: 49000, quarterly: 129000, yearly: 490000 },
-  signature: { monthly: 99000, quarterly: 269000, yearly: 990000 },
-  founder: { monthly: 199000, quarterly: 539000, yearly: 1990000 },
+  kopi_susu: { monthly: 49000, quarterly: 129000, semiannual: 249000, yearly: 449000 },
+  signature: { monthly: 129000, quarterly: 349000, semiannual: 649000, yearly: 1199000 },
+  founder: { monthly: 249000, quarterly: 679000, semiannual: 1249000, yearly: 2299000 },
 };
 
 const PLAN_NAMES: Record<SubscriptionPlanId, string> = {

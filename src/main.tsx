@@ -15,6 +15,7 @@ import { DEFAULT_CUSTOM_THEME, applyThemeToDocument, type CustomThemeConfig, typ
 import { runAppUpgradeBootstrap } from './lib/appUpgrade';
 import { initCriticalStorageBackupBridge, persistCriticalStorageBackup, restoreCriticalStorageBackup } from './lib/appStorageBackup';
 import { captureFrontendError, initFrontendErrorTracking } from './lib/errorTracking';
+import { applyDevicePerformanceHints } from './lib/devicePerformance';
 
 function registerOfflineShell() {
   if (import.meta.env.DEV) return;
@@ -73,6 +74,7 @@ async function bootstrap() {
     await restoreCriticalStorageBackup();
     await runAppUpgradeBootstrap();
     applyPersistedTheme();
+    applyDevicePerformanceHints();
     await persistCriticalStorageBackup();
 
     if (Capacitor.isNativePlatform()) {

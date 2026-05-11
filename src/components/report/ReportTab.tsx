@@ -14,8 +14,8 @@ import { getAIInsightCached, type InsightContext, type AIInsight } from '@/lib/a
 import KasDailyPanel from './KasDailyPanel';
 import ExpenseModal from '@/components/pos/ExpenseModal';
 import CashRegisterModal from '@/components/pos/CashRegisterModal';
-import UpgradePrompt from '@/components/UpgradePrompt';
 import type { SubscriptionAccess } from '@/lib/subscriptionAccess';
+import { dispatchUpgradePrompt } from '@/lib/upgradePrompts';
 
 
 const fRp  = (n: number) => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
@@ -61,7 +61,7 @@ function BarChart({ data, color='#f97316' }: { data:{label:string;value:number}[
 
 function DonutChart({ data }: { data:{label:string;value:number;color:string}[] }) {
   const total=data.reduce((s,d)=>s+d.value,0);
-  if (!total) return <div className="h-32 flex items-center justify-center text-slate-300 text-xs">Belum ada data</div>;
+  if (!total) return <div className="h-32 flex items-center justify-center px-4 text-center text-slate-400 text-xs font-semibold">Belum ada data untuk grafik ini.</div>;
   const r=38,cx=50,cy=50,circ=2*Math.PI*r; let off=0;
   return (
     <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -236,7 +236,13 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
   const fetchAI = useCallback(async (force = false) => {
     if (!canUseAiInsight) {
       setAiOpen(false);
-      toast.showToast('AI Insight tersedia mulai paket Signature.', 'info');
+      dispatchUpgradePrompt({
+        trigger: 'ai_insight',
+        promptKey: 'feature:ai_insight',
+        recommendedPlan: 'signature',
+        title: 'AI Insight ada di paket Signature',
+        description: 'Upgrade saat kamu butuh analisis menu terlaris, prediksi stok, dan rekomendasi operasional yang lebih tajam.',
+      });
       return;
     }
     setAiLoading(true); setAiError('');
@@ -274,10 +280,16 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
     } catch (e:any) {
       setAiError(e.message || 'Gagal mendapatkan insight AI');
     } finally { setAiLoading(false); }
-  }, [avgTrx, canUseAiInsight, filtered, grossMargin, inventory, menuRanking, netProfit, period, storeSettings, toast, totalCogs, totalExpenses, totalRevenue, trendData]);
+  }, [avgTrx, canUseAiInsight, filtered, grossMargin, inventory, menuRanking, netProfit, period, storeSettings, totalCogs, totalExpenses, totalRevenue, trendData]);
 
   const handleOpenLicense = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('kaffepos-open-tab', { detail: { tab: 'settings' } }));
+    dispatchUpgradePrompt({
+      trigger: 'ai_insight',
+      promptKey: 'feature:ai_insight',
+      recommendedPlan: 'signature',
+      title: 'AI Insight ada di paket Signature',
+      description: 'Upgrade saat kamu butuh analisis menu terlaris, prediksi stok, dan rekomendasi operasional yang lebih tajam.',
+    });
   }, []);
 
   const buildReportPayload = useCallback((): ReportData => {
@@ -350,7 +362,13 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
 
   const handleDownload = async () => {
     if (!canExportReports) {
-      toast.showToast('Export PDF tersedia mulai paket Kopi Susu.', 'info');
+      dispatchUpgradePrompt({
+        trigger: 'report_export',
+        promptKey: 'feature:report_export',
+        recommendedPlan: 'kopi_susu',
+        title: 'Export PDF tersedia di paket Kopi Susu',
+        description: 'Upgrade untuk mengunduh laporan profesional dan membagikan ringkasan performa outlet kapan saja.',
+      });
       return;
     }
     setDl(true);
@@ -407,7 +425,13 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
                 key={p.id}
                 onClick={() => {
                   if (locked) {
-                    toast.showToast('Laporan mingguan dan bulanan tersedia mulai paket Kopi Susu.', 'info');
+                    dispatchUpgradePrompt({
+                      trigger: 'advanced_reports',
+                      promptKey: 'feature:advanced_reports',
+                      recommendedPlan: 'kopi_susu',
+                      title: 'Laporan lanjutan tersedia di paket Kopi Susu',
+                      description: 'Buka laporan 7 hari, bulanan, dan tampilan semua periode untuk membaca performa outlet dengan lebih rapi.',
+                    });
                     return;
                   }
                   setPeriod(p.id as Period);
@@ -433,6 +457,9 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
                <Receipt size={40} />
             </div>
             <p className="font-display text-lg font-extrabold text-slate-800 mb-2 uppercase tracking-tight italic">Belum ada data laporan</p>
+            <p className="mx-auto max-w-md text-sm font-semibold leading-relaxed text-slate-500">
+              Laporan akan terisi otomatis setelah transaksi, saldo kasir, atau pengeluaran dicatat pada periode ini.
+            </p>
             <p className="text-[13px] text-slate-400 max-w-md mx-auto font-medium leading-relaxed">
               Mulai transaksi, buka kas harian, atau catat pengeluaran agar laporan ini terisi otomatis secara realtime.
             </p>
@@ -444,20 +471,20 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
           <StatCard label="Laba Bersih" value={fRp(netProfit)} sub={`Margin ${grossMargin}%`} icon={<TrendingUp size={20}/>} color={netProfit>=0?'green':'red'}/>
 
         {/* ── AI Insight Card ── */}
-        <div className="col-span-2 md:col-span-4 lg:col-span-2 bg-gradient-to-br from-violet-50 to-purple-50 border border-violet-200 rounded-2xl overflow-hidden">
+        <div className="col-span-2 md:col-span-4 lg:col-span-2 border border-orange-100 bg-orange-50/60 rounded-2xl overflow-hidden">
           {/* Header tombol */}
           <button
             onClick={() => aiData ? setAiOpen(o => !o) : fetchAI()}
             disabled={aiLoading}
-            className="w-full flex items-center justify-between px-4 py-3 active:bg-violet-100 transition-colors"
+            className="w-full flex items-center justify-between px-4 py-3 active:bg-orange-100 transition-colors"
           >
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 bg-violet-500 rounded-lg flex items-center justify-center">
+              <div className="w-7 h-7 bg-orange-500 rounded-lg flex items-center justify-center">
                 <Sparkles size={13} className="text-white" />
               </div>
               <div className="text-left">
-                <p className="text-sm font-black text-violet-900">AI Insight</p>
-                <p className="text-[10px] text-violet-500">
+                <p className="text-sm font-black text-orange-950">AI Insight</p>
+                <p className="text-[10px] text-orange-700">
                   {aiData
                     ? aiData.source === 'local'
                       ? 'Analisis pintar lokal'
@@ -472,7 +499,7 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
               {aiData && (
                 <button
                   onClick={e => { e.stopPropagation(); fetchAI(true); }}
-                  className="p-1 text-violet-400 active:scale-90"
+                  className="p-1 text-orange-500 active:scale-90"
                   disabled={aiLoading}
                   title="Refresh analisis"
                 >
@@ -480,23 +507,24 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
                 </button>
               )}
               {aiLoading
-                ? <div className="w-4 h-4 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+                ? <div className="w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
                 : aiData
-                ? (aiOpen ? <ChevronUp size={15} className="text-violet-400" /> : <ChevronDown size={15} className="text-violet-400" />)
-                : <span className="text-[11px] font-black text-violet-600 bg-violet-100 px-2.5 py-1 rounded-lg">{canUseAiInsight ? 'Analisis' : 'Locked'}</span>
+                ? (aiOpen ? <ChevronUp size={15} className="text-orange-500" /> : <ChevronDown size={15} className="text-orange-500" />)
+                : <span className="text-[11px] font-black text-orange-700 bg-white px-2.5 py-1 rounded-lg ring-1 ring-orange-100">{canUseAiInsight ? 'Analisis' : 'Locked'}</span>
               }
             </div>
           </button>
 
           {!canUseAiInsight && (
             <div className="px-4 pb-4">
-              <UpgradePrompt
-                recommendedPlan="signature"
-                billingCycle="monthly"
-                title="AI Insight ada di paket Signature"
-                description="Upgrade saat kamu butuh analisis menu terlaris, prediksi stok, dan rekomendasi operasional yang lebih tajam."
-                onAction={handleOpenLicense}
-              />
+              <button
+                type="button"
+                onClick={handleOpenLicense}
+                className="w-full rounded-2xl border border-orange-100 bg-white px-4 py-3 text-left transition-all active:scale-[0.98] hover:bg-orange-50"
+              >
+                <p className="text-sm font-black text-slate-900">Buka AI Insight</p>
+                <p className="mt-1 text-xs font-medium leading-relaxed text-slate-500">Tersedia mulai paket Signature.</p>
+              </button>
             </div>
           )}
 
@@ -516,30 +544,30 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
 
           {/* Hasil AI */}
           {aiData && aiOpen && (
-            <div className="px-4 pb-4 space-y-3 border-t border-violet-100 pt-3">
+            <div className="px-4 pb-4 space-y-3 border-t border-orange-100 pt-3">
 
               {/* Ringkasan */}
               <div>
-                <p className="text-[10px] font-black text-violet-400 uppercase tracking-wider mb-1">📊 Ringkasan</p>
+                <p className="text-[10px] font-black text-orange-500 uppercase tracking-wider mb-1">Ringkasan</p>
                 <p className="text-xs text-slate-700 leading-relaxed">{aiData.summary}</p>
               </div>
 
               <div className="grid grid-cols-1 gap-2">
                 {/* Menu terbaik */}
                 <div className="bg-white rounded-xl p-3">
-                  <p className="text-[10px] font-black text-orange-400 uppercase tracking-wider mb-1">🏆 Rekomendasi Menu</p>
+                  <p className="text-[10px] font-black text-orange-500 uppercase tracking-wider mb-1">Rekomendasi Menu</p>
                   <p className="text-xs text-slate-700">{aiData.bestMenu}</p>
                 </div>
 
                 {/* Stok alert */}
                 <div className="bg-white rounded-xl p-3">
-                  <p className="text-[10px] font-black text-red-400 uppercase tracking-wider mb-1">📦 Status Stok</p>
+                  <p className="text-[10px] font-black text-red-400 uppercase tracking-wider mb-1">Status Stok</p>
                   <p className="text-xs text-slate-700">{aiData.stockAlert}</p>
                 </div>
 
                 {/* Prediksi */}
                 <div className="bg-white rounded-xl p-3">
-                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-wider mb-1">🔮 Prediksi</p>
+                  <p className="text-[10px] font-black text-blue-500 uppercase tracking-wider mb-1">Prediksi</p>
                   <p className="text-xs text-slate-700">{aiData.prediction}</p>
                 </div>
               </div>
@@ -547,11 +575,11 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
               {/* Tips */}
               {aiData.tips?.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-black text-green-500 uppercase tracking-wider mb-2">💡 Tips Aksi</p>
+                  <p className="text-[10px] font-black text-green-600 uppercase tracking-wider mb-2">Tips Aksi</p>
                   <div className="space-y-1.5">
                     {aiData.tips.map((tip, i) => (
                       <div key={i} className="flex items-start gap-2 bg-white rounded-xl px-3 py-2">
-                        <span className="text-[10px] font-black text-violet-400 mt-0.5">{i + 1}</span>
+                        <span className="text-[10px] font-black text-orange-500 mt-0.5">{i + 1}</span>
                         <p className="text-xs text-slate-700">{tip}</p>
                       </div>
                     ))}
@@ -559,7 +587,7 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
                 </div>
               )}
 
-              <div className="pt-3 border-t border-violet-50/50 mt-2 flex flex-col gap-2">
+              <div className="pt-3 border-t border-orange-100 mt-2 flex flex-col gap-2">
                 <button
                   onClick={() => {
                     const to = user?.email || (profile as any)?.email || '';
@@ -575,11 +603,11 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
                     );
                     window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
                   }}
-                  className="w-full bg-violet-100 hover:bg-violet-200 text-violet-700 py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition"
+                  className="w-full bg-white hover:bg-orange-50 text-orange-700 py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition ring-1 ring-orange-100"
                 >
                   <Mail size={14}/> Kirim Copy ke Email Saya
                 </button>
-                <p className="text-[9px] text-violet-300 text-center uppercase tracking-wider mt-1">
+                <p className="text-[9px] text-orange-300 text-center uppercase tracking-wider mt-1">
                   {aiData.source === 'local'
                     ? 'Analisis cadangan lokal · Hanya sebagai referensi'
                     : 'Dianalisis oleh Google Gemini · Hanya sebagai referensi'}
@@ -618,7 +646,7 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
               <div className="space-y-4">
                 <div>
                   <p className="text-xs font-bold text-slate-400 mb-3">🥧 Proporsi Penjualan Produk</p>
-                  {menuPieData.length===0?<p className="text-center text-slate-300 text-sm py-8">Belum ada data</p>:<DonutChart data={menuPieData}/>}
+                  {menuPieData.length===0?<p className="text-center text-slate-400 text-sm font-semibold py-8">Belum ada menu terjual pada periode ini.</p>:<DonutChart data={menuPieData}/>}
                 </div>
                 {menuRanking.length>0&&<div>
                   <p className="text-xs font-bold text-slate-400 mb-3">🏆 Ranking Terjual</p>
@@ -629,7 +657,7 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
             {activeChart==='payment'&&(
               <div>
                 <p className="text-xs font-bold text-slate-400 mb-3">Metode Pembayaran</p>
-                {paymentData.length===0?<p className="text-center text-slate-300 text-sm py-8">Belum ada data</p>
+                {paymentData.length===0?<p className="text-center text-slate-400 text-sm font-semibold py-8">Belum ada metode pembayaran tercatat.</p>
                   :<div className="space-y-3"><DonutChart data={paymentData}/>
                     <div className="space-y-2">{paymentData.map((p,i)=>(
                       <div key={i} className="flex justify-between items-center bg-slate-50 rounded-xl px-3 py-2.5">
@@ -643,7 +671,7 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
             {activeChart==='stock'&&(
               <div>
                 <div className="flex justify-between mb-3"><p className="text-xs font-bold text-slate-400">Status Stok Bahan</p><span className="text-xs font-bold text-slate-600">{fRp(totalStockVal)}</span></div>
-                {stockData.length===0?<p className="text-center text-slate-300 text-sm py-8">Belum ada inventaris</p>
+                {stockData.length===0?<p className="text-center text-slate-400 text-sm font-semibold py-8">Belum ada inventaris. Tambahkan bahan untuk melihat status stok.</p>
                   :<div className="space-y-2.5">{stockData.map((item:any,i:number)=>{
                     const pct=Math.min(item.pct,100),color=item.pct<=50?'#ef4444':item.pct<=100?'#f97316':'#10b981';
                     return(<div key={i}><div className="flex justify-between mb-1"><span className="text-xs font-bold text-slate-700 truncate max-w-[55%]">{item.label}</span><span className="text-xs font-bold shrink-0 ml-2" style={{color}}>{item.stock} {item.unit}{item.pct<=100?' ⚠':''}</span></div><div className="w-full bg-slate-100 rounded-full h-2"><div className="h-2 rounded-full" style={{width:`${pct}%`,backgroundColor:color}}/></div></div>);
@@ -692,7 +720,7 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
             <p className="text-orange-500 font-black text-sm">{fRp(totalCashRegister)}</p>
           </div>
           {filteredCR.length===0
-            ? <p className="px-4 py-3 text-xs text-slate-400 italic">Belum ada saldo kasir untuk periode ini</p>
+            ? <p className="px-4 py-3 text-xs text-slate-400 italic">Belum ada saldo kasir untuk periode ini. Buka kasir harian untuk mulai mencatat modal dan closing.</p>
             : <div className="divide-y divide-slate-50">
                 {filteredCR.map((c:any,i:number)=>(
                   <div key={i} className="flex items-center justify-between px-4 py-2.5">
@@ -750,7 +778,7 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
             <p className="text-red-500 font-black text-sm">{fRp(totalExpOps)}</p>
           </div>
           {filteredExpOps.length===0
-            ? <p className="px-4 py-3 text-xs text-slate-400 italic">Belum ada pengeluaran untuk periode ini</p>
+            ? <p className="px-4 py-3 text-xs text-slate-400 italic">Belum ada pengeluaran untuk periode ini. Catat biaya operasional agar laba bersih lebih akurat.</p>
             : <div className="divide-y divide-slate-50">
                 {filteredExpOps.slice(0,10).map((e:any,i:number)=>(
                   <div key={i} className="flex items-center justify-between px-4 py-2.5">

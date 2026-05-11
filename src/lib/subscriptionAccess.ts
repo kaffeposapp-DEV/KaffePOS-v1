@@ -10,6 +10,11 @@ export type SubscriptionFeature =
   | 'multi_cashier'
   | 'cashier_sessions'
   | 'ai_insight'
+  | 'gamification_full'
+  | 'notification_center'
+  | 'multi_outlet'
+  | 'loyalty_basic'
+  | 'loyalty_advanced'
   | 'priority_support';
 
 export type SubscriptionFeatureFlags = Record<SubscriptionFeature, boolean>;
@@ -25,17 +30,22 @@ export type SubscriptionAccess = {
 };
 
 const PLAN_ORDER: SubscriptionPlanId[] = ['secangkir', 'kopi_susu', 'signature', 'founder'];
-const FREE_TRANSACTION_LIMIT = 50;
+const FREE_TRANSACTION_LIMIT = 100;
 
 const FEATURE_PLAN_REQUIREMENTS: Record<SubscriptionFeature, SubscriptionPlanId> = {
   unlimited_transactions: 'kopi_susu',
   report_export: 'kopi_susu',
   report_advanced_periods: 'kopi_susu',
   browser_print: 'kopi_susu',
-  thermal_print: 'signature',
+  thermal_print: 'kopi_susu',
   multi_cashier: 'signature',
   cashier_sessions: 'signature',
   ai_insight: 'signature',
+  gamification_full: 'signature',
+  notification_center: 'signature',
+  multi_outlet: 'founder',
+  loyalty_basic: 'kopi_susu',
+  loyalty_advanced: 'signature',
   priority_support: 'founder',
 };
 
@@ -94,6 +104,11 @@ export function buildSubscriptionAccess(profile: Profile | null | undefined, now
       multi_cashier: false,
       cashier_sessions: false,
       ai_insight: false,
+      gamification_full: false,
+      notification_center: false,
+      multi_outlet: false,
+      loyalty_basic: false,
+      loyalty_advanced: false,
       priority_support: false,
     },
   );

@@ -56,7 +56,7 @@ describe('SubscriptionSection billing center', () => {
     renderSection();
 
     expect(await screen.findByText('Billing dan Langganan')).toBeInTheDocument();
-    expect(screen.getByText('Paket Aktif')).toBeInTheDocument();
+    expect(screen.getAllByText('Paket Aktif').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /Langganan Sekarang/i })).toBeInTheDocument();
     expect(screen.queryByText(/Langganan Online/i)).not.toBeInTheDocument();
 
@@ -75,7 +75,7 @@ describe('SubscriptionSection billing center', () => {
           id: 'pay_1',
           plan: 'signature',
           billing_cycle: 'monthly',
-          amount: 99000,
+          amount: 129000,
           redirect_url: 'https://app.sandbox.midtrans.com/snap/v2/vtweb/test',
           transaction_status: 'pending',
           expires_at: '2026-05-01T00:00:00.000Z',
@@ -106,4 +106,3 @@ describe('SubscriptionSection billing center', () => {
     );
   });
 });
-

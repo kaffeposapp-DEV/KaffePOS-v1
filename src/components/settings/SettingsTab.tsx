@@ -40,6 +40,7 @@ import NotificationCenter from './NotificationCenter';
 import UpgradePrompt from '@/components/UpgradePrompt';
 import { getPlanDefinition } from '@/lib/subscriptionPlans';
 import type { SubscriptionAccess } from '@/lib/subscriptionAccess';
+import { dispatchUpgradePrompt } from '@/lib/upgradePrompts';
 import ThemeCustomizer from './ThemeCustomizer';
 import CashierManagementSection from './CashierManagementSection';
 import {
@@ -205,6 +206,7 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
   const timer   = useRef<NodeJS.Timeout | null>(null);
   const canBrowserPrint = subscriptionAccess.features.browser_print;
   const canThermalPrint = subscriptionAccess.features.thermal_print;
+  const canManageCashiers = subscriptionAccess.features.multi_cashier;
   const activePlan = getPlanDefinition(subscriptionAccess.plan);
 
   useEffect(() => {
@@ -334,7 +336,13 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
     try {
       if (printer.btConnected) {
         if (!canThermalPrint) {
-          toast.showToast('Thermal printer Bluetooth/USB tersedia mulai paket Signature.', 'info');
+          dispatchUpgradePrompt({
+            trigger: 'thermal_printer',
+            promptKey: 'feature:thermal_printer',
+            recommendedPlan: 'signature',
+            title: 'Printer thermal ada di paket Signature',
+            description: 'Upgrade untuk menghubungkan printer Bluetooth Classic atau USB saat outlet butuh alur cetak yang lebih cepat.',
+          });
           return;
         }
         await printReceiptClassicBt(createReceiptPrintData(form, {
@@ -348,7 +356,13 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
         toast.showToast('✅ Test print berhasil! Cek printer.', 'success');
       } else {
         if (!canBrowserPrint) {
-          toast.showToast('Cetak browser tersedia mulai paket Kopi Susu.', 'info');
+          dispatchUpgradePrompt({
+            trigger: 'browser_print',
+            promptKey: 'feature:browser_print',
+            recommendedPlan: 'kopi_susu',
+            title: 'Cetak browser tersedia di paket Kopi Susu',
+            description: 'Upgrade untuk membuka cetak struk dari browser atau printer WiFi.',
+          });
           return;
         }
         printReceiptBrowser(createReceiptPrintData(form, {
@@ -400,7 +414,18 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
             return (
               <button
                 key={n.id}
-                onClick={() => setSection(n.id)}
+                onClick={() => {
+                  if (n.id === 'cashiers' && !canManageCashiers) {
+                    dispatchUpgradePrompt({
+                      trigger: 'multi_cashier',
+                      promptKey: 'feature:multi_cashier',
+                      recommendedPlan: 'signature',
+                      title: 'Multi kasir ada di paket Signature',
+                      description: 'Upgrade untuk membuat akun kasir, mengatur akses outlet, dan memisahkan aktivitas tim dengan lebih rapi.',
+                    });
+                  }
+                  setSection(n.id);
+                }}
                 className={`shrink-0 pb-3 text-[12px] font-black uppercase tracking-widest transition-all relative ${
                   section === n.id
                     ? 'text-[#FF6A00]'
@@ -627,9 +652,15 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
                 </button>
               ) : (
                 <button
-                  onClick={async () => {
-                    if (!canThermalPrint) {
-                      toast.showToast('Thermal printer Bluetooth/USB tersedia mulai paket Signature.', 'info');
+                onClick={async () => {
+                  if (!canThermalPrint) {
+                      dispatchUpgradePrompt({
+                        trigger: 'thermal_printer',
+                        promptKey: 'feature:thermal_printer',
+                        recommendedPlan: 'signature',
+                        title: 'Printer thermal ada di paket Signature',
+                        description: 'Upgrade untuk menghubungkan printer Bluetooth Classic atau USB saat outlet butuh alur cetak yang lebih cepat.',
+                      });
                       return;
                     }
                     try {
@@ -692,7 +723,24 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
 
         {/* ── KASIR ── */}
         {section==='cashiers'&&<>
-          <CashierManagementSection toast={toast} />
+          {!canManageCashiers ? (
+            <UpgradePrompt
+              recommendedPlan="signature"
+              billingCycle="monthly"
+              title="Multi kasir ada di paket Signature"
+              description="Buat akun kasir terpisah dan kelola akses outlet saat tim mulai berkembang."
+              actionLabel="Lihat Paket Signature"
+              onAction={() => dispatchUpgradePrompt({
+                trigger: 'multi_cashier',
+                promptKey: 'feature:multi_cashier',
+                recommendedPlan: 'signature',
+                title: 'Multi kasir ada di paket Signature',
+                description: 'Upgrade untuk membuat akun kasir, mengatur akses outlet, dan memisahkan aktivitas tim dengan lebih rapi.',
+              })}
+            />
+          ) : (
+            <CashierManagementSection toast={toast} />
+          )}
         </>}
 
         {/* ── LISENSI ── */}

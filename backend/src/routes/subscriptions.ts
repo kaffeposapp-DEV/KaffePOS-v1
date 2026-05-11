@@ -4,11 +4,13 @@
  */
 import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
+import { z } from 'zod';
 import {
   pool,
   withTransaction,
   ApiError,
   requirePermission,
+  assertStoreOwned,
   normalizeSubscription,
   normalizePaymentHistory,
   normalizeSubscriptionPaymentSession,
@@ -33,6 +35,166 @@ import {
 } from '../lib/midtrans';
 
 const router = Router();
+
+const FREE_TRANSACTION_LIMIT = 100;
+const PAID_PLANS = new Set(['kopi_susu', 'signature', 'founder']);
+
+function resolveProfilePlan(profile: Record<string, unknown> | null | undefined) {
+  if (!profile) return 'secangkir';
+  const rawExpiry = profile.pro_expires_at ?? profile.tier_expires_at ?? null;
+  const expired = rawExpiry ? new Date(String(rawExpiry)).getTime() <= Date.now() : false;
+  const hasPaidTier = !expired && (profile.tier === 'pro' || profile.is_pro === true);
+  const plan = typeof profile.pro_plan === 'string' && PAID_PLANS.has(profile.pro_plan)
+    ? profile.pro_plan
+    : null;
+  return hasPaidTier && plan ? plan : 'secangkir';
+}
+
+const promptEventSchema = z.object({
+  event_type: z.enum(['view', 'click', 'dismiss']),
+  prompt_key: z.string().trim().min(1).max(120),
+  trigger: z.string().trim().min(1).max(120),
+  recommended_plan: z.enum(['kopi_susu', 'signature', 'founder']).default('signature'),
+  store_id: z.string().uuid().optional().nullable(),
+  current_plan: z.string().trim().max(40).optional().nullable(),
+  metadata: z.record(z.string(), z.unknown()).optional().default({}),
+});
+
+router.get('/api/subscriptions/usage-limits', async (req, res, next) => {
+  try {
+    const storeId = typeof req.query.storeId === 'string' ? req.query.storeId : null;
+    let store: Record<string, unknown> | null = null;
+
+    if (storeId) {
+      store = await assertStoreOwned(pool, storeId, req.authUser!.id);
+    } else {
+      const fallbackStore = await pool.query(
+        `
+          select id, owner_id, created_at
+          from public.stores
+          where owner_id = $1
+          order by created_at asc
+          limit 1
+        `,
+        [req.authUser!.id],
+      );
+      store = fallbackStore.rows[0] ?? null;
+    }
+
+    if (!store?.id) {
+      throw new ApiError(404, 'Toko tidak ditemukan atau belum bisa diakses.');
+    }
+
+    const ownerId = String(store.owner_id);
+    const [profileResult, usageResult, firstTransactionResult] = await Promise.all([
+      pool.query(
+        `
+          select id, tier, tier_expires_at, is_pro, pro_plan, pro_expires_at, created_at
+          from public.profiles
+          where id = $1
+          limit 1
+        `,
+        [ownerId],
+      ),
+      pool.query(
+        `
+          select count(*)::int as used
+          from public.transactions
+          where store_id = $1
+            and coalesce(is_void, false) = false
+            and date >= date_trunc('month', now())
+            and date < date_trunc('month', now()) + interval '1 month'
+        `,
+        [store.id],
+      ),
+      pool.query(
+        `
+          select min(date) as first_transaction_at
+          from public.transactions
+          where store_id = $1
+        `,
+        [store.id],
+      ),
+    ]);
+
+    const profile = profileResult.rows[0] ?? null;
+    const plan = resolveProfilePlan(profile);
+    const transactionLimit = plan === 'secangkir' ? FREE_TRANSACTION_LIMIT : -1;
+    const transactionsUsed = Number(usageResult.rows[0]?.used ?? 0);
+    const percentUsed = transactionLimit > 0
+      ? Math.min(100, Math.round((transactionsUsed / transactionLimit) * 100))
+      : 0;
+    const firstActivityAt = firstTransactionResult.rows[0]?.first_transaction_at
+      ?? profile?.created_at
+      ?? store.created_at
+      ?? null;
+    const daysSinceFirstActivity = firstActivityAt
+      ? Math.max(0, Math.floor((Date.now() - new Date(String(firstActivityAt)).getTime()) / 86_400_000))
+      : 0;
+
+    res.json({
+      storeId: store.id,
+      ownerId,
+      currentPlan: plan,
+      transactionLimit,
+      transactionsUsed,
+      transactionsRemaining: transactionLimit > 0 ? Math.max(transactionLimit - transactionsUsed, 0) : null,
+      percentUsed,
+      period: {
+        type: 'monthly',
+        startsAt: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString(),
+      },
+      firstActivityAt,
+      daysSinceFirstActivity,
+      shouldShowTransactionLimitPrompt: transactionLimit > 0 && percentUsed >= 80 && transactionsUsed < transactionLimit,
+      shouldShowAppAgePrompt: daysSinceFirstActivity >= 14 && plan === 'secangkir',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/api/subscriptions/upgrade-prompts/log', async (req, res, next) => {
+  try {
+    const payload = promptEventSchema.parse(req.body);
+    let storeId = payload.store_id ?? null;
+
+    if (storeId) {
+      await assertStoreOwned(pool, storeId, req.authUser!.id);
+    }
+
+    await pool.query(
+      `
+        insert into public.subscription_upgrade_prompt_events (
+          id,
+          user_id,
+          store_id,
+          event_type,
+          prompt_key,
+          trigger,
+          recommended_plan,
+          current_plan,
+          metadata
+        ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+      `,
+      [
+        randomUUID(),
+        req.authUser!.id,
+        storeId,
+        payload.event_type,
+        payload.prompt_key,
+        payload.trigger,
+        payload.recommended_plan,
+        payload.current_plan ?? null,
+        JSON.stringify(payload.metadata ?? {}),
+      ],
+    );
+
+    res.status(201).json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.get('/api/subscriptions', requirePermission('can_manage_billing'), async (req, res, next) => {
   try {

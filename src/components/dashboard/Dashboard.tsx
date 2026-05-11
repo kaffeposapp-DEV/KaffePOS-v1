@@ -15,6 +15,7 @@ import {
   Clock3,
   RefreshCw,
   CheckCircle2,
+  X,
 } from 'lucide-react';
 import {
   LineChart,
@@ -29,9 +30,11 @@ import {
   Pie,
 } from 'recharts';
 import { useStore } from '@/hooks/useStore';
+import { useAuth } from '@/contexts/AuthContext';
 import { getInventoryUsageMap } from '@/utils/receipt';
 import { getOnboardingChecklist } from '@/lib/onboarding';
 import type { Tab } from '@/types';
+import AIInsightsPage from './AIInsightsPage';
 
 const fRp = (n: number) =>
   new Intl.NumberFormat('id-ID', {
@@ -99,6 +102,7 @@ function DashboardCard({
 }
 
 export default function Dashboard() {
+  const { subscriptionAccess } = useAuth();
   const {
     storeId,
     transactions,
@@ -115,6 +119,13 @@ export default function Dashboard() {
   } = useStore();
   const [range, setRange] = useState<RangeKey>('today');
   const [refreshing, setRefreshing] = useState(false);
+  const [showBetaBadge, setShowBetaBadge] = useState(() => {
+    try {
+      return localStorage.getItem('kpos_dashboard_beta_badge_dismissed') !== '1';
+    } catch {
+      return true;
+    }
+  });
 
   const now = new Date();
   const startToday = startOfDay(now);
@@ -288,7 +299,30 @@ export default function Dashboard() {
         <div className="flex flex-col gap-4">
           <div className="flex min-w-0 items-center justify-between gap-3">
             <div className="min-w-0">
-              <h1 className="font-display text-2xl font-extrabold text-slate-900">Dashboard</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="font-display text-2xl font-extrabold text-slate-900">Dashboard</h1>
+                {showBetaBadge ? (
+                  <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-orange-100 bg-orange-50 px-3 text-[10px] font-black uppercase tracking-wider text-[#FF6A00]">
+                    Closed Beta
+                    <button
+                      type="button"
+                      onClick={() => {
+                        try {
+                          localStorage.setItem('kpos_dashboard_beta_badge_dismissed', '1');
+                        } catch {
+                          /* ignore */
+                        }
+                        setShowBetaBadge(false);
+                      }}
+                      className="ml-0.5 flex h-5 min-h-0 w-5 min-w-0 items-center justify-center rounded-full text-orange-700 hover:bg-orange-100"
+                      aria-label="Sembunyikan badge beta"
+                      title="Sembunyikan badge beta"
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ) : null}
+              </div>
               <p className="text-slate-500 font-semibold text-[12px] mt-1 flex items-center gap-2">
                 <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-rose-500'} animate-pulse`} />
                 {storeSettings?.store_name || 'KaffePOS'} · {isOnline ? 'Terhubung Cloud' : 'Offline Mode'}
@@ -431,6 +465,12 @@ export default function Dashboard() {
             color="#8b5cf6"
           />
         </div>
+
+        <AIInsightsPage
+          storeId={storeId}
+          canUseAiInsight={subscriptionAccess.features.ai_insight}
+          hasBusinessData={hasAnyBusinessData}
+        />
 
         <div className="kaffe-card-grid grid grid-cols-1 xl:grid-cols-3 gap-6">
           <div className="kaffe-panel xl:col-span-2 rounded-2xl p-5 md:p-6">

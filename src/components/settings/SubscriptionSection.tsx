@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Check, Clock3, ExternalLink, History, RefreshCw, Shield, Sparkles, CreditCard, Calendar } from 'lucide-react';
+import { AlertCircle, Clock3, ExternalLink, History, RefreshCw, Shield, Sparkles, CreditCard, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { getSubscriptions, type SubscriptionPaymentConfig } from '@/lib/backendApi';
@@ -13,10 +13,10 @@ import {
   formatDateId,
   formatRupiah,
   getPlanDefinition,
-  getPlanPrice,
 } from '@/lib/subscriptionPlans';
 import { isAdminEmail } from '@/lib/admin';
 import SubscriptionCheckoutFlow from './SubscriptionCheckoutFlow';
+import PricingPage from '../subscription/PricingPage';
 
 interface SubscriptionSectionProps {
   isPro: boolean;
@@ -60,14 +60,12 @@ type PendingPaymentRow = {
 type PaidPlan = Exclude<SubscriptionPlanId, 'secangkir'>;
 type PaidCycle = Exclude<BillingCycle, 'free'>;
 
-const PAID_PLANS: PaidPlan[] = ['kopi_susu', 'signature', 'founder'];
-
 function isPaidPlan(plan: string | null | undefined): plan is PaidPlan {
   return plan === 'kopi_susu' || plan === 'signature' || plan === 'founder';
 }
 
 function isPaidCycle(cycle: string | null | undefined): cycle is PaidCycle {
-  return cycle === 'monthly' || cycle === 'quarterly' || cycle === 'yearly';
+  return cycle === 'monthly' || cycle === 'quarterly' || cycle === 'semiannual' || cycle === 'yearly';
 }
 
 function getPaymentStatusLabel(status: string | null | undefined) {
@@ -92,6 +90,7 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutPlan, setCheckoutPlan] = useState<PaidPlan>('signature');
   const [checkoutCycle, setCheckoutCycle] = useState<PaidCycle>('monthly');
+  const [pricingCycle, setPricingCycle] = useState<PaidCycle>('yearly');
   const billingNoticeShown = useRef(false);
 
   const loadSubscriptionData = async () => {
@@ -342,65 +341,20 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
       )}
 
       {/* ── PLAN COMPARISON / SELECTION ── */}
-      <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Pilihan Paket</p>
-            <h4 className="mt-2 text-2xl font-black text-slate-900">Upgrade ke Premium</h4>
-          </div>
-          <p className="text-xs font-bold text-slate-400">Bebas ganti paket kapan saja</p>
-        </div>
-
-        <div className="kaffe-card-grid mt-8 grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {PAID_PLANS.map((plan) => {
-            const planDef = getPlanDefinition(plan);
-            const isCurrent = activePlan.id === plan && isActivePaid;
-            const isRecommended = plan === 'signature';
-
-            return (
-              <button
-                key={plan}
-                onClick={() => openCheckout(plan, 'monthly')}
-                className={`group relative flex min-w-0 flex-col rounded-[28px] border-2 p-6 text-left transition-all hover:shadow-lg ${
-                  isCurrent
-                    ? 'border-orange-300 bg-orange-50/70 shadow-sm shadow-orange-100'
-                    : isRecommended ? 'border-orange-100 bg-white hover:border-orange-500' : 'border-slate-100 bg-white hover:border-orange-200'
-                }`}
-              >
-                {isRecommended && !isCurrent && (
-                  <div className="kaffe-gradient-cta absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-widest">
-                    Paling Populer
-                  </div>
-                )}
-
-                <div className="mb-4 flex items-start justify-between">
-                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${isCurrent ? 'bg-orange-600 text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-orange-50 group-hover:text-orange-500'}`}>
-                    <Sparkles size={24} />
-                  </div>
-                  {isCurrent && <Check size={20} className="text-emerald-600" />}
-                </div>
-
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{planDef.badge}</p>
-                <h5 className="mt-1 text-xl font-black text-slate-900">{planDef.name}</h5>
-                <p className="mt-2 min-h-[40px] break-words text-xs font-medium leading-relaxed text-slate-500">
-                  {planDef.description}
-                </p>
-
-                <div className="mt-6">
-                  <p className="break-words text-2xl font-black text-slate-900">{formatRupiah(getPlanPrice(plan, 'monthly'))}</p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Per Bulan</p>
-                </div>
-
-                <div className={`mt-6 flex h-10 items-center justify-center rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                  isCurrent ? 'bg-emerald-100 text-emerald-700' : 'kaffe-gradient-cta'
-                }`}>
-                  {isCurrent ? 'Paket Aktif' : 'Pilih'}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <PricingPage
+        selectedCycle={pricingCycle}
+        onCycleChange={setPricingCycle}
+        activePlanId={activePlan.id}
+        isActivePaid={isActivePaid}
+        onSelectPlan={(plan, cycle) => {
+          if (plan === 'secangkir') {
+            toast.showToast('Paket Secangkir aktif otomatis untuk akun gratis.', 'info');
+            return;
+          }
+          openCheckout(plan, cycle as PaidCycle);
+        }}
+        ctaLabel={(plan) => (plan === 'secangkir' ? 'Mulai Gratis' : `Pilih ${getPlanDefinition(plan).shortName}`)}
+      />
 
       {/* ── FOOTER ACTIONS ── */}
       <div className="flex flex-col gap-3 sm:flex-row">

@@ -159,7 +159,10 @@ export default function HistoryTab({
         {paginated.length === 0 ? (
           <div className="kaffe-empty-state flex flex-col items-center justify-center h-60 rounded-3xl text-slate-300">
             <Search size={40} className="mb-3 opacity-20" />
-            <p className="text-[12px] font-black uppercase tracking-[0.2em]">Data Tidak Ditemukan</p>
+            <p className="text-[12px] font-black uppercase tracking-[0.2em]">Belum ada transaksi</p>
+            <p className="mt-2 max-w-xs text-center text-xs font-semibold text-slate-400">
+              Riwayat penjualan akan muncul setelah transaksi pertama selesai.
+            </p>
           </div>
         ) : (
           <div className="flex flex-col gap-4">

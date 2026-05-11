@@ -5,7 +5,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/pos/POSTab.tsx — KaffePOS v5
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   ShoppingBag, Plus, Minus, X, ChevronRight,
   Search, Printer, RefreshCw, CheckCircle2, ChefHat,
@@ -14,11 +14,25 @@ import {
 import { useStore } from '@/hooks/useStore';
 import PrintActionSheet from '@/components/pos/PrintActionSheet';
 import ProductPlaceholder from '@/components/ui/ProductPlaceholder';
+import LoyaltyCheckoutModal from '@/components/loyalty/LoyaltyCheckoutModal';
 import type { Profile, MenuItem, Transaction } from '@/types';
 import type { SubscriptionAccess } from '@/lib/subscriptionAccess';
 import { canProcessPosPaymentOffline, getOfflinePaymentBlockedMessage } from '@/lib/offlinePolicy';
 import { buildStockDeductionPlan, calculateProductHpp } from '@/lib/stockEngine';
 import { normalizeUserFacingError } from '@/lib/errorMessages';
+import { addLoyaltyStamp, getLoyaltyOverview, redeemLoyaltyReward, searchLoyaltyPassports } from '@/lib/backendApi';
+import { enqueueOfflineOperation } from '@/lib/offlineQueue';
+import { dispatchUpgradePrompt } from '@/lib/upgradePrompts';
+import {
+  calculateLoyaltyRewardDiscount,
+  canRedeemReward,
+  normalizeLoyaltyPhone,
+  readCachedLoyaltyOverview,
+  writeCachedLoyaltyOverview,
+  type LoyaltyOverview,
+  type LoyaltyPassport,
+  type LoyaltyReward,
+} from '@/lib/loyalty';
 
 const fRp = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
@@ -35,9 +49,14 @@ function quickAmounts(total: number): number[] {
   return [...new Set([total, rounded, 50_000, 100_000].filter(v => v >= total))];
 }
 
+function makeIdempotencyKey(prefix: string) {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return `${prefix}:${crypto.randomUUID()}`;
+  return `${prefix}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+}
+
 export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
   const {
-    menu, inventory, unitConversions, cart, discount, transactions, isOnline,
+    storeId, menu, inventory, unitConversions, cart, discount, transactions, isOnline,
     addToCart, updateQty, clearCart, setDiscount, setCartItemNote,
     saveTransaction, storeSettings, kitchenOrders,
   } = useStore();
@@ -54,6 +73,11 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
   const [custName,   setCustName]   = useState('');   // ← Nama pelanggan
   const [showPrintSheet, setShowPrintSheet] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
+  const [loyaltyOverview, setLoyaltyOverview] = useState<LoyaltyOverview | null>(null);
+  const [loyaltyPhone, setLoyaltyPhone] = useState('');
+  const [loyaltySearching, setLoyaltySearching] = useState(false);
+  const [loyaltyPassport, setLoyaltyPassport] = useState<LoyaltyPassport | null>(null);
+  const [loyaltyReward, setLoyaltyReward] = useState<LoyaltyReward | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Debounce search input
@@ -138,6 +162,93 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
     }
   }, [checkStock, addToCart, toast]);
 
+  useEffect(() => {
+    if (!showPay || !storeId) return;
+    const cached = readCachedLoyaltyOverview(storeId);
+    if (cached) setLoyaltyOverview(cached);
+    if (!isOnline) return;
+    getLoyaltyOverview(storeId)
+      .then((data) => {
+        setLoyaltyOverview(data);
+        writeCachedLoyaltyOverview(storeId, data);
+      })
+      .catch(() => {
+        // Loyalty is supportive; checkout must remain usable even when this fetch fails.
+      });
+  }, [isOnline, showPay, storeId]);
+
+  const loyaltyRewards = useMemo(
+    () => (loyaltyOverview?.rewards || []).filter((reward) => reward.is_active),
+    [loyaltyOverview?.rewards],
+  );
+
+  const loyaltySettings = loyaltyOverview?.settings;
+
+  const handleLoyaltySearch = useCallback(async () => {
+    if (!storeId) return;
+    const normalizedPhone = normalizeLoyaltyPhone(loyaltyPhone || custName);
+    if (normalizedPhone.length < 4 && !custName.trim()) {
+      toast.showToast('Isi nomor HP atau nama pelanggan untuk mencari Kopi Passport.', 'warning');
+      return;
+    }
+    try {
+      setLoyaltySearching(true);
+      const localPassports = loyaltyOverview?.passports || [];
+      if (!isOnline) {
+        const query = (normalizedPhone || custName).toLowerCase();
+        const found = localPassports.find((passport) => (
+          `${passport.customer_name || ''} ${passport.customer_phone}`.toLowerCase().includes(query)
+        ));
+        if (found) {
+          setLoyaltyPassport(found);
+          setLoyaltyPhone(found.customer_phone);
+          if (!custName.trim() && found.customer_name) setCustName(found.customer_name);
+          return;
+        }
+        toast.showToast('Passport belum ada di cache offline. Stamp akan tetap bisa diantrikan.', 'info');
+        return;
+      }
+      const result = await searchLoyaltyPassports(storeId, normalizedPhone || custName);
+      const found = result.items[0] || null;
+      setLoyaltyPassport(found);
+      if (found) {
+        setLoyaltyPhone(found.customer_phone);
+        if (!custName.trim() && found.customer_name) setCustName(found.customer_name);
+        toast.showToast('Kopi Passport ditemukan.', 'success');
+      } else {
+        toast.showToast('Passport belum ditemukan. Stamp akan membuat passport baru setelah bayar.', 'info');
+      }
+    } catch (error) {
+      toast.showToast(normalizeUserFacingError(error, 'Pencarian loyalty gagal.'), 'warning');
+    } finally {
+      setLoyaltySearching(false);
+    }
+  }, [custName, isOnline, loyaltyOverview?.passports, loyaltyPhone, storeId, toast]);
+
+  const handleApplyLoyaltyReward = useCallback((reward: LoyaltyReward) => {
+    if (!loyaltyPassport) {
+      toast.showToast('Pilih Kopi Passport dulu sebelum menukar reward.', 'warning');
+      return;
+    }
+    if (!canRedeemReward(loyaltyPassport, reward)) {
+      toast.showToast('Poin atau stamp pelanggan belum cukup untuk reward ini.', 'warning');
+      return;
+    }
+    const rewardDiscount = calculateLoyaltyRewardDiscount(reward, subtotal);
+    if (reward.type !== 'free_item' && rewardDiscount <= 0) {
+      toast.showToast('Reward ini belum punya nominal diskon untuk transaksi ini.', 'warning');
+      return;
+    }
+    setLoyaltyReward(reward);
+    if (rewardDiscount > 0) setDiscount(String(rewardDiscount));
+    toast.showToast(`${reward.name} diterapkan ke transaksi.`, 'success');
+  }, [loyaltyPassport, setDiscount, subtotal, toast]);
+
+  const handleClearLoyaltyReward = useCallback(() => {
+    setLoyaltyReward(null);
+    setDiscount('');
+  }, [setDiscount]);
+
 
   const handleCheckout = useCallback(async () => {
     if (!cart.length) return;
@@ -153,7 +264,18 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
       subscriptionAccess.transactionLimit !== -1 &&
       currentMonthTransactionCount >= subscriptionAccess.transactionLimit
     ) {
-      toast.showToast('Paket gratis sudah mencapai 50 transaksi bulan ini. Upgrade untuk lanjut tanpa batas.', 'warning');
+      toast.showToast('Paket gratis sudah mencapai 100 transaksi bulan ini. Upgrade untuk lanjut tanpa batas.', 'warning');
+      dispatchUpgradePrompt({
+        trigger: 'transaction_limit_blocked',
+        promptKey: 'transaction_limit_blocked',
+        recommendedPlan: 'kopi_susu',
+        title: 'Batas transaksi gratis sudah tercapai',
+        description: 'Upgrade ke Kopi Susu atau Signature untuk membuka transaksi tanpa batas dan menjaga kasir tetap bisa melayani pelanggan.',
+        metadata: {
+          used: currentMonthTransactionCount,
+          limit: subscriptionAccess.transactionLimit,
+        },
+      });
       return;
     }
     const stockPlan = buildStockDeductionPlan(cart.map((cartItem) => ({
@@ -185,7 +307,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
 
     const tx = {
       id: orderId,
-      store_id: useStore.getState().storeId || 'temp',
+      store_id: storeId || 'temp',
       date:        new Date().toISOString(),
       items:       cart.map(c => ({
         name: c.name,
@@ -195,7 +317,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
         menu_item_id: c._baseId || c.id,
         note: c.note?.trim() || null,
       })),
-      subtotal, discount: discAmt, discount_label: discount || null,
+      subtotal, discount: discAmt, discount_label: loyaltyReward ? `Loyalty: ${loyaltyReward.name}` : (discount || null),
       tax: taxAmt, total, cogs: Math.round(cogs),
       paid, change, method,
       customer_name: custName.trim() || null,   // ← Simpan nama pelanggan
@@ -207,9 +329,70 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
     try {
       setCheckingOut(true);
       const savedTx = await saveTransaction(tx as unknown as Transaction);
+      const normalizedLoyaltyPhone = normalizeLoyaltyPhone(loyaltyPhone);
+      if (storeId && (loyaltyPassport || normalizedLoyaltyPhone.length >= 4)) {
+        const stampPayload = {
+          store_id: storeId,
+          ...(loyaltyPassport ? { passport_id: loyaltyPassport.id } : { customer_phone: normalizedLoyaltyPhone }),
+          customer_name: custName.trim() || loyaltyPassport?.customer_name || null,
+          transaction_id: savedTx.id,
+          transaction_amount: total,
+          note: 'Checkout Kopi Passport',
+          idempotency_key: makeIdempotencyKey(`loyalty-stamp:${savedTx.id}`),
+        };
+        try {
+          if (!isOnline || savedTx.sync_status === 'pending') {
+            await enqueueOfflineOperation(storeId, {
+              operation: 'loyalty.stamp.create',
+              payload: stampPayload,
+              idempotencyKey: stampPayload.idempotency_key,
+            });
+          } else {
+            const stampResult = await addLoyaltyStamp(stampPayload);
+            setLoyaltyPassport(stampResult.passport);
+          }
+        } catch {
+          await enqueueOfflineOperation(storeId, {
+            operation: 'loyalty.stamp.create',
+            payload: stampPayload,
+            idempotencyKey: stampPayload.idempotency_key,
+          });
+        }
+      }
+
+      if (storeId && loyaltyPassport && loyaltyReward) {
+        const redemptionPayload = {
+          store_id: storeId,
+          passport_id: loyaltyPassport.id,
+          reward_id: loyaltyReward.id,
+          transaction_id: savedTx.id,
+          transaction_amount: subtotal,
+          idempotency_key: makeIdempotencyKey(`loyalty-redemption:${savedTx.id}:${loyaltyReward.id}`),
+        };
+        try {
+          if (!isOnline || savedTx.sync_status === 'pending') {
+            await enqueueOfflineOperation(storeId, {
+              operation: 'loyalty.redemption.create',
+              payload: redemptionPayload,
+              idempotencyKey: redemptionPayload.idempotency_key,
+            });
+          } else {
+            await redeemLoyaltyReward(redemptionPayload);
+          }
+        } catch {
+          await enqueueOfflineOperation(storeId, {
+            operation: 'loyalty.redemption.create',
+            payload: redemptionPayload,
+            idempotencyKey: redemptionPayload.idempotency_key,
+          });
+        }
+      }
       setLastTx(savedTx);
       clearCart();
       setCustName('');
+      setLoyaltyPhone('');
+      setLoyaltyPassport(null);
+      setLoyaltyReward(null);
       setShowPay(false);
       setShowRcpt(true);
       toast.showToast(
@@ -276,6 +459,9 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
             <div className="kaffe-empty-state flex flex-col items-center justify-center h-full rounded-3xl text-slate-400 gap-3">
               <ShoppingBag size={48} strokeWidth={1.5} className="opacity-20" />
               <p className="font-bold text-sm tracking-tight">Menu tidak ditemukan</p>
+              <p className="max-w-xs text-center text-xs font-semibold text-slate-400">
+                Coba kata kunci lain atau tambah produk baru dari tab Produk.
+              </p>
             </div>
           ) : (
             <div className="kaffe-card-grid kaffe-quick-grid grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-5 pb-24 md:pb-4">
@@ -383,6 +569,9 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
               <ShoppingBag size={56} className="text-slate-200 relative z-10"/>
             </div>
             <p className="font-black text-slate-800 text-lg italic uppercase tracking-tighter">Keranjang Kosong</p>
+            <p className="mt-1 max-w-[220px] text-xs font-semibold leading-relaxed text-slate-400">
+              Pilih menu dari daftar untuk mulai membuat pesanan.
+            </p>
             <p className="text-slate-400 text-xs mt-2 leading-relaxed max-w-[200px] font-medium">Pilih menu di sebelah kiri untuk memulai pesanan baru.</p>
           </div>
         ) : (
@@ -483,6 +672,19 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
                   <label className="text-[11px] font-black tracking-wider text-slate-400 uppercase block mb-2 ml-1">Nama Pelanggan (Opsional)</label>
                   <input value={custName} onChange={e => setCustName(e.target.value)} placeholder="Contoh: Budi - Meja 05" className="w-full h-14 bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 text-[16px] font-bold focus:outline-none focus:border-[#FF6A00] transition-all"/>
                </div>
+
+               <LoyaltyCheckoutModal
+                  phone={loyaltyPhone}
+                  onPhoneChange={setLoyaltyPhone}
+                  onSearch={handleLoyaltySearch}
+                  searching={loyaltySearching}
+                  passport={loyaltyPassport}
+                  settings={loyaltySettings}
+                  rewards={loyaltyRewards}
+                  activeReward={loyaltyReward}
+                  onApplyReward={handleApplyLoyaltyReward}
+                  onClearReward={handleClearLoyaltyReward}
+               />
 
                <div>
                   <div className="flex items-center justify-between mb-2 ml-1">

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildSubscriptionAccess, hasSubscriptionFeature } from '@/lib/subscriptionAccess';
 
 describe('subscriptionAccess', () => {
-  it('membatasi paket secangkir ke 50 transaksi dan tanpa fitur premium', () => {
+  it('membatasi paket secangkir ke 100 transaksi dan tanpa fitur premium', () => {
     const access = buildSubscriptionAccess({
       id: 'user-1',
       tier: 'basic',
@@ -11,7 +11,7 @@ describe('subscriptionAccess', () => {
     });
 
     expect(access.plan).toBe('secangkir');
-    expect(access.transactionLimit).toBe(50);
+    expect(access.transactionLimit).toBe(100);
     expect(access.features.unlimited_transactions).toBe(false);
     expect(access.features.report_export).toBe(false);
     expect(access.features.ai_insight).toBe(false);

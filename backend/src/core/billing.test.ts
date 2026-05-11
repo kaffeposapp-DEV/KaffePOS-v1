@@ -150,7 +150,7 @@ function createPayload(overrides: Partial<Parameters<typeof activatePaidSubscrip
     userId: 'user-1',
     plan: 'kopi_susu' as const,
     billingCycle: 'monthly' as const,
-    paymentAmount: 99000,
+    paymentAmount: 49000,
     paymentMethod: 'qris',
     paymentRef: 'SUB-KOPI-SUSU-MONTHLY-user-1-1',
     paymentNote: 'Midtrans qris (sandbox)',

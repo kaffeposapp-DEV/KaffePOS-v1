@@ -1,5 +1,7 @@
 export type OfflineOperationType =
   | 'transaction.create'
+  | 'loyalty.stamp.create'
+  | 'loyalty.redemption.create'
   | 'kitchen.order.update'
   | 'kitchen.item.update'
   | 'store.settings.update'

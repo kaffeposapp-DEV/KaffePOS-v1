@@ -94,7 +94,7 @@ describe('backend midtrans helpers', () => {
     const signature = createMidtransWebhookSignature({
       orderId: 'SUB-SIGNATURE-MONTHLY-user-123',
       statusCode: '200',
-      grossAmount: '99000.00',
+      grossAmount: '129000.00',
       serverKey: 'server-key',
     });
 
@@ -103,7 +103,7 @@ describe('backend midtrans helpers', () => {
       isMidtransWebhookSignatureValid({
         orderId: 'SUB-SIGNATURE-MONTHLY-user-123',
         statusCode: '200',
-        grossAmount: '99000.00',
+        grossAmount: '129000.00',
         signatureKey: signature,
         serverKey: 'server-key',
       }),
@@ -112,7 +112,7 @@ describe('backend midtrans helpers', () => {
       isMidtransWebhookSignatureValid({
         orderId: 'SUB-SIGNATURE-MONTHLY-user-123',
         statusCode: '200',
-        grossAmount: '99000.00',
+        grossAmount: '129000.00',
         signatureKey: signature,
         serverKey: 'wrong-key',
       }),

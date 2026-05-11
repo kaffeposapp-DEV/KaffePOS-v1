@@ -392,7 +392,10 @@ export default function WarehouseTab({ toast }: { toast:any }) {
         {section === 'ingredients' && (filtered.length === 0 ? (
           <div className="kaffe-empty-state flex flex-col items-center justify-center h-60 rounded-3xl text-slate-300">
              <Archive size={48} className="mb-4 opacity-10" />
-             <p className="text-[12px] font-black uppercase tracking-[0.2em]">Stok Kosong</p>
+             <p className="text-[12px] font-black uppercase tracking-[0.2em]">Stok masih kosong</p>
+             <p className="mt-2 max-w-xs text-center text-xs font-semibold text-slate-400">
+               Tambahkan bahan pertama agar stok dan resep menu bisa terpantau.
+             </p>
           </div>
         ) : (
             <div className="kaffe-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -484,7 +487,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
             </form>
             <div className="bg-white border border-slate-100 rounded-2xl shadow-soft overflow-hidden">
               {unitConversions.length === 0 ? (
-                <div className="p-8 text-center text-slate-300 font-black uppercase tracking-widest text-xs">Belum ada konversi</div>
+                <div className="p-8 text-center text-slate-400 font-semibold text-xs">Belum ada konversi unit. Tambahkan konversi saat bahan dibeli dan dipakai dalam satuan berbeda.</div>
               ) : unitConversions.map(conversion => {
                 const ingredient = inventory.find(item => item.id === conversion.ingredient_id);
                 return (

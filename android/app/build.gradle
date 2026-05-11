@@ -80,6 +80,13 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
+android {
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
 try {
     if (hasFirebaseServices) {
         apply plugin: 'com.google.gms.google-services'

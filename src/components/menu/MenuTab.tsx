@@ -141,6 +141,9 @@ export default function MenuTab({ toast }:any) {
                <ShoppingBag size={32} />
             </div>
             <p className="text-sm font-bold">Belum ada menu di kategori ini</p>
+            <p className="mt-1 max-w-xs text-center text-xs font-semibold text-slate-400">
+              Tambahkan produk pertama agar kasir bisa mulai transaksi dengan cepat.
+            </p>
           </div>
         ) : (
           <>
@@ -372,12 +375,12 @@ export default function MenuTab({ toast }:any) {
                 </div>
                 {inventory.length===0?(
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
-                    <p className="text-amber-700 text-xs font-bold">Belum ada bahan di Gudang</p>
+                    <p className="text-amber-700 text-xs font-bold">Belum ada bahan di Gudang. Tambahkan stok dulu untuk membuat resep.</p>
                     <p className="text-amber-500 text-xs mt-0.5">Tambah bahan di tab Gudang terlebih dahulu</p>
                   </div>
                 ):(form.recipe||[]).length===0?(
                   <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-3 text-center">
-                    <p className="text-slate-400 text-xs">Belum ada resep — menu tanpa resep tidak mengurangi stok</p>
+                    <p className="text-slate-400 text-xs">Belum ada resep. Menu tetap bisa dijual, tetapi stok tidak akan berkurang otomatis.</p>
                   </div>
                 ):(
                   <div className="space-y-2.5">

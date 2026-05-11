@@ -146,6 +146,7 @@ cd android && ./gradlew assembleRelease
 - `POST /api/subscriptions/payments/create`
 - `POST /api/payments/midtrans/webhook`
 - `GET /api/notifications`
+- `POST /api/notifications/mark-read`
 - `GET /api/transactions`
 - `POST /api/transactions/checkout`
 

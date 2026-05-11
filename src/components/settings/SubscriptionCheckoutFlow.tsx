@@ -13,11 +13,13 @@ import {
 } from '@/lib/subscriptionBilling';
 import {
   BILLING_CYCLE_LABELS,
+  PAID_BILLING_CYCLES,
   type BillingCycle,
   type SubscriptionPlanId,
   formatRupiah,
   getPlanDefinition,
   getPlanPrice,
+  getPlanSavingsPercent,
 } from '@/lib/subscriptionPlans';
 import { canStartOnlineBillingFlow, getOnlineBillingBlockedMessage } from '@/lib/offlinePolicy';
 
@@ -35,7 +37,7 @@ type Props = {
 type FlowStep = 'plan' | 'method' | 'review';
 
 const PAID_PLANS: PaidPlan[] = ['kopi_susu', 'signature', 'founder'];
-const PAID_CYCLES: PaidCycle[] = ['monthly', 'quarterly', 'yearly'];
+const PAID_CYCLES = PAID_BILLING_CYCLES;
 
 function stepNumber(step: FlowStep) {
   if (step === 'plan') return 1;
@@ -258,6 +260,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                         setQuote(null);
                         setAppliedVoucher(null);
                       }}
+                      aria-label={`Pilih paket ${planDef.name}`}
                       className={`relative flex flex-col rounded-[28px] border-2 p-5 text-left transition-all ${
                         active
                           ? 'border-orange-400 bg-orange-50/70 shadow-md shadow-orange-100'
@@ -285,9 +288,10 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
 
               <div className="rounded-[28px] bg-slate-50 p-6 border border-slate-100">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Pilih Durasi Langganan</p>
-                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {PAID_CYCLES.map((cycle) => {
                     const active = selectedCycle === cycle;
+                    const savings = getPlanSavingsPercent(selectedPlan, cycle);
                     return (
                       <button
                         key={cycle}
@@ -302,7 +306,12 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                             : 'border-transparent bg-slate-200/50 text-slate-500 hover:bg-slate-200'
                         }`}
                       >
-                        {BILLING_CYCLE_LABELS[cycle]}
+                        <span className="block">{BILLING_CYCLE_LABELS[cycle]}</span>
+                        {savings > 0 ? (
+                          <span className="mt-1 block text-[9px] font-black uppercase tracking-wider text-emerald-600">
+                            {cycle === 'yearly' ? 'Hemat hingga 24%' : `Hemat ${savings}%`}
+                          </span>
+                        ) : null}
                       </button>
                     );
                   })}

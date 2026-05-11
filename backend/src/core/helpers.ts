@@ -154,7 +154,7 @@ export async function serializeProfileWithAssignment(client: PoolClient, row: Re
 
 // ── Store ownership assert ─────────────────────────────────────
 
-export async function assertStoreOwned(client: PoolClient, storeId: string, userId: string) {
+export async function assertStoreOwned(client: Pick<PoolClient, 'query'>, storeId: string, userId: string) {
   const result = await client.query(
     `
       select ${storeColumns}
@@ -224,13 +224,21 @@ export async function ensureProfile(client: PoolClient, user: AuthenticatedUser)
 
 // ── Notification insert ────────────────────────────────────────
 
-export async function insertNotification(client: PoolClient, userId: string, title: string, message: string, type = 'info', metadata: Record<string, unknown> = {}) {
+export async function insertNotification(
+  client: PoolClient,
+  userId: string,
+  title: string,
+  message: string,
+  type = 'system',
+  metadata: Record<string, unknown> = {},
+  storeId: string | null = null,
+) {
   await client.query(
     `
-      insert into public.notifications (user_id, title, message, type, metadata)
-      values ($1, $2, $3, $4, $5::jsonb)
+      insert into public.notifications (user_id, store_id, title, message, type, metadata)
+      values ($1, $2, $3, $4, $5, $6::jsonb)
     `,
-    [userId, title, message, type, JSON.stringify(metadata)],
+    [userId, storeId, title, message, type, JSON.stringify(metadata)],
   );
 }
 

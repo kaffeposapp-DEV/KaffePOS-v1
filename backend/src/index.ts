@@ -8,6 +8,8 @@ import inventoryRouter from './routes/inventory';
 import financeRouter from './routes/finance';
 import kitchenRouter from './routes/kitchen';
 import transactionsRouter from './routes/transactions';
+import loyaltyRouter from './routes/loyalty';
+import challengesRouter from './routes/challenges';
 import subscriptionsRouter from './routes/subscriptions';
 import adminRouter from './routes/admin';
 import miscRouter from './routes/misc';
@@ -1440,7 +1442,7 @@ async function syncProfileSubscriptionState(client: PoolClient, userId: string) 
 async function activatePaidSubscription(client: PoolClient, payload: {
   userId: string;
   plan: 'secangkir' | 'kopi_susu' | 'signature' | 'founder';
-  billingCycle: 'free' | 'monthly' | 'quarterly' | 'yearly';
+  billingCycle: 'free' | 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
   paymentAmount: number;
   paymentMethod: string;
   paymentRef: string;
@@ -1813,14 +1815,14 @@ const checkoutSchema = z.object({
 const adminSubscriptionActionSchema = z.object({
   userId: z.string().uuid(),
   plan: z.enum(['secangkir', 'kopi_susu', 'signature', 'founder']),
-  billingCycle: z.enum(['free', 'monthly', 'quarterly', 'yearly']),
+  billingCycle: z.enum(['free', 'monthly', 'quarterly', 'semiannual', 'yearly']),
   paymentAmount: z.number().nonnegative(),
   paymentNote: z.string().trim().optional().nullable(),
 });
 const subscriptionPaymentMethodSchema = z.enum(['qris', 'bca_va', 'mandiri_bill', 'bni_va', 'bri_va']);
 const subscriptionPaymentRequestSchema = z.object({
   plan: z.enum(['kopi_susu', 'signature', 'founder']),
-  billingCycle: z.enum(['monthly', 'quarterly', 'yearly']),
+  billingCycle: z.enum(['monthly', 'quarterly', 'semiannual', 'yearly']),
   paymentMethod: subscriptionPaymentMethodSchema,
   voucherCode: z.string().trim().max(64).optional().nullable(),
 });
@@ -1879,10 +1881,10 @@ const aiInsightResponseSchema = z.object({
   tips: z.array(z.string().trim().min(1)).min(1),
 });
 
-function calculateExpiryDate(billingCycle: 'free' | 'monthly' | 'quarterly' | 'yearly') {
+function calculateExpiryDate(billingCycle: 'free' | 'monthly' | 'quarterly' | 'semiannual' | 'yearly') {
   if (billingCycle === 'free') return null;
   const expiresAt = new Date();
-  const days = billingCycle === 'monthly' ? 30 : billingCycle === 'quarterly' ? 90 : 365;
+  const days = billingCycle === 'monthly' ? 30 : billingCycle === 'quarterly' ? 90 : billingCycle === 'semiannual' ? 180 : 365;
   expiresAt.setDate(expiresAt.getDate() + days);
   return expiresAt;
 }
@@ -2410,6 +2412,246 @@ async function bootstrapKitchenSchema() {
   `);
 }
 
+async function bootstrapLoyaltySchema() {
+  await pool.query('create extension if not exists pgcrypto');
+
+  await pool.query(`
+    create table if not exists public.loyalty_settings (
+      store_id uuid primary key references public.stores(id) on delete cascade,
+      stamps_required integer not null default 8 check (stamps_required between 2 and 20),
+      points_per_rupiah numeric not null default 0.01 check (points_per_rupiah >= 0),
+      minimum_transaction_amount integer not null default 0 check (minimum_transaction_amount >= 0),
+      is_active boolean not null default true,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+
+    create table if not exists public.loyalty_rewards (
+      id uuid primary key default gen_random_uuid(),
+      store_id uuid not null references public.stores(id) on delete cascade,
+      name text not null,
+      description text,
+      type text not null check (type in ('discount_amount', 'discount_percent', 'free_item')),
+      reward_value integer not null default 0 check (reward_value >= 0),
+      points_or_stamps_needed integer not null default 0 check (points_or_stamps_needed >= 0),
+      points_cost integer not null default 0 check (points_cost >= 0),
+      stamps_cost integer not null default 0 check (stamps_cost >= 0),
+      is_active boolean not null default true,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+
+    create index if not exists loyalty_rewards_store_active_idx
+      on public.loyalty_rewards (store_id, is_active, created_at asc);
+
+    alter table public.loyalty_rewards
+      add column if not exists points_or_stamps_needed integer not null default 0 check (points_or_stamps_needed >= 0);
+
+    create table if not exists public.loyalty_customers (
+      id uuid primary key default gen_random_uuid(),
+      store_id uuid not null references public.stores(id) on delete cascade,
+      name text,
+      phone text not null,
+      tier text not null default 'regular' check (tier in ('regular', 'kopi_lover', 'vvip')),
+      total_points integer not null default 0 check (total_points >= 0),
+      total_visits integer not null default 0 check (total_visits >= 0),
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      unique (store_id, phone)
+    );
+
+    create index if not exists loyalty_customers_store_phone_idx
+      on public.loyalty_customers (store_id, phone);
+
+    create table if not exists public.loyalty_tiers (
+      id uuid primary key default gen_random_uuid(),
+      store_id uuid references public.stores(id) on delete cascade,
+      name text not null,
+      min_visits integer not null default 0 check (min_visits >= 0),
+      benefits jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      unique (store_id, name)
+    );
+
+    create index if not exists loyalty_tiers_store_min_visits_idx
+      on public.loyalty_tiers (store_id, min_visits asc);
+
+    create table if not exists public.loyalty_passports (
+      id uuid primary key default gen_random_uuid(),
+      store_id uuid not null references public.stores(id) on delete cascade,
+      customer_name text,
+      customer_phone text not null,
+      tier text not null default 'regular' check (tier in ('regular', 'kopi_lover', 'vvip')),
+      total_stamps integer not null default 0 check (total_stamps >= 0),
+      available_stamps integer not null default 0 check (available_stamps >= 0),
+      total_points integer not null default 0 check (total_points >= 0),
+      available_points integer not null default 0 check (available_points >= 0),
+      lifetime_spend integer not null default 0 check (lifetime_spend >= 0),
+      last_visit_at timestamptz,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      unique (store_id, customer_phone)
+    );
+
+    create index if not exists loyalty_passports_store_updated_idx
+      on public.loyalty_passports (store_id, updated_at desc);
+
+    create index if not exists loyalty_passports_store_phone_idx
+      on public.loyalty_passports (store_id, customer_phone);
+
+    create table if not exists public.loyalty_stamp_events (
+      id uuid primary key default gen_random_uuid(),
+      store_id uuid not null references public.stores(id) on delete cascade,
+      passport_id uuid not null references public.loyalty_passports(id) on delete cascade,
+      transaction_id text references public.transactions(id) on delete set null,
+      stamps integer not null default 1 check (stamps >= 0),
+      points integer not null default 0 check (points >= 0),
+      transaction_amount integer not null default 0 check (transaction_amount >= 0),
+      note text,
+      created_by uuid references public.profiles(id) on delete set null,
+      idempotency_key text,
+      created_at timestamptz not null default now()
+    );
+
+    create unique index if not exists loyalty_stamp_events_idempotency_idx
+      on public.loyalty_stamp_events (store_id, idempotency_key)
+      where idempotency_key is not null;
+
+    create index if not exists loyalty_stamp_events_passport_created_idx
+      on public.loyalty_stamp_events (passport_id, created_at desc);
+
+    create table if not exists public.loyalty_stamps (
+      id uuid primary key default gen_random_uuid(),
+      customer_id uuid not null references public.loyalty_customers(id) on delete cascade,
+      transaction_id text references public.transactions(id) on delete set null,
+      stamps_earned integer not null default 1 check (stamps_earned >= 0),
+      created_at timestamptz not null default now()
+    );
+
+    create index if not exists loyalty_stamps_customer_created_idx
+      on public.loyalty_stamps (customer_id, created_at desc);
+
+    create table if not exists public.loyalty_redemptions (
+      id uuid primary key default gen_random_uuid(),
+      store_id uuid not null references public.stores(id) on delete cascade,
+      passport_id uuid not null references public.loyalty_passports(id) on delete cascade,
+      reward_id uuid not null references public.loyalty_rewards(id) on delete restrict,
+      transaction_id text references public.transactions(id) on delete set null,
+      points_spent integer not null default 0 check (points_spent >= 0),
+      stamps_spent integer not null default 0 check (stamps_spent >= 0),
+      discount_amount integer not null default 0 check (discount_amount >= 0),
+      status text not null default 'redeemed' check (status in ('pending', 'redeemed', 'void')),
+      created_by uuid references public.profiles(id) on delete set null,
+      idempotency_key text,
+      created_at timestamptz not null default now()
+    );
+
+    create unique index if not exists loyalty_redemptions_idempotency_idx
+      on public.loyalty_redemptions (store_id, idempotency_key)
+      where idempotency_key is not null;
+
+    create index if not exists loyalty_redemptions_passport_created_idx
+      on public.loyalty_redemptions (passport_id, created_at desc);
+  `);
+}
+
+async function bootstrapChallengeSchema() {
+  await pool.query('create extension if not exists pgcrypto');
+
+  await pool.query(`
+    create table if not exists public.challenges (
+      id uuid primary key default gen_random_uuid(),
+      store_id uuid references public.stores(id) on delete cascade,
+      title text not null,
+      description text not null default '',
+      target_type text not null check (
+        target_type in (
+          'sell_drink',
+          'average_checkout_time',
+          'transactions_count',
+          'upsell_value',
+          'zero_voids'
+        )
+      ),
+      target_value jsonb not null default '{}'::jsonb,
+      points_reward integer not null default 0 check (points_reward >= 0),
+      is_active boolean not null default true,
+      valid_from date not null default current_date,
+      valid_to date not null default current_date,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+
+    create index if not exists challenges_store_active_valid_idx
+      on public.challenges (store_id, is_active, valid_from, valid_to);
+
+    create unique index if not exists challenges_store_title_day_idx
+      on public.challenges (store_id, title, valid_from);
+
+    create table if not exists public.user_challenge_progress (
+      id uuid primary key default gen_random_uuid(),
+      user_id uuid not null references public.profiles(id) on delete cascade,
+      challenge_id uuid not null references public.challenges(id) on delete cascade,
+      current_progress numeric not null default 0 check (current_progress >= 0),
+      is_completed boolean not null default false,
+      completed_at timestamptz,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      unique (user_id, challenge_id)
+    );
+
+    create index if not exists user_challenge_progress_user_idx
+      on public.user_challenge_progress (user_id, updated_at desc);
+
+    create index if not exists user_challenge_progress_challenge_idx
+      on public.user_challenge_progress (challenge_id, is_completed);
+  `);
+}
+
+async function bootstrapSubscriptionPromptSchema() {
+  await pool.query('create extension if not exists pgcrypto');
+
+  await pool.query(`
+    create table if not exists public.subscription_upgrade_prompt_events (
+      id uuid primary key default gen_random_uuid(),
+      user_id uuid references public.profiles(id) on delete set null,
+      store_id uuid references public.stores(id) on delete set null,
+      event_type text not null check (event_type in ('view', 'click', 'dismiss')),
+      prompt_key text not null,
+      trigger text not null,
+      recommended_plan text not null default 'signature',
+      current_plan text,
+      metadata jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now()
+    );
+
+    create index if not exists subscription_upgrade_prompt_events_user_idx
+      on public.subscription_upgrade_prompt_events (user_id, created_at desc);
+
+    create index if not exists subscription_upgrade_prompt_events_store_trigger_idx
+      on public.subscription_upgrade_prompt_events (store_id, trigger, created_at desc);
+  `);
+}
+
+async function bootstrapAiInsightsSchema() {
+  await pool.query('create extension if not exists pgcrypto');
+
+  await pool.query(`
+    create table if not exists public.ai_insights_cache (
+      store_id uuid primary key references public.stores(id) on delete cascade,
+      generated_by uuid references public.profiles(id) on delete set null,
+      payload jsonb not null,
+      generated_at timestamptz not null default now(),
+      expires_at timestamptz not null,
+      updated_at timestamptz not null default now()
+    );
+
+    create index if not exists ai_insights_cache_expires_idx
+      on public.ai_insights_cache (expires_at);
+  `);
+}
+
 // ── Modular routes ─────────────────────────────────────────────
 // Health, system-status → extracted to routes/health.ts
 setHealthRuntimeState({ serviceStartedAt, isShuttingDown: () => isShuttingDown });
@@ -2438,6 +2680,8 @@ app.use(
   financeRouter,
   kitchenRouter,
   transactionsRouter,
+  loyaltyRouter,
+  challengesRouter,
   subscriptionsRouter,
   adminRouter,
   miscRouter,
@@ -2452,6 +2696,8 @@ app.use(inventoryRouter);
 app.use(financeRouter);
 app.use(kitchenRouter);
 app.use(transactionsRouter);
+app.use(loyaltyRouter);
+app.use(challengesRouter);
 app.use(subscriptionsRouter);
 app.use(adminRouter);
 app.use(miscRouter);
@@ -2539,6 +2785,10 @@ async function verifyDependenciesOnStartup() {
   await bootstrapAuthSchema();
   await bootstrapStockSchema();
   await bootstrapKitchenSchema();
+  await bootstrapLoyaltySchema();
+  await bootstrapChallengeSchema();
+  await bootstrapSubscriptionPromptSchema();
+  await bootstrapAiInsightsSchema();
   await pool.query('select 1');
   log('info', 'startup.dependencies_ready', {
     database: {

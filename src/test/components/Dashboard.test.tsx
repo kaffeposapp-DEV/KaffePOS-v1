@@ -7,7 +7,9 @@ import { useStore } from '@/hooks/useStore';
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   LineChart: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  BarChart: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Line: () => <div />,
+  Bar: () => <div />,
   XAxis: () => <div />,
   YAxis: () => <div />,
   CartesianGrid: () => <div />,
@@ -15,6 +17,16 @@ vi.mock('recharts', () => ({
   PieChart: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Pie: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Cell: () => <div />,
+}));
+
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({
+    subscriptionAccess: {
+      features: {
+        ai_insight: false,
+      },
+    },
+  }),
 }));
 
 describe('Dashboard readiness surfaces', () => {

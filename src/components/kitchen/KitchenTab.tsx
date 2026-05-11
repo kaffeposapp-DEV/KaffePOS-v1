@@ -222,8 +222,8 @@ export default function KitchenTab({ toast, profile }: Props) {
             <div className="w-24 h-24 bg-slate-100 rounded-[40px] flex items-center justify-center mb-6">
               <ChefHat size={48} className="text-slate-300" />
             </div>
-            <p className="text-lg font-black text-slate-800 uppercase italic tracking-tighter">Dapur Bersih</p>
-            <p className="mt-1 text-xs font-bold text-slate-400 uppercase tracking-widest">Belum ada pesanan yang masuk.</p>
+            <p className="text-lg font-black text-slate-800 uppercase italic tracking-tighter">Dapur siap</p>
+            <p className="mt-1 text-xs font-bold text-slate-400 uppercase tracking-widest">Pesanan baru dari kasir akan muncul di sini.</p>
           </div>
         ) : (
           <div className="kaffe-card-grid grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 animate-in fade-in duration-300">

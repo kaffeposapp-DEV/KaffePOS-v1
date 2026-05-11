@@ -15,6 +15,8 @@ describe('backend modular bootstrap sync', () => {
     'finance',
     'kitchen',
     'transactions',
+    'loyalty',
+    'challenges',
     'subscriptions',
     'admin',
     'misc',
@@ -35,6 +37,8 @@ describe('backend modular bootstrap sync', () => {
     expect(indexSource).toContain('app.use(financeRouter)');
     expect(indexSource).toContain('app.use(kitchenRouter)');
     expect(indexSource).toContain('app.use(transactionsRouter)');
+    expect(indexSource).toContain('app.use(loyaltyRouter)');
+    expect(indexSource).toContain('app.use(challengesRouter)');
     expect(indexSource).toContain('app.use(subscriptionsRouter)');
     expect(indexSource).toContain('app.use(adminRouter)');
     expect(indexSource).toContain('app.use(miscRouter)');

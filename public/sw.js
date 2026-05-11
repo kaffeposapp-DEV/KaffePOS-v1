@@ -83,3 +83,43 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(handleStaticAssetRequest(request));
   }
 });
+
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { title: 'KaffePOS', message: event.data ? event.data.text() : 'Notifikasi baru' };
+  }
+
+  const title = payload.title || 'KaffePOS';
+  const options = {
+    body: payload.message || payload.body || 'Notifikasi baru',
+    icon: '/favicon.svg',
+    badge: '/favicon.svg',
+    data: {
+      url: payload.url || '/',
+      notificationId: payload.id || null,
+    },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clients) => {
+        for (const client of clients) {
+          if ('focus' in client) {
+            client.postMessage({ type: 'kaffepos-open-notifications' });
+            return client.focus();
+          }
+        }
+        return self.clients.openWindow(targetUrl);
+      })
+  );
+});

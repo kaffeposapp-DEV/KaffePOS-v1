@@ -21,10 +21,13 @@ describe('frontend RBAC access control', () => {
     expect(hasPermission('owner_admin', 'can_view_reports')).toBe(true);
     expect(canAccessTab('owner_admin', 'settings')).toBe(true);
     expect(canAccessTab('owner_admin', 'report')).toBe(true);
+    expect(canAccessTab('owner_admin', 'performance')).toBe(true);
+    expect(canAccessTab('owner_admin', 'challenges')).toBe(true);
+    expect(canAccessTab('owner_admin', 'loyalty')).toBe(true);
   });
 
   it('keeps cashier focused on POS, kitchen, and limited history', () => {
-    expect(getVisibleTabs('cashier')).toEqual(['pos', 'kitchen', 'history']);
+    expect(getVisibleTabs('cashier')).toEqual(['pos', 'loyalty', 'performance', 'challenges', 'kitchen', 'history']);
     expect(getDefaultTabForRole('cashier')).toBe('pos');
     expect(hasPermission('cashier', 'can_use_pos')).toBe(true);
     expect(hasPermission('cashier', 'can_view_kitchen')).toBe(true);
@@ -33,6 +36,8 @@ describe('frontend RBAC access control', () => {
     expect(hasPermission('cashier', 'can_void_transaction')).toBe(false);
     expect(canAccessTab('cashier', 'settings')).toBe(false);
     expect(canAccessTab('cashier', 'report')).toBe(false);
+    expect(canAccessTab('cashier', 'performance')).toBe(true);
+    expect(canAccessTab('cashier', 'loyalty')).toBe(true);
   });
 
   it('denies unknown roles by default to cashier-level access', () => {
@@ -40,4 +45,3 @@ describe('frontend RBAC access control', () => {
     expect(canAccessTab(undefined, 'settings')).toBe(false);
   });
 });
-

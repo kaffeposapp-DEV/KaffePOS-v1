@@ -9,12 +9,12 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/AppShell.tsx — KaffePOS v5 — FAST INIT: cache storeId, show instantly
-import React, { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
-import { ShoppingBag, Package, Tag, History, BarChart3, Settings, WifiOff, LayoutDashboard, ChefHat, RefreshCw, LogOut } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef, Suspense, lazy, useMemo } from 'react';
+import { ShoppingBag, Package, Tag, History, BarChart3, Settings, WifiOff, LayoutDashboard, ChefHat, RefreshCw, LogOut, Trophy, BadgePercent, Target } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/hooks/useStore';
-import { createStore, getStores } from '@/lib/backendApi';
+import { createStore, getStores, getSubscriptionUsageLimits, type SubscriptionUsageLimits } from '@/lib/backendApi';
 import { normalizeUserFacingError } from '@/lib/errorMessages';
 import { getStoreCacheKey } from '@/utils/sessionIsolation';
 import { ToastContainer, useToast } from './ui/Toast';
@@ -27,10 +27,29 @@ import { canAccessTab, getDefaultTabForRole, getVisibleTabs } from '@/lib/access
 import { selectStoreForBootstrap } from '@/lib/storeContext';
 import { trackClientError } from '@/lib/opsMetrics';
 import { captureFrontendError } from '@/lib/errorTracking';
+import UpgradeModal from './subscription/UpgradeModal';
+import SmartUpgradeBanner from './subscription/SmartUpgradeBanner';
+import NotificationBell from './notifications/NotificationBell';
+import NotificationCenter from './notifications/NotificationCenter';
+import CelebrationHost from './gamification/Celebration';
+import BetaFeedbackButton from './beta/BetaFeedbackButton';
+import {
+  cacheSubscriptionUsageLimits,
+  daysSince,
+  dispatchUpgradePrompt,
+  getOrCreateUpgradeFirstSeen,
+  markUpgradePromptDismissed,
+  readCachedSubscriptionUsageLimits,
+  shouldThrottleUpgradePrompt,
+  type UpgradePromptRequest,
+} from '@/lib/upgradePrompts';
 import LOGO_ICON from '@/assets/logo-kaffeposappicon.svg';
 
 const DashboardTab = lazy(() => import('./dashboard/Dashboard'));
+const StaffPersonalProfileTab = lazy(() => import('./gamification/StaffPersonalProfile'));
+const ChallengesTab = lazy(() => import('./challenges/ChallengesPage'));
 const POSTab       = lazy(() => import('./pos/POSTab'));
+const LoyaltyTab   = lazy(() => import('./loyalty/LoyaltyTab'));
 const KitchenTab   = lazy(() => import('./kitchen/KitchenTab'));
 const WarehouseTab = lazy(() => import('./warehouse/WarehouseTab'));
 const MenuTab      = lazy(() => import('./menu/MenuTab'));
@@ -40,7 +59,10 @@ const SettingsTab  = lazy(() => import('./settings/SettingsTab'));
 
 const NAV = [
   { id: 'dashboard' as Tab, label: 'Dashboard',  icon: LayoutDashboard },
+  { id: 'performance' as Tab, label: 'Performa', icon: Trophy },
+  { id: 'challenges' as Tab, label: 'Misi', icon: Target },
   { id: 'pos'       as Tab, label: 'Kasir',      icon: ShoppingBag },
+  { id: 'loyalty'   as Tab, label: 'Loyalty',    icon: BadgePercent },
   { id: 'kitchen'   as Tab, label: 'Dapur',     icon: ChefHat },
   { id: 'warehouse' as Tab, label: 'Stok',       icon: Package     },
   { id: 'menu'      as Tab, label: 'Produk',     icon: Tag         },
@@ -122,7 +144,10 @@ function getValidTab(value: string | null): Tab | null {
 function createLoadedTabsState(initialTab: Tab): Record<Tab, boolean> {
   return {
     dashboard: initialTab === 'dashboard',
+    performance: initialTab === 'performance',
+    challenges: initialTab === 'challenges',
     pos: initialTab === 'pos',
+    loyalty: initialTab === 'loyalty',
     kitchen: initialTab === 'kitchen',
     warehouse: initialTab === 'warehouse',
     menu: initialTab === 'menu',
@@ -146,6 +171,9 @@ export default function AppShell() {
     pendingSyncCount,
     failedSyncCount,
     flushPending,
+    transactions,
+    activeChallenges,
+    challengeProgress,
   } = useStore();
 
   const [tab, setTab] = useState<Tab>(() => {
@@ -156,12 +184,19 @@ export default function AppShell() {
     }
   });
   const [loadedTabs, setLoadedTabs] = useState<Record<Tab, boolean>>(() => createLoadedTabsState(tab));
+  const hasOpenChallenge = activeChallenges.some((challenge) => (
+    challenge.is_active && !challengeProgress.some((progress) => progress.challenge_id === challenge.id && progress.is_completed)
+  ));
 
   const [ready,   setReady]   = useState(false);
   const [message, setMessage] = useState('Memuat...');
   const [postUpdateSyncing, setPostUpdateSyncing] = useState(false);
   const [postUpdateNotice, setPostUpdateNotice] = useState(() => readUpgradeReport());
   const [showSyncCenter, setShowSyncCenter] = useState(false);
+  const [subscriptionUsage, setSubscriptionUsage] = useState<SubscriptionUsageLimits | null>(null);
+  const [upgradePrompt, setUpgradePrompt] = useState<UpgradePromptRequest | null>(null);
+  const [upgradeBannerDismissedAt, setUpgradeBannerDismissedAt] = useState(0);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { toasts, showToast, dismissToast, showDownloadSuccess, showDownloadError } = useToast();
 
   useEffect(() => {
@@ -174,6 +209,31 @@ export default function AppShell() {
     window.addEventListener('kaffepos-toast', handleGlobalToast);
     return () => window.removeEventListener('kaffepos-toast', handleGlobalToast);
   }, [showToast]);
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'kaffepos-open-notifications') {
+        setNotificationsOpen(true);
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
+  }, []);
+
+  useEffect(() => {
+    const handleUpgradePrompt = (event: Event) => {
+      const detail = (event as CustomEvent<UpgradePromptRequest>).detail;
+      if (!detail) return;
+      setUpgradePrompt({
+        recommendedPlan: 'signature',
+        ...detail,
+      });
+    };
+
+    window.addEventListener('kaffepos-upgrade-prompt', handleUpgradePrompt as EventListener);
+    return () => window.removeEventListener('kaffepos-upgrade-prompt', handleUpgradePrompt as EventListener);
+  }, []);
 
   // ── Dialog saldo kasir harian ─────────────────────────────────
   // Tunggu data ready DAN syncing=false agar tidak false positive
@@ -320,6 +380,84 @@ export default function AppShell() {
   }, [loadAll, postUpdateNotice?.firstLaunchAfterUpdate, postUpdateNotice?.recoveredKeys.length, postUpdateSyncing, ready, refreshProfile, showToast, storeId, user?.id]);
 
   useEffect(() => {
+    if (!ready || !storeId || !user?.id) return;
+    let cancelled = false;
+
+    const cached = readCachedSubscriptionUsageLimits(storeId);
+    if (cached) setSubscriptionUsage(cached);
+
+    getSubscriptionUsageLimits(storeId)
+      .then((usage) => {
+        if (cancelled) return;
+        setSubscriptionUsage(usage);
+        cacheSubscriptionUsageLimits(storeId, usage);
+      })
+      .catch(() => {
+        if (!cancelled && cached) setSubscriptionUsage(cached);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, storeId, user?.id, transactions.length]);
+
+  const localMonthlyTransactionCount = useMemo(() => {
+    const now = new Date();
+    return transactions.filter((tx) => {
+      if (tx.is_void) return false;
+      const txDate = new Date(tx.date);
+      return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear();
+    }).length;
+  }, [transactions]);
+
+  const effectiveUsage = useMemo(() => {
+    if (subscriptionUsage) return subscriptionUsage;
+    const limit = subscriptionAccess.transactionLimit;
+    const percent = limit > 0 ? Math.min(100, Math.round((localMonthlyTransactionCount / limit) * 100)) : 0;
+    const firstSeen = getOrCreateUpgradeFirstSeen(user?.id || profile?.id, profile?.created_at ?? null);
+    return {
+      storeId: storeId || '',
+      ownerId: profile?.owner_id || profile?.id || '',
+      currentPlan: subscriptionAccess.plan,
+      transactionLimit: limit,
+      transactionsUsed: localMonthlyTransactionCount,
+      transactionsRemaining: limit > 0 ? Math.max(limit - localMonthlyTransactionCount, 0) : null,
+      percentUsed: percent,
+      period: { type: 'monthly' as const, startsAt: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString() },
+      firstActivityAt: firstSeen,
+      daysSinceFirstActivity: daysSince(firstSeen),
+      shouldShowTransactionLimitPrompt: limit > 0 && percent >= 80 && localMonthlyTransactionCount < limit,
+      shouldShowAppAgePrompt: subscriptionAccess.plan === 'secangkir' && daysSince(firstSeen) >= 14,
+    };
+  }, [localMonthlyTransactionCount, profile?.created_at, profile?.id, profile?.owner_id, storeId, subscriptionAccess.plan, subscriptionAccess.transactionLimit, subscriptionUsage, user?.id]);
+
+  const transactionLimitPromptKey = `transaction_limit_80:${storeId || 'local'}`;
+  const appAgePromptKey = `app_age_14_days:${user?.id || profile?.id || 'local'}`;
+  const showTransactionLimitBanner = useMemo(() => Boolean(
+    effectiveUsage.transactionLimit > 0 &&
+    effectiveUsage.percentUsed >= 80 &&
+    effectiveUsage.transactionsUsed < effectiveUsage.transactionLimit &&
+    !shouldThrottleUpgradePrompt(storeId, transactionLimitPromptKey, 3)
+  ), [effectiveUsage.percentUsed, effectiveUsage.transactionLimit, effectiveUsage.transactionsUsed, storeId, transactionLimitPromptKey, upgradeBannerDismissedAt]);
+
+  useEffect(() => {
+    if (!ready || !user?.id || upgradePrompt) return;
+    if (!effectiveUsage.shouldShowAppAgePrompt) return;
+    if (shouldThrottleUpgradePrompt(user.id, appAgePromptKey, 14)) return;
+
+    dispatchUpgradePrompt({
+      trigger: 'app_age_14_days',
+      promptKey: appAgePromptKey,
+      recommendedPlan: 'signature',
+      title: 'Sudah 14 hari memakai KaffePOS',
+      description: role === 'cashier'
+        ? 'Outlet ini sudah aktif dipakai. Minta Owner/Admin meninjau paket Signature saat fitur premium mulai dibutuhkan.'
+        : 'Jika operasional sudah mulai rutin, paket Signature membuka AI Insight, multi kasir, laporan lanjutan, dan printer thermal dalam satu paket.',
+      metadata: { daysSinceFirstActivity: effectiveUsage.daysSinceFirstActivity },
+    });
+  }, [appAgePromptKey, effectiveUsage.daysSinceFirstActivity, effectiveUsage.shouldShowAppAgePrompt, ready, role, upgradePrompt, user?.id]);
+
+  useEffect(() => {
     const userId = user?.id || profile?.id;
     if (!userId) return;
     try {
@@ -413,11 +551,14 @@ export default function AppShell() {
       {/* ── DESKTOP SIDEBAR ── */}
       <aside className="kaffe-sidebar hidden lg:flex flex-col w-[232px] backdrop-blur-xl border-r z-50">
         <div className="px-6 py-6">
-          <div className="flex items-center gap-3 group cursor-pointer" onClick={() => changeTab('dashboard')}>
-            <img src={LOGO_ICON} alt="" className="h-9 w-9 object-contain" />
-            <span className="text-[18px] font-extrabold tracking-tight text-slate-900">
-              Kaffe<span className="text-[#FF6A00]">POS</span>
-            </span>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3 group cursor-pointer" onClick={() => changeTab('dashboard')}>
+              <img src={LOGO_ICON} alt="" className="h-9 w-9 object-contain" />
+              <span className="text-[18px] font-extrabold tracking-tight text-slate-900">
+                Kaffe<span className="text-[#FF6A00]">POS</span>
+              </span>
+            </div>
+            <NotificationBell onOpen={() => setNotificationsOpen(true)} className="h-10 w-10 rounded-xl" />
           </div>
         </div>
 
@@ -442,6 +583,9 @@ export default function AppShell() {
                 {id === 'pos' && syncing && (
                   <span className="ml-auto w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
                 )}
+                {id === 'challenges' && hasOpenChallenge && (
+                  <span className="ml-auto h-2 w-2 rounded-full bg-[#FF6A00] shadow-[0_0_0_3px_rgba(255,106,0,0.12)]" />
+                )}
               </button>
             );
           })}
@@ -461,6 +605,10 @@ export default function AppShell() {
       </aside>
 
       <div className="kaffe-responsive-surface flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        <div className="pointer-events-none absolute right-3 top-3 z-50 lg:hidden">
+          <NotificationBell onOpen={() => setNotificationsOpen(true)} className="pointer-events-auto" />
+        </div>
+
         {postUpdateNotice && (postUpdateNotice.firstLaunchAfterUpdate || postUpdateNotice.recoveredKeys.length > 0) ? (
           <div className="px-3 pt-2 flex-shrink-0">
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-900 shadow-sm">
@@ -485,6 +633,35 @@ export default function AppShell() {
             </div>
           </div>
         ) : null}
+
+        {showTransactionLimitBanner && (
+          <SmartUpgradeBanner
+            used={effectiveUsage.transactionsUsed}
+            limit={effectiveUsage.transactionLimit}
+            percent={effectiveUsage.percentUsed}
+            role={role}
+            onDismiss={() => {
+              markUpgradePromptDismissed(storeId, transactionLimitPromptKey);
+              setUpgradeBannerDismissedAt(Date.now());
+            }}
+            onUpgrade={() => {
+              dispatchUpgradePrompt({
+                trigger: 'transaction_limit_80',
+                promptKey: transactionLimitPromptKey,
+                recommendedPlan: 'kopi_susu',
+                title: 'Transaksi gratis hampir mencapai batas',
+                description: role === 'cashier'
+                  ? 'Paket gratis outlet ini hampir penuh. Minta Owner/Admin upgrade agar transaksi kasir tetap berjalan tanpa batas.'
+                  : 'Upgrade ke Kopi Susu atau Signature untuk transaksi tanpa batas dan akses laporan yang lebih lengkap.',
+                metadata: {
+                  used: effectiveUsage.transactionsUsed,
+                  limit: effectiveUsage.transactionLimit,
+                  percent: effectiveUsage.percentUsed,
+                },
+              });
+            }}
+          />
+        )}
 
         {/* ── Status Banner ───────────────────────────── */}
         {(!isOnline || syncStatus === 'syncing' || syncStatus === 'sync_failed' || syncStatus === 'sync_success') && (
@@ -541,7 +718,10 @@ export default function AppShell() {
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom,0px))' }}>
           <Suspense fallback={<TabSpinner />}>
             {renderTabPanel('dashboard', 'Beranda', <DashboardTab />)}
+            {renderTabPanel('performance', 'Performa', <StaffPersonalProfileTab profile={profile} role={role} />)}
+            {renderTabPanel('challenges', 'Misi Harian', <ChallengesTab profile={profile} role={role} subscriptionAccess={subscriptionAccess} />)}
             {renderTabPanel('pos', 'POS', <POSTab toast={toast} profile={profile} subscriptionAccess={subscriptionAccess} />)}
+            {renderTabPanel('loyalty', 'Loyalty', <LoyaltyTab toast={toast} profile={profile} role={role} subscriptionAccess={subscriptionAccess} />)}
             {renderTabPanel('kitchen', 'Dapur', <KitchenTab toast={toast} profile={profile} />)}
             {renderTabPanel('warehouse', 'Stok', <WarehouseTab toast={toast} />)}
             {renderTabPanel('menu', 'Menu', <MenuTab toast={toast} />)}
@@ -571,6 +751,9 @@ export default function AppShell() {
                     {id === 'pos' && syncing && (
                       <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-ping border border-white shadow-sm" />
                     )}
+                    {id === 'challenges' && hasOpenChallenge && (
+                      <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full border border-white bg-[#FF6A00] shadow-sm" />
+                    )}
                   </div>
                   <span className="max-w-full truncate px-1 text-[10px] font-semibold">
                     {label}
@@ -592,6 +775,27 @@ export default function AppShell() {
         role={role}
         onRetryAll={flushPending}
       />
+      <UpgradeModal
+        open={Boolean(upgradePrompt)}
+        onClose={() => setUpgradePrompt(null)}
+        role={role}
+        currentPlan={effectiveUsage.currentPlan || subscriptionAccess.plan}
+        recommendedPlan={upgradePrompt?.recommendedPlan || 'signature'}
+        trigger={upgradePrompt?.trigger}
+        promptKey={upgradePrompt?.promptKey}
+        title={upgradePrompt?.title}
+        description={upgradePrompt?.description}
+        storeId={storeId}
+        toast={toast}
+        metadata={upgradePrompt?.metadata}
+      />
+      <NotificationCenter
+        isOpen={notificationsOpen}
+        onClose={() => setNotificationsOpen(false)}
+        storeId={storeId}
+      />
+      <CelebrationHost />
+      <BetaFeedbackButton storeId={storeId} toast={toast} />
 
       {/* Dialog saldo kasir harian wajib */}
       {showOpening && (

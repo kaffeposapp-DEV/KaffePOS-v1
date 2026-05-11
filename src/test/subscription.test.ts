@@ -19,7 +19,7 @@ describe('Subscription Service', () => {
     subscriptionManager.clearCache();
   });
 
-  it('incrementTransaction secangkir -> blocked setelah 50', async () => {
+  it('incrementTransaction secangkir -> blocked setelah 100', async () => {
     vi.mocked(getProfileMe).mockResolvedValue({
       tier: 'basic',
       is_pro: false,
@@ -27,7 +27,7 @@ describe('Subscription Service', () => {
     } as any);
 
     // Reset tx count
-    localStorage.setItem('kaffepos_tx_month', JSON.stringify({ count: 50, month: new Date().toISOString().substring(0, 7) }));
+    localStorage.setItem('kaffepos_tx_month', JSON.stringify({ count: 100, month: new Date().toISOString().substring(0, 7) }));
 
     const res = await subscriptionManager.checkTransactionAllowed();
     expect(res.allowed).toBe(false);

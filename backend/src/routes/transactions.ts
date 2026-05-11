@@ -22,7 +22,9 @@ import {
   fetchKitchenOrder,
   insertKitchenEvent,
   createKitchenOrderFromTransaction,
+  insertNotification,
   type KitchenRealtimeEvent,
+  type PoolClient,
 } from '../core';
 import {
   normalizeKitchenStatus,
@@ -32,6 +34,7 @@ import {
   convertRecipeQuantityToBase,
   type UnitConversionRecord,
 } from '../lib/stockEngine';
+import { checkChallengeCompletionForUser } from './challenges';
 
 const router = Router();
 const storeIdSchema = z.string().uuid();
@@ -66,6 +69,202 @@ const checkoutSchema = z.object({
   source: z.enum(['cashier', 'waiter', 'web', 'app']).optional(),
   table_number: z.string().trim().optional().nullable(),
 });
+
+async function getStoreNotificationContext(client: PoolClient, storeId: string) {
+  const result = await client.query(
+    `select id, owner_id, store_name from public.stores where id = $1 limit 1`,
+    [storeId],
+  );
+  const row = result.rows[0];
+  return row
+    ? { ownerId: String(row.owner_id), storeName: String(row.store_name || 'Outlet') }
+    : null;
+}
+
+async function notificationExists(client: PoolClient, input: {
+  userId: string;
+  storeId: string;
+  type: string;
+  dedupeKey: string;
+  hours?: number;
+}) {
+  const result = await client.query(
+    `
+      select id
+      from public.notifications
+      where user_id = $1
+        and store_id = $2
+        and type = $3
+        and metadata->>'dedupeKey' = $4
+        and created_at >= now() - ($5::text || ' hours')::interval
+      limit 1
+    `,
+    [input.userId, input.storeId, input.type, input.dedupeKey, input.hours ?? 24],
+  );
+  return Boolean(result.rows[0]);
+}
+
+async function insertDedupedNotification(client: PoolClient, input: {
+  userId: string;
+  storeId: string;
+  title: string;
+  message: string;
+  type: string;
+  category: string;
+  dedupeKey: string;
+  metadata?: Record<string, unknown>;
+  hours?: number;
+}) {
+  const exists = await notificationExists(client, {
+    userId: input.userId,
+    storeId: input.storeId,
+    type: input.type,
+    dedupeKey: input.dedupeKey,
+    hours: input.hours,
+  });
+  if (exists) return;
+
+  await insertNotification(
+    client,
+    input.userId,
+    input.title,
+    input.message,
+    input.type,
+    {
+      category: input.category,
+      dedupeKey: input.dedupeKey,
+      ...(input.metadata ?? {}),
+    },
+    input.storeId,
+  );
+}
+
+async function notifyAfterCheckout(client: PoolClient, input: {
+  storeId: string;
+  transactionId: string;
+  cashierUserId: string;
+  cashierName: string;
+  total: number;
+  date: string;
+}) {
+  const store = await getStoreNotificationContext(client, input.storeId);
+  if (!store) return;
+
+  const currency = new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    maximumFractionDigits: 0,
+  });
+
+  const lowStock = await client.query(
+    `
+      select distinct i.id, i.name, i.stock, i.unit, i.min_stock
+      from public.transaction_inventory_audit a
+      join public.inventory i on i.id = a.inventory_id
+      where a.store_id = $1
+        and a.transaction_id = $2
+        and a.action = 'sale'
+        and i.is_active = true
+        and i.stock <= i.min_stock
+      order by i.name asc
+      limit 5
+    `,
+    [input.storeId, input.transactionId],
+  );
+
+  for (const item of lowStock.rows) {
+    await insertDedupedNotification(client, {
+      userId: store.ownerId,
+      storeId: input.storeId,
+      title: 'Stok perlu restock',
+      message: `${item.name} tersisa ${toNumber(item.stock)} ${item.unit || ''}, sudah di bawah batas minimum ${toNumber(item.min_stock)}.`,
+      type: 'stock',
+      category: 'stock',
+      dedupeKey: `low-stock:${item.id}`,
+      metadata: {
+        inventoryId: item.id,
+        stock: toNumber(item.stock),
+        minStock: toNumber(item.min_stock),
+        unit: item.unit ?? null,
+      },
+      hours: 12,
+    });
+  }
+
+  const txDate = new Date(input.date);
+  const dayKey = Number.isFinite(txDate.getTime())
+    ? txDate.toISOString().slice(0, 10)
+    : new Date().toISOString().slice(0, 10);
+  const hour = Number.isFinite(txDate.getTime()) ? txDate.getHours() : new Date().getHours();
+  const daily = await client.query(
+    `
+      select count(*)::int as count, coalesce(sum(total), 0)::numeric as revenue
+      from public.transactions
+      where store_id = $1
+        and is_void = false
+        and date >= $2::date
+        and date < ($2::date + interval '1 day')
+    `,
+    [input.storeId, dayKey],
+  );
+  const todayCount = Number(daily.rows[0]?.count ?? 0);
+  const todayRevenue = toNumber(daily.rows[0]?.revenue);
+
+  if (hour >= 20 && todayCount > 0) {
+    await insertDedupedNotification(client, {
+      userId: store.ownerId,
+      storeId: input.storeId,
+      title: 'Ringkasan penjualan hari ini',
+      message: `${store.storeName}: ${todayCount} transaksi dengan omzet ${currency.format(todayRevenue)}.`,
+      type: 'business_alert',
+      category: 'business_alert',
+      dedupeKey: `daily-summary:${dayKey}`,
+      metadata: { date: dayKey, transactions: todayCount, revenue: todayRevenue },
+      hours: 36,
+    });
+  }
+
+  if ([10, 25, 50, 100].includes(todayCount)) {
+    await insertDedupedNotification(client, {
+      userId: store.ownerId,
+      storeId: input.storeId,
+      title: 'Kopi Score milestone tercapai',
+      message: `${store.storeName} mencapai ${todayCount} transaksi hari ini. Momentum operasional sedang bagus.`,
+      type: 'gamification',
+      category: 'gamification',
+      dedupeKey: `kopi-score:transactions:${dayKey}:${todayCount}`,
+      metadata: { date: dayKey, transactions: todayCount },
+      hours: 48,
+    });
+  }
+
+  const staffCount = await client.query(
+    `
+      select count(*)::int as count
+      from public.transactions
+      where store_id = $1
+        and is_void = false
+        and cashier = $2
+        and date >= date_trunc('month', $3::timestamptz)
+        and date < date_trunc('month', $3::timestamptz) + interval '1 month'
+    `,
+    [input.storeId, input.cashierName, input.date],
+  );
+  const monthlyStaffTransactions = Number(staffCount.rows[0]?.count ?? 0);
+  if ([10, 25, 50, 100].includes(monthlyStaffTransactions)) {
+    await insertDedupedNotification(client, {
+      userId: input.cashierUserId,
+      storeId: input.storeId,
+      title: 'Level kasir naik',
+      message: `${input.cashierName} sudah mencatat ${monthlyStaffTransactions} transaksi bulan ini.`,
+      type: 'gamification',
+      category: 'gamification',
+      dedupeKey: `staff-level:${input.cashierUserId}:${dayKey}:${monthlyStaffTransactions}`,
+      metadata: { transactions: monthlyStaffTransactions },
+      hours: 48,
+    });
+  }
+}
 
 router.get('/api/transactions', requirePermission('can_view_transaction_history'), async (req, res, next) => {
   try {
@@ -282,6 +481,19 @@ router.post('/api/transactions/checkout', requirePermission('can_use_pos'), asyn
       );
 
       const kitchenOrder = await createKitchenOrderFromTransaction(client, payload, req.authUser!);
+      await checkChallengeCompletionForUser(client, {
+        storeId: payload.store_id,
+        userId: req.authUser!.id,
+        metrics: { transactionId: payload.id },
+      });
+      await notifyAfterCheckout(client, {
+        storeId: payload.store_id,
+        transactionId: payload.id,
+        cashierUserId: req.authUser!.id,
+        cashierName: payload.cashier,
+        total: safeTotal,
+        date: payload.date,
+      });
 
       return {
         transaction: insertResult.rows[0],

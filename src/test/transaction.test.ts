@@ -53,6 +53,11 @@ vi.mock('@/lib/backendApi', async (importOriginal) => {
     getCashRegister: vi.fn().mockResolvedValue({
       items: [],
     }),
+    getMyChallengeProgress: vi.fn().mockResolvedValue({
+      items: [],
+      challenges: [],
+      summary: { active_count: 0, completed_count: 0, reward_points: 0 },
+    }),
     checkoutTransaction: vi.fn().mockResolvedValue({
       id: 'tx_123',
       store_id: 'store_123',

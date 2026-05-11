@@ -19,10 +19,10 @@ describe('backend subscription billing helpers', () => {
       voucherCode: 'SIGNATURE10',
     });
 
-    expect(quote.subtotal).toBe(99000);
-    expect(quote.discount).toBe(9900);
+    expect(quote.subtotal).toBe(129000);
+    expect(quote.discount).toBe(12900);
     expect(quote.adminFee).toBe(0);
-    expect(quote.total).toBe(89100);
+    expect(quote.total).toBe(116100);
   });
 
   it('rejects invalid voucher', () => {
@@ -30,7 +30,7 @@ describe('backend subscription billing helpers', () => {
       validateSubscriptionVoucher({
         plan: 'founder',
         billingCycle: 'monthly',
-        subtotal: 199000,
+        subtotal: 249000,
         voucherCode: 'SALAH',
       }),
     ).toThrow('Kode voucher tidak ditemukan');

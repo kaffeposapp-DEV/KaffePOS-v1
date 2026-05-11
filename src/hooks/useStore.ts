@@ -23,6 +23,9 @@ import {
   getExpenses,
   getInventory,
   getKitchenOrders,
+  getMyChallengeProgress,
+  addLoyaltyStamp,
+  redeemLoyaltyReward,
   getMenuItems,
   getStockUnitConversions,
   getStores,
@@ -66,6 +69,8 @@ import type {
   InventoryItemUpdate, KitchenOrder, KitchenOrderStatus, KitchenRealtimeEvent, KitchenRealtimeStatus,
   StockUnitConversion,
 } from '@/types';
+import type { Challenge, UserChallengeProgress } from '@/lib/challenges';
+import { getChallengeProgressCacheKey, getChallengesCacheKey } from '@/lib/challenges';
 import type { BulkImportMode, BulkImportPreview, BulkImportRow } from '@/lib/stockEngine';
 
 function makeClientId(prefix: string) {
@@ -192,6 +197,25 @@ function loadCache(storeId: string) {
 function saveKitchenToLS(storeId: string | null, orders: KitchenOrder[]) {
   if (!storeId) return;
   try { localStorage.setItem(getKitchenCacheKey(storeId), JSON.stringify(orders)); } catch { /* ignore */ }
+}
+
+function saveChallengesToLS(storeId: string | null, challenges: Challenge[], progress: UserChallengeProgress[]) {
+  if (!storeId) return;
+  try {
+    localStorage.setItem(getChallengesCacheKey(storeId), JSON.stringify(challenges));
+    localStorage.setItem(getChallengeProgressCacheKey(storeId), JSON.stringify(progress));
+  } catch { /* ignore */ }
+}
+
+function loadChallengesFromLS(storeId: string) {
+  try {
+    return {
+      challenges: JSON.parse(localStorage.getItem(getChallengesCacheKey(storeId)) || '[]') as Challenge[],
+      progress: JSON.parse(localStorage.getItem(getChallengeProgressCacheKey(storeId)) || '[]') as UserChallengeProgress[],
+    };
+  } catch {
+    return { challenges: [] as Challenge[], progress: [] as UserChallengeProgress[] };
+  }
 }
 
 // ── Anti-duplikat: track ID yang baru di-INSERT oleh kita sendiri ─
@@ -346,6 +370,36 @@ async function flushPending() {
         });
       }
       persistCache(storeId, useStore.getState().menu, useStore.getState().inventory, useStore.getState().transactions, useStore.getState().expenses, useStore.getState().cashFlow, useStore.getState().cashRegister);
+      try {
+        const progressResponse = await getMyChallengeProgress(storeId);
+        useStore.setState({
+          activeChallenges: progressResponse.challenges || [],
+          challengeProgress: progressResponse.items || [],
+        });
+        saveChallengesToLS(storeId, progressResponse.challenges || [], progressResponse.items || []);
+      } catch { /* challenge progress will refresh on next load */ }
+    },
+    'loyalty.stamp.create': async (item) => {
+      await addLoyaltyStamp(item.payload as {
+        store_id: string;
+        passport_id?: string;
+        customer_name?: string | null;
+        customer_phone?: string;
+        transaction_id?: string | null;
+        transaction_amount: number;
+        note?: string | null;
+        idempotency_key?: string | null;
+      });
+    },
+    'loyalty.redemption.create': async (item) => {
+      await redeemLoyaltyReward(item.payload as {
+        store_id: string;
+        passport_id: string;
+        reward_id: string;
+        transaction_id?: string | null;
+        transaction_amount: number;
+        idempotency_key?: string | null;
+      });
     },
     'kitchen.order.update': async (item) => {
       const data = await updateKitchenOrderStatus(String(item.payload.id), {
@@ -470,6 +524,8 @@ interface AppStore {
   expenses:      Expense[];
   cashFlow:      CashFlowEntry[];
   cashRegister:  CashRegister[];
+  activeChallenges: Challenge[];
+  challengeProgress: UserChallengeProgress[];
   customCats:    string[];
   cart:          CartItem[];
   discount:      string;
@@ -488,6 +544,7 @@ interface AppStore {
   loadAll:             (storeId: string) => Promise<void>;
   cleanup:             () => void;
   loadKitchenOrders:    (storeId?: string) => Promise<void>;
+  loadChallenges:        (storeId?: string) => Promise<void>;
   connectKitchenRealtime: (storeId?: string) => void;
   applyKitchenEvent:    (event: KitchenRealtimeEvent) => void;
   setCartItemNote:      (id: string, note: string) => void;
@@ -525,7 +582,7 @@ interface AppStore {
 
 const initialState: Pick<
   AppStore,
-  'storeId' | 'storeSettings' | 'menu' | 'inventory' | 'unitConversions' | 'transactions' | 'kitchenOrders' | 'kitchenRealtimeStatus' | 'expenses' | 'cashFlow' | 'cashRegister' | 'customCats' | 'cart' | 'discount' | 'loading' | 'syncing' | 'syncStatus' | 'pendingSyncCount' | 'failedSyncCount' | 'appTheme' | 'customTheme'
+  'storeId' | 'storeSettings' | 'menu' | 'inventory' | 'unitConversions' | 'transactions' | 'kitchenOrders' | 'kitchenRealtimeStatus' | 'expenses' | 'cashFlow' | 'cashRegister' | 'activeChallenges' | 'challengeProgress' | 'customCats' | 'cart' | 'discount' | 'loading' | 'syncing' | 'syncStatus' | 'pendingSyncCount' | 'failedSyncCount' | 'appTheme' | 'customTheme'
 > = {
   storeId: null,
   storeSettings: null,
@@ -538,6 +595,8 @@ const initialState: Pick<
   expenses: [],
   cashFlow: [],
   cashRegister: [],
+  activeChallenges: [],
+  challengeProgress: [],
   customCats: [],
   cart: [],
   discount: '',
@@ -614,6 +673,7 @@ export const useStore = create<AppStore>((set, get) => ({
 
     const run = (async () => {
       const cache = loadCache(storeId);
+      const challengeCache = loadChallengesFromLS(storeId);
       const { cart: cachedCart, discount: cachedDiscount } = loadCheckoutDraft(storeId);
 
     if (cache.settings || cache.menu.length > 0) {
@@ -630,6 +690,8 @@ export const useStore = create<AppStore>((set, get) => ({
         expenses:      cache.expenses,
         cashFlow:      cache.cashFlow,
         cashRegister:  cache.cashReg,
+        activeChallenges: challengeCache.challenges,
+        challengeProgress: challengeCache.progress,
         customCats:    cats,
         loading:       false,
         cart:          cachedCart,
@@ -706,12 +768,13 @@ export const useStore = create<AppStore>((set, get) => ({
 
     const loadSecondary = async () => {
       try {
-        const [trx, kitchen, exp, cf, cr] = await Promise.all([
+        const [trx, kitchen, exp, cf, cr, challengeResponse] = await Promise.all([
           getTransactions(storeId),
           getKitchenOrders(storeId),
           getExpenses(storeId),
           getCashFlow(storeId),
           getCashRegister(storeId),
+          getMyChallengeProgress(storeId),
         ]);
 
         const trxData = mergeById((trx.items || []) as Transaction[], get().transactions);
@@ -725,6 +788,8 @@ export const useStore = create<AppStore>((set, get) => ({
           expenses:     expData,
           cashFlow:     cfData,
           cashRegister: crData,
+          activeChallenges: challengeResponse.challenges || [],
+          challengeProgress: challengeResponse.items || [],
           syncing: false,
         });
         persistCache(
@@ -737,6 +802,7 @@ export const useStore = create<AppStore>((set, get) => ({
           crData,
         );
         saveKitchenToLS(storeId, kitchenData);
+        saveChallengesToLS(storeId, challengeResponse.challenges || [], challengeResponse.items || []);
         get().connectKitchenRealtime(storeId);
       } catch {
         set({ syncing: false });
@@ -767,6 +833,26 @@ export const useStore = create<AppStore>((set, get) => ({
         return;
       }
       set({ kitchenRealtimeStatus: 'error' });
+      throw error;
+    }
+  },
+
+  loadChallenges: async (storeIdArg) => {
+    const storeId = storeIdArg || get().storeId;
+    if (!storeId) return;
+    const cached = loadChallengesFromLS(storeId);
+    if (cached.challenges.length > 0) {
+      set({ activeChallenges: cached.challenges, challengeProgress: cached.progress });
+    }
+    try {
+      const response = await getMyChallengeProgress(storeId);
+      set({
+        activeChallenges: response.challenges || [],
+        challengeProgress: response.items || [],
+      });
+      saveChallengesToLS(storeId, response.challenges || [], response.items || []);
+    } catch (error) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
       throw error;
     }
   },
@@ -1379,6 +1465,7 @@ export const useStore = create<AppStore>((set, get) => ({
         });
       }
       persistCache(storeId, get().menu, get().inventory, get().transactions, get().expenses, get().cashFlow, get().cashRegister);
+      await get().loadChallenges(storeId).catch(() => {});
       await get().loadAll(storeId);
       return savedTx;
     } catch (error: any) {

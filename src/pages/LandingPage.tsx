@@ -31,6 +31,8 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import PricingPage from '@/components/subscription/PricingPage';
+import type { BillingCycle, SubscriptionPlanId } from '@/lib/subscriptionPlans';
 import LOGO_ICON from '@/assets/logo-kaffeposappicon.svg';
 
 const NAV_LINKS = [
@@ -77,27 +79,35 @@ type SafeContentItem = {
 
 const PRICING = [
   {
+    name: 'Secangkir',
+    price: '0',
+    period: '/bulan',
+    desc: '100 transaksi/bulan untuk mencoba KaffePOS atau cafe sangat kecil.',
+    features: ['POS dasar', 'Menu & stok dasar', 'Laporan harian', 'Struk digital'],
+    color: 'border-slate-100 bg-white'
+  },
+  {
     name: 'Kopi Susu',
     price: '49rb',
     period: '/bulan',
-    desc: 'Naik kelas dari catatan manual ke operasional yang lebih stabil.',
-    features: ['Transaksi unlimited', 'Export PDF & Excel', 'Laporan mingguan/bulanan', 'Cetak browser / WiFi'],
+    desc: 'Semua yang dibutuhkan cafe kecil: unlimited transaksi, printer thermal, dan loyalty dasar.',
+    features: ['Transaksi unlimited', 'Printer thermal', 'Inventory + resep', 'Loyalty dasar'],
     color: 'border-slate-100 bg-white'
   },
   {
     name: 'Signature',
-    price: '99rb',
+    price: '129rb',
     period: '/bulan',
-    desc: 'Paket paling pas untuk bisnis yang ingin jalan lebih serius.',
-    features: ['Transaksi unlimited', 'Multi kasir & cashier session', 'Thermal Bluetooth/USB', 'AI Insight penjualan'],
+    desc: 'Paling Populer: full gamification, Kopi Passport lengkap, AI Insights, dan Notification Center.',
+    features: ['Full Gamification', 'Kopi Passport lengkap', 'AI Insights', 'Notification Center'],
     color: 'border-[#FF6A00]/20 bg-orange-50/30'
   },
   {
     name: 'Founder',
-    price: '199rb',
+    price: '249rb',
     period: '/bulan',
-    desc: 'Untuk outlet intensif yang butuh paket paling lengkap dan dukungan lebih cepat.',
-    features: ['Semua fitur Signature', 'Pendampingan setup prioritas', 'Review operasional berkala', 'Jalur bantuan lebih cepat'],
+    desc: 'Untuk cafe berkembang: semua fitur Signature, multi outlet, dedicated support, dan setup bisnis.',
+    features: ['Semua fitur Signature', 'Multi Outlet', 'Dedicated support', 'Bantuan setup bisnis'],
     color: 'border-slate-100 bg-white'
   }
 ];
@@ -476,6 +486,7 @@ export default function LandingPage() {
   const [isFeatureDetailOpen, setIsFeatureDetailOpen] = useState(false);
   const [selectedSafeItem, setSelectedSafeItem] = useState<SafeContentKey | null>(null);
   const [isSafeDetailOpen, setIsSafeDetailOpen] = useState(false);
+  const [pricingCycle, setPricingCycle] = useState<Exclude<BillingCycle, 'free'>>('yearly');
 
   useEffect(() => {
     // Sync URL for unauthenticated users hitting root
@@ -543,6 +554,14 @@ export default function LandingPage() {
   const handleFeatureClick = (feature: MarketingFeature) => {
     setSelectedFeature(feature);
     setIsFeatureDetailOpen(true);
+  };
+
+  const handlePricingSelect = (plan: SubscriptionPlanId, cycle: BillingCycle) => {
+    if (plan === 'secangkir') {
+      navigate('/register');
+      return;
+    }
+    navigate(`/plan-confirmation?plan=${plan}&billingCycle=${cycle}`);
   };
 
   void handleDownload;
@@ -746,7 +765,7 @@ export default function LandingPage() {
                   onClick={() => navigate('/register')}
                   className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#FF6A00] px-7 text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(255,106,0,0.22)] hover:bg-[#ef6200] sm:w-auto"
                 >
-                  Coba Gratis 14 Hari <ArrowRight size={16} />
+                  Mulai Gratis <ArrowRight size={16} />
                 </button>
                 <a
                   href="#features"
@@ -848,35 +867,33 @@ export default function LandingPage() {
         </section>
 
         <section id="pricing" className="px-5 pb-16 sm:px-6 md:pb-20">
-          <div className="kaffe-cta-band mx-auto grid max-w-7xl items-center gap-8 rounded-[24px] p-6 md:grid-cols-[0.45fr_1fr_0.45fr] md:p-8">
-            <div className="hidden md:block">
-              <div className="kaffe-cta-logo-card mx-auto flex h-36 w-44 items-center justify-center rounded-[22px] border border-white bg-white shadow-[0_16px_40px_rgba(31,41,51,0.12)]">
-                <img src={LOGO_ICON} alt="KaffePOS checkout terminal" className="h-16 w-16" />
+          <div className="mx-auto max-w-7xl">
+            <PricingPage
+              selectedCycle={pricingCycle}
+              onCycleChange={setPricingCycle}
+              onSelectPlan={handlePricingSelect}
+              ctaLabel={(plan) => (plan === 'secangkir' ? 'Mulai Gratis' : 'Pilih Paket')}
+            />
+            <div className="kaffe-cta-band mt-6 flex flex-col gap-4 rounded-[24px] p-6 md:flex-row md:items-center md:justify-between md:p-8">
+              <div className="flex min-w-0 items-start gap-5">
+                <div className="kaffe-cta-logo-card hidden h-20 w-20 shrink-0 items-center justify-center rounded-[22px] border border-white bg-white shadow-[0_16px_40px_rgba(31,41,51,0.12)] sm:flex">
+                  <img src={LOGO_ICON} alt="" className="h-11 w-11" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-display text-2xl font-extrabold text-white md:text-3xl">
+                    Mulai dari paket gratis, upgrade saat cafe makin ramai.
+                  </h3>
+                  <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-white/90">
+                    KaffePOS siap dipakai dari hari pertama: POS, stok, loyalty, gamification, dan insight bisnis dalam satu aplikasi.
+                  </p>
+                </div>
               </div>
-            </div>
-            <div>
-              <h2 className="font-display text-2xl font-extrabold text-white md:text-3xl">
-                Siap Meningkatkan Efisiensi Bisnis Anda?
-              </h2>
-              <p className="mt-4 max-w-2xl text-sm font-medium leading-7 text-white/90">
-                Bergabunglah dengan bisnis yang menggunakan kaffePOS untuk mengelola bisnis mereka dengan lebih mudah.
-              </p>
-              <div className="mt-6 flex flex-wrap gap-5 text-sm font-semibold text-white">
-                <span className="flex items-center gap-2"><ShieldCheck size={18} className="text-white" /> Gratis 14 Hari</span>
-                <span className="flex items-center gap-2"><Lock size={18} className="text-white" /> Tanpa Kartu Kredit</span>
-                <span className="flex items-center gap-2"><Zap size={18} className="text-white" /> Setup Mudah</span>
-              </div>
-            </div>
-            <div className="flex flex-col gap-3 md:items-end">
               <button
                 onClick={() => navigate('/register')}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-white px-7 text-sm font-extrabold text-[#FF6A00] shadow-[0_14px_30px_rgba(31,41,51,0.16)] hover:bg-orange-50"
+                className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-white px-7 text-sm font-extrabold text-[#FF6A00] shadow-[0_14px_30px_rgba(31,41,51,0.16)] hover:bg-orange-50"
               >
-                Coba Gratis Sekarang <ArrowRight size={16} />
+                Mulai Gratis <ArrowRight size={16} />
               </button>
-              <a href="https://wa.me/6285186076224" className="text-xs font-semibold text-white/85">
-                Atau hubungi kami untuk demo gratis
-              </a>
             </div>
           </div>
         </section>

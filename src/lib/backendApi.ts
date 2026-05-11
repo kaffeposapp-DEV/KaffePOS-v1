@@ -20,6 +20,23 @@ import type {
 import type { Permission, UserRole } from '@/lib/accessControl';
 import type { SubscriptionBillingQuote, SubscriptionPaymentMethod, SubscriptionPaymentMethodId } from '@/lib/subscriptionBilling';
 import type { BulkImportMode, BulkImportPreview, BulkImportRow } from '@/lib/stockEngine';
+import type {
+  LoyaltyOverview,
+  LoyaltyCustomer,
+  LoyaltyPassport,
+  LoyaltyRedemption,
+  LoyaltyReward,
+  LoyaltySettings,
+  LoyaltyStampEvent,
+  LoyaltyTierSetting,
+} from '@/lib/loyalty';
+import type {
+  Challenge,
+  ChallengeProgressSummary,
+  TeamChallengeCompletion,
+  UserChallengeProgress,
+} from '@/lib/challenges';
+import type { KaffeNotification, NotificationReadPayload } from '@/lib/notifications';
 
 const EXPLICIT_API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
 
@@ -293,6 +310,90 @@ export type SubscriptionPaymentSession = {
   status?: string;
 } & ApiRecord;
 
+export type SubscriptionUsageLimits = {
+  storeId: string;
+  ownerId: string;
+  currentPlan: 'secangkir' | 'kopi_susu' | 'signature' | 'founder';
+  transactionLimit: number;
+  transactionsUsed: number;
+  transactionsRemaining: number | null;
+  percentUsed: number;
+  period: {
+    type: 'monthly';
+    startsAt: string;
+  };
+  firstActivityAt: string | null;
+  daysSinceFirstActivity: number;
+  shouldShowTransactionLimitPrompt: boolean;
+  shouldShowAppAgePrompt: boolean;
+};
+
+export type UpgradePromptEventPayload = {
+  event_type: 'view' | 'click' | 'dismiss';
+  prompt_key: string;
+  trigger: string;
+  recommended_plan?: 'kopi_susu' | 'signature' | 'founder';
+  store_id?: string | null;
+  current_plan?: string | null;
+  metadata?: Record<string, unknown>;
+};
+
+export type EnhancedAiInsightType =
+  | 'sales_trend'
+  | 'menu_optimization'
+  | 'staff_performance'
+  | 'stock_waste'
+  | 'peak_hour';
+
+export type EnhancedAiInsightCard = {
+  id: string;
+  type: EnhancedAiInsightType;
+  title: string;
+  description: string;
+  impact: string;
+  confidence: number;
+  metricLabel: string;
+  metricValue: string;
+};
+
+export type EnhancedAiRecommendation = {
+  id: string;
+  type: EnhancedAiInsightType;
+  priority: 'high' | 'medium' | 'low' | string;
+  title: string;
+  action: string;
+  impact: string;
+};
+
+export type EnhancedAiInsightsResponse = {
+  storeId: string;
+  storeName: string;
+  generatedAt: string;
+  cachedUntil: string;
+  fromCache: boolean;
+  kopiScore: {
+    score: number;
+    label: string;
+    explanation: string;
+    drivers: string[];
+  };
+  summary: string;
+  insights: EnhancedAiInsightCard[];
+  recommendations: EnhancedAiRecommendation[];
+  charts: {
+    salesTrend: Array<{ label: string; value: number }>;
+    peakHours: Array<{ label: string; transactions: number; revenue: number }>;
+    menuPerformance: Array<{ label: string; qty: number; revenue: number }>;
+    staffPerformance: Array<{ label: string; transactions: number; revenue: number; upsellRate: number; avgItems: number }>;
+  };
+  dataCoverage: {
+    transactions: number;
+    days: number;
+    menuItems: number;
+    inventoryItems: number;
+  };
+};
+
 export const getProfileMe = () => apiFetch<ProfileResponse>('/api/profile/me');
 export const updateProfileMe = (payload: Record<string, unknown>) =>
   apiFetch<ProfileResponse>('/api/profile/me', { method: 'PATCH', json: payload });
@@ -404,7 +505,7 @@ export const getSubscriptions = () =>
 
 export const createSubscriptionPayment = (payload: {
   plan: 'kopi_susu' | 'signature' | 'founder';
-  billingCycle: 'monthly' | 'quarterly' | 'yearly';
+  billingCycle: 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
   paymentMethod: SubscriptionPaymentMethodId;
   voucherCode?: string | null;
 }) => apiFetch<{ reused: boolean; payment: SubscriptionPaymentSession; quote: SubscriptionBillingQuote }>('/api/subscriptions/payments/create', {
@@ -414,13 +515,22 @@ export const createSubscriptionPayment = (payload: {
 
 export const getSubscriptionPaymentQuote = (payload: {
   plan: 'kopi_susu' | 'signature' | 'founder';
-  billingCycle: 'monthly' | 'quarterly' | 'yearly';
+  billingCycle: 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
   paymentMethod: SubscriptionPaymentMethodId;
   voucherCode?: string | null;
 }) => apiFetch<{ quote: SubscriptionBillingQuote; paymentMethods: SubscriptionPaymentMethod[]; paymentConfig?: SubscriptionPaymentConfig }>('/api/subscriptions/payments/quote', {
   method: 'POST',
   json: payload,
 });
+
+export const getSubscriptionUsageLimits = (storeId?: string | null) =>
+  apiFetch<SubscriptionUsageLimits>(`/api/subscriptions/usage-limits${storeId ? `?storeId=${encodeURIComponent(storeId)}` : ''}`);
+
+export const logUpgradePromptEvent = (payload: UpgradePromptEventPayload) =>
+  apiFetch<{ success: boolean }>('/api/subscriptions/upgrade-prompts/log', {
+    method: 'POST',
+    json: payload,
+  });
 
 export const trackOpsEventRequest = (payload: {
   event_name: 'login' | 'checkout' | 'client_error' | 'printer_error' | 'sync_error';
@@ -447,6 +557,11 @@ export const requestAiInsight = (payload: { prompt: string }) =>
     json: payload,
   });
 
+export const getEnhancedAiInsights = (storeId: string, options?: { refresh?: boolean }) =>
+  apiFetch<EnhancedAiInsightsResponse>(
+    `/api/ai-insights?storeId=${encodeURIComponent(storeId)}${options?.refresh ? '&refresh=1' : ''}`,
+  );
+
 export const getAdminSubscriptionOverview = () =>
   apiFetch<{ profiles: AdminProfileResponse[]; subscriptions: AdminSubscriptionRecord[]; paymentHistory: AdminPaymentHistoryRecord[] }>('/api/admin/subscriptions/overview');
 export const activateAdminSubscription = (payload: {
@@ -465,10 +580,27 @@ export const cancelAdminSubscription = (id: string) =>
     json: {},
   });
 
-export const getNotifications = (limit = 20) =>
-  apiFetch<{ items: ApiRecord[]; unreadCount: number }>(`/api/notifications?limit=${limit}`);
+export const getNotifications = (limit = 20, category?: string) =>
+  apiFetch<{ items: KaffeNotification[]; unreadCount: number }>(
+    `/api/notifications?limit=${limit}${category && category !== 'all' ? `&category=${encodeURIComponent(category)}` : ''}`,
+  );
+export const markNotificationsRead = (payload: NotificationReadPayload = {}) =>
+  apiFetch<{ updated: number }>('/api/notifications/mark-read', { method: 'POST', json: payload });
 export const markAllNotificationsRead = () =>
   apiFetch<{ updated: number }>('/api/notifications/read-all', { method: 'PATCH', json: {} });
+export const registerPushSubscription = (payload: {
+  store_id?: string;
+  channel: 'web_push' | 'capacitor_android';
+  endpoint: string;
+  payload: Record<string, unknown>;
+  platform?: string | null;
+}) => apiFetch<ApiRecord>('/api/notifications/push-subscription', { method: 'POST', json: payload });
+export const submitBetaFeedback = (payload: {
+  store_id?: string | null;
+  liked: string;
+  improve: string;
+  metadata?: Record<string, unknown>;
+}) => apiFetch<ApiRecord>('/api/beta-feedback', { method: 'POST', json: payload });
 
 export const getTransactions = (storeId: string) =>
   apiFetch<ApiListResponse<Transaction>>(`/api/transactions?storeId=${encodeURIComponent(storeId)}`);
@@ -478,6 +610,132 @@ export const voidTransactionRequest = (
   id: string,
   payload: { store_id: string; reason?: string; void_by?: string },
 ) => apiFetch<Transaction>(`/api/transactions/${id}/void`, { method: 'POST', json: payload });
+
+export const getActiveChallenges = (storeId: string) =>
+  apiFetch<ApiListResponse<Challenge>>(`/api/challenges/active?storeId=${encodeURIComponent(storeId)}`);
+export const getMyChallengeProgress = (storeId: string) =>
+  apiFetch<{
+    items: UserChallengeProgress[];
+    challenges: Challenge[];
+    summary: ChallengeProgressSummary;
+  }>(`/api/challenges/my-progress?storeId=${encodeURIComponent(storeId)}`);
+export const checkChallengeCompletion = (payload: {
+  store_id: string;
+  transaction_id?: string | null;
+  checkout_time_seconds?: number | null;
+  upsell_value?: number | null;
+}) => apiFetch<{ items: UserChallengeProgress[]; completed: Challenge[] }>('/api/challenges/check-completion', {
+  method: 'POST',
+  json: payload,
+});
+export const getTeamChallengeCompletion = (storeId: string) =>
+  apiFetch<TeamChallengeCompletion>(`/api/challenges/team-completion?storeId=${encodeURIComponent(storeId)}`);
+export const updateChallenge = (id: string, payload: { store_id: string; is_active?: boolean }) =>
+  apiFetch<Challenge>(`/api/challenges/${id}`, { method: 'PATCH', json: payload });
+
+export const getLoyaltyOverview = (storeId: string) =>
+  apiFetch<LoyaltyOverview>(`/api/loyalty/overview?storeId=${encodeURIComponent(storeId)}`);
+export const searchLoyaltyPassports = (storeId: string, query = '') =>
+  apiFetch<ApiListResponse<LoyaltyPassport>>(
+    `/api/loyalty/passports?storeId=${encodeURIComponent(storeId)}&query=${encodeURIComponent(query)}`,
+  );
+export const searchLoyaltyCustomers = (storeId: string, search = '') =>
+  apiFetch<ApiListResponse<LoyaltyCustomer>>(
+    `/api/loyalty/customers?storeId=${encodeURIComponent(storeId)}&search=${encodeURIComponent(search)}`,
+  );
+export const getLoyaltySettings = (storeId: string) =>
+  apiFetch<{ settings: LoyaltySettings; rewards: LoyaltyReward[]; tiers: LoyaltyTierSetting[] }>(
+    `/api/loyalty/settings?storeId=${encodeURIComponent(storeId)}`,
+  );
+export const putLoyaltySettings = (payload: Partial<LoyaltySettings> & { store_id: string }) =>
+  apiFetch<{ settings: LoyaltySettings; tiers: LoyaltyTierSetting[] }>('/api/loyalty/settings', {
+    method: 'PUT',
+    json: payload as Record<string, unknown>,
+  });
+export const createLoyaltyPassport = (payload: {
+  store_id: string;
+  customer_name?: string | null;
+  customer_phone: string;
+}) => apiFetch<LoyaltyPassport>('/api/loyalty/passports', { method: 'POST', json: payload });
+export const addLoyaltyStamp = (payload: {
+  store_id: string;
+  passport_id?: string;
+  stamps_earned?: number;
+  customer_name?: string | null;
+  customer_phone?: string;
+  transaction_id?: string | null;
+  transaction_amount: number;
+  note?: string | null;
+  idempotency_key?: string | null;
+}) => apiFetch<{
+  passport: LoyaltyPassport;
+  customer?: LoyaltyCustomer;
+  event: LoyaltyStampEvent;
+  earned: { stamps: number; points: number };
+  replayed?: boolean;
+}>('/api/loyalty/stamps', { method: 'POST', json: payload });
+export const addKopiPassportStamp = (payload: {
+  store_id: string;
+  customer_id?: string;
+  passport_id?: string;
+  name?: string | null;
+  phone?: string;
+  transaction_id?: string | null;
+  transaction_amount: number;
+  stamps_earned?: number;
+  note?: string | null;
+  idempotency_key?: string | null;
+}) => apiFetch<{
+  passport: LoyaltyPassport;
+  customer?: LoyaltyCustomer;
+  event: LoyaltyStampEvent;
+  earned: { stamps: number; points: number };
+  replayed?: boolean;
+}>('/api/loyalty/stamp', { method: 'POST', json: payload });
+export const redeemLoyaltyReward = (payload: {
+  store_id: string;
+  passport_id: string;
+  reward_id: string;
+  transaction_id?: string | null;
+  transaction_amount: number;
+  idempotency_key?: string | null;
+}) => apiFetch<{
+  redemption: LoyaltyRedemption;
+  passport: LoyaltyPassport;
+  customer?: LoyaltyCustomer;
+  reward: LoyaltyReward;
+  replayed?: boolean;
+}>('/api/loyalty/redemptions', { method: 'POST', json: payload });
+export const redeemKopiPassportReward = (payload: {
+  store_id: string;
+  customer_id?: string;
+  passport_id?: string;
+  reward_id: string;
+  transaction_id?: string | null;
+  transaction_amount: number;
+  idempotency_key?: string | null;
+}) => apiFetch<{
+  redemption: LoyaltyRedemption;
+  passport: LoyaltyPassport;
+  customer?: LoyaltyCustomer;
+  reward: LoyaltyReward;
+  replayed?: boolean;
+}>('/api/loyalty/redeem', { method: 'POST', json: payload });
+export const updateLoyaltySettings = (payload: Partial<LoyaltySettings> & { store_id: string }) =>
+  apiFetch<LoyaltySettings>('/api/loyalty/settings', { method: 'PATCH', json: payload as Record<string, unknown> });
+export const createLoyaltyReward = (payload: {
+  store_id: string;
+  name: string;
+  description?: string | null;
+  type: LoyaltyReward['type'];
+  reward_value: number;
+  points_or_stamps_needed?: number;
+  points_cost: number;
+  stamps_cost: number;
+  is_active?: boolean;
+}) => apiFetch<LoyaltyReward>('/api/loyalty/rewards', { method: 'POST', json: payload });
+export const updateLoyaltyReward = (id: string, payload: Partial<Omit<LoyaltyReward, 'id' | 'store_id' | 'created_at' | 'updated_at'>>) =>
+  apiFetch<LoyaltyReward>(`/api/loyalty/rewards/${id}`, { method: 'PATCH', json: payload as Record<string, unknown> });
 
 export const getKitchenOrders = (storeId: string, filters?: { status?: KitchenOrderStatus; station?: KitchenStation | 'all' }) => {
   const params = new URLSearchParams({ storeId });

@@ -18,6 +18,8 @@ export type SyncCenterItemView = {
 
 const OPERATION_LABELS: Record<OfflineOperationType, string> = {
   'transaction.create': 'Transaksi POS',
+  'loyalty.stamp.create': 'Stamp Kopi Passport',
+  'loyalty.redemption.create': 'Redeem reward loyalty',
   'kitchen.order.update': 'Status order dapur',
   'kitchen.item.update': 'Status item dapur',
   'store.settings.update': 'Pengaturan toko',
