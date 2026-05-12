@@ -22,6 +22,15 @@ vi.mock('recharts', () => ({
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({
     subscriptionAccess: {
+      plan: 'secangkir',
+      accessPlan: 'secangkir',
+      isPaid: false,
+      isTrial: false,
+      isGracePeriod: false,
+      isActive: true,
+      expiryDate: null,
+      daysRemaining: null,
+      transactionLimit: 100,
       features: {
         ai_insight: false,
       },

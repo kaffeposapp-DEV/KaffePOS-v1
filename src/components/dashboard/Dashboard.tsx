@@ -370,6 +370,29 @@ export default function Dashboard() {
           </div>
         )}
 
+        {subscriptionAccess.isTrial && subscriptionAccess.daysRemaining !== null && (
+          <div className="rounded-2xl border border-orange-100 bg-orange-50 px-5 py-4 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#FF6A00]">Trial Signature</p>
+                <h2 className="mt-1 font-display text-xl font-extrabold text-slate-900">
+                  {subscriptionAccess.daysRemaining} hari full fitur premium tersisa
+                </h2>
+                <p className="mt-1 text-xs font-semibold leading-relaxed text-orange-900">
+                  Gratis 14 Hari • Full Akses Signature • Otomatis Rp49.000/bulan setelah trial berakhir
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => openTab('settings')}
+                className="inline-flex h-11 shrink-0 items-center justify-center rounded-2xl bg-white px-4 text-xs font-black uppercase tracking-widest text-orange-700 ring-1 ring-orange-100 transition-all active:scale-95 hover:bg-orange-100"
+              >
+                Lihat Paket
+              </button>
+            </div>
+          </div>
+        )}
+
         {!onboarding.complete && (
           <div className="kaffe-panel rounded-2xl p-5 md:p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

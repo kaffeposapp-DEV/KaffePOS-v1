@@ -80,10 +80,10 @@ type SafeContentItem = {
 const PRICING = [
   {
     name: 'Secangkir',
-    price: '0',
-    period: '/bulan',
-    desc: '100 transaksi/bulan untuk mencoba KaffePOS atau cafe sangat kecil.',
-    features: ['POS dasar', 'Menu & stok dasar', 'Laporan harian', 'Struk digital'],
+    price: 'Gratis',
+    period: '14 hari',
+    desc: 'Gratis 14 hari full akses Signature. Otomatis Rp49.000/bulan setelah trial berakhir.',
+    features: ['Full akses Signature', 'Gamification', 'AI Insights', 'Loyalty advanced'],
     color: 'border-slate-100 bg-white'
   },
   {
@@ -101,14 +101,6 @@ const PRICING = [
     desc: 'Paling Populer: full gamification, Kopi Passport lengkap, AI Insights, dan Notification Center.',
     features: ['Full Gamification', 'Kopi Passport lengkap', 'AI Insights', 'Notification Center'],
     color: 'border-[#FF6A00]/20 bg-orange-50/30'
-  },
-  {
-    name: 'Founder',
-    price: '249rb',
-    period: '/bulan',
-    desc: 'Untuk cafe berkembang: semua fitur Signature, multi outlet, dedicated support, dan setup bisnis.',
-    features: ['Semua fitur Signature', 'Multi Outlet', 'Dedicated support', 'Bantuan setup bisnis'],
-    color: 'border-slate-100 bg-white'
   }
 ];
 

@@ -10,6 +10,7 @@ import {
 import { ADMIN_EMAILS, isAdminEmail } from '@/lib/admin';
 import {
   BILLING_CYCLE_LABELS,
+  ACTIVE_SUBSCRIPTION_PLAN_IDS,
   SUBSCRIPTION_PLANS,
   formatDateId,
   formatRupiah,
@@ -48,6 +49,7 @@ type ProfileRow = {
 };
 
 const TABS = ['activate', 'subscriptions', 'history'] as const;
+const ADMIN_PLAN_IDS = ACTIVE_SUBSCRIPTION_PLAN_IDS;
 
 export default function AdminPanel() {
   const { user } = useAuth();
@@ -282,8 +284,8 @@ export default function AdminPanel() {
                   }}
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-slate-900"
                 >
-                  {Object.values(SUBSCRIPTION_PLANS).map((plan) => (
-                    <option key={plan.id} value={plan.id}>{plan.name}</option>
+                  {ADMIN_PLAN_IDS.map((planId) => (
+                    <option key={planId} value={planId}>{SUBSCRIPTION_PLANS[planId].name}</option>
                   ))}
                 </select>
               </div>
@@ -345,7 +347,7 @@ export default function AdminPanel() {
             <div className="grid gap-3 md:grid-cols-3">
               <select value={filters.plan} onChange={(event) => setFilters((current) => ({ ...current, plan: event.target.value }))} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm">
                 <option value="all">Semua paket</option>
-                {Object.values(SUBSCRIPTION_PLANS).map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}
+                {ADMIN_PLAN_IDS.map((planId) => <option key={planId} value={planId}>{SUBSCRIPTION_PLANS[planId].name}</option>)}
               </select>
               <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm">
                 <option value="all">Semua status</option>

@@ -36,7 +36,6 @@ import {
 
 const router = Router();
 
-const FREE_TRANSACTION_LIMIT = 100;
 const PAID_PLANS = new Set(['kopi_susu', 'signature', 'founder']);
 
 function resolveProfilePlan(profile: Record<string, unknown> | null | undefined) {
@@ -47,6 +46,7 @@ function resolveProfilePlan(profile: Record<string, unknown> | null | undefined)
   const plan = typeof profile.pro_plan === 'string' && PAID_PLANS.has(profile.pro_plan)
     ? profile.pro_plan
     : null;
+  if (hasPaidTier && profile.pro_plan === 'secangkir') return 'secangkir';
   return hasPaidTier && plan ? plan : 'secangkir';
 }
 
@@ -54,7 +54,7 @@ const promptEventSchema = z.object({
   event_type: z.enum(['view', 'click', 'dismiss']),
   prompt_key: z.string().trim().min(1).max(120),
   trigger: z.string().trim().min(1).max(120),
-  recommended_plan: z.enum(['kopi_susu', 'signature', 'founder']).default('signature'),
+  recommended_plan: z.enum(['kopi_susu', 'signature']).default('signature'),
   store_id: z.string().uuid().optional().nullable(),
   current_plan: z.string().trim().max(40).optional().nullable(),
   metadata: z.record(z.string(), z.unknown()).optional().default({}),
@@ -86,6 +86,10 @@ router.get('/api/subscriptions/usage-limits', async (req, res, next) => {
     }
 
     const ownerId = String(store.owner_id);
+    await withTransaction(async (client) => {
+      await syncProfileSubscriptionState(client, ownerId);
+    });
+
     const [profileResult, usageResult, firstTransactionResult] = await Promise.all([
       pool.query(
         `
@@ -119,7 +123,12 @@ router.get('/api/subscriptions/usage-limits', async (req, res, next) => {
 
     const profile = profileResult.rows[0] ?? null;
     const plan = resolveProfilePlan(profile);
-    const transactionLimit = plan === 'secangkir' ? FREE_TRANSACTION_LIMIT : -1;
+    const isTrial = plan === 'secangkir' && (profile?.tier === 'pro' || profile?.is_pro === true) && Boolean(profile?.pro_expires_at || profile?.tier_expires_at);
+    const trialEndsAt = isTrial ? (profile?.pro_expires_at ?? profile?.tier_expires_at ?? null) : null;
+    const trialDaysRemaining = trialEndsAt
+      ? Math.max(0, Math.ceil((new Date(String(trialEndsAt)).getTime() - Date.now()) / 86_400_000))
+      : null;
+    const transactionLimit = isTrial || plan !== 'secangkir' ? -1 : 100;
     const transactionsUsed = Number(usageResult.rows[0]?.used ?? 0);
     const percentUsed = transactionLimit > 0
       ? Math.min(100, Math.round((transactionsUsed / transactionLimit) * 100))
@@ -147,7 +156,11 @@ router.get('/api/subscriptions/usage-limits', async (req, res, next) => {
       firstActivityAt,
       daysSinceFirstActivity,
       shouldShowTransactionLimitPrompt: transactionLimit > 0 && percentUsed >= 80 && transactionsUsed < transactionLimit,
-      shouldShowAppAgePrompt: daysSinceFirstActivity >= 14 && plan === 'secangkir',
+      shouldShowAppAgePrompt: false,
+      isTrial,
+      trialEndsAt,
+      trialDaysRemaining,
+      shouldShowTrialUpgradePrompt: isTrial && [4, 2, 1].includes(trialDaysRemaining ?? -1),
     });
   } catch (error) {
     next(error);
@@ -198,6 +211,10 @@ router.post('/api/subscriptions/upgrade-prompts/log', async (req, res, next) => 
 
 router.get('/api/subscriptions', requirePermission('can_manage_billing'), async (req, res, next) => {
   try {
+    await withTransaction(async (client) => {
+      await syncProfileSubscriptionState(client, req.authUser!.id);
+    });
+
     const [subscriptions, paymentHistory, pendingPayments] = await Promise.all([
       pool.query(
         `

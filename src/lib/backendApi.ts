@@ -326,13 +326,17 @@ export type SubscriptionUsageLimits = {
   daysSinceFirstActivity: number;
   shouldShowTransactionLimitPrompt: boolean;
   shouldShowAppAgePrompt: boolean;
+  isTrial?: boolean;
+  trialEndsAt?: string | null;
+  trialDaysRemaining?: number | null;
+  shouldShowTrialUpgradePrompt?: boolean;
 };
 
 export type UpgradePromptEventPayload = {
   event_type: 'view' | 'click' | 'dismiss';
   prompt_key: string;
   trigger: string;
-  recommended_plan?: 'kopi_susu' | 'signature' | 'founder';
+  recommended_plan?: 'kopi_susu' | 'signature';
   store_id?: string | null;
   current_plan?: string | null;
   metadata?: Record<string, unknown>;
@@ -504,7 +508,7 @@ export const getSubscriptions = () =>
   }>('/api/subscriptions');
 
 export const createSubscriptionPayment = (payload: {
-  plan: 'kopi_susu' | 'signature' | 'founder';
+  plan: 'kopi_susu' | 'signature';
   billingCycle: 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
   paymentMethod: SubscriptionPaymentMethodId;
   voucherCode?: string | null;
@@ -514,7 +518,7 @@ export const createSubscriptionPayment = (payload: {
 });
 
 export const getSubscriptionPaymentQuote = (payload: {
-  plan: 'kopi_susu' | 'signature' | 'founder';
+  plan: 'kopi_susu' | 'signature';
   billingCycle: 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
   paymentMethod: SubscriptionPaymentMethodId;
   voucherCode?: string | null;

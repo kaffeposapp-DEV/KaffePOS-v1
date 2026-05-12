@@ -9,7 +9,7 @@ export type SubscriptionPaymentMethod = {
 };
 
 export type SubscriptionBillingQuote = {
-  plan: 'kopi_susu' | 'signature' | 'founder';
+  plan: 'kopi_susu' | 'signature';
   billingCycle: 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
   planName: string;
   subtotal: number;

@@ -15,7 +15,6 @@ import {
   BILLING_CYCLE_LABELS,
   PAID_BILLING_CYCLES,
   type BillingCycle,
-  type SubscriptionPlanId,
   formatRupiah,
   getPlanDefinition,
   getPlanPrice,
@@ -23,7 +22,7 @@ import {
 } from '@/lib/subscriptionPlans';
 import { canStartOnlineBillingFlow, getOnlineBillingBlockedMessage } from '@/lib/offlinePolicy';
 
-type PaidPlan = Exclude<SubscriptionPlanId, 'secangkir'>;
+type PaidPlan = 'kopi_susu' | 'signature';
 type PaidCycle = Exclude<BillingCycle, 'free'>;
 
 type Props = {
@@ -36,7 +35,7 @@ type Props = {
 
 type FlowStep = 'plan' | 'method' | 'review';
 
-const PAID_PLANS: PaidPlan[] = ['kopi_susu', 'signature', 'founder'];
+const PAID_PLANS: PaidPlan[] = ['kopi_susu', 'signature'];
 const PAID_CYCLES = PAID_BILLING_CYCLES;
 
 function stepNumber(step: FlowStep) {

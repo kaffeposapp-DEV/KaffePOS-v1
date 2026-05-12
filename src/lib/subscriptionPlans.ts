@@ -27,27 +27,34 @@ export interface SubscriptionPlanDefinition {
 
 export const INSTAGRAM_ADMIN_URL = 'https://instagram.com/kaffepos';
 export const RENEWAL_URL = 'https://kaffepos.my.id/perpanjang';
+export const TRIAL_DAYS = 14;
+export const TRIAL_GRACE_DAYS = 3;
+export const TRIAL_MESSAGE = 'Gratis 14 Hari • Full Akses Signature • Otomatis Rp49.000/bulan setelah trial berakhir';
+export const PRICING_MAIN_HEADLINE = 'Coba KaffePOS Gratis 14 Hari Full Fitur Premium';
+export const PRICING_SUB_HEADLINE = 'Rasakan Gamification, AI Insights, dan Kopi Passport Loyalty selama 14 hari tanpa bayar. Setelah itu hanya Rp49.000/bulan.';
+export const SIGNATURE_TAGLINE = 'Paling Populer • Full Gamification + AI Insights + Advanced Loyalty';
+export const ACTIVE_SUBSCRIPTION_PLAN_IDS: SubscriptionPlanId[] = ['secangkir', 'kopi_susu', 'signature'];
 
 export const SUBSCRIPTION_PLANS: Record<SubscriptionPlanId, SubscriptionPlanDefinition> = {
   secangkir: {
     id: 'secangkir',
     name: 'Secangkir',
     shortName: 'Secangkir',
-    badge: 'GRATIS',
-    accentClass: 'text-emerald-700',
-    accentSoftClass: 'bg-emerald-50 border-emerald-200',
-    gradient: 'linear-gradient(135deg,#166534 0%,#22c55e 100%)',
+    badge: 'TRIAL 14 HARI',
+    accentClass: 'text-orange-700',
+    accentSoftClass: 'bg-orange-50 border-orange-200',
+    gradient: 'linear-gradient(135deg,#FF6A00 0%,#FF8A1C 100%)',
     prices: { free: 0 },
-    description: 'Cocok untuk mencoba KaffePOS atau cafe sangat kecil yang baru mulai merapikan transaksi.',
-    audience: 'Cocok untuk mencoba atau cafe sangat kecil',
+    description: TRIAL_MESSAGE,
+    audience: 'Gratis 14 hari full fitur premium',
     isFree: true,
     features: [
-      'POS kasir untuk transaksi harian',
-      'Menu, inventaris, dan pengeluaran dasar',
-      'Riwayat transaksi dan laporan harian',
-      'Sinkron otomatis Web dan APK',
-      '100 transaksi per bulan',
-      'Struk digital dasar',
+      'Full access semua fitur Signature selama 14 hari',
+      'POS, inventory + resep, KDS, dan laporan lengkap',
+      'Full Gamification: Kopi Score, Badges, Leaderboard, Daily Challenges',
+      'Advanced Kopi Passport Loyalty',
+      'AI Insights pintar dan Notification Center',
+      'Otomatis menjadi Kopi Susu Rp49.000/bulan setelah trial',
     ],
   },
   kopi_susu: {
@@ -59,10 +66,9 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlanId, SubscriptionPlanDefi
     accentSoftClass: 'bg-amber-50 border-amber-200',
     gradient: 'linear-gradient(135deg,#b45309 0%,#f59e0b 100%)',
     prices: { monthly: 49000, quarterly: 129000, semiannual: 249000, yearly: 449000 },
-    description: 'Semua yang dibutuhkan cafe kecil. Unlimited transaksi, printer thermal, dan loyalty dasar. Cocok untuk kamu yang baru mulai serius.',
+    description: 'Untuk Cafe Kecil yang Serius. Unlimited transaksi, printer thermal, loyalty dasar, dan laporan lengkap. Mulai Rp49.000/bulan.',
     audience: 'Paling cocok untuk cafe kecil',
     features: [
-      'Semua fitur Secangkir',
       'Transaksi tanpa batas',
       'Printer thermal dan cetak browser',
       'Inventory + resep',
@@ -79,13 +85,13 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlanId, SubscriptionPlanDefi
     accentSoftClass: 'bg-orange-50 border-orange-200',
     gradient: 'linear-gradient(135deg,#9a3412 0%,#f97316 100%)',
     prices: { monthly: 129000, quarterly: 349000, semiannual: 649000, yearly: 1199000 },
-    description: 'Paling Populer! Rasakan pengalaman kasir paling seru di Indonesia. Full Gamification (Kopi Score, Badges, Leaderboard & Daily Challenge), Kopi Passport Loyalty lengkap, AI Insights cerdas, dan Notification Center. Bikin staff semangat dan pelanggan selalu balik lagi.',
+    description: SIGNATURE_TAGLINE,
     audience: 'Recommended - paling populer',
     features: [
       'Semua fitur Kopi Susu',
       'Full Gamification',
-      'Kopi Passport Loyalty lengkap',
-      'AI Insights cerdas',
+      'Advanced Kopi Passport Loyalty',
+      'AI Insights pintar',
       'Notification Center',
       'Multi kasir dan cashier session',
     ],
@@ -121,6 +127,7 @@ export const BILLING_CYCLE_LABELS: Record<BillingCycle, string> = {
 };
 
 export const PAID_BILLING_CYCLES: Exclude<BillingCycle, 'free'>[] = ['monthly', 'quarterly', 'semiannual', 'yearly'];
+export const ACTIVE_PAID_PLAN_IDS: Exclude<SubscriptionPlanId, 'secangkir'>[] = ['kopi_susu', 'signature'];
 
 export function getPlanDefinition(plan: string | null | undefined): SubscriptionPlanDefinition {
   return SUBSCRIPTION_PLANS[(plan as SubscriptionPlanId) || 'secangkir'] || SUBSCRIPTION_PLANS.secangkir;

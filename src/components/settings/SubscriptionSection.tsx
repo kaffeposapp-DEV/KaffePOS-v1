@@ -9,11 +9,11 @@ import {
   BILLING_CYCLE_LABELS,
   INSTAGRAM_ADMIN_URL,
   type BillingCycle,
-  type SubscriptionPlanId,
   formatDateId,
   formatRupiah,
   getPlanDefinition,
 } from '@/lib/subscriptionPlans';
+import { buildSubscriptionAccess, type SubscriptionAccess } from '@/lib/subscriptionAccess';
 import { isAdminEmail } from '@/lib/admin';
 import SubscriptionCheckoutFlow from './SubscriptionCheckoutFlow';
 import PricingPage from '../subscription/PricingPage';
@@ -57,11 +57,11 @@ type PendingPaymentRow = {
   created_at: string;
 };
 
-type PaidPlan = Exclude<SubscriptionPlanId, 'secangkir'>;
+type PaidPlan = 'kopi_susu' | 'signature';
 type PaidCycle = Exclude<BillingCycle, 'free'>;
 
 function isPaidPlan(plan: string | null | undefined): plan is PaidPlan {
-  return plan === 'kopi_susu' || plan === 'signature' || plan === 'founder';
+  return plan === 'kopi_susu' || plan === 'signature';
 }
 
 function isPaidCycle(cycle: string | null | undefined): cycle is PaidCycle {
@@ -79,7 +79,9 @@ function getPaymentStatusLabel(status: string | null | undefined) {
 
 export default function SubscriptionSection({ isPro, profile, toast, onRefreshStatus }: SubscriptionSectionProps) {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const auth = useAuth() as ReturnType<typeof useAuth> & { subscriptionAccess?: SubscriptionAccess };
+  const { user } = auth;
+  const subscriptionAccess = auth.subscriptionAccess ?? buildSubscriptionAccess(profile);
   const [currentSubscription, setCurrentSubscription] = useState<SubscriptionRow | null>(null);
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryRow[]>([]);
   const [pendingPayments, setPendingPayments] = useState<PendingPaymentRow[]>([]);
@@ -148,6 +150,7 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
     (currentSubscription && currentSubscription.status === 'active' && !isExpired && !isCancelled && isPaidPlan(currentSubscription.plan)) ||
     hasLegacyPaidAccess,
   );
+  const isTrial = subscriptionAccess.isTrial || (currentSubscription?.plan === 'secangkir' && currentSubscription.status === 'active' && !isExpired);
   const activePlanId = currentSubscription && isActivePaid && isPaidPlan(currentSubscription.plan)
     ? currentSubscription.plan
     : hasLegacyPaidAccess && isPaidPlan(profile?.pro_plan)
@@ -155,7 +158,7 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
       : 'secangkir';
   const activePlan = getPlanDefinition(activePlanId);
   const activeCycle = currentSubscription?.billing_cycle || (activePlan.isFree ? 'free' : 'monthly');
-  const expiringSoon = isActivePaid && daysRemaining !== null && daysRemaining <= 7;
+  const expiringSoon = (isActivePaid || isTrial) && daysRemaining !== null && daysRemaining <= 7;
   const paidHistory = useMemo(() => paymentHistory.filter((entry) => entry.amount > 0), [paymentHistory]);
   const activePendingPayment = useMemo(
     () => pendingPayments.find((entry) => ['pending', 'capture'].includes(entry.transaction_status)) || null,
@@ -168,11 +171,13 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
   const onlinePaymentAvailable = paymentConfig?.onlinePaymentAvailable === true;
   const paymentModeMessage = paymentConfig?.message || 'Pembayaran online belum dibuka. Aktivasi sementara dibantu admin.';
 
-  const primaryCta = isActivePaid ? 'Perpanjang Langganan' : isExpired || isCancelled ? 'Aktifkan Kembali' : 'Langganan Sekarang';
+  const primaryCta = isTrial ? 'Upgrade ke Signature' : isActivePaid ? 'Perpanjang Langganan' : isExpired || isCancelled ? 'Aktifkan Kembali' : 'Langganan Sekarang';
 
   const statusLabel = activePendingPayment
     ? 'Menunggu Pembayaran'
-    : isActivePaid
+    : isTrial
+      ? 'Trial Signature Aktif'
+      : isActivePaid
       ? 'Langganan Aktif'
       : isExpired
         ? 'Masa Aktif Habis'
@@ -242,7 +247,7 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
               {activePlan.name}
             </h3>
             <p className="mt-2 max-w-md text-sm font-medium text-slate-600 leading-relaxed">
-              {activePlan.description}
+              {isTrial ? 'Gratis 14 Hari • Full Akses Signature • Otomatis Rp49.000/bulan setelah trial berakhir' : activePlan.description}
             </p>
           </div>
 
@@ -271,7 +276,7 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
             )}
             {expiryDate && (
               <p className={`mt-1 text-center text-[10px] font-black uppercase tracking-widest ${expiringSoon ? 'text-orange-600' : 'text-slate-500'}`}>
-                {daysRemaining} Hari Tersisa
+                {isTrial ? `Trial tersisa ${daysRemaining} hari` : `${daysRemaining} Hari Tersisa`}
               </p>
             )}
           </div>
@@ -326,7 +331,9 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
             <div className="flex items-center gap-4 rounded-3xl border border-orange-100 bg-orange-50 p-5">
               <AlertCircle size={20} className="text-orange-500" />
               <p className="text-sm font-bold text-orange-800">
-                Langganan akan habis dalam <span className="font-black underline">{daysRemaining} hari</span>. Perpanjang sekarang untuk menjaga operasional toko tetap lancar.
+                {isTrial
+                  ? <>Trial Signature tersisa <span className="font-black underline">{daysRemaining} hari</span>. Upgrade kapan saja untuk tetap memakai fitur premium setelah trial.</>
+                  : <>Langganan akan habis dalam <span className="font-black underline">{daysRemaining} hari</span>. Perpanjang sekarang untuk menjaga operasional toko tetap lancar.</>}
               </p>
             </div>
           )}
@@ -346,11 +353,14 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
         onCycleChange={setPricingCycle}
         activePlanId={activePlan.id}
         isActivePaid={isActivePaid}
+        isTrial={isTrial}
+        trialDaysRemaining={subscriptionAccess.daysRemaining}
         onSelectPlan={(plan, cycle) => {
           if (plan === 'secangkir') {
             toast.showToast('Paket Secangkir aktif otomatis untuk akun gratis.', 'info');
             return;
           }
+          if (!isPaidPlan(plan)) return;
           openCheckout(plan, cycle as PaidCycle);
         }}
         ctaLabel={(plan) => (plan === 'secangkir' ? 'Mulai Gratis' : `Pilih ${getPlanDefinition(plan).shortName}`)}

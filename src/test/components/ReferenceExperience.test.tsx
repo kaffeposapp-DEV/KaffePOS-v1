@@ -46,7 +46,7 @@ describe('KaffePOS reference experience', () => {
     expect(screen.getByTestId('reference-device-showcase')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Fitur Lengkap untuk Bisnis Anda/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Pantau Bisnis Anda dalam Sekejap/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Kasir Cafe yang Fun, Lengkap, dan Terjangkau/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Coba KaffePOS Gratis 14 Hari Full Fitur Premium/i })).toBeInTheDocument();
   });
 
   it('renders a mobile-first auth surface for web mobile and APK login', () => {

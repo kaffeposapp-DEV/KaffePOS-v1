@@ -5,6 +5,9 @@ export type UpgradePromptTrigger =
   | 'transaction_limit_80'
   | 'transaction_limit_blocked'
   | 'app_age_14_days'
+  | 'trial_day_10'
+  | 'trial_day_12'
+  | 'trial_day_13'
   | 'ai_insight'
   | 'advanced_reports'
   | 'report_export'
@@ -18,7 +21,7 @@ export type UpgradePromptTrigger =
 export type UpgradePromptRequest = {
   trigger: UpgradePromptTrigger | string;
   promptKey?: string;
-  recommendedPlan?: Exclude<SubscriptionPlanId, 'secangkir'>;
+  recommendedPlan?: 'kopi_susu' | 'signature';
   title?: string;
   description?: string;
   source?: string;
@@ -115,7 +118,7 @@ export function buildPromptEventPayload(
   params: {
     promptKey: string;
     trigger: string;
-    recommendedPlan?: Exclude<SubscriptionPlanId, 'secangkir'>;
+    recommendedPlan?: 'kopi_susu' | 'signature';
     currentPlan?: SubscriptionPlanId | string | null;
     storeId?: string | null;
     metadata?: Record<string, unknown>;

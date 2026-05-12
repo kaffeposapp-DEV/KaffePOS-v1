@@ -28,9 +28,9 @@ describe('backend subscription billing helpers', () => {
   it('rejects invalid voucher', () => {
     expect(() =>
       validateSubscriptionVoucher({
-        plan: 'founder',
+        plan: 'kopi_susu',
         billingCycle: 'monthly',
-        subtotal: 249000,
+        subtotal: 49000,
         voucherCode: 'SALAH',
       }),
     ).toThrow('Kode voucher tidak ditemukan');

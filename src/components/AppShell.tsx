@@ -428,8 +428,12 @@ export default function AppShell() {
       daysSinceFirstActivity: daysSince(firstSeen),
       shouldShowTransactionLimitPrompt: limit > 0 && percent >= 80 && localMonthlyTransactionCount < limit,
       shouldShowAppAgePrompt: subscriptionAccess.plan === 'secangkir' && daysSince(firstSeen) >= 14,
+      isTrial: subscriptionAccess.isTrial,
+      trialEndsAt: subscriptionAccess.expiryDate,
+      trialDaysRemaining: subscriptionAccess.isTrial ? subscriptionAccess.daysRemaining : null,
+      shouldShowTrialUpgradePrompt: subscriptionAccess.isTrial && [4, 2, 1].includes(subscriptionAccess.daysRemaining ?? -1),
     };
-  }, [localMonthlyTransactionCount, profile?.created_at, profile?.id, profile?.owner_id, storeId, subscriptionAccess.plan, subscriptionAccess.transactionLimit, subscriptionUsage, user?.id]);
+  }, [localMonthlyTransactionCount, profile?.created_at, profile?.id, profile?.owner_id, storeId, subscriptionAccess.daysRemaining, subscriptionAccess.expiryDate, subscriptionAccess.isTrial, subscriptionAccess.plan, subscriptionAccess.transactionLimit, subscriptionUsage, user?.id]);
 
   const transactionLimitPromptKey = `transaction_limit_80:${storeId || 'local'}`;
   const appAgePromptKey = `app_age_14_days:${user?.id || profile?.id || 'local'}`;
@@ -442,6 +446,7 @@ export default function AppShell() {
 
   useEffect(() => {
     if (!ready || !user?.id || upgradePrompt) return;
+    if (subscriptionAccess.isTrial) return;
     if (!effectiveUsage.shouldShowAppAgePrompt) return;
     if (shouldThrottleUpgradePrompt(user.id, appAgePromptKey, 14)) return;
 
@@ -455,7 +460,28 @@ export default function AppShell() {
         : 'Jika operasional sudah mulai rutin, paket Signature membuka AI Insight, multi kasir, laporan lanjutan, dan printer thermal dalam satu paket.',
       metadata: { daysSinceFirstActivity: effectiveUsage.daysSinceFirstActivity },
     });
-  }, [appAgePromptKey, effectiveUsage.daysSinceFirstActivity, effectiveUsage.shouldShowAppAgePrompt, ready, role, upgradePrompt, user?.id]);
+  }, [appAgePromptKey, effectiveUsage.daysSinceFirstActivity, effectiveUsage.shouldShowAppAgePrompt, ready, role, subscriptionAccess.isTrial, upgradePrompt, user?.id]);
+
+  useEffect(() => {
+    if (!ready || !user?.id || upgradePrompt) return;
+    if (!subscriptionAccess.isTrial || subscriptionAccess.daysRemaining === null) return;
+    const daysLeft = subscriptionAccess.daysRemaining;
+    const daysUsed = 14 - daysLeft;
+    if (![10, 12, 13].includes(daysUsed)) return;
+    const promptKey = `secangkir_trial_day_${daysUsed}:${user.id}`;
+    if (shouldThrottleUpgradePrompt(user.id, promptKey, 1)) return;
+
+    dispatchUpgradePrompt({
+      trigger: `trial_day_${daysUsed}`,
+      promptKey,
+      recommendedPlan: 'signature',
+      title: `Trial Signature tersisa ${daysLeft} hari`,
+      description: role === 'cashier'
+        ? 'Minta Owner/Admin memilih paket agar fitur premium tetap aktif setelah trial.'
+        : 'Upgrade ke Signature kapan saja agar Gamification, Advanced Kopi Passport Loyalty, AI Insights, dan Notification Center tetap aktif setelah trial.',
+      metadata: { daysUsed, daysLeft, trialEndsAt: subscriptionAccess.expiryDate },
+    });
+  }, [ready, role, subscriptionAccess.daysRemaining, subscriptionAccess.expiryDate, subscriptionAccess.isTrial, upgradePrompt, user?.id]);
 
   useEffect(() => {
     const userId = user?.id || profile?.id;

@@ -23,7 +23,7 @@ const router = Router();
 
 const adminSubscriptionActionSchema = z.object({
   userId: z.string().uuid(),
-  plan: z.enum(['secangkir', 'kopi_susu', 'signature', 'founder']),
+  plan: z.enum(['secangkir', 'kopi_susu', 'signature']),
   billingCycle: z.enum(['free', 'monthly', 'quarterly', 'semiannual', 'yearly']),
   paymentAmount: z.number().nonnegative(),
   paymentNote: z.string().trim().optional().nullable(),

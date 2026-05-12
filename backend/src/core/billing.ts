@@ -107,11 +107,17 @@ import { buildSubscriptionBillingQuote, type SubscriptionPlanId, type BillingCyc
 
 export const subscriptionPaymentMethodSchema = z.enum(['qris', 'bca_va', 'mandiri_bill', 'bni_va', 'bri_va']);
 export const subscriptionPaymentRequestSchema = z.object({
-  plan: z.enum(['kopi_susu', 'signature', 'founder']),
+  plan: z.enum(['kopi_susu', 'signature']),
   billingCycle: z.enum(['monthly', 'quarterly', 'semiannual', 'yearly']),
   paymentMethod: subscriptionPaymentMethodSchema,
   voucherCode: z.string().trim().max(64).optional().nullable(),
 });
+
+export const SECANGKIR_TRIAL_DAYS = 14;
+export const SECANGKIR_TRIAL_GRACE_DAYS = 3;
+export const DEFAULT_TRIAL_CONVERSION_PLAN = 'kopi_susu' as const;
+export const DEFAULT_TRIAL_CONVERSION_CYCLE = 'monthly' as const;
+export const DEFAULT_TRIAL_CONVERSION_AMOUNT = 49000;
 
 export function calculateExpiryDate(billingCycle: 'free' | 'monthly' | 'quarterly' | 'semiannual' | 'yearly') {
   if (billingCycle === 'free') return null;
@@ -384,4 +390,83 @@ export async function activatePaidSubscription(client: PoolClient, payload: {
     plan: payload.plan,
     paymentAmount: payload.paymentAmount,
   };
+}
+
+export async function activateSecangkirTrial(client: PoolClient, payload: {
+  userId: string;
+  storeId?: string | null;
+  activatedAt?: string;
+}) {
+  const activatedAt = payload.activatedAt ?? new Date().toISOString();
+  const trialEndsAt = new Date(activatedAt);
+  trialEndsAt.setDate(trialEndsAt.getDate() + SECANGKIR_TRIAL_DAYS);
+  const graceEndsAt = new Date(trialEndsAt);
+  graceEndsAt.setDate(graceEndsAt.getDate() + SECANGKIR_TRIAL_GRACE_DAYS);
+
+  const existing = await client.query(
+    `
+      select id
+      from public.subscriptions
+      where user_id = $1
+        and plan = 'secangkir'
+        and billing_cycle = 'free'
+        and status = 'active'
+      limit 1
+    `,
+    [payload.userId],
+  );
+
+  if (existing.rows[0]) {
+    await syncProfileSubscriptionState(client, payload.userId);
+    return existing.rows[0];
+  }
+
+  const inserted = await client.query(
+    `
+      insert into public.subscriptions (
+        user_id,
+        store_id,
+        tier,
+        period,
+        plan,
+        billing_cycle,
+        status,
+        activated_at,
+        expires_at,
+        amount_paid,
+        payment_amount,
+        payment_method,
+        payment_note,
+        payment_ref,
+        trial_started_at,
+        trial_ends_at,
+        grace_ends_at,
+        updated_at
+      ) values (
+        $1, $2, 'pro', 'trial', 'secangkir', 'free', 'active', $3, $4, 0, 0, 'trial', $5, $6, $3, $4, $7, now()
+      )
+      returning id, user_id, store_id, plan, billing_cycle, status, activated_at, expires_at
+    `,
+    [
+      payload.userId,
+      payload.storeId ?? null,
+      activatedAt,
+      trialEndsAt.toISOString(),
+      'Gratis 14 Hari • Full Akses Signature • Otomatis Rp49.000/bulan setelah trial berakhir',
+      `TRIAL-SECANGKIR-${payload.userId.slice(0, 8)}-${Date.now()}`,
+      graceEndsAt.toISOString(),
+    ],
+  );
+
+  await syncProfileSubscriptionState(client, payload.userId);
+  await insertNotification(
+    client,
+    payload.userId,
+    'Trial Signature aktif',
+    'Gratis 14 hari full akses Signature sudah aktif. Setelah trial berakhir, akun otomatis masuk Kopi Susu Rp49.000/bulan.',
+    'success',
+    { plan: 'secangkir', accessPlan: 'signature', trialEndsAt: trialEndsAt.toISOString() },
+  );
+
+  return inserted.rows[0];
 }

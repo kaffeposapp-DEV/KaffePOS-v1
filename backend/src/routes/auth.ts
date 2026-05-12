@@ -27,6 +27,7 @@ import {
   serializeProfileWithAssignment,
   getCashierAssignment,
   syncProfileSubscriptionState,
+  activateSecangkirTrial,
   pickDefined,
   buildUpdateClause,
   env,
@@ -127,6 +128,8 @@ router.post('/api/auth/register', authEmailRateLimiter, async (req, res, next) =
       const displayName = payload.username.trim();
       const passwordHash = await bcrypt.hash(payload.password, 12);
 
+      let createdStoreId: string | null = null;
+
       if (!existingCredential.rows[0]) {
         await client.query(
           `
@@ -136,13 +139,15 @@ router.post('/api/auth/register', authEmailRateLimiter, async (req, res, next) =
           [userId, resolvedUsername, displayName, email],
         );
 
-        await client.query(
+        const storeResult = await client.query(
           `
             insert into public.stores (owner_id, store_name)
             values ($1, $2)
+            returning id
           `,
           [userId, `Kedai ${displayName}`],
         );
+        createdStoreId = (storeResult.rows[0]?.id as string | null) ?? null;
       } else {
         await client.query(
           `
@@ -188,6 +193,13 @@ router.post('/api/auth/register', authEmailRateLimiter, async (req, res, next) =
         `,
         [email],
       );
+
+      if (!existingCredential.rows[0]) {
+        await activateSecangkirTrial(client, {
+          userId,
+          storeId: createdStoreId,
+        });
+      }
 
       const code = await createEmailCode(client, email, 'signup');
       const profileResult = await client.query(
@@ -425,8 +437,34 @@ router.post('/api/auth/login', authLoginRateLimiter, async (req, res, next) => {
         { ip: req.ip },
       );
 
-      const role = normalizeUserRole(credential.role);
-      const accountStatus = normalizeCashierStatus(credential.account_status);
+      await syncProfileSubscriptionState(client, credential.user_id as string);
+      const refreshedProfileResult = await client.query(
+        `
+          select
+            username,
+            display_name,
+            avatar_url,
+            tier,
+            tier_expires_at,
+            is_pro,
+            pro_plan,
+            pro_order_id,
+            pro_activated_at,
+            pro_expires_at,
+            role,
+            account_status,
+            created_at,
+            updated_at
+          from public.profiles
+          where id = $1
+          limit 1
+        `,
+        [credential.user_id],
+      );
+      const profileState = refreshedProfileResult.rows[0] ?? credential;
+
+      const role = normalizeUserRole(profileState.role);
+      const accountStatus = normalizeCashierStatus(profileState.account_status);
       if (role === 'cashier' && !canCashierLogin(accountStatus)) {
         throw new ApiError(403, 'Akun kasir nonaktif. Hubungi Owner/Admin.');
       }
@@ -443,30 +481,30 @@ router.post('/api/auth/login', authLoginRateLimiter, async (req, res, next) => {
           email: (credential.email as string | null) ?? null,
           email_verified_at: (credential.email_verified_at as string | null) ?? null,
           user_metadata: {
-            display_name: credential.display_name ?? null,
-            username: credential.username ?? null,
+            display_name: profileState.display_name ?? null,
+            username: profileState.username ?? null,
             role,
           },
         },
         profile: {
           id: credential.user_id,
-          username: credential.username,
-          display_name: credential.display_name,
+          username: profileState.username,
+          display_name: profileState.display_name,
           email: credential.email,
-          avatar_url: credential.avatar_url,
-          tier: credential.tier,
-          tier_expires_at: credential.tier_expires_at,
-          is_pro: credential.is_pro,
-          pro_plan: credential.pro_plan,
-          pro_order_id: credential.pro_order_id,
-          pro_activated_at: credential.pro_activated_at,
-          pro_expires_at: credential.pro_expires_at,
+          avatar_url: profileState.avatar_url,
+          tier: profileState.tier,
+          tier_expires_at: profileState.tier_expires_at,
+          is_pro: profileState.is_pro,
+          pro_plan: profileState.pro_plan,
+          pro_order_id: profileState.pro_order_id,
+          pro_activated_at: profileState.pro_activated_at,
+          pro_expires_at: profileState.pro_expires_at,
           role,
           account_status: accountStatus,
           permissions,
           ...assignment,
-          created_at: credential.created_at,
-          updated_at: credential.updated_at,
+          created_at: profileState.created_at,
+          updated_at: profileState.updated_at,
         },
       };
     });

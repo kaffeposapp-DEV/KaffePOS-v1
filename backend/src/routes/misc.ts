@@ -101,7 +101,7 @@ function isSignaturePlan(profile: Record<string, unknown> | null | undefined) {
   const expiresAt = profile.pro_expires_at ?? profile.tier_expires_at ?? null;
   const expired = expiresAt ? new Date(String(expiresAt)).getTime() <= Date.now() : false;
   if (expired || (profile.tier !== 'pro' && profile.is_pro !== true)) return false;
-  return profile.pro_plan === 'signature' || profile.pro_plan === 'founder';
+  return profile.pro_plan === 'signature' || profile.pro_plan === 'secangkir' || profile.pro_plan === 'founder';
 }
 
 function startOfDay(date: Date) {

@@ -319,10 +319,12 @@ export function generateOtpCode() {
 // ── Subscription sync ──────────────────────────────────────────
 
 export async function syncProfileSubscriptionState(client: PoolClient, userId: string) {
-  const latestSubscription = await client.query(
+  let latestSubscription = await client.query(
     `
       select
         id,
+        user_id,
+        store_id,
         plan,
         billing_cycle,
         payment_ref,
@@ -337,7 +339,121 @@ export async function syncProfileSubscriptionState(client: PoolClient, userId: s
     [userId],
   );
 
-  const subscription = latestSubscription.rows[0];
+  let subscription = latestSubscription.rows[0];
+  const isExpiredTrial = Boolean(
+    subscription &&
+    subscription.plan === 'secangkir' &&
+    subscription.billing_cycle === 'free' &&
+    subscription.status === 'active' &&
+    subscription.expires_at &&
+    new Date(String(subscription.expires_at)).getTime() <= Date.now(),
+  );
+
+  if (isExpiredTrial) {
+    const nowIso = new Date().toISOString();
+    const nextExpiry = new Date(nowIso);
+    nextExpiry.setDate(nextExpiry.getDate() + 30);
+    const paymentRef = `AUTO-KOPI-SUSU-${userId.slice(0, 8)}-${Date.now()}`;
+
+    await client.query(
+      `
+        update public.subscriptions
+        set
+          status = 'expired',
+          updated_at = now()
+        where id = $1
+      `,
+      [subscription.id],
+    );
+
+    const converted = await client.query(
+      `
+        insert into public.subscriptions (
+          user_id,
+          store_id,
+          tier,
+          period,
+          plan,
+          billing_cycle,
+          status,
+          activated_at,
+          expires_at,
+          amount_paid,
+          payment_amount,
+          payment_method,
+          payment_note,
+          payment_ref,
+          converted_from_subscription_id,
+          updated_at
+        ) values (
+          $1, $2, 'pro', 'monthly', 'kopi_susu', 'monthly', 'active', $3, $4, 0, 49000, 'auto_billing', $5, $6, $7, now()
+        )
+        returning
+          id,
+          user_id,
+          store_id,
+          plan,
+          billing_cycle,
+          payment_ref,
+          activated_at,
+          expires_at,
+          status
+      `,
+      [
+        userId,
+        subscription.store_id ?? null,
+        nowIso,
+        nextExpiry.toISOString(),
+        'Otomatis menjadi Kopi Susu Rp49.000/bulan setelah trial Secangkir berakhir.',
+        paymentRef,
+        subscription.id,
+      ],
+    );
+
+    await client.query(
+      `
+        insert into public.payment_history (
+          user_id,
+          subscription_id,
+          plan,
+          billing_cycle,
+          amount,
+          payment_method,
+          payment_note,
+          payment_ref,
+          status,
+          paid_at
+        ) values (
+          $1, $2, 'kopi_susu', 'monthly', 49000, 'auto_billing', $3, $4, 'pending', $5
+        )
+        on conflict do nothing
+      `,
+      [
+        userId,
+        converted.rows[0]?.id ?? null,
+        'Billing otomatis setelah trial Secangkir. Tagihan dasar Kopi Susu Rp49.000/bulan.',
+        paymentRef,
+        nowIso,
+      ],
+    ).catch(() => undefined);
+
+    try {
+      await insertNotification(
+        client,
+        userId,
+        'Trial selesai',
+        'Trial Secangkir selesai. Akun kamu otomatis masuk Kopi Susu Rp49.000/bulan agar transaksi tetap berjalan.',
+        'info',
+        { previousPlan: 'secangkir', plan: 'kopi_susu', paymentRef },
+      );
+    } catch {
+      // Notification is helpful, but subscription sync must keep going.
+    }
+
+    latestSubscription = converted;
+    subscription = latestSubscription.rows[0];
+  }
+
   const isActive = Boolean(
     subscription &&
     subscription.status === 'active' &&

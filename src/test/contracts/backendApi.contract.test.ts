@@ -337,7 +337,7 @@ describe('backend API contract', () => {
 
     await expect(
       createSubscriptionPayment({
-        plan: 'founder',
+        plan: 'kopi_susu',
         billingCycle: 'monthly',
         paymentMethod: 'qris',
         voucherCode: 'SIGNATURE10',

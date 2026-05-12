@@ -21,7 +21,7 @@ import {
 import SubscriptionCheckoutFlow from '@/components/settings/SubscriptionCheckoutFlow';
 import type { ToastType } from '@/types';
 
-type PaidPlan = Exclude<SubscriptionPlanId, 'secangkir'>;
+type PaidPlan = 'kopi_susu' | 'signature';
 type PaidCycle = Exclude<BillingCycle, 'free'>;
 
 type Props = {
@@ -40,14 +40,14 @@ type Props = {
 };
 
 const COMPARISON_ROWS = [
-  { label: 'Transaksi tanpa batas', secangkir: false, kopi_susu: true, signature: true },
-  { label: 'Export laporan PDF', secangkir: false, kopi_susu: true, signature: true },
-  { label: 'Periode laporan lanjutan', secangkir: false, kopi_susu: true, signature: true },
-  { label: 'Kopi Passport Loyalty', secangkir: false, kopi_susu: true, signature: true },
-  { label: 'Notification Center', secangkir: false, kopi_susu: false, signature: true },
-  { label: 'AI Insight', secangkir: false, kopi_susu: false, signature: true },
-  { label: 'Multi kasir', secangkir: false, kopi_susu: false, signature: true },
-  { label: 'Printer thermal', secangkir: false, kopi_susu: true, signature: true },
+  { label: 'Transaksi tanpa batas', secangkir: true, kopi_susu: true, signature: true },
+  { label: 'Export laporan PDF', secangkir: true, kopi_susu: true, signature: true },
+  { label: 'Periode laporan lanjutan', secangkir: true, kopi_susu: true, signature: true },
+  { label: 'Kopi Passport Loyalty', secangkir: true, kopi_susu: true, signature: true },
+  { label: 'Notification Center', secangkir: true, kopi_susu: false, signature: true },
+  { label: 'AI Insight', secangkir: true, kopi_susu: false, signature: true },
+  { label: 'Multi kasir', secangkir: true, kopi_susu: false, signature: true },
+  { label: 'Printer thermal', secangkir: true, kopi_susu: true, signature: true },
 ] as const;
 
 function Capability({ enabled }: { enabled: boolean }) {
@@ -229,7 +229,7 @@ export default function UpgradeModal({
             <div className="mt-5 overflow-hidden rounded-[28px] border border-slate-100 bg-white">
               <div className="grid grid-cols-[1.5fr_0.8fr_0.8fr_0.8fr] border-b border-slate-100 bg-slate-50 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400">
                 <span>Fitur</span>
-                <span className="text-center">Gratis</span>
+                <span className="text-center">Trial</span>
                 <span className="text-center">Kopi Susu</span>
                 <span className="text-center text-orange-700">Signature</span>
               </div>

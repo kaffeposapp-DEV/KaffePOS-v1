@@ -1,8 +1,12 @@
-import { Check, ShieldCheck, Sparkles, Users, Zap } from 'lucide-react';
+import { Check, Sparkles, Users, Zap } from 'lucide-react';
 import {
+  ACTIVE_SUBSCRIPTION_PLAN_IDS,
   BILLING_CYCLE_LABELS,
   PAID_BILLING_CYCLES,
+  PRICING_MAIN_HEADLINE,
+  PRICING_SUB_HEADLINE,
   SUBSCRIPTION_PLANS,
+  TRIAL_MESSAGE,
   type BillingCycle,
   type SubscriptionPlanId,
   formatRupiah,
@@ -21,27 +25,29 @@ type PricingPageProps = {
   isActivePaid?: boolean;
   className?: string;
   ctaLabel?: (plan: SubscriptionPlanId) => string;
+  trialDaysRemaining?: number | null;
+  isTrial?: boolean;
 };
 
-const PRICING_ORDER: SubscriptionPlanId[] = ['secangkir', 'kopi_susu', 'signature', 'founder'];
+type PricingPlanId = 'secangkir' | 'kopi_susu' | 'signature';
+const PRICING_ORDER: PricingPlanId[] = ACTIVE_SUBSCRIPTION_PLAN_IDS as PricingPlanId[];
 
 const COMPARISON_ROWS: Array<{
   feature: string;
   secangkir: string;
   kopi_susu: string;
   signature: string;
-  founder: string;
 }> = [
-  { feature: 'POS Dasar', secangkir: '100 transaksi/bulan', kopi_susu: 'Unlimited', signature: 'Unlimited', founder: 'Unlimited' },
-  { feature: 'Inventory + Resep', secangkir: 'Dasar', kopi_susu: '✓', signature: '✓', founder: '✓' },
-  { feature: 'Kitchen Display', secangkir: '✓', kopi_susu: '✓', signature: '✓', founder: '✓' },
-  { feature: 'Printer Thermal', secangkir: '-', kopi_susu: '✓', signature: '✓', founder: '✓' },
-  { feature: 'Gamification', secangkir: 'Ringkasan', kopi_susu: 'Basic', signature: 'Full Kopi Score', founder: 'Full + multi outlet' },
-  { feature: 'Kopi Passport Loyalty', secangkir: '-', kopi_susu: 'Dasar', signature: 'Lengkap', founder: 'Lengkap multi outlet' },
-  { feature: 'AI Insights', secangkir: '-', kopi_susu: '-', signature: '✓', founder: '✓' },
-  { feature: 'Notification Center', secangkir: '-', kopi_susu: '-', signature: '✓', founder: '✓' },
-  { feature: 'Multi Outlet', secangkir: '-', kopi_susu: '-', signature: '-', founder: '✓' },
-  { feature: 'Support', secangkir: 'Komunitas', kopi_susu: 'Standar', signature: 'Prioritas', founder: 'Dedicated' },
+  { feature: 'POS', secangkir: 'Full akses 14 hari', kopi_susu: 'Unlimited', signature: 'Unlimited' },
+  { feature: 'Inventory + Resep', secangkir: 'Full akses 14 hari', kopi_susu: '✓', signature: '✓' },
+  { feature: 'KDS', secangkir: 'Full akses 14 hari', kopi_susu: '✓', signature: '✓' },
+  { feature: 'Printer Thermal', secangkir: 'Full akses 14 hari', kopi_susu: '✓', signature: '✓' },
+  { feature: 'Gamification', secangkir: 'Full Signature 14 hari', kopi_susu: 'Dasar', signature: 'Full Kopi Score' },
+  { feature: 'Kopi Passport Loyalty', secangkir: 'Advanced 14 hari', kopi_susu: 'Dasar', signature: 'Advanced' },
+  { feature: 'AI Insights', secangkir: 'Full akses 14 hari', kopi_susu: '-', signature: '✓' },
+  { feature: 'Notification Center', secangkir: 'Full akses 14 hari', kopi_susu: '-', signature: '✓' },
+  { feature: 'Multi Kasir', secangkir: 'Full akses 14 hari', kopi_susu: '-', signature: '✓' },
+  { feature: 'Support', secangkir: 'Trial support', kopi_susu: 'Standar', signature: 'Prioritas' },
 ];
 
 function SavingsBadge({ plan, cycle }: { plan: SubscriptionPlanId; cycle: BillingCycle }) {
@@ -63,6 +69,8 @@ export default function PricingPage({
   isActivePaid = false,
   className = '',
   ctaLabel,
+  trialDaysRemaining,
+  isTrial = false,
 }: PricingPageProps) {
   return (
     <section className={`kaffe-responsive-surface rounded-[32px] border border-slate-200 bg-white p-5 shadow-sm md:p-8 ${className}`}>
@@ -70,14 +78,20 @@ export default function PricingPage({
         <div className="min-w-0">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-orange-100 bg-orange-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-[#FF6A00]">
             <Sparkles size={13} />
-            Ribuan cafe sudah pakai
+            {TRIAL_MESSAGE}
           </div>
           <h2 className="font-display text-2xl font-extrabold tracking-tight text-slate-900 md:text-3xl">
-            Kasir Cafe yang Fun, Lengkap, dan Terjangkau
+            {PRICING_MAIN_HEADLINE}
           </h2>
           <p className="mt-3 max-w-3xl text-sm font-semibold leading-relaxed text-slate-500 md:text-base">
-            Dari Rp49.000/bulan saja. Punya fitur gamifikasi, loyalty pelanggan, dan AI Insights yang bikin bisnis kopi kamu lebih mudah dan menyenangkan.
+            {PRICING_SUB_HEADLINE}
           </p>
+          {isTrial && trialDaysRemaining !== null && trialDaysRemaining !== undefined ? (
+            <div className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-xs font-black text-orange-800">
+              <Zap size={15} />
+              Trial Signature tersisa {trialDaysRemaining} hari
+            </div>
+          ) : null}
         </div>
 
         <div className="min-w-0">
@@ -101,7 +115,7 @@ export default function PricingPage({
         </div>
       </div>
 
-      <div className="kaffe-card-grid mt-8 grid grid-cols-1 gap-4 lg:grid-cols-4">
+      <div className="kaffe-card-grid mt-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
         {PRICING_ORDER.map((planId) => {
           const plan = SUBSCRIPTION_PLANS[planId];
           const cycle: BillingCycle = plan.isFree ? 'free' : selectedCycle;
@@ -131,7 +145,7 @@ export default function PricingPage({
                 <div className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${
                   isRecommended ? 'border-orange-100 bg-white text-[#FF6A00]' : 'border-slate-100 bg-slate-50 text-[#FF6A00]'
                 }`}>
-                  {planId === 'founder' ? <ShieldCheck size={21} /> : planId === 'secangkir' ? <Zap size={21} /> : <Sparkles size={21} />}
+                  {planId === 'secangkir' ? <Zap size={21} /> : planId === 'kopi_susu' ? <Users size={21} /> : <Sparkles size={21} />}
                 </div>
                 <span className="rounded-full border border-orange-100 bg-white px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-orange-700">
                   {plan.badge}
@@ -148,7 +162,7 @@ export default function PricingPage({
                 <p className="font-display text-3xl font-extrabold text-slate-900">{formatRupiah(price)}</p>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                    {plan.isFree ? 'Selamanya' : `${formatRupiah(getMonthlyEquivalent(planId, cycle))}/bulan`}
+                    {plan.isFree ? '14 hari full Signature' : `${formatRupiah(getMonthlyEquivalent(planId, cycle))}/bulan`}
                   </p>
                   <SavingsBadge plan={planId} cycle={cycle} />
                 </div>
@@ -194,7 +208,7 @@ export default function PricingPage({
         </div>
 
         <div className="kaffe-command-bar overflow-x-auto">
-          <table className="w-full min-w-[760px] border-separate border-spacing-0 overflow-hidden rounded-2xl bg-white text-left text-xs">
+          <table className="w-full min-w-[640px] border-separate border-spacing-0 overflow-hidden rounded-2xl bg-white text-left text-xs">
             <thead>
               <tr className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                 <th className="border-b border-slate-100 px-4 py-3">Fitur</th>

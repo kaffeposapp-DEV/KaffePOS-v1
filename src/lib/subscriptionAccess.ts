@@ -21,7 +21,10 @@ export type SubscriptionFeatureFlags = Record<SubscriptionFeature, boolean>;
 
 export type SubscriptionAccess = {
   plan: SubscriptionPlanId;
+  accessPlan: SubscriptionPlanId;
   isPaid: boolean;
+  isTrial: boolean;
+  isGracePeriod: boolean;
   isActive: boolean;
   expiryDate: string | null;
   daysRemaining: number | null;
@@ -43,10 +46,10 @@ const FEATURE_PLAN_REQUIREMENTS: Record<SubscriptionFeature, SubscriptionPlanId>
   ai_insight: 'signature',
   gamification_full: 'signature',
   notification_center: 'signature',
-  multi_outlet: 'founder',
+  multi_outlet: 'signature',
   loyalty_basic: 'kopi_susu',
   loyalty_advanced: 'signature',
-  priority_support: 'founder',
+  priority_support: 'signature',
 };
 
 function getPlanRank(plan: SubscriptionPlanId) {
@@ -84,7 +87,10 @@ export function isSubscriptionExpired(profile: Profile | null | undefined, now =
 export function buildSubscriptionAccess(profile: Profile | null | undefined, now = new Date()): SubscriptionAccess {
   const expired = isSubscriptionExpired(profile, now);
   const plan = expired ? 'secangkir' : resolveSubscriptionPlan(profile);
+  const rawExpiry = profile?.pro_expires_at || profile?.tier_expires_at || null;
+  const hasActiveTrial = !expired && plan === 'secangkir' && (profile?.tier === 'pro' || profile?.is_pro === true) && Boolean(rawExpiry);
   const isPaid = plan !== 'secangkir';
+  const accessPlan: SubscriptionPlanId = hasActiveTrial ? 'signature' : plan;
   const expiryDate = !expired ? (profile?.pro_expires_at || profile?.tier_expires_at || null) : null;
   const daysRemaining = expiryDate
     ? Math.max(Math.ceil((new Date(expiryDate).getTime() - now.getTime()) / 86_400_000), 0)
@@ -92,7 +98,7 @@ export function buildSubscriptionAccess(profile: Profile | null | undefined, now
 
   const features = (Object.keys(FEATURE_PLAN_REQUIREMENTS) as SubscriptionFeature[]).reduce<SubscriptionFeatureFlags>(
     (acc, feature) => {
-      acc[feature] = isPlanAtLeast(plan, FEATURE_PLAN_REQUIREMENTS[feature]);
+      acc[feature] = isPlanAtLeast(accessPlan, FEATURE_PLAN_REQUIREMENTS[feature]);
       return acc;
     },
     {
@@ -115,7 +121,10 @@ export function buildSubscriptionAccess(profile: Profile | null | undefined, now
 
   return {
     plan,
+    accessPlan,
     isPaid,
+    isTrial: hasActiveTrial,
+    isGracePeriod: false,
     isActive: !expired,
     expiryDate,
     daysRemaining,

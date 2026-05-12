@@ -1814,14 +1814,14 @@ const checkoutSchema = z.object({
 });
 const adminSubscriptionActionSchema = z.object({
   userId: z.string().uuid(),
-  plan: z.enum(['secangkir', 'kopi_susu', 'signature', 'founder']),
+  plan: z.enum(['secangkir', 'kopi_susu', 'signature']),
   billingCycle: z.enum(['free', 'monthly', 'quarterly', 'semiannual', 'yearly']),
   paymentAmount: z.number().nonnegative(),
   paymentNote: z.string().trim().optional().nullable(),
 });
 const subscriptionPaymentMethodSchema = z.enum(['qris', 'bca_va', 'mandiri_bill', 'bni_va', 'bri_va']);
 const subscriptionPaymentRequestSchema = z.object({
-  plan: z.enum(['kopi_susu', 'signature', 'founder']),
+  plan: z.enum(['kopi_susu', 'signature']),
   billingCycle: z.enum(['monthly', 'quarterly', 'semiannual', 'yearly']),
   paymentMethod: subscriptionPaymentMethodSchema,
   voucherCode: z.string().trim().max(64).optional().nullable(),
