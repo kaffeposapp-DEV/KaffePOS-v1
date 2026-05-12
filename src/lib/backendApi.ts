@@ -276,6 +276,60 @@ export type PendingPaymentRecord = {
   created_at: string;
 } & ApiRecord;
 
+export type SecurePaymentCreatePayload = {
+  store_id: string;
+  items: Array<{
+    id: string;
+    qty: number;
+    variant_name?: string | null;
+    note?: string | null;
+  }>;
+  discount_amount?: number;
+  customer?: {
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  };
+};
+
+export type SecurePaymentCreateResponse = {
+  order_id: string;
+  status: 'pending';
+  subtotal: number;
+  discount_amount: number;
+  tax_amount: number;
+  gross_amount: number;
+  snap_token: string | null;
+  snap_script_url?: string | null;
+  payment_url: string | null;
+  expires_at: string;
+};
+
+export type SecurePaymentOrderStatus = {
+  order_id: string;
+  status: 'pending' | 'paid' | 'completed' | 'failed' | 'cancelled';
+  transaction_status: string;
+  payment_type: string | null;
+  subtotal: number;
+  discount_amount: number;
+  tax_amount: number;
+  gross_amount: number;
+  customer_name: string | null;
+  items: Array<{
+    id: string;
+    price: number;
+    quantity: number;
+    name: string;
+    note: string | null;
+    subtotal: number;
+  }>;
+  transaction_id: string | null;
+  transaction: Transaction | null;
+  paid_at: string | null;
+  failed_at: string | null;
+  expires_at: string | null;
+};
+
 export type AdminProfileResponse = {
   id: string;
   email: string | null;
@@ -507,6 +561,21 @@ export const getSubscriptions = () =>
     paymentConfig?: SubscriptionPaymentConfig;
   }>('/api/subscriptions');
 
+export const createPayment = (payload: SecurePaymentCreatePayload) =>
+  apiFetch<SecurePaymentCreateResponse>('/api/payment/create-transaction', {
+    method: 'POST',
+    json: payload,
+  });
+
+export const getPaymentOrderStatus = (orderId: string) =>
+  apiFetch<SecurePaymentOrderStatus>(`/api/payment/orders/${encodeURIComponent(orderId)}`);
+
+export const createSecurePayment = (payload: SecurePaymentCreatePayload) =>
+  apiFetch<SecurePaymentCreateResponse>('/api/payment/create', {
+    method: 'POST',
+    json: payload,
+  });
+
 export const createSubscriptionPayment = (payload: {
   plan: 'kopi_susu' | 'signature';
   billingCycle: 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
@@ -537,7 +606,20 @@ export const logUpgradePromptEvent = (payload: UpgradePromptEventPayload) =>
   });
 
 export const trackOpsEventRequest = (payload: {
-  event_name: 'login' | 'checkout' | 'client_error' | 'printer_error' | 'sync_error';
+  event_name:
+    | 'login'
+    | 'checkout'
+    | 'transaction_created'
+    | 'upgrade_clicked'
+    | 'gamification_used'
+    | 'loyalty_used'
+    | 'pdf_exported'
+    | 'payment_started'
+    | 'payment_completed'
+    | 'feedback_submitted'
+    | 'client_error'
+    | 'printer_error'
+    | 'sync_error';
   status: 'success' | 'failure';
   email?: string;
   store_id?: string;
@@ -601,8 +683,12 @@ export const registerPushSubscription = (payload: {
 }) => apiFetch<ApiRecord>('/api/notifications/push-subscription', { method: 'POST', json: payload });
 export const submitBetaFeedback = (payload: {
   store_id?: string | null;
-  liked: string;
-  improve: string;
+  rating?: number | null;
+  category?: 'Bug' | 'Saran Fitur' | 'Lainnya';
+  description?: string;
+  screenshot_data?: string | null;
+  liked?: string;
+  improve?: string;
   metadata?: Record<string, unknown>;
 }) => apiFetch<ApiRecord>('/api/beta-feedback', { method: 'POST', json: payload });
 

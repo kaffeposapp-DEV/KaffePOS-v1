@@ -348,6 +348,8 @@ export interface ReportData {
   logoData?: string;
   period: string;
   periodLabel: string;
+  reportTitle?: string;
+  fileBaseName?: string;
   nowStr: string;
   totalRevenue: number;
   totalCogs: number;
@@ -361,6 +363,10 @@ export interface ReportData {
   menuRanking: { label: string; value: number; sub: string; rev: number }[];
   paymentData: { label: string; value: number; color: string }[];
   stockData: { label: string; stock: number; unit: string; min: number; pct: number }[];
+  categorySales?: { label: string; qty: number; revenue: number }[];
+  staffPerformance?: { name: string; transactions: number; revenue: number; points: number }[];
+  kopiScore?: { score: number; label: string };
+  recentTransactions?: any[];
   expensesByCategory: { label: string; value: number }[];
   expenseList: any[];
   cashRegister: any[];
@@ -398,6 +404,7 @@ async function buildProfessionalPDF(
     phone,
     logoData,
     periodLabel,
+    reportTitle,
     nowStr,
     totalRevenue,
     totalCogs,
@@ -411,6 +418,10 @@ async function buildProfessionalPDF(
     menuRanking,
     paymentData,
     stockData,
+    categorySales = [],
+    staffPerformance = [],
+    kopiScore,
+    recentTransactions = [],
     expensesByCategory,
     expenseList,
     cashRegister,
@@ -453,8 +464,8 @@ async function buildProfessionalPDF(
     doc.setFontSize(5.6);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...C.white);
-    doc.text(`${storeName}  |  Laporan ${periodLabel}`, ML, PH - 2.6);
-    doc.text(`Halaman ${pageNum}/${totalPages}  |  ${nowStr}`, W - MR, PH - 2.6, { align: 'right' });
+    doc.text(`Terima kasih | Powered by KaffePOS`, ML, PH - 2.6);
+    doc.text(`Halaman ${pageNum}/${totalPages}  |  Export ${nowStr}`, W - MR, PH - 2.6, { align: 'right' });
   };
 
   const addPageHeader = (pageNum?: number) => {
@@ -552,7 +563,7 @@ async function buildProfessionalPDF(
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...C.white);
-  doc.text('LAPORAN PENJUALAN, OPERASIONAL, DAN ANALITIK', ML, 80);
+  doc.text((reportTitle || 'LAPORAN PENJUALAN').toUpperCase(), ML, 80);
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...C.muted);
@@ -569,7 +580,7 @@ async function buildProfessionalPDF(
     { label: 'Pendapatan', value: fRp(totalRevenue), bg: C.bgOrange, color: C.orangeDark, sub: `${fNum(txCount)} transaksi` },
     { label: 'Laba Bersih', value: fRp(netProfit), bg: netProfit >= 0 ? C.bgGreen : C.bgRed, color: netProfit >= 0 ? C.green : C.red, sub: `${netMargin}% margin bersih` },
     { label: 'Margin Kotor', value: `${grossMargin}%`, bg: C.bgBlue, color: C.blue, sub: `${cogsRatio}% HPP` },
-    { label: 'Biaya Operasional', value: fRp(totalExpenses), bg: C.bgPurple, color: C.purple, sub: `${expenseRatio}% dari omzet` },
+    { label: 'Kopi Score', value: kopiScore ? String(kopiScore.score) : '-', bg: C.bgPurple, color: C.purple, sub: kopiScore?.label || 'belum tersedia' },
   ];
   const coverCardW = (CW - 9) / 4;
   coverMetrics.forEach((item, index) => {
@@ -619,11 +630,11 @@ async function buildProfessionalPDF(
   const topRowW = (CW - 10) / 3;
   const summaryKpis = [
     { label: 'Total Pendapatan', value: fRp(totalRevenue), sub: `${fNum(txCount)} transaksi`, bg: C.bgOrange, color: C.orangeDark },
+    { label: 'Total Transaksi', value: fNum(txCount), sub: 'order valid', bg: C.bgSlate, color: C.dark },
     { label: 'Laba Kotor', value: fRp(grossProfit), sub: `${grossMargin}% margin kotor`, bg: grossProfit >= 0 ? C.bgGreen : C.bgRed, color: grossProfit >= 0 ? C.green : C.red },
-    { label: 'Laba Bersih', value: fRp(netProfit), sub: `${netMargin}% margin bersih`, bg: netProfit >= 0 ? C.bgGreen : C.bgRed, color: netProfit >= 0 ? C.green : C.red },
     { label: 'Rata-rata Transaksi', value: fRp(avgTrx), sub: 'nilai per transaksi', bg: C.bgBlue, color: C.blue },
     { label: 'Beban Operasional', value: fRp(totalExpenses), sub: `${expenseList.length} catatan`, bg: C.bgRed, color: C.red },
-    { label: 'Modal Kas', value: fRp(totalCashRegister), sub: `${cashRegister.length} catatan`, bg: C.bgPurple, color: C.purple },
+    { label: 'Kopi Score', value: kopiScore ? String(kopiScore.score) : '-', sub: kopiScore?.label || 'belum tersedia', bg: C.bgPurple, color: C.purple },
   ];
   summaryKpis.forEach((item, index) => {
     kpiBox(
@@ -768,6 +779,19 @@ async function buildProfessionalPDF(
     ];
     drawBulletList(doc, trendLines, ML + 4, y + 47, CW - 8, 4.8);
     y += 60;
+
+    np(48);
+    doc.setFillColor(...C.white);
+    doc.roundedRect(ML, y, CW, 42, 2, 2, 'F');
+    doc.setDrawColor(...C.border);
+    doc.setLineWidth(0.18);
+    doc.roundedRect(ML, y, CW, 42, 2, 2, 'S');
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.dark);
+    doc.text('Bar Chart Penjualan per Hari', ML + 4, y + 6.5);
+    drawVBar(doc, trendData, ML + 8, y + 11, CW - 16, 22, [C.orange, C.blue, C.green, C.amber]);
+    y += 50;
   }
 
   if (menuRanking.length > 0) {
@@ -844,6 +868,34 @@ async function buildProfessionalPDF(
         3: { cellWidth: 36, halign: 'right', fontStyle: 'bold' },
         4: { halign: 'right', textColor: [148, 163, 184] },
       },
+    });
+  }
+
+  if (categorySales.length > 0) {
+    secHead('RINGKASAN PENJUALAN PER KATEGORI', `${categorySales.length} kategori aktif`);
+    const totalCategoryRevenue = categorySales.reduce((sum, item) => sum + item.revenue, 0);
+    safeAutoTable({
+      startY: y,
+      head: [['Kategori', 'Qty Terjual', 'Revenue', 'Kontribusi']],
+      body: categorySales.map((item) => [
+        item.label,
+        `${fNum(item.qty)} item`,
+        fRp(item.revenue),
+        `${pct(item.revenue, totalCategoryRevenue)}%`,
+      ]),
+      theme: 'plain',
+      styles: { cellPadding: 3.7, fontSize: 7.3, lineColor: [241, 245, 249], lineWidth: { bottom: 0.22 } },
+      headStyles: { fillColor: [255, 247, 237], textColor: [154, 52, 18], fontStyle: 'bold', fontSize: 7 },
+      bodyStyles: { textColor: [51, 65, 85] },
+      margin: { left: ML, right: MR, top: 25, bottom: 20 },
+      columnStyles: {
+        0: { cellWidth: 70, fontStyle: 'bold' },
+        1: { cellWidth: 32, halign: 'right' },
+        2: { cellWidth: 42, halign: 'right', fontStyle: 'bold' },
+        3: { halign: 'right', textColor: [148, 163, 184] },
+      },
+      foot: [['TOTAL', `${fNum(categorySales.reduce((sum, item) => sum + item.qty, 0))} item`, fRp(totalCategoryRevenue), '100%']],
+      footStyles: { fillColor: [255, 247, 237], textColor: [154, 52, 18], fontStyle: 'bold', fontSize: 7.8, halign: 'right' },
     });
   }
 
@@ -1042,6 +1094,33 @@ async function buildProfessionalPDF(
     });
   }
 
+  if (staffPerformance.length > 0) {
+    secHead('TOP PERFORMING STAFF', 'Poin gamification dihitung dari transaksi valid, basket, dan QRIS');
+    safeAutoTable({
+      startY: y,
+      head: [['Rank', 'Staff', 'Transaksi', 'Revenue', 'Poin']],
+      body: staffPerformance.map((item, index) => [
+        `#${index + 1}`,
+        item.name,
+        fNum(item.transactions),
+        fRp(item.revenue),
+        fNum(item.points),
+      ]),
+      theme: 'plain',
+      styles: { cellPadding: 3.7, fontSize: 7.3, lineColor: [241, 245, 249], lineWidth: { bottom: 0.22 } },
+      headStyles: { fillColor: [248, 250, 252], textColor: [100, 116, 139], fontStyle: 'bold', fontSize: 7 },
+      bodyStyles: { textColor: [51, 65, 85] },
+      margin: { left: ML, right: MR, top: 25, bottom: 20 },
+      columnStyles: {
+        0: { cellWidth: 18, halign: 'center', textColor: [249, 115, 22], fontStyle: 'bold' },
+        1: { cellWidth: 62, fontStyle: 'bold' },
+        2: { cellWidth: 28, halign: 'right' },
+        3: { cellWidth: 42, halign: 'right', fontStyle: 'bold' },
+        4: { halign: 'right', textColor: [249, 115, 22], fontStyle: 'bold' },
+      },
+    });
+  }
+
   if (aiInsight || (aiTips && aiTips.length > 0)) {
     secHead('ANALISIS DAN REKOMENDASI AI', 'Bahan acuan tindakan operasional');
     const aiSummaryLines = aiInsight
@@ -1082,6 +1161,35 @@ async function buildProfessionalPDF(
     }
   }
 
+  if (recentTransactions.length > 0) {
+    secHead('DAFTAR TRANSAKSI TERBARU', `Maksimal ${Math.min(recentTransactions.length, 30)} transaksi terbaru`);
+    safeAutoTable({
+      startY: y,
+      head: [['Tanggal', 'ID', 'Pelanggan', 'Kasir', 'Metode', 'Total']],
+      body: recentTransactions.slice(0, 30).map((tx: any) => [
+        dateShortLabel(tx.date),
+        cleanText(tx.id) || '-',
+        cleanText(tx.customer_name) || 'Walk-in',
+        cleanText(tx.cashier) || '-',
+        cleanText(tx.method) || '-',
+        fRp(tx.total || 0),
+      ]),
+      theme: 'plain',
+      styles: { cellPadding: 3.3, fontSize: 6.9, lineColor: [241, 245, 249], lineWidth: { bottom: 0.22 }, overflow: 'linebreak' },
+      headStyles: { fillColor: [248, 250, 252], textColor: [100, 116, 139], fontStyle: 'bold', fontSize: 6.8 },
+      bodyStyles: { textColor: [51, 65, 85] },
+      margin: { left: ML, right: MR, top: 25, bottom: 20 },
+      columnStyles: {
+        0: { cellWidth: 22, textColor: [100, 116, 139] },
+        1: { cellWidth: 43, fontStyle: 'bold' },
+        2: { cellWidth: 34 },
+        3: { cellWidth: 28 },
+        4: { cellWidth: 22, halign: 'center' },
+        5: { cellWidth: 32, halign: 'right', fontStyle: 'bold', textColor: [154, 52, 18] },
+      },
+    });
+  }
+
   const totalPages = doc.getNumberOfPages();
   for (let page = 1; page <= totalPages; page += 1) {
     doc.setPage(page);
@@ -1090,8 +1198,8 @@ async function buildProfessionalPDF(
   }
 
   if (mode === 'share') {
-    return sharePDFReport(doc, `Laporan_${data.period}`, storeName, shareText);
+    return sharePDFReport(doc, data.fileBaseName || `Laporan Penjualan ${periodLabel}`, storeName, shareText);
   }
 
-  return downloadPDFReport(doc, `Laporan_${data.period}`, storeName);
+  return downloadPDFReport(doc, data.fileBaseName || `Laporan Penjualan ${periodLabel}`, storeName);
 }

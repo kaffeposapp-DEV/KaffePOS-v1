@@ -42,7 +42,9 @@ API_BASE_URL=https://api.kaffepos.my.id
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=KaffePOS <no-reply@kaffepos.my.id>
 MIDTRANS_ENVIRONMENT=production
+MIDTRANS_IS_PRODUCTION=true
 MIDTRANS_SERVER_KEY=
+MIDTRANS_CLIENT_KEY=
 MIDTRANS_MERCHANT_ID=
 MIDTRANS_SNAP_ENABLED=true
 MIDTRANS_WEBHOOK_BASE_URL=https://api.kaffepos.my.id
@@ -51,8 +53,8 @@ ADMIN_EMAILS=kaffeposapp@gmail.com
 
 Catatan:
 
-- `MIDTRANS_CLIENT_KEY` tidak dipakai lagi di backend.
-- Client key frontend sekarang disimpan sebagai `VITE_MIDTRANS_CLIENT_KEY`.
+- `MIDTRANS_SERVER_KEY`, `MIDTRANS_CLIENT_KEY`, `MIDTRANS_MERCHANT_ID`, `MIDTRANS_IS_PRODUCTION`, dan `MIDTRANS_ENVIRONMENT` hanya disimpan di backend env.
+- Frontend tidak memakai `VITE_MIDTRANS_*` dan tidak menerima Midtrans key; frontend hanya menerima `snap_token` atau `payment_url` dari backend.
 - Panduan cutover ada di [MIDTRANS_SANDBOX_TO_PRODUCTION_SWITCH.md](/Users/macbook/kaffepos-new/kaffepos-v2/MIDTRANS_SANDBOX_TO_PRODUCTION_SWITCH.md).
 
 ## Health & status

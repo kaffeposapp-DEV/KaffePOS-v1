@@ -7,7 +7,6 @@ export type FrontendReleaseValidationInput = {
   releaseChannel: ReleaseChannel;
   apiBaseUrl?: string | null | undefined;
   webBaseUrl?: string | null | undefined;
-  midtransEnvironment?: string | null | undefined;
   clarityProjectId?: string | null | undefined;
   sentryDsn?: string | null | undefined;
   appTarget?: string | null | undefined;
@@ -73,7 +72,6 @@ export function validateFrontendReleaseConfig(input: FrontendReleaseValidationIn
   const warnings: string[] = [];
   const apiBaseUrl = normalizeReleaseUrl(input.apiBaseUrl);
   const webBaseUrl = normalizeReleaseUrl(input.webBaseUrl) || PRODUCTION_WEB_ORIGIN;
-  const midtransEnvironment = input.midtransEnvironment?.trim().toLowerCase() || 'sandbox';
   const clarityProjectId = input.clarityProjectId?.trim() || '';
   const sentryDsn = input.sentryDsn?.trim() || '';
 
@@ -84,10 +82,6 @@ export function validateFrontendReleaseConfig(input: FrontendReleaseValidationIn
 
     if (webBaseUrl !== PRODUCTION_WEB_ORIGIN) {
       errors.push(`WEB_BASE_URL frontend harus ${PRODUCTION_WEB_ORIGIN} untuk production.`);
-    }
-
-    if (midtransEnvironment !== 'production') {
-      errors.push('VITE_MIDTRANS_ENVIRONMENT harus production untuk release production.');
     }
 
     if (!clarityProjectId) {
@@ -122,7 +116,6 @@ export function getCurrentFrontendReleaseValidation() {
     releaseChannel: import.meta.env.PROD ? 'production' : 'development',
     apiBaseUrl: import.meta.env.VITE_API_BASE_URL,
     webBaseUrl: PRODUCTION_WEB_ORIGIN,
-    midtransEnvironment: import.meta.env.VITE_MIDTRANS_ENVIRONMENT,
     clarityProjectId: import.meta.env.VITE_CLARITY_PROJECT_ID,
     sentryDsn: import.meta.env.VITE_SENTRY_DSN,
     appTarget: import.meta.env.VITE_APP_TARGET,

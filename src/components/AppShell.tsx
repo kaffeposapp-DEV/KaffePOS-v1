@@ -26,6 +26,8 @@ import { subscriptionManager } from '@/services/SubscriptionManager';
 import { canAccessTab, getDefaultTabForRole, getVisibleTabs } from '@/lib/accessControl';
 import { selectStoreForBootstrap } from '@/lib/storeContext';
 import { trackClientError } from '@/lib/opsMetrics';
+import { trackOpsEvent } from '@/lib/opsMetrics';
+import { trackAnalyticsEvent } from '@/lib/analytics';
 import { captureFrontendError } from '@/lib/errorTracking';
 import UpgradeModal from './subscription/UpgradeModal';
 import SmartUpgradeBanner from './subscription/SmartUpgradeBanner';
@@ -467,10 +469,27 @@ export default function AppShell() {
     if (!subscriptionAccess.isTrial || subscriptionAccess.daysRemaining === null) return;
     const daysLeft = subscriptionAccess.daysRemaining;
     const daysUsed = 14 - daysLeft;
-    if (![10, 12, 13].includes(daysUsed)) return;
+    if (![10, 13].includes(daysUsed)) return;
     const promptKey = `secangkir_trial_day_${daysUsed}:${user.id}`;
     if (shouldThrottleUpgradePrompt(user.id, promptKey, 1)) return;
 
+    const message = daysUsed === 10
+      ? `Trial Signature tersisa ${daysLeft} hari. Semua fitur premium masih aktif.`
+      : `Trial Signature tersisa ${daysLeft} hari. Pilih paket agar fitur premium tetap aktif.`;
+    showToast(message, 'info');
+    if (typeof Notification !== 'undefined') {
+      const sendNotification = () => new Notification('KaffePOS Closed Beta', {
+        body: message,
+        tag: `kaffepos-trial-day-${daysUsed}`,
+      });
+      if (Notification.permission === 'granted') {
+        sendNotification();
+      } else if (Notification.permission === 'default') {
+        Notification.requestPermission().then((permission) => {
+          if (permission === 'granted') sendNotification();
+        }).catch(() => {});
+      }
+    }
     dispatchUpgradePrompt({
       trigger: `trial_day_${daysUsed}`,
       promptKey,
@@ -481,7 +500,7 @@ export default function AppShell() {
         : 'Upgrade ke Signature kapan saja agar Gamification, Advanced Kopi Passport Loyalty, AI Insights, dan Notification Center tetap aktif setelah trial.',
       metadata: { daysUsed, daysLeft, trialEndsAt: subscriptionAccess.expiryDate },
     });
-  }, [ready, role, subscriptionAccess.daysRemaining, subscriptionAccess.expiryDate, subscriptionAccess.isTrial, upgradePrompt, user?.id]);
+  }, [ready, role, showToast, subscriptionAccess.daysRemaining, subscriptionAccess.expiryDate, subscriptionAccess.isTrial, upgradePrompt, user?.id]);
 
   useEffect(() => {
     const userId = user?.id || profile?.id;
@@ -515,6 +534,16 @@ export default function AppShell() {
       return;
     }
     setTab(t);
+    if (t === 'loyalty' || t === 'performance' || t === 'challenges') {
+      const eventName = t === 'loyalty' ? 'loyalty_used' : 'gamification_used';
+      trackAnalyticsEvent(eventName, { tab: t, store_id: storeId || undefined });
+      void trackOpsEvent({
+        event_name: eventName,
+        status: 'success',
+        ...(storeId ? { store_id: storeId } : {}),
+        metadata: { tab: t },
+      });
+    }
     try {
       localStorage.setItem(LS_LAST_TAB, t);
       const userId = user?.id || profile?.id;
@@ -528,7 +557,7 @@ export default function AppShell() {
         await Haptics.impact({ style: ImpactStyle.Light });
       } catch { /* ignore */ }
     }
-  }, [user?.id, profile?.id, role, showToast],   );
+  }, [user?.id, profile?.id, role, showToast, storeId],   );
 
   useEffect(() => {
     if (canAccessTab(role, tab)) return;

@@ -34,6 +34,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import PricingPage from '@/components/subscription/PricingPage';
 import type { BillingCycle, SubscriptionPlanId } from '@/lib/subscriptionPlans';
 import LOGO_ICON from '@/assets/logo-kaffeposappicon.svg';
+import { useModalBehavior } from '@/hooks/useModalBehavior';
 
 const NAV_LINKS = [
   { name: 'Beranda', href: '#top' },
@@ -548,6 +549,22 @@ export default function LandingPage() {
     setIsFeatureDetailOpen(true);
   };
 
+  const closeDownloadWarning = () => setShowDownloadWarning(false);
+  const closeFeatureDetail = () => setIsFeatureDetailOpen(false);
+  const closeSafeDetail = () => setIsSafeDetailOpen(false);
+  const downloadModal = useModalBehavior<HTMLDivElement>({
+    open: showDownloadWarning,
+    onClose: closeDownloadWarning,
+  });
+  const featureModal = useModalBehavior<HTMLDivElement>({
+    open: isFeatureDetailOpen,
+    onClose: closeFeatureDetail,
+  });
+  const safeModal = useModalBehavior<HTMLDivElement>({
+    open: isSafeDetailOpen,
+    onClose: closeSafeDetail,
+  });
+
   const handlePricingSelect = (plan: SubscriptionPlanId, cycle: BillingCycle) => {
     if (plan === 'secangkir') {
       navigate('/register');
@@ -895,12 +912,17 @@ export default function LandingPage() {
       {/* Download Warning Modal */}
       {showDownloadWarning && (
         <div className="kaffe-modal-overlay fixed inset-0 z-[100] flex justify-center">
-           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-300" onClick={() => setShowDownloadWarning(false)} />
-           <div className="kaffe-modal-panel kaffe-modal-scroll relative w-full bg-white border border-slate-100 p-6 sm:p-8 md:p-10 shadow-premium animate-in zoom-in slide-in-from-bottom-10 duration-500 [--kaffe-modal-max-width:540px]">
+           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-300" onClick={closeDownloadWarning} />
+           <div
+             ref={downloadModal.panelRef}
+             className="kaffe-modal-panel kaffe-modal-scroll relative w-full bg-white border border-slate-100 p-6 sm:p-8 md:p-10 shadow-premium animate-in zoom-in slide-in-from-bottom-10 duration-500 [--kaffe-modal-max-width:540px]"
+             aria-labelledby="download-warning-title"
+             {...downloadModal.dialogProps}
+           >
               <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#FF6A00]/5 rounded-2xl flex items-center justify-center mb-6 sm:mb-8 mx-auto border border-[#FF6A00]/10">
                  <Lock size={48} style={{ color: BRAND_ACCENT }} />
               </div>
-              <h3 className="kaffe-safe-text text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 text-center mb-4 sm:mb-5 italic leading-tight uppercase">PERLU PENDAFTARAN</h3>
+              <h3 id="download-warning-title" className="kaffe-safe-text text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 text-center mb-4 sm:mb-5 italic leading-tight uppercase">PERLU PENDAFTARAN</h3>
               <p className="kaffe-safe-text text-slate-500 text-sm sm:text-base md:text-lg text-center mb-6 sm:mb-8 font-medium leading-relaxed">
                  Fitur unduh APK hanya tersedia untuk pemilik outlet terdaftar guna menjaga keamanan dan lisensi Dashboard Anda.
               </p>
@@ -912,7 +934,7 @@ export default function LandingPage() {
                    Daftar Gratis Sekarang
                  </button>
                  <button
-                   onClick={() => setShowDownloadWarning(false)}
+                   onClick={closeDownloadWarning}
                    className="w-full bg-slate-50 text-slate-400 py-4 sm:py-5 rounded-2xl font-black text-sm hover:bg-slate-100 transition-all uppercase tracking-widest"
                  >
                    Nanti Saja
@@ -925,9 +947,14 @@ export default function LandingPage() {
       {/* Feature Intelligence Detail Overlay */}
       {isFeatureDetailOpen && selectedFeature && (
         <div className="kaffe-modal-overlay fixed inset-0 z-[110] flex justify-center">
-           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-500" onClick={() => setIsFeatureDetailOpen(false)} />
+           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-500" onClick={closeFeatureDetail} />
 
-           <div className="kaffe-modal-panel kaffe-modal-scroll relative bg-white border border-slate-100 w-full shadow-premium animate-in zoom-in slide-in-from-bottom-20 duration-700 flex flex-col md:flex-row [--kaffe-modal-max-width:900px]">
+           <div
+             ref={featureModal.panelRef}
+             className="kaffe-modal-panel kaffe-modal-scroll relative bg-white border border-slate-100 w-full shadow-premium animate-in zoom-in slide-in-from-bottom-20 duration-700 flex flex-col md:flex-row [--kaffe-modal-max-width:900px]"
+             aria-labelledby="feature-detail-title"
+             {...featureModal.dialogProps}
+           >
               {/* Left Side: Visual/Metric */}
               <div className={`md:w-1/2 p-6 sm:p-8 md:p-10 flex flex-col items-center justify-center relative overflow-hidden bg-slate-50`}>
                  <div className="absolute inset-0 opacity-5">
@@ -953,14 +980,14 @@ export default function LandingPage() {
               {/* Right Side: Logic/Content */}
               <div className="md:w-1/2 p-6 sm:p-8 md:p-12 bg-white">
                  <button
-                   onClick={() => setIsFeatureDetailOpen(false)}
+                   onClick={closeFeatureDetail}
                    className="absolute top-4 right-4 sm:top-6 sm:right-6 text-slate-400 hover:text-slate-900 transition-colors"
                    aria-label="Tutup detail fitur"
                  >
                     <X size={24} />
                  </button>
 
-                 <h3 className="kaffe-safe-text pr-10 text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 mb-5 sm:mb-6 italic leading-tight uppercase">
+                 <h3 id="feature-detail-title" className="kaffe-safe-text pr-10 text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 mb-5 sm:mb-6 italic leading-tight uppercase">
                     {selectedFeature.title}
                  </h3>
 
@@ -979,7 +1006,7 @@ export default function LandingPage() {
                  </div>
 
                  <button
-                   onClick={() => setIsFeatureDetailOpen(false)}
+                   onClick={closeFeatureDetail}
                    className="mt-10 sm:mt-12 w-full py-4 sm:py-5 rounded-2xl bg-slate-50 border border-slate-100 text-slate-500 font-black hover:bg-slate-100 transition-all uppercase tracking-[0.18em] sm:tracking-widest italic text-xs sm:text-sm"
                  >
                     Kembali Ke Welcome Page
@@ -992,13 +1019,18 @@ export default function LandingPage() {
       {/* Safe Detail Overlay - Legal & Advisory */}
       {isSafeDetailOpen && selectedSafeItem && (
         <div className="kaffe-modal-overlay fixed inset-0 z-[110] flex justify-center">
-           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-500" onClick={() => setIsSafeDetailOpen(false)} />
+           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-500" onClick={closeSafeDetail} />
 
-           <div className="kaffe-modal-panel relative bg-white border border-slate-100 w-full shadow-premium animate-in zoom-in slide-in-from-bottom-20 duration-700 flex flex-col [--kaffe-modal-max-width:800px]">
+           <div
+             ref={safeModal.panelRef}
+             className="kaffe-modal-panel relative bg-white border border-slate-100 w-full shadow-premium animate-in zoom-in slide-in-from-bottom-20 duration-700 flex flex-col [--kaffe-modal-max-width:800px]"
+             aria-labelledby="safe-detail-title"
+             {...safeModal.dialogProps}
+           >
               {/* Header Box */}
               <div className="p-6 sm:p-8 md:p-12 bg-slate-50 border-b border-slate-100 relative">
                  <button
-                   onClick={() => setIsSafeDetailOpen(false)}
+                   onClick={closeSafeDetail}
                    className="absolute top-4 right-4 sm:top-6 sm:right-6 text-slate-400 hover:text-slate-900 transition-colors"
                    aria-label="Tutup dokumen keamanan"
                  >
@@ -1016,7 +1048,7 @@ export default function LandingPage() {
                        );
                     })()}
                     <div className="min-w-0">
-                       <h3 className="kaffe-safe-text text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 italic uppercase leading-tight">
+                       <h3 id="safe-detail-title" className="kaffe-safe-text text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 italic uppercase leading-tight">
                           {selectedSafeItem}
                        </h3>
                        <p className="kaffe-safe-text text-[#FF6A00] font-black text-[10px] sm:text-[11px] uppercase tracking-[0.24em] sm:tracking-[0.36em] mt-2 italic">Kebijakan & Keamanan</p>
@@ -1049,7 +1081,7 @@ export default function LandingPage() {
                  <div className="mt-12 sm:mt-16 pt-8 sm:pt-10 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-5 sm:gap-6">
                     <div className="kaffe-safe-text text-center md:text-left text-slate-400 text-xs sm:text-sm font-black italic tracking-widest uppercase">Platform Internal Audit &bull; 2026</div>
                     <button
-                      onClick={() => setIsSafeDetailOpen(false)}
+                      onClick={closeSafeDetail}
                       className="w-full md:w-auto px-8 sm:px-10 py-4 rounded-2xl bg-slate-50 text-slate-500 font-black text-xs sm:text-sm hover:bg-slate-100 transition-all uppercase tracking-[0.2em] sm:tracking-[0.28em] italic border border-slate-100"
                     >
                        Tutup Dokumen

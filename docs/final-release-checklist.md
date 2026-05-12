@@ -27,10 +27,9 @@ Checklist ini dipakai sebelum go-live production atau sebelum APK debug/release 
   - `SUBSCRIPTION_PAYMENT_MODE=auto`
 - Frontend env production:
   - `VITE_API_BASE_URL=https://api.kaffepos.my.id` atau kosong untuk fallback production
-  - `VITE_MIDTRANS_ENVIRONMENT=production`
-  - `VITE_MIDTRANS_CLIENT_KEY`
   - `VITE_CLARITY_PROJECT_ID=wf7x39iiqr`
   - `VITE_GA_MEASUREMENT_ID=G-VNQJ3XPCGG`
+  - Tidak ada `VITE_MIDTRANS_*`; Snap token/payment URL dibuat backend.
 - Tidak ada env `SUPABASE_*` atau `VITE_SUPABASE_*`.
 - Jalankan validasi config:
 
@@ -41,10 +40,10 @@ WEB_BASE_URL=https://kaffepos.my.id \
 API_BASE_URL=https://api.kaffepos.my.id \
 CORS_ORIGIN=https://kaffepos.my.id,https://www.kaffepos.my.id,https://api.kaffepos.my.id,https://localhost,capacitor://localhost,http://localhost \
 MIDTRANS_ENVIRONMENT=production \
-VITE_MIDTRANS_ENVIRONMENT=production \
+MIDTRANS_IS_PRODUCTION=true \
 MIDTRANS_SERVER_KEY=*** \
+MIDTRANS_CLIENT_KEY=*** \
 MIDTRANS_MERCHANT_ID=*** \
-VITE_MIDTRANS_CLIENT_KEY=*** \
 VITE_CLARITY_PROJECT_ID=wf7x39iiqr \
 SENTRY_DSN=https://public@sentry.example/1 \
 VITE_SENTRY_DSN=https://public@sentry.example/1 \

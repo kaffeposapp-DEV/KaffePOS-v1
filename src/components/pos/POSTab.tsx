@@ -9,7 +9,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   ShoppingBag, Plus, Minus, X, ChevronRight,
   Search, Printer, RefreshCw, CheckCircle2, ChefHat,
-  Banknote, Gift, Landmark, Smartphone,
+  Banknote, Gift, Landmark, Smartphone, AlertCircle, Share2,
 } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import PrintActionSheet from '@/components/pos/PrintActionSheet';
@@ -20,9 +20,19 @@ import type { SubscriptionAccess } from '@/lib/subscriptionAccess';
 import { canProcessPosPaymentOffline, getOfflinePaymentBlockedMessage } from '@/lib/offlinePolicy';
 import { buildStockDeductionPlan, calculateProductHpp } from '@/lib/stockEngine';
 import { normalizeUserFacingError } from '@/lib/errorMessages';
-import { addLoyaltyStamp, getLoyaltyOverview, redeemLoyaltyReward, searchLoyaltyPassports } from '@/lib/backendApi';
+import {
+  addLoyaltyStamp,
+  createPayment,
+  getLoyaltyOverview,
+  getPaymentOrderStatus,
+  redeemLoyaltyReward,
+  searchLoyaltyPassports,
+  type SecurePaymentCreateResponse,
+  type SecurePaymentOrderStatus,
+} from '@/lib/backendApi';
 import { enqueueOfflineOperation } from '@/lib/offlineQueue';
 import { dispatchUpgradePrompt } from '@/lib/upgradePrompts';
+import { openMidtransSnap } from '@/lib/midtrans';
 import {
   calculateLoyaltyRewardDiscount,
   canRedeemReward,
@@ -33,6 +43,9 @@ import {
   type LoyaltyPassport,
   type LoyaltyReward,
 } from '@/lib/loyalty';
+import { useModalBehavior } from '@/hooks/useModalBehavior';
+import { trackAnalyticsEvent } from '@/lib/analytics';
+import { trackOpsEvent } from '@/lib/opsMetrics';
 
 const fRp = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
@@ -54,11 +67,41 @@ function makeIdempotencyKey(prefix: string) {
   return `${prefix}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
 }
 
+type PaymentPhase = 'idle' | 'creating' | 'snap_open' | 'pending' | 'success' | 'failed' | 'cancelled' | 'expired' | 'denied';
+
+function getSnapTransactionStatus(result: unknown) {
+  if (!result || typeof result !== 'object') return null;
+  const value = (result as { transaction_status?: unknown; status_code?: unknown }).transaction_status;
+  return typeof value === 'string' ? value.toLowerCase() : null;
+}
+
+function getPaymentPhaseFromSnap(result: unknown, fallback: PaymentPhase): PaymentPhase {
+  const status = getSnapTransactionStatus(result);
+  if (status === 'settlement' || status === 'capture') return 'success';
+  if (status === 'pending') return 'pending';
+  if (status === 'cancel') return 'cancelled';
+  if (status === 'expire') return 'expired';
+  if (status === 'deny') return 'denied';
+  return fallback;
+}
+
+function getPaymentMessage(phase: PaymentPhase) {
+  if (phase === 'creating') return 'Membuat pembayaran aman...';
+  if (phase === 'snap_open') return 'Snap Midtrans siap. Selesaikan pembayaran di popup.';
+  if (phase === 'pending') return 'Pembayaran sedang menunggu konfirmasi Midtrans.';
+  if (phase === 'success') return 'Pembayaran berhasil. Struk digital siap.';
+  if (phase === 'cancelled') return 'Pembayaran dibatalkan. Pesanan belum diproses.';
+  if (phase === 'expired') return 'Waktu pembayaran habis. Silakan buat pembayaran baru.';
+  if (phase === 'denied') return 'Pembayaran ditolak. Silakan coba metode lain.';
+  if (phase === 'failed') return 'Pembayaran gagal, silakan coba lagi.';
+  return null;
+}
+
 export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
   const {
     storeId, menu, inventory, unitConversions, cart, discount, transactions, isOnline,
     addToCart, updateQty, clearCart, setDiscount, setCartItemNote,
-    saveTransaction, storeSettings, kitchenOrders,
+    saveTransaction, storeSettings, kitchenOrders, loadAll,
   } = useStore();
 
   const [cat,        setCat]        = useState('All');
@@ -73,6 +116,9 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
   const [custName,   setCustName]   = useState('');   // ← Nama pelanggan
   const [showPrintSheet, setShowPrintSheet] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
+  const [paymentPhase, setPaymentPhase] = useState<PaymentPhase>('idle');
+  const [paymentOrder, setPaymentOrder] = useState<SecurePaymentCreateResponse | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<SecurePaymentOrderStatus | null>(null);
   const [loyaltyOverview, setLoyaltyOverview] = useState<LoyaltyOverview | null>(null);
   const [loyaltyPhone, setLoyaltyPhone] = useState('');
   const [loyaltySearching, setLoyaltySearching] = useState(false);
@@ -250,8 +296,76 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
   }, [setDiscount]);
 
 
+  const finishPaidPayment = useCallback(async (status: SecurePaymentOrderStatus) => {
+    setPaymentStatus(status);
+    setPaymentPhase('success');
+    if (storeId) await loadAll(storeId).catch(() => {});
+    if (status.transaction) setLastTx(status.transaction);
+    trackAnalyticsEvent('payment_completed', {
+      store_id: storeId || undefined,
+      order_id: status.order_id,
+      transaction_id: status.transaction_id || undefined,
+      value: status.gross_amount,
+    });
+    void trackOpsEvent({
+      event_name: 'payment_completed',
+      status: 'success',
+      ...(storeId ? { store_id: storeId } : {}),
+      ...(status.transaction_id ? { transaction_id: status.transaction_id } : {}),
+      metadata: { orderId: status.order_id, grossAmount: status.gross_amount },
+    });
+    clearCart();
+    setCustName('');
+    setLoyaltyPhone('');
+    setLoyaltyPassport(null);
+    setLoyaltyReward(null);
+    setShowPay(false);
+    setShowRcpt(true);
+    toast.showToast('Pembayaran berhasil. Struk digital siap.', 'success');
+  }, [clearCart, loadAll, storeId, toast]);
+
+  const pollPaymentOrder = useCallback(async (orderId: string, fallbackPhase: PaymentPhase = 'pending') => {
+    setPaymentPhase(fallbackPhase);
+    let latest: SecurePaymentOrderStatus | null = null;
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      latest = await getPaymentOrderStatus(orderId);
+      setPaymentStatus(latest);
+      console.info('[KaffePOS payment]', {
+        orderId,
+        status: latest.status,
+        transactionStatus: latest.transaction_status,
+        transactionId: latest.transaction_id,
+        attempt: attempt + 1,
+      });
+      if (latest.status === 'completed') {
+        await finishPaidPayment(latest);
+        return latest;
+      }
+      if (latest.status === 'failed' || latest.status === 'cancelled') {
+        const failedPhase = latest.transaction_status === 'expire'
+          ? 'expired'
+          : latest.transaction_status === 'deny'
+            ? 'denied'
+            : latest.status === 'cancelled'
+              ? 'cancelled'
+              : 'failed';
+        setPaymentPhase(failedPhase);
+        toast.showToast(getPaymentMessage(failedPhase) || 'Pembayaran gagal, silakan coba lagi.', 'error');
+        return latest;
+      }
+      await new Promise((resolve) => setTimeout(resolve, attempt < 3 ? 1200 : 2500));
+    }
+    setPaymentPhase('pending');
+    toast.showToast('Pembayaran masih diproses. Status akan diperbarui otomatis dari Midtrans.', 'info');
+    return latest;
+  }, [finishPaidPayment, toast]);
+
   const handleCheckout = useCallback(async () => {
     if (!cart.length) return;
+    if (!storeId) {
+      toast.showToast('Toko belum siap. Sinkronkan ulang data toko dulu.', 'warning');
+      return;
+    }
     if (!isOnline && !canProcessPosPaymentOffline(method)) {
       toast.showToast(getOfflinePaymentBlockedMessage(method), 'warning');
       return;
@@ -328,6 +442,74 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
 
     try {
       setCheckingOut(true);
+      setPaymentPhase('idle');
+      setPaymentStatus(null);
+      if (method === 'QRIS') {
+        if (!isOnline) {
+          toast.showToast(getOfflinePaymentBlockedMessage('QRIS'), 'warning');
+          return;
+        }
+
+        setPaymentPhase('creating');
+        trackAnalyticsEvent('payment_started', { store_id: storeId, value: total, method: 'QRIS' });
+        void trackOpsEvent({
+          event_name: 'payment_started',
+          status: 'success',
+          store_id: storeId,
+          metadata: { total, method: 'QRIS' },
+        });
+        const payment = await createPayment({
+          store_id: storeId,
+          discount_amount: discAmt,
+          items: cart.map((item) => ({
+            id: item._baseId || item.id,
+            qty: item.qty,
+            variant_name: item.variantId ?? null,
+            note: item.note?.trim() || null,
+          })),
+          customer: {
+            name: custName.trim() || null,
+            email: profile?.email || null,
+          },
+        });
+
+        setPaymentOrder(payment);
+        setPaymentPhase('snap_open');
+        toast.showToast('Pembayaran aman dibuat. Selesaikan lewat Snap.', 'info');
+        if (payment.snap_token) {
+          await openMidtransSnap({
+            snapToken: payment.snap_token,
+            snapScriptUrl: payment.snap_script_url ?? null,
+            paymentUrl: payment.payment_url,
+            callbacks: {
+              onSuccess: (result) => {
+                const phase = getPaymentPhaseFromSnap(result, 'success');
+                void pollPaymentOrder(payment.order_id, phase);
+              },
+              onPending: (result) => {
+                const phase = getPaymentPhaseFromSnap(result, 'pending');
+                setPaymentPhase(phase);
+                void pollPaymentOrder(payment.order_id, phase);
+              },
+              onError: (result) => {
+                const phase = getPaymentPhaseFromSnap(result, 'failed');
+                setPaymentPhase(phase);
+                void pollPaymentOrder(payment.order_id, phase);
+              },
+              onClose: () => {
+                setPaymentPhase('pending');
+                toast.showToast('Popup pembayaran ditutup. Pesanan belum ditandai lunas.', 'info');
+                void pollPaymentOrder(payment.order_id, 'pending');
+              },
+            },
+          });
+        } else if (payment.payment_url) {
+          setPaymentPhase('pending');
+          window.location.assign(payment.payment_url);
+        }
+        return;
+      }
+
       const savedTx = await saveTransaction(tx as unknown as Transaction);
       const normalizedLoyaltyPhone = normalizeLoyaltyPhone(loyaltyPhone);
       if (storeId && (loyaltyPassport || normalizedLoyaltyPhone.length >= 4)) {
@@ -406,13 +588,47 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
     } finally {
       setCheckingOut(false);
     }
-  }, [cart, clearCart, currentMonthTransactionCount, discAmt, discount, inventory, isOnline, menu, method, paid, profile, saveTransaction, subscriptionAccess.transactionLimit, subtotal, taxAmt, toast, total, unitConversions]);
+  }, [cart, clearCart, currentMonthTransactionCount, discAmt, discount, inventory, isOnline, menu, method, paid, pollPaymentOrder, profile, saveTransaction, storeId, subscriptionAccess.transactionLimit, subtotal, taxAmt, toast, total, unitConversions]);
 
 
   const lowStock = useMemo(() =>
     inventory.filter(i => i.stock <= i.min_stock),
     [inventory]
   );
+
+  const closePaymentModal = useCallback(() => setShowPay(false), []);
+  const closeReceiptModal = useCallback(() => setShowRcpt(false), []);
+  const closeVoucherModal = useCallback(() => setShowVouchers(false), []);
+  const paymentModal = useModalBehavior<HTMLDivElement>({
+    open: showPay,
+    onClose: closePaymentModal,
+    disabled: checkingOut,
+  });
+  const receiptModal = useModalBehavior<HTMLDivElement>({
+    open: showRcpt && Boolean(lastTx),
+    onClose: closeReceiptModal,
+  });
+  const voucherModal = useModalBehavior<HTMLDivElement>({
+    open: showVouchers,
+    onClose: closeVoucherModal,
+  });
+  const paymentMessage = getPaymentMessage(paymentPhase);
+  const shareReceiptToWhatsApp = useCallback(() => {
+    const tx = lastTx;
+    if (!tx) return;
+    const lines = [
+      `Struk ${storeSettings?.store_name || 'KaffePOS'}`,
+      `No: ${tx.id}`,
+      tx.customer_name ? `Pelanggan: ${tx.customer_name}` : null,
+      '',
+      ...tx.items.map((item: any) => `${item.qty}x ${item.name} - ${fRp(item.subtotal)}`),
+      '',
+      `Total: ${fRp(tx.total)}`,
+      `Bayar: ${tx.method}`,
+      'Terima kasih.',
+    ].filter(Boolean);
+    window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`, '_blank', 'noopener,noreferrer');
+  }, [lastTx, storeSettings?.store_name]);
 
   return (
     <div className="kaffe-responsive-surface flex-1 flex overflow-hidden bg-slate-50">
@@ -652,20 +868,68 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
 
       {/* ── UNIFIED PAYMENT MODAL ── */}
       {showPay && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-end md:items-center justify-center p-0 md:p-6">
-          <div className="kaffe-panel w-full max-w-[500px] rounded-t-[28px] md:rounded-[28px] p-6 sm:p-8 max-h-[95vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom-20 duration-500">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-end md:items-center justify-center p-0 md:p-6" onClick={paymentModal.onBackdropClick}>
+          <div
+            ref={paymentModal.panelRef}
+            className="kaffe-panel w-full max-w-[500px] rounded-t-[28px] md:rounded-[28px] p-6 sm:p-8 max-h-[95vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom-20 duration-500"
+            aria-labelledby="pos-payment-title"
+            {...paymentModal.dialogProps}
+          >
             <div className="flex items-center justify-between mb-8">
               <div>
-                <h3 className="font-display text-2xl font-extrabold text-slate-900 tracking-tight">Pembayaran</h3>
+                <h3 id="pos-payment-title" className="font-display text-2xl font-extrabold text-slate-900 tracking-tight">Pembayaran</h3>
                 <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest mt-1">Konfirmasi pesanan</p>
               </div>
-              <button onClick={() => setShowPay(false)} className="p-3 bg-white border border-slate-100 rounded-2xl text-slate-500 hover:bg-orange-50 hover:text-[#FF6A00] transition-colors"><X size={22}/></button>
+              <button onClick={closePaymentModal} disabled={checkingOut} className="p-3 bg-white border border-slate-100 rounded-2xl text-slate-500 hover:bg-orange-50 hover:text-[#FF6A00] transition-colors disabled:opacity-50"><X size={22}/></button>
             </div>
 
             <div className="kaffe-soft-section text-center mb-8 rounded-2xl p-6">
               <p className="text-[11px] font-black text-[#FF6A00] uppercase tracking-widest mb-2">Total tagihan</p>
               <h3 className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight">{fRp(total)}</h3>
             </div>
+
+            <div className="mb-8 rounded-2xl border border-slate-100 bg-white p-4 shadow-soft">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Ringkasan Order</p>
+                <span className="rounded-full bg-orange-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-orange-600">{cart.length} item</span>
+              </div>
+              <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
+                {cart.map((item) => (
+                  <div key={item.id} className="flex items-start justify-between gap-3 text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate font-bold text-slate-700">{item.qty}x {item.name}</p>
+                      {item.note && <p className="truncate text-[11px] font-semibold text-amber-600">Catatan: {item.note}</p>}
+                    </div>
+                    <p className="shrink-0 font-black text-slate-800">{fRp(item.price * item.qty)}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 space-y-2 border-t border-slate-100 pt-3 text-sm">
+                <div className="flex justify-between text-slate-500"><span>Subtotal</span><span>{fRp(subtotal)}</span></div>
+                {discAmt > 0 && <div className="flex justify-between font-bold text-rose-500"><span>Diskon</span><span>-{fRp(discAmt)}</span></div>}
+                {taxAmt > 0 && <div className="flex justify-between text-slate-500"><span>Pajak</span><span>{fRp(taxAmt)}</span></div>}
+                <div className="flex justify-between text-base font-black text-slate-900"><span>Total</span><span className="text-[#FF6A00]">{fRp(total)}</span></div>
+              </div>
+            </div>
+
+            {paymentMessage && method === 'QRIS' && (
+              <div className={`mb-6 rounded-2xl border px-4 py-3 text-sm font-bold ${
+                paymentPhase === 'success'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : ['failed', 'cancelled', 'expired', 'denied'].includes(paymentPhase)
+                    ? 'border-rose-200 bg-rose-50 text-rose-700'
+                    : 'border-orange-200 bg-orange-50 text-orange-700'
+              }`}>
+                <div className="flex items-start gap-2">
+                  {['failed', 'cancelled', 'expired', 'denied'].includes(paymentPhase) ? <AlertCircle size={18} /> : <RefreshCw size={18} className={checkingOut ? 'animate-spin' : ''} />}
+                  <div>
+                    <p>{paymentMessage}</p>
+                    {paymentOrder && <p className="mt-1 text-[11px] font-black uppercase tracking-wider opacity-70">{paymentOrder.order_id}</p>}
+                    {paymentStatus?.transaction_status && <p className="mt-1 text-[11px] font-black uppercase tracking-wider opacity-70">Midtrans: {paymentStatus.transaction_status}</p>}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-4 mb-8">
                <div>
@@ -764,11 +1028,16 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
 
       {/* ── RECEIPT MODAL ── */}
       {showRcpt && lastTx && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-[360px] rounded-[32px] p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={receiptModal.onBackdropClick}>
+          <div
+            ref={receiptModal.panelRef}
+            className="bg-white w-full max-w-[360px] rounded-[32px] p-6 shadow-2xl animate-in zoom-in-95 duration-200"
+            aria-labelledby="pos-receipt-title"
+            {...receiptModal.dialogProps}
+          >
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3 text-3xl shadow-[0_0_30px_rgb(34,197,94,0.2)]">✓</div>
-              <h3 className="font-extrabold text-xl text-slate-800">Lunas!</h3>
+              <h3 id="pos-receipt-title" className="font-extrabold text-xl text-slate-800">Lunas!</h3>
               <p className="text-slate-400 text-xs font-medium mt-1">#{lastTx.id}</p>
               {lastTx.sync_status === 'pending' && (
                 <p className="mx-auto mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-amber-700">
@@ -813,7 +1082,11 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
               <Printer size={16} strokeWidth={2.5}/> Cetak Struk Fisik
             </button>
 
-            <button onClick={() => setShowRcpt(false)} className="w-full py-4 bg-orange-500 text-white font-black rounded-2xl active:scale-95 transition-all shadow-lg shadow-orange-500/20">
+            <button onClick={shareReceiptToWhatsApp} className="w-full py-3.5 mb-3 bg-orange-50 border-2 border-orange-100 text-orange-600 hover:bg-orange-100 font-extrabold rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all">
+              <Share2 size={16} strokeWidth={2.5}/> Share WA
+            </button>
+
+            <button onClick={closeReceiptModal} className="w-full py-4 bg-orange-500 text-white font-black rounded-2xl active:scale-95 transition-all shadow-lg shadow-orange-500/20">
               Transaksi Baru
             </button>
           </div>
@@ -825,14 +1098,19 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
 
       {/* ── VOUCHER MODAL ── */}
       {showVouchers && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[70] flex items-end md:items-center justify-center p-0 md:p-4">
-          <div className="kaffe-panel w-full max-w-[500px] rounded-t-[28px] md:rounded-[28px] p-6 sm:p-8 shadow-2xl animate-in slide-in-from-bottom-20 duration-500">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[70] flex items-end md:items-center justify-center p-0 md:p-4" onClick={voucherModal.onBackdropClick}>
+          <div
+            ref={voucherModal.panelRef}
+            className="kaffe-panel w-full max-w-[500px] rounded-t-[28px] md:rounded-[28px] p-6 sm:p-8 shadow-2xl animate-in slide-in-from-bottom-20 duration-500"
+            aria-labelledby="pos-voucher-title"
+            {...voucherModal.dialogProps}
+          >
             <div className="flex items-center justify-between mb-8">
               <div>
-                <h3 className="font-display text-2xl font-extrabold text-slate-900 tracking-tight">Pilih Promo</h3>
+                <h3 id="pos-voucher-title" className="font-display text-2xl font-extrabold text-slate-900 tracking-tight">Pilih Promo</h3>
                 <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Diskon Terpopuler</p>
               </div>
-              <button onClick={() => setShowVouchers(false)} className="p-3 bg-white border border-slate-100 rounded-2xl text-slate-500 hover:bg-orange-50 hover:text-[#FF6A00] transition-colors"><X size={22}/></button>
+              <button onClick={closeVoucherModal} className="p-3 bg-white border border-slate-100 rounded-2xl text-slate-500 hover:bg-orange-50 hover:text-[#FF6A00] transition-colors"><X size={22}/></button>
             </div>
 
             <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 scrollbar-thin">
@@ -863,7 +1141,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
             <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col gap-4">
               <p className="text-[10px] font-black text-slate-400 uppercase text-center tracking-[0.3em]">Atau input manual di halaman checkout</p>
               <button
-                onClick={() => setShowVouchers(false)}
+                onClick={closeVoucherModal}
                 className="w-full py-5 bg-slate-900 text-white font-black rounded-2xl uppercase tracking-widest italic text-sm shadow-xl active:scale-95 transition-all"
               >
                 Konfirmasi Pilihan

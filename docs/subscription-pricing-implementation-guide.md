@@ -20,7 +20,7 @@
 Run migration:
 
 ```bash
-backend/migrations/20260512_0001_secangkir_trial.sql
+npm --prefix backend run migrate
 ```
 
 Adds trial tracking columns to `public.subscriptions`:
@@ -65,3 +65,20 @@ Trial prompts fire on trial days 10, 12, and 13 via `AppShell`:
 - Trigger keys: `trial_day_10`, `trial_day_12`, `trial_day_13`
 - Recommended plan: Signature
 - Cashier copy asks user to contact Owner/Admin.
+
+Backend sync also inserts a one-time notification when trial has 4, 2, or 1 day remaining:
+
+- Title: `Trial Signature hampir selesai`
+- Recommended plan: Signature
+- Metadata key: `secangkir_trial_ending_<days>_days`
+
+## Step-by-Step Release Guide
+
+1. Deploy database migration with `npm --prefix backend run migrate`.
+2. Deploy backend so registration calls `activateSecangkirTrial` and profile reads call `syncProfileSubscriptionState`.
+3. Deploy frontend so Dashboard, Langganan, website pricing, feature prompts, and checkout share `src/lib/subscriptionPlans.ts`.
+4. Register a new test account and confirm profile state becomes `tier = 'pro'`, `pro_plan = 'secangkir'`, and `pro_expires_at` is 14 days ahead.
+5. Confirm Dashboard shows `Trial Signature` countdown and Langganan shows three cards: Secangkir, Kopi Susu, Signature.
+6. Use admin or SQL time shift on staging to expire trial, then call `/api/subscriptions` or login again to trigger auto downgrade.
+7. Confirm latest subscription becomes `kopi_susu` + `monthly` with `payment_amount = 49000` and previous trial becomes `expired`.
+8. Run checkout smoke for Signature monthly and yearly to confirm upgrade remains available before trial ends.

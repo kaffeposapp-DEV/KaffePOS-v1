@@ -11,6 +11,7 @@ import transactionsRouter from './routes/transactions';
 import loyaltyRouter from './routes/loyalty';
 import challengesRouter from './routes/challenges';
 import subscriptionsRouter from './routes/subscriptions';
+import paymentRouter from './routes/payment';
 import adminRouter from './routes/admin';
 import miscRouter from './routes/misc';
 import webhooksRouter from './routes/webhooks';
@@ -2683,6 +2684,7 @@ app.use(
   loyaltyRouter,
   challengesRouter,
   subscriptionsRouter,
+  paymentRouter,
   adminRouter,
   miscRouter,
 );
@@ -2699,6 +2701,7 @@ app.use(transactionsRouter);
 app.use(loyaltyRouter);
 app.use(challengesRouter);
 app.use(subscriptionsRouter);
+app.use(paymentRouter);
 app.use(adminRouter);
 app.use(miscRouter);
 

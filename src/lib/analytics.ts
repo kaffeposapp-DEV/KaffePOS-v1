@@ -156,3 +156,20 @@ export function trackPageView(path: string) {
     w.clarity('set', 'route', path);
   }
 }
+
+export function trackAnalyticsEvent(eventName: string, params: Record<string, unknown> = {}) {
+  if (typeof window === 'undefined') return;
+  const w = window as AnalyticsWindow;
+  const payload = {
+    ...params,
+    event_source: 'kaffepos_app',
+  };
+
+  if (GA_MEASUREMENT_ID && typeof w.gtag === 'function') {
+    w.gtag('event', eventName, payload);
+  }
+
+  if (CLARITY_PROJECT_ID && typeof w.clarity === 'function') {
+    w.clarity('event', eventName);
+  }
+}

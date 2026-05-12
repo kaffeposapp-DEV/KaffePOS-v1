@@ -21,6 +21,7 @@ import {
   getPlanSavingsPercent,
 } from '@/lib/subscriptionPlans';
 import { canStartOnlineBillingFlow, getOnlineBillingBlockedMessage } from '@/lib/offlinePolicy';
+import { useModalBehavior } from '@/hooks/useModalBehavior';
 
 type PaidPlan = 'kopi_susu' | 'signature';
 type PaidCycle = Exclude<BillingCycle, 'free'>;
@@ -175,31 +176,25 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
     onClose();
   }, [onClose, resetFlow]);
 
-  useEffect(() => {
-    if (!open) return undefined;
-    document.body.style.overflow = 'hidden';
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !submitting) closeFlow();
-    };
-
-    window.addEventListener('keydown', handleEscape);
-    return () => {
-      window.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
-    };
-  }, [closeFlow, open, submitting]);
+  const { panelRef, onBackdropClick, dialogProps } = useModalBehavior<HTMLDivElement>({
+    open,
+    onClose: closeFlow,
+    disabled: submitting,
+  });
 
   if (!open) return null;
 
   return (
     <div
       className="subscription-checkout-overlay fixed inset-0 z-[100] flex h-[100dvh] items-end justify-center bg-slate-950/60 p-0 backdrop-blur-md md:items-center md:p-4"
-      onClick={(event) => {
-        if (event.target === event.currentTarget && !submitting) closeFlow();
-      }}
+      onClick={onBackdropClick}
     >
-      <div className="subscription-checkout-shell kaffe-responsive-surface flex max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-[30px] bg-white shadow-[0_24px_100px_rgba(0,0,0,0.25)] md:max-h-[92dvh] md:max-w-[900px] md:rounded-[32px]">
+      <div
+        ref={panelRef}
+        className="subscription-checkout-shell kaffe-responsive-surface flex max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-[30px] bg-white shadow-[0_24px_100px_rgba(0,0,0,0.25)] md:max-h-[92dvh] md:max-w-[900px] md:rounded-[32px]"
+        aria-labelledby="subscription-checkout-title"
+        {...dialogProps}
+      >
         {/* HEADER SECTION */}
         <div className="shrink-0 border-b border-slate-100 bg-white px-4 py-4 sm:px-6 md:px-10 md:py-5">
           <div className="flex min-w-0 items-start justify-between gap-3">
@@ -208,7 +203,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-100 text-[10px] font-black text-orange-800 ring-1 ring-orange-200">
                   {stepNumber(step)}
                 </div>
-                <h3 className="min-w-0 truncate text-lg font-black text-slate-800 sm:text-xl">{stepTitle(step)}</h3>
+                <h3 id="subscription-checkout-title" className="min-w-0 truncate text-lg font-black text-slate-800 sm:text-xl">{stepTitle(step)}</h3>
               </div>
               <p className="mt-1 text-xs font-bold uppercase tracking-widest text-slate-400">
                 Langkah {stepNumber(step)} dari 3

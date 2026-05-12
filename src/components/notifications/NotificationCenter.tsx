@@ -15,6 +15,7 @@ import {
   type NotificationCategory,
 } from '@/lib/notifications';
 import NotificationCard, { NotificationEmptyState } from './NotificationCard';
+import { useModalBehavior } from '@/hooks/useModalBehavior';
 
 export default function NotificationCenter({
   isOpen,
@@ -41,6 +42,10 @@ export default function NotificationCenter({
     if (activeCategory === 'all') return notifications;
     return notifications.filter((notification) => getNotificationCategory(notification) === activeCategory);
   }, [activeCategory, notifications]);
+  const { panelRef, dialogProps } = useModalBehavior<HTMLDivElement>({
+    open: isOpen,
+    onClose,
+  });
 
   const loadNotifications = async () => {
     if (!user?.id) return;
@@ -118,7 +123,10 @@ export default function NotificationCenter({
 
   return (
     <div
+      ref={panelRef}
       className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-slate-50 animate-in"
+      aria-labelledby="notification-center-title"
+      {...dialogProps}
       style={{
         paddingTop: 'env(safe-area-inset-top,0px)',
         paddingBottom: 'env(safe-area-inset-bottom,0px)',
@@ -131,7 +139,7 @@ export default function NotificationCenter({
               <Bell size={20} className="text-[#FF6A00]" />
             </div>
             <div className="min-w-0">
-              <h2 className="truncate text-base font-black text-slate-800">Notification Center</h2>
+              <h2 id="notification-center-title" className="truncate text-base font-black text-slate-800">Notification Center</h2>
               <p className="truncate text-[10px] font-bold uppercase tracking-widest text-slate-400">
                 {unreadCount > 0 ? `${unreadCount} belum dibaca` : 'Semua sudah dibaca'}
               </p>

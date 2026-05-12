@@ -11,16 +11,19 @@ import { useStore } from '@/hooks/useStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { generateProfessionalPDF, type ReportData } from '@/utils/pdfReport';
 import { getAIInsightCached, type InsightContext, type AIInsight } from '@/lib/aiInsight';
+import { calculateTransactionPoints } from '@/lib/gamification';
 import KasDailyPanel from './KasDailyPanel';
 import ExpenseModal from '@/components/pos/ExpenseModal';
 import CashRegisterModal from '@/components/pos/CashRegisterModal';
 import type { SubscriptionAccess } from '@/lib/subscriptionAccess';
 import { dispatchUpgradePrompt } from '@/lib/upgradePrompts';
+import { trackAnalyticsEvent } from '@/lib/analytics';
+import { trackOpsEvent } from '@/lib/opsMetrics';
 
 
 const fRp  = (n: number) => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
 const fNum = (n: number) => new Intl.NumberFormat('id-ID').format(n||0);
-type Period = 'harian'|'mingguan'|'bulanan'|'semua';
+type Period = 'harian'|'mingguan'|'bulanan'|'custom'|'semua';
 const COLORS = ['#FF6A00','#3b82f6','#10b981','#8b5cf6','#ef4444','#ec4899','#f59e0b','#06b6d4'];
 const getExpenseSource = (expense: { source?: string; category?: string }) =>
   expense.source || (expense.category === 'Bahan Baku' ? 'inventory' : 'cashier');
@@ -118,9 +121,11 @@ function StatCard({ label, value, sub, icon, color='orange' }: { label:string; v
 }
 
 export default function ReportTab({ toast, subscriptionAccess }: { toast:any; subscriptionAccess: SubscriptionAccess }) {
-  const { transactions, expenses, inventory, storeSettings, cashRegister = [] } = useStore();
+  const { transactions, expenses, inventory, menu, storeSettings, cashRegister = [] } = useStore();
   const { user, profile } = useAuth();
   const [period, setPeriod]     = useState<Period>('harian');
+  const [customStart, setCustomStart] = useState(() => new Date().toISOString().slice(0, 10));
+  const [customEnd, setCustomEnd] = useState(() => new Date().toISOString().slice(0, 10));
   const [activeChart, setChart] = useState<'trend'|'menu'|'payment'|'stock'>('trend');
   const [downloading, setDl]    = useState(false);
 
@@ -137,25 +142,31 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
 
   const filtered = useMemo(()=>{
     const now=new Date();
+    const start = new Date(`${customStart}T00:00:00`);
+    const end = new Date(`${customEnd}T23:59:59`);
     return transactions.filter((t:any)=>{
       if(t.is_void)return false;const d=new Date(t.date);
       if(period==='harian')return d.toDateString()===now.toDateString();
       if(period==='mingguan'){const w=new Date(now);w.setDate(w.getDate()-7);return d>=w;}
       if(period==='bulanan')return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
+      if(period==='custom')return d>=start&&d<=end;
       return true;
     });
-  },[transactions,period]);
+  },[customEnd, customStart, transactions, period]);
 
   const filteredExp = useMemo(()=>{
     const now=new Date();
+    const start = new Date(`${customStart}T00:00:00`);
+    const end = new Date(`${customEnd}T23:59:59`);
     return expenses.filter((e:any)=>{
       const d=new Date(e.date);
       if(period==='harian')return d.toDateString()===now.toDateString();
       if(period==='mingguan'){const w=new Date(now);w.setDate(w.getDate()-7);return d>=w;}
       if(period==='bulanan')return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
+      if(period==='custom')return d>=start&&d<=end;
       return true;
     });
-  },[expenses,period]);
+  },[customEnd, customStart, expenses,period]);
 
   const totalRevenue  = filtered.reduce((s:number,t:any)=>s+t.total,0);
   const totalCogs     = filtered.reduce((s:number,t:any)=>s+(t.cogs||0),0);
@@ -169,14 +180,17 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
 
   const filteredCR = useMemo(()=>{
     const now=new Date();
+    const start = new Date(`${customStart}T00:00:00`);
+    const end = new Date(`${customEnd}T23:59:59`);
     return (cashRegister||[]).filter((c:any)=>{
       const d=new Date(c.date);
       if(period==='harian') return d.toDateString()===now.toDateString();
       if(period==='mingguan'){const w=new Date(now);w.setDate(w.getDate()-7);return d>=w;}
       if(period==='bulanan') return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
+      if(period==='custom') return d>=start&&d<=end;
       return true;
     });
-  },[cashRegister,period]);
+  },[cashRegister,customEnd,customStart,period]);
 
   const filteredExpOps = useMemo(
     () => filteredExp.filter((e:any) => getExpenseSource(e) === 'cashier' && e.category !== 'Bahan Baku'),
@@ -197,14 +211,15 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
   // const kasNetAkhir    = totalCashRegister + totalRevenue - totalExpOps; // total posisi kas akhir
 
   const trendData = useMemo(()=>{
-    const days=period==='harian'?8:period==='mingguan'?7:14;
+    const customDays = Math.max(1, Math.min(31, Math.ceil((new Date(`${customEnd}T23:59:59`).getTime() - new Date(`${customStart}T00:00:00`).getTime()) / 86_400_000) + 1));
+    const days=period==='harian'?8:period==='mingguan'?7:period==='custom'?customDays:14;
     return Array.from({length:days},(_,i)=>{
-      const d=new Date();d.setDate(d.getDate()-(days-1-i));
+      const d=period==='custom'?new Date(`${customStart}T00:00:00`):new Date();d.setDate(d.getDate()+(period==='custom'?i:-(days-1-i)));
       const label=period==='bulanan'?`${d.getDate()}`:d.toLocaleDateString('id-ID',{weekday:'short'}).slice(0,3);
       const value=transactions.filter((t:any)=>!t.is_void&&new Date(t.date).toDateString()===d.toDateString()).reduce((s:number,t:any)=>s+t.total,0);
       return {label,value};
     });
-  },[transactions,period]);
+  },[customEnd, customStart, transactions,period]);
 
   const menuRanking = useMemo(()=>{
     const m:any={};
@@ -226,6 +241,51 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
     filtered.forEach((t:any)=>{m[t.method]=(m[t.method]||0)+t.total;});
     return Object.entries(m).map(([label,value],i)=>({label,value:value as number,color:COLORS[i%COLORS.length]}));
   },[filtered]);
+
+  const categorySales = useMemo(() => {
+    const menuCategory = new Map(menu.map((item:any) => [item.id, item.category || 'Lainnya']));
+    const buckets = new Map<string, { qty: number; revenue: number }>();
+    filtered.forEach((tx:any) => {
+      tx.items.forEach((item:any) => {
+        const category = menuCategory.get(item.menu_item_id) || 'Lainnya';
+        const current = buckets.get(category) || { qty: 0, revenue: 0 };
+        buckets.set(category, {
+          qty: current.qty + (item.qty || 0),
+          revenue: current.revenue + (item.subtotal || 0),
+        });
+      });
+    });
+    return [...buckets.entries()]
+      .map(([label, value]) => ({ label, ...value }))
+      .sort((a, b) => b.revenue - a.revenue);
+  }, [filtered, menu]);
+
+  const staffPerformance = useMemo(() => {
+    const buckets = new Map<string, { transactions: number; revenue: number; points: number }>();
+    filtered.forEach((tx:any) => {
+      const name = tx.cashier || 'Kasir';
+      const current = buckets.get(name) || { transactions: 0, revenue: 0, points: 0 };
+      buckets.set(name, {
+        transactions: current.transactions + 1,
+        revenue: current.revenue + (tx.total || 0),
+        points: current.points + calculateTransactionPoints(tx),
+      });
+    });
+    return [...buckets.entries()]
+      .map(([name, value]) => ({ name, ...value }))
+      .sort((a, b) => b.points - a.points || b.revenue - a.revenue)
+      .slice(0, 8);
+  }, [filtered]);
+
+  const kopiScore = useMemo(() => {
+    const revenueScore = totalRevenue > 0 ? Math.min(35, Math.round(totalRevenue / 100000) * 4) : 0;
+    const marginScore = Math.max(0, Math.min(30, Math.round(grossMargin * 0.3)));
+    const stockScore = inventory.length ? Math.max(0, 20 - lowStockCount * 4) : 12;
+    const activityScore = Math.min(15, filtered.length * 2);
+    const score = Math.max(0, Math.min(100, revenueScore + marginScore + stockScore + activityScore));
+    const label = score >= 85 ? 'Excellent' : score >= 70 ? 'Stabil' : score >= 55 ? 'Perlu Optimasi' : 'Perlu Perhatian';
+    return { score, label };
+  }, [filtered.length, grossMargin, inventory.length, lowStockCount, totalRevenue]);
 
   const stockData = useMemo(()=>
     inventory.map((i:any)=>({label:i.name,stock:i.stock,unit:i.unit,min:i.min_stock,pct:i.min_stock>0?Math.round((i.stock/i.min_stock)*100):999}))
@@ -293,17 +353,31 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
   }, []);
 
   const buildReportPayload = useCallback((): ReportData => {
-    const periodLabel = period === 'harian' ? 'Hari Ini' : period === 'mingguan' ? '7 Hari Terakhir' : period === 'bulanan' ? 'Bulan Ini' : 'Semua Waktu';
+    const periodLabel = period === 'harian'
+      ? 'Hari Ini'
+      : period === 'mingguan'
+        ? '7 Hari Terakhir'
+        : period === 'bulanan'
+          ? 'Bulan Ini'
+          : period === 'custom'
+            ? `${new Date(`${customStart}T00:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })} - ${new Date(`${customEnd}T00:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}`
+            : 'Semua Waktu';
+    const titlePeriod = period === 'bulanan'
+      ? new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
+      : periodLabel;
     const nowStr      = new Date().toLocaleString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const reportTitle = `Laporan Penjualan ${titlePeriod}`;
 
     const payload: ReportData = {
       storeName:     storeSettings?.store_name || 'KaffePOS',
       tagline:       (storeSettings as any)?.tagline,
       address:       (storeSettings as any)?.address,
-      phone:         (storeSettings as any)?.phone,
+      phone:         (storeSettings as any)?.whatsapp || (storeSettings as any)?.phone,
       logoData:      (storeSettings as any)?.logo_url || (storeSettings as any)?.logo_base64,
       period:        period,
       periodLabel,
+      reportTitle,
+      fileBaseName:  reportTitle,
       nowStr,
 
       totalRevenue,
@@ -319,6 +393,13 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
       menuRanking,
       paymentData,
       stockData,
+      categorySales,
+      staffPerformance,
+      kopiScore,
+      recentTransactions: filtered
+        .slice()
+        .sort((a:any, b:any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 30),
 
       expensesByCategory: (() => {
         const m:any = {};
@@ -357,6 +438,11 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
     stockData,
     filteredExp,
     filteredCR,
+    categorySales,
+    staffPerformance,
+    kopiScore,
+    customStart,
+    customEnd,
     aiData,
   ]);
 
@@ -374,6 +460,12 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
     setDl(true);
     try {
       await generateProfessionalPDF(buildReportPayload());
+      trackAnalyticsEvent('pdf_exported', { period, transactions: filtered.length, revenue: totalRevenue });
+      void trackOpsEvent({
+        event_name: 'pdf_exported',
+        status: 'success',
+        metadata: { period, transactions: filtered.length, revenue: totalRevenue },
+      });
       toast.showToast('Laporan PDF berhasil diunduh!', 'success');
     } catch (e:any) {
       toast.showToast(`Gagal membuat PDF: ${e?.message || 'Error'}`, 'error');
@@ -383,7 +475,7 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
     }
   };
 
-  const PERIODS=[{id:'harian',l:'Hari Ini', requiresAdvanced:false},{id:'mingguan',l:'7 Hari', requiresAdvanced:true},{id:'bulanan',l:'Bulan Ini', requiresAdvanced:true},{id:'semua',l:'Semua', requiresAdvanced:false}] as const;
+  const PERIODS=[{id:'harian',l:'Hari Ini', requiresAdvanced:false},{id:'mingguan',l:'7 Hari', requiresAdvanced:true},{id:'bulanan',l:'Bulan Ini', requiresAdvanced:true},{id:'custom',l:'Custom', requiresAdvanced:true},{id:'semua',l:'Semua', requiresAdvanced:false}] as const;
   const hasAnyReportData = filtered.length > 0 || filteredExp.length > 0 || filteredCR.length > 0;
 
   return (
@@ -448,6 +540,28 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
             );
           })}
         </div>
+        {period === 'custom' && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Dari Tanggal
+              <input
+                type="date"
+                value={customStart}
+                onChange={(event) => setCustomStart(event.target.value)}
+                className="mt-2 h-11 w-full rounded-2xl border border-slate-100 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none focus:border-[#FF6A00]"
+              />
+            </label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Sampai Tanggal
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(event) => setCustomEnd(event.target.value)}
+                className="mt-2 h-11 w-full rounded-2xl border border-slate-100 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none focus:border-[#FF6A00]"
+              />
+            </label>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-5 space-y-4">

@@ -1,6 +1,19 @@
 import { trackOpsEventRequest } from '@/lib/backendApi';
 
-type OpsEventName = 'login' | 'checkout' | 'client_error' | 'printer_error' | 'sync_error';
+type OpsEventName =
+  | 'login'
+  | 'checkout'
+  | 'transaction_created'
+  | 'upgrade_clicked'
+  | 'gamification_used'
+  | 'loyalty_used'
+  | 'pdf_exported'
+  | 'payment_started'
+  | 'payment_completed'
+  | 'feedback_submitted'
+  | 'client_error'
+  | 'printer_error'
+  | 'sync_error';
 type OpsEventStatus = 'success' | 'failure';
 
 type TrackOpsEventPayload = {

@@ -12,6 +12,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Wallet, ChevronRight, Coffee, WifiOff } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import type { ToastType } from '@/types';
+import { useModalBehavior } from '@/hooks/useModalBehavior';
 
 const fRp = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
@@ -163,9 +164,19 @@ export default function DailyOpeningModal({ cashierName, toast, onDone }: Props)
     onDone();
   };
 
+  const { panelRef, onBackdropClick, dialogProps } = useModalBehavior<HTMLDivElement>({
+    open: true,
+    onClose: handleSkip,
+    disabled: saving,
+  });
+
   return (
-    <div className="fixed inset-0 bg-black/70 z-[100] flex items-end sm:items-center justify-center backdrop-blur-sm">
-      <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl"
+    <div className="fixed inset-0 bg-black/70 z-[100] flex items-end sm:items-center justify-center backdrop-blur-sm" onClick={onBackdropClick}>
+      <div
+        ref={panelRef}
+        className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl"
+        aria-labelledby="daily-opening-title"
+        {...dialogProps}
         style={{ animation: 'slideUp 0.3s ease-out' }}>
         <style>{`@keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }`}</style>
 
@@ -180,7 +191,7 @@ export default function DailyOpeningModal({ cashierName, toast, onDone }: Props)
             </div>
             <div>
               <p className="text-slate-400 text-[11px] font-bold uppercase tracking-widest mb-1">Selamat Datang</p>
-              <h3 className="font-display text-white font-extrabold text-xl leading-tight">Buka Toko Hari Ini</h3>
+              <h3 id="daily-opening-title" className="font-display text-white font-extrabold text-xl leading-tight">Buka Toko Hari Ini</h3>
             </div>
             {!isOnline && (
               <div className="ml-auto flex items-center gap-1.5 bg-rose-500/20 border border-rose-500/30 rounded-full px-2.5 py-1">

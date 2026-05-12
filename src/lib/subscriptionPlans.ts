@@ -66,11 +66,11 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionPlanId, SubscriptionPlanDefi
     accentSoftClass: 'bg-amber-50 border-amber-200',
     gradient: 'linear-gradient(135deg,#b45309 0%,#f59e0b 100%)',
     prices: { monthly: 49000, quarterly: 129000, semiannual: 249000, yearly: 449000 },
-    description: 'Untuk Cafe Kecil yang Serius. Unlimited transaksi, printer thermal, loyalty dasar, dan laporan lengkap. Mulai Rp49.000/bulan.',
+    description: 'Untuk Cafe Kecil yang Serius. Unlimited transaksi, cetak browser, loyalty dasar, dan laporan lengkap. Mulai Rp49.000/bulan.',
     audience: 'Paling cocok untuk cafe kecil',
     features: [
       'Transaksi tanpa batas',
-      'Printer thermal dan cetak browser',
+      'Cetak browser',
       'Inventory + resep',
       'Kitchen Display',
       'Kopi Passport Loyalty dasar',

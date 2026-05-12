@@ -10,6 +10,7 @@ import {
   type OfflineOutboxSummary,
 } from '@/lib/offlineQueue';
 import { buildSyncCenterItems, getSyncAttentionState } from '@/lib/syncCenter';
+import { useModalBehavior } from '@/hooks/useModalBehavior';
 
 type SyncConflictCenterProps = {
   open: boolean;
@@ -81,6 +82,11 @@ export default function SyncConflictCenter({ open, onClose, storeId, role, onRet
 
   const viewItems = useMemo(() => buildSyncCenterItems(items, role), [items, role]);
   const attention = getSyncAttentionState(summary);
+  const { panelRef, onBackdropClick, dialogProps } = useModalBehavior<HTMLDivElement>({
+    open,
+    onClose,
+    disabled: Boolean(busyItemId),
+  });
   const headline = attention === 'conflicted'
     ? 'Ada data yang perlu dicek'
     : attention === 'failed'
@@ -115,15 +121,20 @@ export default function SyncConflictCenter({ open, onClose, storeId, role, onRet
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-slate-950/40 p-0 backdrop-blur-sm sm:items-center sm:p-6">
-      <div className="w-full max-w-3xl overflow-hidden rounded-t-[28px] bg-white shadow-2xl sm:rounded-[28px]">
+    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-slate-950/40 p-0 backdrop-blur-sm sm:items-center sm:p-6" onClick={onBackdropClick}>
+      <div
+        ref={panelRef}
+        className="w-full max-w-3xl overflow-hidden rounded-t-[28px] bg-white shadow-2xl sm:rounded-[28px]"
+        aria-labelledby="sync-conflict-title"
+        {...dialogProps}
+      >
         <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-5 sm:px-6">
           <div className="min-w-0">
             <div className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-slate-400">
               <WifiOff size={14} />
               Pusat Sinkronisasi
             </div>
-            <h2 className="text-xl font-black tracking-tight text-slate-900">{headline}</h2>
+            <h2 id="sync-conflict-title" className="text-xl font-black tracking-tight text-slate-900">{headline}</h2>
             <p className="mt-1 text-sm font-medium leading-relaxed text-slate-500">
               Data offline tetap tersimpan di perangkat. Kamu bisa coba sinkron ulang saat koneksi stabil.
             </p>

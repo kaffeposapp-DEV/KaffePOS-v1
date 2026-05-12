@@ -45,6 +45,7 @@ import {
   voidTransactionRequest,
 } from '@/lib/backendApi';
 import { trackOpsEvent } from '@/lib/opsMetrics';
+import { trackAnalyticsEvent } from '@/lib/analytics';
 import { DEFAULT_CUSTOM_THEME, applyThemeToDocument, type CustomThemeConfig, type ThemePresetId } from '@/lib/theme';
 import {
   deriveConnectivityMode,
@@ -1450,6 +1451,19 @@ export const useStore = create<AppStore>((set, get) => ({
         store_id: storeId,
         transaction_id: savedTx.id,
         metadata: { total: savedTx.total, method: savedTx.method },
+      });
+      void trackOpsEvent({
+        event_name: 'transaction_created',
+        status: 'success',
+        store_id: storeId,
+        transaction_id: savedTx.id,
+        metadata: { total: savedTx.total, method: savedTx.method, source: 'pos_checkout' },
+      });
+      trackAnalyticsEvent('transaction_created', {
+        store_id: storeId,
+        transaction_id: savedTx.id,
+        value: savedTx.total,
+        payment_method: savedTx.method,
       });
       markInserted(savedTx.id);
       set(s => ({

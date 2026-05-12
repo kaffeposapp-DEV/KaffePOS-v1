@@ -9,6 +9,7 @@
 import { useState, useMemo } from 'react';
 import { X, Receipt, Wallet, AlertCircle } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
+import { useModalBehavior } from '@/hooks/useModalBehavior';
 
 const fRp = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
@@ -56,6 +57,11 @@ export default function ExpenseModal({ onClose, cashierName, toast }: Props) {
   const kasirAwal = todayCash?.amount || 0;
   const kasirSisa = kasirAwal - todayTotal;
   const isOverBudget = numVal > 0 && numVal > kasirSisa && kasirAwal > 0;
+  const { panelRef, onBackdropClick, dialogProps } = useModalBehavior<HTMLDivElement>({
+    open: true,
+    onClose,
+    disabled: saving,
+  });
 
   const handleSave = () => {
     if (numVal <= 0) { toast.showToast('Masukkan jumlah pengeluaran', 'warning'); return; }
@@ -72,8 +78,12 @@ export default function ExpenseModal({ onClose, cashierName, toast }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center">
-      <div className="bg-white w-full max-w-md rounded-t-3xl overflow-hidden"
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center" onClick={onBackdropClick}>
+      <div
+        ref={panelRef}
+        className="bg-white w-full max-w-md rounded-t-3xl overflow-hidden"
+        aria-labelledby="expense-modal-title"
+        {...dialogProps}
         style={{ animation: 'slideUp 0.25s ease-out', maxHeight: '92vh', overflowY: 'auto' }}>
 
         {/* Header */}
@@ -85,7 +95,7 @@ export default function ExpenseModal({ onClose, cashierName, toast }: Props) {
               </div>
               <div>
                 <p className="text-white/80 text-xs font-bold">Pengeluaran Operasional</p>
-                <h3 className="text-white font-black text-base leading-tight">Catat Pengeluaran Kasir</h3>
+                <h3 id="expense-modal-title" className="text-white font-black text-base leading-tight">Catat Pengeluaran Kasir</h3>
               </div>
             </div>
             <button onClick={onClose}

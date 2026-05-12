@@ -17,11 +17,11 @@ export interface SubscriptionStatus {
   isActive:         boolean;
   expiryDate:       Date | null;
   transactionCount: number;
-  transactionLimit: number; // 50 freemium, -1 unlimited
+  transactionLimit: number; // 100 freemium, -1 unlimited
   daysRemaining:    number | null;
 }
 
-const TRANSACTION_LIMIT_FREEMIUM = 50;
+const TRANSACTION_LIMIT_FREEMIUM = 100;
 const SYNC_INTERVAL_MS = 1000 * 60 * 60 * 6; // sync setiap 6 jam
 const LOCAL_KEY = 'kaffepos_sub_v2';
 const TX_COUNT_KEY = 'kaffepos_tx_month';

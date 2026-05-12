@@ -34,7 +34,6 @@ describe('frontend release config guardrails', () => {
       releaseChannel: 'development',
       apiBaseUrl: 'http://localhost:8787',
       webBaseUrl: PRODUCTION_WEB_ORIGIN,
-      midtransEnvironment: 'sandbox',
       clarityProjectId: '',
       appTarget: 'mobile',
     });
@@ -43,7 +42,6 @@ describe('frontend release config guardrails', () => {
       releaseChannel: 'development',
       apiBaseUrl: 'https://10.0.2.2:8787',
       webBaseUrl: PRODUCTION_WEB_ORIGIN,
-      midtransEnvironment: 'sandbox',
       clarityProjectId: '',
       appTarget: 'mobile',
     });
@@ -59,12 +57,11 @@ describe('frontend release config guardrails', () => {
     ]));
   });
 
-  it('blocks production release configs that still point payment or API to sandbox/staging values', () => {
+  it('blocks production release configs that still point API to staging values', () => {
     const result = validateFrontendReleaseConfig({
       releaseChannel: 'production',
       apiBaseUrl: 'https://api-staging.kaffepos.my.id',
       webBaseUrl: PRODUCTION_WEB_ORIGIN,
-      midtransEnvironment: 'sandbox',
       clarityProjectId: '',
       sentryDsn: '',
       appTarget: 'mobile',
@@ -73,7 +70,6 @@ describe('frontend release config guardrails', () => {
     expect(result.ok).toBe(false);
     expect(result.errors).toEqual(expect.arrayContaining([
       expect.stringContaining('VITE_API_BASE_URL'),
-      expect.stringContaining('VITE_MIDTRANS_ENVIRONMENT'),
       expect.stringContaining('VITE_CLARITY_PROJECT_ID'),
       expect.stringContaining('VITE_SENTRY_DSN'),
     ]));
@@ -84,7 +80,6 @@ describe('frontend release config guardrails', () => {
       releaseChannel: 'production',
       apiBaseUrl: PRODUCTION_API_ORIGIN,
       webBaseUrl: PRODUCTION_WEB_ORIGIN,
-      midtransEnvironment: 'production',
       clarityProjectId: 'clarity-project',
       sentryDsn: 'https://public@sentry.example/1',
       appTarget: 'web',

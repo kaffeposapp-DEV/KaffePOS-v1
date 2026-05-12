@@ -19,6 +19,8 @@ import {
   parseGeminiText,
   pickDefined,
   buildUpdateClause,
+  insertNotification,
+  adminEmails,
 } from '../core';
 import type { PoolClient } from '../core/db';
 
@@ -40,10 +42,14 @@ const pushSubscriptionSchema = z.object({
 });
 const betaFeedbackSchema = z.object({
   store_id: z.string().uuid().optional().nullable(),
+  rating: z.number().int().min(1).max(5).optional().nullable(),
+  category: z.enum(['Bug', 'Saran Fitur', 'Lainnya']).optional().default('Lainnya'),
+  description: z.string().trim().max(2400).optional().default(''),
+  screenshot_data: z.string().trim().max(1_500_000).optional().nullable(),
   liked: z.string().trim().max(1200).optional().default(''),
   improve: z.string().trim().max(1200).optional().default(''),
   metadata: z.record(z.string(), z.unknown()).optional().default({}),
-}).refine((value) => value.liked.length > 0 || value.improve.length > 0, {
+}).refine((value) => value.description.length > 0 || value.liked.length > 0 || value.improve.length > 0, {
   message: 'Feedback tidak boleh kosong.',
 });
 
@@ -1111,22 +1117,61 @@ router.post('/api/beta-feedback', async (req, res, next) => {
     const result = await pool.query(
       `
         insert into public.beta_feedback (
-          user_id, store_id, liked, improve, metadata
+          user_id, store_id, rating, category, description, screenshot_data, liked, improve, metadata
         ) values (
-          $1, $2, $3, $4, $5::jsonb
+          $1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb
         )
-        returning id, user_id, store_id, liked, improve, metadata, created_at
+        returning id, user_id, store_id, rating, category, description, screenshot_data, liked, improve, metadata, created_at
       `,
       [
         req.authUser!.id,
         payload.store_id ?? null,
+        payload.rating ?? null,
+        payload.category,
+        payload.description,
+        payload.screenshot_data ?? null,
         payload.liked,
         payload.improve,
         JSON.stringify(payload.metadata),
       ],
     );
 
-    res.status(201).json(result.rows[0]);
+    const feedback = result.rows[0];
+    await withTransaction(async (client) => {
+      const recipients = new Set<string>();
+      if (payload.store_id) {
+        const ownerResult = await client.query(
+          `select owner_id from public.stores where id = $1 limit 1`,
+          [payload.store_id],
+        );
+        if (ownerResult.rows[0]?.owner_id) recipients.add(String(ownerResult.rows[0].owner_id));
+      }
+      if (adminEmails.size > 0) {
+        const adminResult = await client.query(
+          `select id from public.profiles where lower(email) = any($1::text[])`,
+          [[...adminEmails]],
+        );
+        adminResult.rows.forEach((row) => recipients.add(String(row.id)));
+      }
+      if (recipients.size === 0) recipients.add(req.authUser!.id);
+
+      await Promise.all([...recipients].map((userId) => insertNotification(
+        client,
+        userId,
+        'Feedback Closed Beta masuk',
+        `${payload.category}: ${payload.description || payload.improve || payload.liked}`.slice(0, 180),
+        payload.category === 'Bug' ? 'warning' : 'business_alert',
+        {
+          category: 'beta_feedback',
+          feedbackId: feedback.id,
+          rating: payload.rating ?? null,
+          hasScreenshot: Boolean(payload.screenshot_data),
+        },
+        payload.store_id ?? null,
+      )));
+    });
+
+    res.status(201).json(feedback);
   } catch (error) {
     next(error);
   }

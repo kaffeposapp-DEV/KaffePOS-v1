@@ -318,6 +318,61 @@ export function generateOtpCode() {
 
 // ── Subscription sync ──────────────────────────────────────────
 
+const DAY_MS = 86_400_000;
+
+async function maybeInsertTrialEndingNotification(
+  client: PoolClient,
+  userId: string,
+  subscription: Record<string, unknown> | null | undefined,
+) {
+  try {
+    if (
+      !subscription ||
+      subscription.plan !== 'secangkir' ||
+      subscription.billing_cycle !== 'free' ||
+      subscription.status !== 'active' ||
+      !subscription.expires_at
+    ) {
+      return;
+    }
+
+    const trialEndsAt = String(subscription.expires_at);
+    const daysRemaining = Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / DAY_MS));
+    if (![4, 2, 1].includes(daysRemaining)) return;
+
+    const promptKey = `secangkir_trial_ending_${daysRemaining}_days`;
+    const existing = await client.query(
+      `
+        select id
+        from public.notifications
+        where user_id = $1
+          and metadata->>'promptKey' = $2
+        limit 1
+      `,
+      [userId, promptKey],
+    );
+    if (existing.rows[0]) return;
+
+    await insertNotification(
+      client,
+      userId,
+      'Trial Signature hampir selesai',
+      `Trial Signature tersisa ${daysRemaining} hari. Upgrade ke Signature kapan saja agar Gamification, AI Insights, dan Kopi Passport Loyalty tetap aktif.`,
+      'warning',
+      {
+        promptKey,
+        plan: 'secangkir',
+        recommendedPlan: 'signature',
+        trialEndsAt,
+        daysRemaining,
+      },
+      (subscription.store_id as string | null | undefined) ?? null,
+    );
+  } catch {
+    // Notification must not block profile subscription sync.
+  }
+}
+
 export async function syncProfileSubscriptionState(client: PoolClient, userId: string) {
   let latestSubscription = await client.query(
     `
@@ -459,6 +514,10 @@ export async function syncProfileSubscriptionState(client: PoolClient, userId: s
     subscription.status === 'active' &&
     (!subscription.expires_at || new Date(String(subscription.expires_at)).getTime() > Date.now()),
   );
+
+  if (isActive) {
+    await maybeInsertTrialEndingNotification(client, userId, subscription);
+  }
 
   if (!isActive) {
     await client.query(

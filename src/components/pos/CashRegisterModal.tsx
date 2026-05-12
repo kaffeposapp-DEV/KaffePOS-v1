@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { X, Wallet } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import type { CashRegister } from '@/types';
+import { useModalBehavior } from '@/hooks/useModalBehavior';
 
 const fRp = (n: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
 
@@ -53,17 +54,26 @@ export default function CashRegisterModal({ onClose, cashierName, toast, existin
   };
 
   const quickAmounts = [50000, 100000, 200000, 500000];
+  const { panelRef, onBackdropClick, dialogProps } = useModalBehavior<HTMLDivElement>({
+    open: true,
+    onClose,
+  });
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center">
-      <div className="bg-white w-full max-w-md rounded-t-3xl p-5 max-h-[85vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center" onClick={onBackdropClick}>
+      <div
+        ref={panelRef}
+        className="bg-white w-full max-w-md rounded-t-3xl p-5 max-h-[85vh] overflow-y-auto"
+        aria-labelledby="cash-register-modal-title"
+        {...dialogProps}
+      >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 bg-orange-100 rounded-xl flex items-center justify-center">
               <Wallet size={18} className="text-orange-500" />
             </div>
             <div>
-              <h3 className="font-black text-slate-800">{existingEntry ? 'Edit Saldo Kasir Awal' : 'Saldo Awal Kasir'}</h3>
+              <h3 id="cash-register-modal-title" className="font-black text-slate-800">{existingEntry ? 'Edit Saldo Kasir Awal' : 'Saldo Awal Kasir'}</h3>
               <p className="text-xs text-slate-400">{existingEntry ? 'Ubah uang tunai saat buka kasir' : 'Uang tunai saat buka kasir'}</p>
             </div>
           </div>

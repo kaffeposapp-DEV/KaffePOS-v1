@@ -14,8 +14,6 @@ interface ImportMetaEnv {
   readonly VITE_CLARITY_PROJECT_ID?: string;
   readonly VITE_SENTRY_DSN?: string;
   readonly VITE_SENTRY_TRACES_SAMPLE_RATE?: string;
-  readonly VITE_MIDTRANS_CLIENT_KEY?: string;
-  readonly VITE_MIDTRANS_ENVIRONMENT?: 'sandbox' | 'production';
 }
 
 interface ImportMeta {

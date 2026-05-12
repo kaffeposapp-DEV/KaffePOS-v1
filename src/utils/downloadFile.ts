@@ -338,7 +338,9 @@ export async function downloadPDFReport(
   storeName: string = 'KaffePOS'
 ): Promise<DownloadResult> {
   const date = new Date().toISOString().slice(0, 10);
-  const fileName = `KaffePOS_${reportName.replace(/\s+/g, '_')}_${storeName.replace(/[^a-zA-Z0-9]/g, '_')}_${date}.pdf`;
+  const cleanReport = reportName.replace(/[^\p{L}\p{N}\s_-]/gu, '').trim().replace(/\s+/g, '_');
+  const cleanStore = storeName.replace(/[^\p{L}\p{N}\s_-]/gu, '').trim().replace(/\s+/g, '_');
+  const fileName = `${cleanReport}_${cleanStore}_${date}.pdf`;
   const dataUri: string = jdoc.output('datauristring');
   const base64 = dataUri.split(',')[1];
 
@@ -357,7 +359,9 @@ export async function sharePDFReport(
   text?: string,
 ): Promise<DownloadResult> {
   const date = new Date().toISOString().slice(0, 10);
-  const fileName = `KaffePOS_${reportName.replace(/\s+/g, '_')}_${storeName.replace(/[^a-zA-Z0-9]/g, '_')}_${date}.pdf`;
+  const cleanReport = reportName.replace(/[^\p{L}\p{N}\s_-]/gu, '').trim().replace(/\s+/g, '_');
+  const cleanStore = storeName.replace(/[^\p{L}\p{N}\s_-]/gu, '').trim().replace(/\s+/g, '_');
+  const fileName = `${cleanReport}_${cleanStore}_${date}.pdf`;
   const dataUri: string = jdoc.output('datauristring');
   const base64 = dataUri.split(',')[1];
 

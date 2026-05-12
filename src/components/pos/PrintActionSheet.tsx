@@ -19,6 +19,7 @@ import {
   getReceiptDividerChar,
   getReceiptSettings,
 } from '@/utils/receipt';
+import { useModalBehavior } from '@/hooks/useModalBehavior';
 
 // ── Format helpers ───────────────────────────────────────────────────────────
 const fRp = (n: number) => 'Rp ' + new Intl.NumberFormat('id-ID').format(n || 0);
@@ -173,7 +174,6 @@ export default function PrintActionSheet({
 }: PrintActionSheetProps) {
   const printer = usePrinter();
   const [loading, setLoading] = useState<string | null>(null);
-  const sheetRef  = useRef<HTMLDivElement>(null);
   const startYRef = useRef<number>(0);
 
   useEffect(() => { if (!visible) setLoading(null); }, [visible]);
@@ -187,6 +187,13 @@ export default function PrintActionSheet({
     if (dy > 60) onClose();
   }, [onClose]);
 
+  const doClose = useCallback(() => { setLoading(null); onClose(); }, [onClose]);
+  const { panelRef, onBackdropClick, dialogProps } = useModalBehavior<HTMLDivElement>({
+    open: visible && Boolean(transaction),
+    onClose: doClose,
+    disabled: Boolean(loading),
+  });
+
   if (!visible || !transaction) return null;
 
   const tx = transaction;
@@ -195,8 +202,6 @@ export default function PrintActionSheet({
   const makePrintData = (): PrintData => (
     createReceiptPrintData(storeSettings, tx) as PrintData
   );
-
-  const doClose = () => { setLoading(null); onClose(); };
 
   // ── Action handlers ───────────────────────────────────────────────────────
   const handleBluetooth = async () => {
@@ -272,11 +277,13 @@ export default function PrintActionSheet({
     <div
       className="fixed inset-0 z-[80] flex items-end justify-center"
       style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
-      onClick={doClose}
+      onClick={onBackdropClick}
     >
       <div
-        ref={sheetRef}
+        ref={panelRef}
         className="bg-white w-full max-w-md rounded-t-3xl overflow-hidden"
+        aria-labelledby="print-action-sheet-title"
+        {...dialogProps}
         style={{ animation: 'slideUp 0.25s ease-out' }}
         onClick={e => e.stopPropagation()}
         onTouchStart={onTouchStart}
@@ -291,7 +298,7 @@ export default function PrintActionSheet({
         <div className="px-5 pt-2 pb-3 border-b border-slate-100">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-black text-slate-800 text-base">Cetak / Bagikan Struk</h3>
+              <h3 id="print-action-sheet-title" className="font-black text-slate-800 text-base">Cetak / Bagikan Struk</h3>
               <p className="text-xs text-slate-400 mt-0.5">
                 {tx.id} &nbsp;·&nbsp; <span className="font-bold text-orange-500">{fRp(tx.total)}</span>
               </p>

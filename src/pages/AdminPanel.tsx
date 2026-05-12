@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { CreditCard, Loader2, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   activateAdminSubscription,
@@ -248,6 +248,22 @@ export default function AdminPanel() {
               <RefreshCw size={14} />
               Refresh
             </button>
+
+            {import.meta.env.DEV && (
+              <button
+                onClick={() => {
+                  setFeedback({
+                    type: 'success',
+                    message: 'Sandbox siap. Buka POS, buat order kecil, pilih QRIS, lalu selesaikan via Midtrans sandbox.',
+                  });
+                  window.open('/?tab=pos&paymentSandbox=1', '_blank', 'noopener,noreferrer');
+                }}
+                className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4 py-2 text-sm font-black text-orange-600"
+              >
+                <CreditCard size={14} />
+                Test Payment Sandbox
+              </button>
+            )}
           </div>
         </div>
 

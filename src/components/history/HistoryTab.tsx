@@ -11,6 +11,7 @@ import { useStore } from '@/hooks/useStore';
 import PrintActionSheet from '@/components/pos/PrintActionSheet';
 import { normalizeUserFacingError } from '@/lib/errorMessages';
 import type { SubscriptionAccess } from '@/lib/subscriptionAccess';
+import { useModalBehavior } from '@/hooks/useModalBehavior';
 
 const fRp = (n: number) =>
   new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
@@ -100,6 +101,18 @@ export default function HistoryTab({
     setPrintTx(tx);
     setShowPrintSheet(true);
   }, [],   );
+
+  const closeDetailModal = useCallback(() => setDetail(null), []);
+  const closeVoidModal = useCallback(() => { setShowVoid(null); setVoidR(''); }, []);
+  const detailModal = useModalBehavior<HTMLDivElement>({
+    open: Boolean(detail),
+    onClose: closeDetailModal,
+  });
+  const voidModal = useModalBehavior<HTMLDivElement>({
+    open: Boolean(showVoid),
+    onClose: closeVoidModal,
+    disabled: voiding,
+  });
 
   const PERIODS: { id: Period; label: string }[] = [
     { id: 'today', label: 'Hari Ini' },
@@ -214,14 +227,19 @@ export default function HistoryTab({
 
       {/* ── Detail Modal ── */}
       {detail && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-end md:items-center justify-center p-0 md:p-6">
-          <div className="bg-white w-full max-w-[480px] rounded-t-[32px] md:rounded-[40px] p-8 max-h-[95vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom-20 duration-500">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-end md:items-center justify-center p-0 md:p-6" onClick={detailModal.onBackdropClick}>
+          <div
+            ref={detailModal.panelRef}
+            className="bg-white w-full max-w-[480px] rounded-t-[32px] md:rounded-[40px] p-8 max-h-[95vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom-20 duration-500"
+            aria-labelledby="history-detail-title"
+            {...detailModal.dialogProps}
+          >
             <div className="flex items-center justify-between mb-8">
               <div>
-                <h3 className="font-black text-2xl text-slate-800 italic uppercase tracking-tighter">Detail Pesanan 🧾</h3>
+                <h3 id="history-detail-title" className="font-black text-2xl text-slate-800 italic uppercase tracking-tighter">Detail Pesanan 🧾</h3>
                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">ID: {detail.id}</p>
               </div>
-              <button onClick={() => setDetail(null)} className="p-3 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 transition-colors"><X size={24}/></button>
+              <button onClick={closeDetailModal} className="p-3 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 transition-colors"><X size={24}/></button>
             </div>
 
             <div className="bg-slate-50 rounded-[32px] p-6 mb-8 border border-slate-100">
@@ -284,9 +302,14 @@ export default function HistoryTab({
 
       {/* ── Void Confirm Modal ── */}
       {showVoid && (
-        <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-5 w-full max-w-sm">
-            <h3 className="font-black text-lg text-red-600 mb-1">Void Transaksi?</h3>
+        <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4" onClick={voidModal.onBackdropClick}>
+          <div
+            ref={voidModal.panelRef}
+            className="bg-white rounded-3xl p-5 w-full max-w-sm"
+            aria-labelledby="history-void-title"
+            {...voidModal.dialogProps}
+          >
+            <h3 id="history-void-title" className="font-black text-lg text-red-600 mb-1">Void Transaksi?</h3>
             <p className="text-slate-500 text-sm mb-4">{fRp(showVoid.total)} · {showVoid.id}</p>
             <label className="text-xs font-bold text-slate-500 mb-1 block">Alasan Void *</label>
             <input value={voidR} onChange={e=>setVoidR(e.target.value)}
@@ -295,8 +318,9 @@ export default function HistoryTab({
               style={{fontSize:16}} autoFocus
               onKeyDown={e=>e.key==='Enter'&&handleVoid()}/>
             <div className="flex gap-2">
-              <button onClick={() => { setShowVoid(null); setVoidR(''); }}
-                className="flex-1 py-3 border border-slate-200 rounded-2xl font-bold text-slate-600 active:scale-95">
+              <button onClick={closeVoidModal}
+                disabled={voiding}
+                className="flex-1 py-3 border border-slate-200 rounded-2xl font-bold text-slate-600 active:scale-95 disabled:opacity-50">
                 Batal
               </button>
               <button onClick={handleVoid} disabled={voiding}

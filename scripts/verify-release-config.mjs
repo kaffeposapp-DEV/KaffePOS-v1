@@ -72,10 +72,10 @@ if (isProduction) {
   requireEquals('WEB_BASE_URL', 'https://kaffepos.my.id');
   requireEquals('API_BASE_URL', 'https://api.kaffepos.my.id');
   requireEquals('MIDTRANS_ENVIRONMENT', 'production');
-  requireEquals('VITE_MIDTRANS_ENVIRONMENT', 'production');
+  requireEquals('MIDTRANS_IS_PRODUCTION', 'true');
   requirePresent('MIDTRANS_SERVER_KEY');
+  requirePresent('MIDTRANS_CLIENT_KEY');
   requirePresent('MIDTRANS_MERCHANT_ID');
-  requirePresent('VITE_MIDTRANS_CLIENT_KEY');
   requirePresent('VITE_CLARITY_PROJECT_ID');
   requirePresent('SENTRY_DSN');
   requirePresent('VITE_SENTRY_DSN');

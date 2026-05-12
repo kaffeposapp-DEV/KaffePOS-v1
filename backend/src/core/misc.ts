@@ -5,7 +5,21 @@
 import { z } from 'zod';
 
 export const opsEventSchema = z.object({
-  event_name: z.enum(['login', 'checkout', 'client_error', 'printer_error', 'sync_error']),
+  event_name: z.enum([
+    'login',
+    'checkout',
+    'transaction_created',
+    'upgrade_clicked',
+    'gamification_used',
+    'loyalty_used',
+    'pdf_exported',
+    'payment_started',
+    'payment_completed',
+    'feedback_submitted',
+    'client_error',
+    'printer_error',
+    'sync_error',
+  ]),
   status: z.enum(['success', 'failure']),
   email: z.string().trim().email().optional(),
   store_id: z.string().uuid().optional(),

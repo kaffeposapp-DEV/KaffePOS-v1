@@ -301,40 +301,42 @@ export default function Dashboard() {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="font-display text-2xl font-extrabold text-slate-900">Dashboard</h1>
-                {showBetaBadge ? (
-                  <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-orange-100 bg-orange-50 px-3 text-[10px] font-black uppercase tracking-wider text-[#FF6A00]">
-                    Closed Beta
-                    <button
-                      type="button"
-                      onClick={() => {
-                        try {
-                          localStorage.setItem('kpos_dashboard_beta_badge_dismissed', '1');
-                        } catch {
-                          /* ignore */
-                        }
-                        setShowBetaBadge(false);
-                      }}
-                      className="ml-0.5 flex h-5 min-h-0 w-5 min-w-0 items-center justify-center rounded-full text-orange-700 hover:bg-orange-100"
-                      aria-label="Sembunyikan badge beta"
-                      title="Sembunyikan badge beta"
-                    >
-                      <X size={12} />
-                    </button>
-                  </span>
-                ) : null}
               </div>
               <p className="text-slate-500 font-semibold text-[12px] mt-1 flex items-center gap-2">
                 <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-rose-500'} animate-pulse`} />
                 {storeSettings?.store_name || 'KaffePOS'} · {isOnline ? 'Terhubung Cloud' : 'Offline Mode'}
               </p>
             </div>
-            <button
-              onClick={handleRefresh}
-              disabled={!storeId || refreshing || syncing}
-              className="w-10 h-10 shrink-0 rounded-lg bg-white border border-slate-200/80 shadow-sm text-slate-500 flex items-center justify-center disabled:opacity-50 active:scale-95 transition-all hover:bg-orange-50 hover:text-[#FF6A00]"
-            >
-              <RefreshCw size={20} className={refreshing || syncing ? 'animate-spin text-[#FF6A00]' : ''} />
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              {showBetaBadge ? (
+                <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-orange-100 bg-orange-50 px-3 text-[10px] font-black uppercase tracking-wider text-[#FF6A00]">
+                  Beta Version
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        localStorage.setItem('kpos_dashboard_beta_badge_dismissed', '1');
+                      } catch {
+                        /* ignore */
+                      }
+                      setShowBetaBadge(false);
+                    }}
+                    className="ml-0.5 flex h-5 min-h-0 w-5 min-w-0 items-center justify-center rounded-full text-orange-700 hover:bg-orange-100"
+                    aria-label="Sembunyikan badge beta"
+                    title="Sembunyikan badge beta"
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ) : null}
+              <button
+                onClick={handleRefresh}
+                disabled={!storeId || refreshing || syncing}
+                className="w-10 h-10 shrink-0 rounded-lg bg-white border border-slate-200/80 shadow-sm text-slate-500 flex items-center justify-center disabled:opacity-50 active:scale-95 transition-all hover:bg-orange-50 hover:text-[#FF6A00]"
+              >
+                <RefreshCw size={20} className={refreshing || syncing ? 'animate-spin text-[#FF6A00]' : ''} />
+              </button>
+            </div>
           </div>
 
           <div className="kaffe-scroll-tabs flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4">
@@ -380,6 +382,15 @@ export default function Dashboard() {
                 </h2>
                 <p className="mt-1 text-xs font-semibold leading-relaxed text-orange-900">
                   Gratis 14 Hari • Full Akses Signature • Otomatis Rp49.000/bulan setelah trial berakhir
+                </p>
+                <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/80 ring-1 ring-orange-100">
+                  <div
+                    className="h-full rounded-full bg-[#FF6A00] transition-all"
+                    style={{ width: `${Math.min(100, Math.max(0, ((14 - subscriptionAccess.daysRemaining) / 14) * 100))}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-[11px] font-bold text-orange-700">
+                  Hari ke-{Math.min(14, Math.max(1, 14 - subscriptionAccess.daysRemaining + 1))} dari 14. Upgrade bisa kapan saja tanpa mengganggu transaksi.
                 </p>
               </div>
               <button
@@ -667,6 +678,9 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+        </div>
+        <div className="rounded-2xl border border-orange-100 bg-white px-4 py-3 text-center text-[11px] font-bold text-slate-500 shadow-sm">
+          Terima kasih telah ikut Closed Beta. Feedback kamu membantu KaffePOS makin siap untuk cafe owner Indonesia.
         </div>
       </div>
     </div>

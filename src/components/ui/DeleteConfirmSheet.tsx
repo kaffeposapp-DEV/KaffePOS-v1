@@ -7,6 +7,7 @@
 // src/components/ui/DeleteConfirmSheet.tsx
 
 import { Trash2, X } from 'lucide-react';
+import { useModalBehavior } from '@/hooks/useModalBehavior';
 
 interface Props {
   visible:   boolean;
@@ -17,11 +18,20 @@ interface Props {
 }
 
 export default function DeleteConfirmSheet({ visible, title, message, onConfirm, onCancel }: Props) {
+  const { panelRef, onBackdropClick, dialogProps } = useModalBehavior<HTMLDivElement>({
+    open: visible,
+    onClose: onCancel,
+  });
+
   if (!visible) return null;
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center"
-      onClick={onCancel}>
-      <div className="bg-white w-full max-w-md rounded-t-3xl p-5 pb-8"
+      onClick={onBackdropClick}>
+      <div
+        ref={panelRef}
+        className="bg-white w-full max-w-md rounded-t-3xl p-5 pb-8"
+        aria-labelledby="delete-confirm-title"
+        {...dialogProps}
         onClick={e => e.stopPropagation()}>
         {/* Handle bar */}
         <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-5" />
@@ -32,7 +42,7 @@ export default function DeleteConfirmSheet({ visible, title, message, onConfirm,
         </div>
 
         {/* Text */}
-        <h3 className="font-black text-slate-800 text-xl text-center mb-1">{title}</h3>
+        <h3 id="delete-confirm-title" className="font-black text-slate-800 text-xl text-center mb-1">{title}</h3>
         {message && (
           <p className="text-slate-400 text-sm text-center mb-5">{message}</p>
         )}

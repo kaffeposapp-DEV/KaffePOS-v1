@@ -110,6 +110,65 @@ describe('SubscriptionCheckoutFlow interaction', () => {
     expect(document.querySelector('.modal-content')).not.toBeInTheDocument();
   });
 
+  it('closes checkout from X, backdrop, and Escape', () => {
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <SubscriptionCheckoutFlow
+        open
+        plan="signature"
+        billingCycle="monthly"
+        onClose={onClose}
+        toast={{ showToast: vi.fn() }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Tutup checkout langganan/i }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <SubscriptionCheckoutFlow
+        open
+        plan="signature"
+        billingCycle="monthly"
+        onClose={onClose}
+        toast={{ showToast: vi.fn() }}
+      />,
+    );
+    fireEvent.click(document.querySelector('.subscription-checkout-overlay') as HTMLElement);
+    expect(onClose).toHaveBeenCalledTimes(2);
+
+    rerender(
+      <SubscriptionCheckoutFlow
+        open
+        plan="signature"
+        billingCycle="monthly"
+        onClose={onClose}
+        toast={{ showToast: vi.fn() }}
+      />,
+    );
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(3);
+  });
+
+  it('returns to previous checkout step from Kembali button', () => {
+    render(
+      <SubscriptionCheckoutFlow
+        open
+        plan="signature"
+        billingCycle="monthly"
+        onClose={vi.fn()}
+        toast={{ showToast: vi.fn() }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Lanjut Pilih Pembayaran/i }));
+    expect(screen.getByText('Pilih Pembayaran')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Kembali/i }));
+
+    expect(screen.getByText('Pilih Paket')).toBeInTheDocument();
+  });
+
   it('surfaces unavailable payment config as a toast instead of getting stuck loading', async () => {
     vi.mocked(getSubscriptionPaymentQuote).mockResolvedValueOnce({
       quote,

@@ -33,6 +33,9 @@ export const envSchema = z.object({
   RESEND_API_KEY: z.string().trim().optional(),
   RESEND_FROM_EMAIL: z.string().trim().optional(),
   MIDTRANS_ENVIRONMENT: z.enum(['sandbox', 'production']).default('sandbox'),
+  MIDTRANS_IS_PRODUCTION: z
+    .union([z.literal('true'), z.literal('false')])
+    .optional(),
   MIDTRANS_SERVER_KEY: z.string().trim().optional(),
   MIDTRANS_CLIENT_KEY: z.string().trim().optional(),
   MIDTRANS_MERCHANT_ID: z.string().trim().optional(),
