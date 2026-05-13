@@ -227,10 +227,10 @@ export default function HistoryTab({
 
       {/* ── Detail Modal ── */}
       {detail && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-end md:items-center justify-center p-0 md:p-6" onClick={detailModal.onBackdropClick}>
+        <div className="kaffe-modal-overlay fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/50 backdrop-blur-sm md:items-center" onClick={detailModal.onBackdropClick}>
           <div
             ref={detailModal.panelRef}
-            className="bg-white w-full max-w-[480px] rounded-t-[32px] md:rounded-[40px] p-8 max-h-[95vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom-20 duration-500"
+            className="kaffe-modal-panel bg-white w-full max-w-[480px] overflow-y-auto rounded-t-[28px] p-6 shadow-2xl animate-in slide-in-from-bottom-20 duration-500 sm:p-8 md:rounded-[28px]"
             aria-labelledby="history-detail-title"
             {...detailModal.dialogProps}
           >
@@ -302,10 +302,10 @@ export default function HistoryTab({
 
       {/* ── Void Confirm Modal ── */}
       {showVoid && (
-        <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4" onClick={voidModal.onBackdropClick}>
+        <div className="kaffe-modal-overlay fixed inset-0 z-[80] flex items-end justify-center bg-slate-900/50 backdrop-blur-sm sm:items-center" onClick={voidModal.onBackdropClick}>
           <div
             ref={voidModal.panelRef}
-            className="bg-white rounded-3xl p-5 w-full max-w-sm"
+            className="kaffe-modal-panel bg-white rounded-t-[28px] p-5 w-full max-w-sm sm:rounded-[28px]"
             aria-labelledby="history-void-title"
             {...voidModal.dialogProps}
           >

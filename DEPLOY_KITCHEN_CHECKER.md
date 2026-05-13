@@ -147,11 +147,12 @@ Env frontend:
 
 ```env
 VITE_API_BASE_URL=https://api.kaffepos.my.id
+VITE_APP_VERSION=2.0.0
 VITE_GA_MEASUREMENT_ID=G-VNQJ3XPCGG
 VITE_CLARITY_PROJECT_ID=wf7x39iiqr
-VITE_MIDTRANS_CLIENT_KEY=
-VITE_MIDTRANS_ENVIRONMENT=production
 ```
+
+Midtrans env hanya di backend. Jangan tambahkan `VITE_MIDTRANS_*` ke frontend.
 
 Redeploy frontend setelah backend sehat.
 

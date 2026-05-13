@@ -51,6 +51,7 @@ import {
   deriveConnectivityMode,
   enqueueOfflineOperation,
   getOfflineOutboxSummary,
+  OFFLINE_OUTBOX_EVENT,
   processOfflineOutbox,
   type ConnectivityMode,
 } from '@/lib/offlineQueue';
@@ -493,6 +494,12 @@ if (typeof window !== 'undefined') {
   });
   window.addEventListener('offline', () => {
     useStore.setState({ isOnline: false, syncStatus: 'offline' });
+  });
+  window.addEventListener(OFFLINE_OUTBOX_EVENT, (event) => {
+    const currentStoreId = useStore.getState().storeId;
+    const detail = (event as CustomEvent<{ storeId?: string }>).detail;
+    if (!currentStoreId || (detail?.storeId && detail.storeId !== currentStoreId)) return;
+    void updateSyncIndicators(currentStoreId);
   });
   let visibilityDebounce: ReturnType<typeof setTimeout> | null = null;
   document.addEventListener('visibilitychange', () => {
@@ -1375,6 +1382,7 @@ export const useStore = create<AppStore>((set, get) => ({
       throw new Error(getOfflinePaymentBlockedMessage(tx.method));
     }
     const existingIds = get().transactions.map(transaction => transaction.id);
+    const isFirstTransaction = get().transactions.every(transaction => transaction.is_void);
     const normalizedDate = tx.date || new Date().toISOString();
     const normalizedId = makeUniqueTransactionId(tx.id, existingIds);
 
@@ -1457,14 +1465,30 @@ export const useStore = create<AppStore>((set, get) => ({
         status: 'success',
         store_id: storeId,
         transaction_id: savedTx.id,
-        metadata: { total: savedTx.total, method: savedTx.method, source: 'pos_checkout' },
+        metadata: { total: savedTx.total, method: savedTx.method, source: 'pos_checkout', isFirstTransaction },
       });
       trackAnalyticsEvent('transaction_created', {
         store_id: storeId,
         transaction_id: savedTx.id,
         value: savedTx.total,
         payment_method: savedTx.method,
+        is_first_transaction: isFirstTransaction,
       });
+      if (isFirstTransaction) {
+        trackAnalyticsEvent('first_transaction', {
+          store_id: storeId,
+          transaction_id: savedTx.id,
+          value: savedTx.total,
+          payment_method: savedTx.method,
+        });
+        void trackOpsEvent({
+          event_name: 'first_transaction',
+          status: 'success',
+          store_id: storeId,
+          transaction_id: savedTx.id,
+          metadata: { total: savedTx.total, method: savedTx.method, source: 'pos_checkout' },
+        });
+      }
       markInserted(savedTx.id);
       set(s => ({
         transactions: s.transactions.some(t => t.id === savedTx.id)

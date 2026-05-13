@@ -602,7 +602,6 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
   const paymentModal = useModalBehavior<HTMLDivElement>({
     open: showPay,
     onClose: closePaymentModal,
-    disabled: checkingOut,
   });
   const receiptModal = useModalBehavior<HTMLDivElement>({
     open: showRcpt && Boolean(lastTx),
@@ -868,10 +867,10 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
 
       {/* ── UNIFIED PAYMENT MODAL ── */}
       {showPay && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-end md:items-center justify-center p-0 md:p-6" onClick={paymentModal.onBackdropClick}>
+        <div className="kaffe-modal-overlay fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/50 backdrop-blur-sm md:items-center" onClick={paymentModal.onBackdropClick}>
           <div
             ref={paymentModal.panelRef}
-            className="kaffe-panel w-full max-w-[500px] rounded-t-[28px] md:rounded-[28px] p-6 sm:p-8 max-h-[95vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom-20 duration-500"
+            className="kaffe-panel kaffe-modal-panel w-full max-w-[500px] overflow-y-auto rounded-t-[28px] p-6 shadow-2xl animate-in slide-in-from-bottom-20 duration-500 sm:p-8 md:rounded-[28px]"
             aria-labelledby="pos-payment-title"
             {...paymentModal.dialogProps}
           >
@@ -880,7 +879,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
                 <h3 id="pos-payment-title" className="font-display text-2xl font-extrabold text-slate-900 tracking-tight">Pembayaran</h3>
                 <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest mt-1">Konfirmasi pesanan</p>
               </div>
-              <button onClick={closePaymentModal} disabled={checkingOut} className="p-3 bg-white border border-slate-100 rounded-2xl text-slate-500 hover:bg-orange-50 hover:text-[#FF6A00] transition-colors disabled:opacity-50"><X size={22}/></button>
+              <button onClick={closePaymentModal} className="p-3 bg-white border border-slate-100 rounded-2xl text-slate-500 hover:bg-orange-50 hover:text-[#FF6A00] transition-colors"><X size={22}/></button>
             </div>
 
             <div className="kaffe-soft-section text-center mb-8 rounded-2xl p-6">
@@ -1028,10 +1027,10 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
 
       {/* ── RECEIPT MODAL ── */}
       {showRcpt && lastTx && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={receiptModal.onBackdropClick}>
+        <div className="kaffe-modal-overlay fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" onClick={receiptModal.onBackdropClick}>
           <div
             ref={receiptModal.panelRef}
-            className="bg-white w-full max-w-[360px] rounded-[32px] p-6 shadow-2xl animate-in zoom-in-95 duration-200"
+            className="kaffe-modal-panel bg-white w-full max-w-[360px] overflow-y-auto rounded-[28px] p-6 shadow-2xl animate-in zoom-in-95 duration-200"
             aria-labelledby="pos-receipt-title"
             {...receiptModal.dialogProps}
           >
@@ -1098,10 +1097,10 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
 
       {/* ── VOUCHER MODAL ── */}
       {showVouchers && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[70] flex items-end md:items-center justify-center p-0 md:p-4" onClick={voucherModal.onBackdropClick}>
+        <div className="kaffe-modal-overlay fixed inset-0 z-[90] flex items-end justify-center bg-slate-900/50 backdrop-blur-sm md:items-center" onClick={voucherModal.onBackdropClick}>
           <div
             ref={voucherModal.panelRef}
-            className="kaffe-panel w-full max-w-[500px] rounded-t-[28px] md:rounded-[28px] p-6 sm:p-8 shadow-2xl animate-in slide-in-from-bottom-20 duration-500"
+            className="kaffe-panel kaffe-modal-panel w-full max-w-[500px] overflow-y-auto rounded-t-[28px] p-6 shadow-2xl animate-in slide-in-from-bottom-20 duration-500 sm:p-8 md:rounded-[28px]"
             aria-labelledby="pos-voucher-title"
             {...voucherModal.dialogProps}
           >

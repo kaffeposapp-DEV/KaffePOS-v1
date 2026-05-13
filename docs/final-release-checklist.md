@@ -13,20 +13,27 @@ Checklist ini dipakai sebelum go-live production atau sebelum APK debug/release 
 - Frontend publish directory: `dist`
 - Backend env production:
   - `NODE_ENV=production`
+  - `APP_VERSION=2.0.0-beta`
+  - `MIN_SUPPORTED_WEB_VERSION=2.0.0`
+  - `MIN_SUPPORTED_APK_VERSION=2.0.0`
   - `WEB_BASE_URL=https://kaffepos.my.id`
   - `API_BASE_URL=https://api.kaffepos.my.id`
   - `CORS_ORIGIN=https://kaffepos.my.id,https://www.kaffepos.my.id,https://api.kaffepos.my.id,https://localhost,capacitor://localhost,http://localhost`
   - `DATABASE_URL` atau `DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD`
   - `RESEND_API_KEY`
   - `RESEND_FROM_EMAIL=KaffePOS <no-reply@kaffepos.my.id>`
+  - `CLOUDFLARE_R2_PUBLIC_URL=https://cdn.kaffepos.my.id`
   - `MIDTRANS_ENVIRONMENT=production`
   - `MIDTRANS_SERVER_KEY`
+  - `MIDTRANS_CLIENT_KEY`
   - `MIDTRANS_MERCHANT_ID`
   - `MIDTRANS_SNAP_ENABLED=true`
   - `MIDTRANS_WEBHOOK_BASE_URL=https://api.kaffepos.my.id`
   - `SUBSCRIPTION_PAYMENT_MODE=auto`
 - Frontend env production:
   - `VITE_API_BASE_URL=https://api.kaffepos.my.id` atau kosong untuk fallback production
+  - `VITE_APP_VERSION=2.0.0`
+  - `VITE_CLOUDFLARE_CDN_BASE_URL=https://cdn.kaffepos.my.id`
   - `VITE_CLARITY_PROJECT_ID=wf7x39iiqr`
   - `VITE_GA_MEASUREMENT_ID=G-VNQJ3XPCGG`
   - Tidak ada `VITE_MIDTRANS_*`; Snap token/payment URL dibuat backend.
@@ -61,6 +68,7 @@ npm run release:verify-config
 - Always Use HTTPS: aktif.
 - API caching: bypass untuk `api.kaffepos.my.id/*`.
 - Web caching: boleh cache static assets, jangan cache HTML app shell terlalu agresif saat release.
+- Static cache mengikuti [public/_headers](/Users/macbook/kaffepos-new/kaffepos-v2/public/_headers); cache panjang hanya untuk hashed assets.
 - Pastikan tidak ada mixed content HTTP dari web/APK.
 
 ## 3. Midtrans
@@ -68,8 +76,8 @@ npm run release:verify-config
 - Dashboard Midtrans memakai environment production.
 - Notification URL:
   - `https://api.kaffepos.my.id/api/payments/midtrans/webhook`
-- Frontend memakai production client key.
-- Backend memakai production server key dan merchant id.
+- Frontend tidak memakai Midtrans key.
+- Backend memakai production server key, client key, dan merchant id.
 - Metode aktif sesuai produk:
   - QRIS
   - BCA VA
@@ -87,7 +95,7 @@ npm run release:verify-config
 - `VITE_CLARITY_PROJECT_ID=wf7x39iiqr` ada di frontend production.
 - `SENTRY_DSN` ada di backend production.
 - `VITE_SENTRY_DSN` ada di frontend production.
-- Jalankan `npm run backup:postgres` sebelum deploy/migration.
+- Jalankan `npm --prefix backend run backup:critical` sebelum deploy/migration besar.
 - Jalankan `npm --prefix backend run migrate` di staging lalu production setelah backup hijau.
 - Tracking script hanya muncul satu kali dengan id `kaffepos-clarity`.
 - Verifikasi setelah deploy:
@@ -99,19 +107,23 @@ npm run release:verify-config
 ## 5. PostgreSQL / Backend
 
 - Jalankan backup sebelum migration/bootstrap.
+- Untuk environment baru, jalankan `database/production-bootstrap.sql`.
+- Untuk environment existing, jangan ulang bootstrap tanpa review.
 - Jalankan migration versioned terbaru:
 
 ```bash
+npm --prefix backend run backup:critical
 npm --prefix backend run migrate
 ```
 
-- Jalankan `database/production-bootstrap.sql` ke DB production-like/production.
+- Pastikan tabel `migrations`, `app_versions`, dan `app_update_events` tersedia setelah migrasi.
 - Validasi:
 
 ```bash
 curl -fsS https://api.kaffepos.my.id/health
 curl -fsS https://api.kaffepos.my.id/health/db
 curl -fsS https://api.kaffepos.my.id/system-status
+curl -fsS https://api.kaffepos.my.id/api/app/version
 ```
 
 - Pastikan `warnings` kosong atau hanya warning non-blocking yang disetujui.
@@ -154,6 +166,7 @@ INSTALL=1 npm run android:usb-debug
   - POS tunai
   - QRIS/payment online saat koneksi aktif
   - mode offline lalu reconnect
+  - safe update banner tidak mengganggu flow
   - printer config tetap ada
   - nav Stok dan subtabnya terbuka
   - POS produk dengan resep mengurangi stok bahan
@@ -171,6 +184,8 @@ Go-live jika:
 - `/api/v1/auth/login`, `/api/v1/transactions`, pagination, checkout stock deduction, void restore, dan `POST /api/inventory/adjustments` hijau lewat `npm run smoke:staging:stock`.
 - `/health`, `/health/db`, `/system-status` hijau.
 - Payment production settlement berhasil membuka lisensi.
+- `/api/app/version` sehat dan event update tercatat.
+- Closed Beta feedback berhasil terkirim.
 - Clarity menerima session.
 - Tidak ada env Supabase.
 

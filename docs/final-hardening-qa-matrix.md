@@ -11,12 +11,17 @@ Dokumen ini adalah checklist QA minimum sebelum menaikkan KaffePOS dari beta ber
 - [ ] Backend production sudah redeploy setelah perubahan CORS final.
 - [ ] `npm run smoke:production:readiness` lulus dari mesin operator.
 - [ ] `MIDTRANS_ENVIRONMENT=production`.
+- [ ] Tidak ada `VITE_MIDTRANS_*` di frontend production.
 - [ ] `SUBSCRIPTION_PAYMENT_MODE=auto` atau `midtrans_production`.
 - [ ] `MIDTRANS_SNAP_ENABLED=true`.
 - [ ] Midtrans webhook production diarahkan ke `https://api.kaffepos.my.id/api/payments/midtrans/webhook`.
 - [ ] `RESEND_API_KEY` dan `RESEND_FROM_EMAIL` aktif.
+- [ ] `APP_VERSION`, `MIN_SUPPORTED_WEB_VERSION`, dan `MIN_SUPPORTED_APK_VERSION` sesuai release.
+- [ ] `GET /api/app/version` lulus.
 - [ ] `SENTRY_DSN` backend dan `VITE_SENTRY_DSN` frontend aktif.
 - [ ] `VITE_CLARITY_PROJECT_ID` aktif pada build frontend production.
+- [ ] `VITE_GA_MEASUREMENT_ID` aktif pada build frontend production.
+- [ ] Cloudflare tidak cache HTML app shell terlalu lama.
 
 ## Device Matrix
 
@@ -36,6 +41,9 @@ Dokumen ini adalah checklist QA minimum sebelum menaikkan KaffePOS dari beta ber
 - [ ] Kasir aktif bisa login dan hanya melihat fitur sesuai permission.
 - [ ] Kasir nonaktif ditolak dengan pesan manusiawi.
 - [ ] POS checkout tunai dan non-tunai berhasil.
+- [ ] Closed Beta feedback terkirim dan notifikasi admin masuk.
+- [ ] Trial countdown/prompt hari ke-10/hari ke-13/expired tampil sesuai tanggal.
+- [ ] App update banner muncul hanya saat diperlukan dan tidak memaksa logout.
 - [ ] Kitchen menerima order dan status bisa berubah sesuai aturan.
 - [ ] Stok berkurang setelah transaksi dan bisa opname.
 - [ ] Billing checkout membuat sesi Midtrans production.

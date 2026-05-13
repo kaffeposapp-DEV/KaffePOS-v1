@@ -9,6 +9,7 @@ Backend ini dipakai sebagai pusat data dan auth untuk Web serta APK KaffePOS.
 - PostgreSQL
 - Resend
 - Midtrans
+- Cloudflare asset helper
 - Coolify-ready Dockerfile
 
 ## Scripts
@@ -19,6 +20,8 @@ npm install
 npm run dev
 npm run typecheck
 npm run build
+npm run backup:critical
+npm run migrate
 npm run start
 ```
 
@@ -30,6 +33,9 @@ Variabel penting:
 
 ```env
 NODE_ENV=production
+APP_VERSION=2.0.0-beta
+MIN_SUPPORTED_WEB_VERSION=2.0.0
+MIN_SUPPORTED_APK_VERSION=2.0.0
 PORT=8787
 DB_HOST=kaffepos-postgres
 DB_PORT=5432
@@ -41,6 +47,7 @@ WEB_BASE_URL=https://kaffepos.my.id
 API_BASE_URL=https://api.kaffepos.my.id
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=KaffePOS <no-reply@kaffepos.my.id>
+CLOUDFLARE_R2_PUBLIC_URL=https://cdn.kaffepos.my.id
 MIDTRANS_ENVIRONMENT=production
 MIDTRANS_IS_PRODUCTION=true
 MIDTRANS_SERVER_KEY=
@@ -62,6 +69,8 @@ Catatan:
 - `GET /health`
 - `GET /health/db`
 - `GET /system-status`
+- `GET /api/app/version`
+- `POST /api/app/update-events`
 
 Contoh:
 
@@ -69,6 +78,7 @@ Contoh:
 curl https://api.kaffepos.my.id/health
 curl https://api.kaffepos.my.id/health/db
 curl https://api.kaffepos.my.id/system-status
+curl https://api.kaffepos.my.id/api/app/version
 ```
 
 ## Logging
@@ -97,6 +107,9 @@ Backend mengelola:
 - password reset
 - subscription email notification
 - Midtrans subscription payment session + webhook settlement
+- trial reminder email
+- invoice / receipt email
+- feedback thank you email
 
 Semua email dikirim via Resend dari backend, tanpa edge function eksternal.
 
@@ -110,6 +123,16 @@ Atur service dengan:
 - Health check: `GET http://localhost:8787/health`
 - Domain: `https://api.kaffepos.my.id`
 
-## Database bootstrap
+## Database bootstrap & migration
 
-Sebelum cutover penuh, jalankan [database/production-bootstrap.sql](/Users/macbook/kaffepos-new/kaffepos-v2/database/production-bootstrap.sql) ke database production agar relasi lama ke `auth.users` dilepas dan tabel auth baru tersedia.
+Untuk environment baru, jalankan [database/production-bootstrap.sql](/Users/macbook/kaffepos-new/kaffepos-v2/database/production-bootstrap.sql) ke database production agar relasi lama ke `auth.users` dilepas dan tabel auth baru tersedia.
+
+Untuk environment existing, gunakan migrasi versioned:
+
+```bash
+cd backend
+npm run backup:critical
+npm run migrate
+```
+
+Migrasi mencatat checksum di tabel `migrations`. Versioning aplikasi memakai `app_versions`; event update memakai `app_update_events`.

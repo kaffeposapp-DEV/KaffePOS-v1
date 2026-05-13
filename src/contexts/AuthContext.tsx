@@ -22,6 +22,8 @@ import type { SubscriptionPlanId } from '@/lib/subscriptionPlans';
 import { APP_PRESERVED_STORAGE_KEYS } from '@/lib/appUpgrade';
 import { getPermissionsForRole, hasPermission, normalizeUserRole, type Permission, type UserRole } from '@/lib/accessControl';
 import { normalizeUserFacingError } from '@/lib/errorMessages';
+import { trackAnalyticsEvent } from '@/lib/analytics';
+import { trackOpsEvent } from '@/lib/opsMetrics';
 
 type AuthCtx = {
   user: AuthUser | null;
@@ -77,6 +79,13 @@ function getResetPayload() {
   }
 
   return getPasswordResetParams(new URL(window.location.href));
+}
+
+function getValidationMessage(error: unknown) {
+  if (!error || typeof error !== 'object') return null;
+  const issues = (error as { issues?: Array<{ message?: unknown }> }).issues;
+  const message = issues?.find((issue) => typeof issue.message === 'string')?.message;
+  return typeof message === 'string' ? message : null;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -231,9 +240,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         resolvedProfile,
       );
 
+      trackAnalyticsEvent('login', { method: 'email' });
+      void trackOpsEvent({
+        event_name: 'login',
+        status: 'success',
+        email: parsed.email,
+        metadata: { method: 'email' },
+      });
       return { error: null };
     } catch (error) {
+      const validationMessage = getValidationMessage(error);
+      if (validationMessage) return { error: validationMessage };
       const message = normalizeUserFacingError(error, 'Login belum bisa diproses. Coba lagi beberapa saat.');
+      void trackOpsEvent({
+        event_name: 'login',
+        status: 'failure',
+        email: email.trim().toLowerCase(),
+        error_message: message,
+        metadata: { method: 'email' },
+      });
       if (message === 'email_not_confirmed') {
         return { error: 'email_not_confirmed' };
       }
@@ -256,17 +281,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const result = await registerRequest(parsed);
       localStorage.setItem('kaffepos_registered_email', parsed.email);
+      trackAnalyticsEvent('register', { method: 'email', needs_verification: result.needsVerification });
+      void trackOpsEvent({
+        event_name: 'register',
+        status: 'success',
+        email: parsed.email,
+        metadata: { method: 'email', needsVerification: result.needsVerification },
+      });
       return {
         error: null,
         needsVerification: result.needsVerification,
         message: result.message,
       };
     } catch (error) {
+      const validationMessage = getValidationMessage(error);
+      if (validationMessage) return { error: validationMessage };
       const normalized = normalizeSignupErrorMessage(
         error instanceof Error
           ? { message: error.message, status: (error as Error & { status?: number }).status }
           : { message: 'Pendaftaran gagal.' },
       );
+      void trackOpsEvent({
+        event_name: 'register',
+        status: 'failure',
+        email: email.trim().toLowerCase(),
+        error_message: normalized || 'Pendaftaran gagal.',
+        metadata: { method: 'email' },
+      });
       return { error: normalized || 'Pendaftaran gagal.' };
     }
   }, []);
@@ -276,7 +317,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await resendVerificationRequest({ email: email.trim().toLowerCase() });
       return { error: null };
     } catch (error) {
-      return { error: error instanceof Error ? error.message : 'Gagal mengirim ulang kode verifikasi.' };
+      return { error: normalizeUserFacingError(error, 'Gagal mengirim ulang kode verifikasi.') };
     }
   }, []);
 
@@ -289,7 +330,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('kaffepos_registered_email');
       return { error: null };
     } catch (error) {
-      return { error: error instanceof Error ? error.message : 'Kode verifikasi tidak valid.' };
+      return { error: normalizeUserFacingError(error, 'Kode verifikasi tidak valid.') };
     }
   }, []);
 
@@ -312,7 +353,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await forgotPasswordRequest({ email: email.trim().toLowerCase() });
       return { error: null };
     } catch (error) {
-      return { error: error instanceof Error ? error.message : 'Gagal mengirim email reset password.' };
+      return { error: normalizeUserFacingError(error, 'Gagal mengirim email reset password.') };
     }
   }, []);
 
@@ -338,7 +379,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return { error: null };
     } catch (error) {
-      return { error: error instanceof Error ? error.message : 'Gagal memperbarui password.' };
+      return { error: normalizeUserFacingError(error, 'Gagal memperbarui password.') };
     }
   }, []);
 

@@ -1,18 +1,22 @@
 # KaffePOS APK Go-Live Checklist (Commercial)
 
-Gunakan dokumen ini sebagai gerbang rilis sebelum APK dipublikasikan ke pengguna komersial.
+Gunakan dokumen ini sebagai gerbang rilis sebelum APK dipublikasikan ke pengguna komersial atau sebelum Closed Beta diperluas ke owner cafe.
 
-Catatan status terkini, 5 Mei 2026:
+Catatan status terkini, 13 Mei 2026:
 
-- Status release saat ini: `Pilot`, belum `Commercial`.
-- Nilai kesiapan praktis terkini: `7/10`.
-- `npm run smoke:production:readiness` masih gagal karena CORS `https://localhost`, Midtrans sandbox, `subscription_payments=false`, dan backend error tracking belum aktif.
+- Status release saat ini: `Closed Beta Candidate`, belum `Commercial`.
+- Nilai kesiapan praktis terkini: `8/10` untuk Closed Beta terbatas, belum cukup untuk commercial general release.
+- `npm run check` hijau secara lokal setelah konsolidasi beta/integrasi/update docs.
+- Gate komersial tetap butuh UAT device nyata, matrix printer nyata, deliverability email, payment production smoke test, dan monitoring crash live.
 - Commercial launch umum hanya boleh dilakukan setelah gate di [docs/rfc/0002-commercial-readiness-hardening.md](/Users/macbook/kaffepos-new/kaffepos-v2/docs/rfc/0002-commercial-readiness-hardening.md) hijau.
 
 Baseline operasional yang dipakai saat ini:
 - Domain + hosting aktif di `kaffepos.my.id`
 - Backend utama di API KaffePOS self-hosted
 - Email auth / transactional memakai Resend
+- CDN/static asset lewat Cloudflare
+- Analytics lewat GA4 dan Microsoft Clarity
+- Payment subscription lewat Midtrans backend-only
 - APK Android dibangun dari Capacitor
 - Monitoring APK yang direkomendasikan: Firebase Crashlytics
 
@@ -32,13 +36,17 @@ Status:
 
 - [x] **P0** APK flow tidak menampilkan landing page web (mobile target build).
 - [x] **P0** Auth flow dasar tersedia: login, register, OTP verification, reset password.
+- [x] **P0** Closed Beta badge, pesan beta, dan feedback form tersedia.
+- [x] **P0** Trial countdown 14 hari dan prompt hari ke-10/hari ke-13/expired tersedia.
 - [ ] **P0** UAT skenario kasir harian (buka kas, transaksi, void, tutup hari) di perangkat nyata.
-- [ ] **P1** Empty states dan error states sudah konsisten untuk semua tab utama.
-- [ ] **P1** Copywriting final untuk pesan error/validasi user-facing.
+- [~] **P1** Empty states dan error states sudah konsisten untuk tab utama; tetap perlu review device nyata.
+- [~] **P1** Copywriting final untuk pesan error/validasi user-facing; baseline ramah sudah tersedia.
 
 ## 2) Security & Data Protection
 
 - [x] **P0** Secret sensitif hanya hidup di backend API, bukan di client app.
+- [x] **P0** Midtrans server key dan webhook verification backend-only.
+- [x] **P0** Safe update system tersedia: migrations checksum, `app_versions`, `app_update_events`, dan backup critical data.
 - [x] **P0** Audit RLS per tabel kritikal (`stores`, `transactions`, `inventory`, `profiles`, `notifications`) sudah diverifikasi + `FORCE RLS` diterapkan.
 - [x] **P0** Uji akses lintas akun: akun A tidak bisa baca/ubah data akun B.
 - [~] **P1** Rate limit abuse test untuk endpoint auth email / verify otp / notifications (unit test helper + shared enforcement sudah ada, tinggal uji burst live di staging/device).
@@ -50,12 +58,14 @@ Status:
 - [x] **P0** OTP verifikasi email bekerja dan mengaktifkan akun.
 - [x] **P0** Welcome email dan security email menggunakan Resend.
 - [ ] **P0** Uji deliverability inbox utama (Gmail, Outlook, Yahoo) + cek spam rate.
-- [x] **P1** Fallback handling saat Resend timeout (retry policy + timeout + backoff) sudah ada di edge function email.
+- [x] **P1** Template welcome, password reset, trial reminder, invoice/receipt, dan feedback thank you tersedia.
+- [x] **P1** Fallback handling saat Resend timeout (retry policy + timeout + backoff) sudah ada di backend EmailService.
 
 ## 4) Core Transaction Reliability
 
 - [ ] **P0** Test race condition checkout di 2 device dengan akun sama.
 - [ ] **P0** Test offline-online sync untuk menu, inventory, expenses, cashflow, cash register.
+- [ ] **P0** Test offline-online sync untuk transaction queue, stock deduction, loyalty, dan gamification di tablet Android.
 - [ ] **P0** Test integritas stok setelah checkout dan void berulang.
 - [x] **P1** Guard untuk mencegah load/sync storm saat app resume/network reconnect.
 - [ ] **P1** Snapshot DB consistency test setelah 1 hari simulasi transaksi padat.
@@ -65,6 +75,7 @@ Status:
 - [ ] **P0** Smoke test di minimal 3 kelas device Android (low/mid/high).
 - [ ] **P0** ANR/crash test dengan sesi > 2 jam.
 - [ ] **P1** Ukur cold start time (target internal: < 3 detik di mid-range device).
+- [ ] **P1** Ukur loading flow POS, Payment, PDF Report, dan Dashboard target < 2 detik di tablet mid-range.
 - [ ] **P1** Uji memory pressure: pindah tab, print, laporan PDF, background/foreground berulang.
 - [ ] **P2** Optimasi ukuran bundle dan assets besar (logo/svg/image).
 
@@ -73,6 +84,7 @@ Status:
 - [~] **P0** Crash reporting sudah terpasang di APK Android (Firebase Crashlytics) dan tinggal verifikasi event crash pertama masuk dashboard.
 - [x] **P0** Alerting untuk error rate edge function sudah aktif di project (`edge_function_events` remote + env `EDGE_ALERT_EMAIL` + deploy function terbaru).
 - [x] **P1** Dashboard metrik bisnis minimal tersedia via `public.ops_daily_metrics` untuk login success rate, checkout success rate, dan OTP success rate.
+- [x] **P1** GA4/Clarity analytics events tersedia untuk register, login, first transaction, upgrade, feature usage, payment, PDF export, dan feedback.
 - [x] **P1** Incident playbook dasar sudah terdokumentasi.
 
 ## 7) Build, Release, and Store Readiness
@@ -81,6 +93,7 @@ Status:
 - [x] **P0** Script APK (`build-apk*`) memakai target mobile.
 - [x] **P0** Build APK debug terbaru berhasil pada `2026-04-19` dan menghasilkan `android/app/build/outputs/apk/debug/app-debug.apk`.
 - [x] **P0** Signing release key, backup key, dan recovery procedure terdokumentasi aman.
+- [x] **P0** App version endpoint dan update sync tersedia untuk web/APK.
 - [ ] **P0** Internal testing track Google Play + closed testing minimal 20 tester.
 - [ ] **P1** Listing Play Store siap (screenshot, deskripsi, kebijakan privasi, kontak support).
 - [x] **P1** Versioning & changelog strategy untuk update rutin.
@@ -134,11 +147,11 @@ Status:
 
 ---
 
-## Catatan Status Saat Ini (terverifikasi 5 Mei 2026)
+## Catatan Status Saat Ini (terverifikasi 13 Mei 2026)
 
-- **Nilai saat ini: 7.0 / 10**
-- Kekuatan: arsitektur auth + database + pemisahan mobile/web build sudah bagus; web/API/database/email production hidup.
-- Blocker utama: production smoke test belum hijau, Midtrans masih sandbox, payment subscription sync belum aktif, backend error tracking belum aktif, CORS APK final belum lengkap, QA lapangan dan matrix printer nyata belum selesai.
+- **Nilai saat ini: 8.0 / 10 untuk Closed Beta terbatas**
+- Kekuatan: auth/backend API, Closed Beta feedback, trial polish, analytics, safe update, Midtrans backend-only, Resend, Cloudflare helper, dan build/test lokal sudah siap.
+- Blocker utama untuk commercial launch: UAT device nyata, matrix printer nyata, deliverability email, payment production webhook, long session stability, dan crash monitoring live.
 
 ---
 

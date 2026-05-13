@@ -11,7 +11,7 @@ type Toast = { showToast: (message: string, type?: 'success' | 'error' | 'warnin
 type FeedbackDraft = {
   store_id?: string | null;
   rating?: number | null;
-  category?: 'Bug' | 'Saran Fitur' | 'Lainnya';
+  category?: 'Bug' | 'Saran' | 'Fitur Baru' | 'Lainnya';
   description?: string;
   screenshot_data?: string | null;
   liked?: string;
@@ -45,7 +45,7 @@ function queueFeedback(payload: FeedbackDraft) {
 export default function BetaFeedbackButton({ storeId, toast }: { storeId?: string | null; toast: Toast }) {
   const [open, setOpen] = useState(false);
   const [rating, setRating] = useState(5);
-  const [category, setCategory] = useState<'Bug' | 'Saran Fitur' | 'Lainnya'>('Saran Fitur');
+  const [category, setCategory] = useState<'Bug' | 'Saran' | 'Fitur Baru' | 'Lainnya'>('Saran');
   const [description, setDescription] = useState('');
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -100,8 +100,8 @@ export default function BetaFeedbackButton({ storeId, toast }: { storeId?: strin
       category,
       description: description.trim(),
       screenshot_data: screenshotData,
-      liked: category === 'Saran Fitur' ? description.trim() : '',
-      improve: category !== 'Saran Fitur' ? description.trim() : '',
+      liked: category === 'Saran' ? description.trim() : '',
+      improve: category !== 'Saran' ? description.trim() : '',
       metadata: {
         userAgent: navigator.userAgent,
         path: window.location.pathname,
@@ -239,11 +239,12 @@ export default function BetaFeedbackButton({ storeId, toast }: { storeId?: strin
                 <span className="mb-2 ml-1 block text-[11px] font-black uppercase tracking-wider text-slate-500">Kategori</span>
                 <select
                   value={category}
-                  onChange={(event) => setCategory(event.target.value as 'Bug' | 'Saran Fitur' | 'Lainnya')}
+                  onChange={(event) => setCategory(event.target.value as 'Bug' | 'Saran' | 'Fitur Baru' | 'Lainnya')}
                   className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none transition-all focus:border-[#FF6A00]/40 focus:ring-4 focus:ring-[#FF6A00]/10"
                 >
                   <option>Bug</option>
-                  <option>Saran Fitur</option>
+                  <option>Saran</option>
+                  <option>Fitur Baru</option>
                   <option>Lainnya</option>
                 </select>
               </label>

@@ -78,13 +78,13 @@ export default function ExpenseModal({ onClose, cashierName, toast }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center" onClick={onBackdropClick}>
+    <div className="kaffe-modal-overlay fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/50 backdrop-blur-sm sm:items-center" onClick={onBackdropClick}>
       <div
         ref={panelRef}
-        className="bg-white w-full max-w-md rounded-t-3xl overflow-hidden"
+        className="kaffe-modal-panel bg-white w-full max-w-md overflow-y-auto rounded-t-[28px] sm:rounded-[28px]"
         aria-labelledby="expense-modal-title"
         {...dialogProps}
-        style={{ animation: 'slideUp 0.25s ease-out', maxHeight: '92vh', overflowY: 'auto' }}>
+        style={{ animation: 'slideUp 0.25s ease-out' }}>
 
         {/* Header */}
         <div className="bg-gradient-to-br from-red-500 to-rose-600 px-5 pt-5 pb-6">

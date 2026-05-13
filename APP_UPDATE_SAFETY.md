@@ -8,6 +8,7 @@ Dokumen ini menjelaskan bagaimana KaffePOS menjaga data user lama saat aplikasi 
 - Session valid tetap dipertahankan.
 - Theme, settings toko, receipt settings, printer config, dan cache lisensi tetap terbaca.
 - First launch setelah update otomatis menjalankan migrasi lokal lalu sync ringan ke backend.
+- Backend dan frontend memakai version check agar web/APK tahu kapan perlu soft update, hard update, atau data sync.
 
 ## Source Of Truth
 
@@ -22,6 +23,34 @@ Dokumen ini menjelaskan bagaimana KaffePOS menjaga data user lama saat aplikasi 
 - Hybrid:
   - store settings dan receipt settings disimpan lokal untuk fast bootstrap, lalu divalidasi lagi dari backend
   - subscription cache dipakai untuk fallback cepat, lalu direfresh dari backend
+
+## Database Versioning
+
+Backend memakai migrasi SQL aman dari folder [backend/migrations](/Users/macbook/kaffepos-new/kaffepos-v2/backend/migrations).
+
+Komponen utama:
+
+- tabel `migrations` menyimpan nama migration, checksum, waktu jalan, dan status
+- tabel `app_versions` menyimpan versi rilis aktif, minimum web/APK yang didukung, rollout note, dan force update flag
+- tabel `app_update_events` mencatat update/sync event per user/store
+- script [backend/scripts/run-migrations.mjs](/Users/macbook/kaffepos-new/kaffepos-v2/backend/scripts/run-migrations.mjs) menolak checksum mismatch agar file migration yang sudah pernah jalan tidak diam-diam berubah
+- script [backend/scripts/backup-critical-data.mjs](/Users/macbook/kaffepos-new/kaffepos-v2/backend/scripts/backup-critical-data.mjs) membuat backup data kritikal sebelum migration besar
+
+Command release:
+
+```bash
+cd backend
+npm run backup:critical
+npm run migrate
+```
+
+Data kritikal yang dicakup backup:
+
+- users/profile/store
+- products/menu/inventory/recipes
+- transactions/order/payment
+- subscriptions/trial
+- loyalty/gamification bila tabel tersedia
 
 ## Apa Yang Persist Saat Upgrade APK Biasa
 
@@ -86,6 +115,26 @@ Migration sekarang mencakup:
 - normalisasi theme key dan custom theme payload
 - normalisasi subscription cache dan monthly transaction cache
 
+## Backend Version Check
+
+Endpoint:
+
+- `GET /api/app/version`
+- `POST /api/app/update-events`
+
+Frontend helper:
+
+- [src/lib/appVersion.ts](/Users/macbook/kaffepos-new/kaffepos-v2/src/lib/appVersion.ts)
+- [src/components/sync/AppVersionSync.tsx](/Users/macbook/kaffepos-new/kaffepos-v2/src/components/sync/AppVersionSync.tsx)
+
+Behavior:
+
+- app mengirim `clientVersion` dan platform
+- backend membalas versi terbaru, minimum supported version, release note, dan mode update
+- soft update menampilkan notifikasi ringan
+- hard update menampilkan pesan jelas agar user update aplikasi
+- update event dicatat untuk debugging rollout
+
 ## Recovery Strategy
 
 Jika payload lokal rusak:
@@ -108,6 +157,7 @@ Urutan startup:
 7. load data lokal dulu untuk fast paint
 8. sync profile, license, dan store data ke backend
 9. hapus marker `post_update_sync_pending` jika sukses
+10. cek `/api/app/version` dan catat event update/sync ke backend
 
 Catatan Android:
 
@@ -120,6 +170,7 @@ Catatan Android:
 - ada banner pemulihan ringan di first launch setelah update
 - banner hilang sendiri setelah sync selesai atau bisa ditutup user
 - jika sync backend gagal sementara, app tetap pakai state lokal yang masih valid
+- jika offline, app tetap bisa dipakai dengan cache/queue dan sync update dicoba lagi saat online
 
 ## Checklist Release
 
@@ -128,7 +179,11 @@ Sebelum publish release baru:
 1. `npm run typecheck`
 2. `npm run test`
 3. `npm run build:web`
-4. smoke test login user lama
-5. smoke test upgrade APK lama -> APK baru di device Android
-6. verifikasi theme, settings, printer, dan license state tetap ada
-7. verifikasi first launch setelah update tidak blank/freeze
+4. `cd backend && npm run backup:critical`
+5. `cd backend && npm run migrate`
+6. smoke test `GET /api/app/version`
+7. smoke test login user lama
+8. smoke test upgrade APK lama -> APK baru di device Android
+9. verifikasi theme, settings, printer, dan license state tetap ada
+10. verifikasi first launch setelah update tidak blank/freeze
+11. verifikasi event update masuk ke `app_update_events`

@@ -4,12 +4,12 @@ Dokumen ini dibuat supaya cutover Midtrans di KaffePOS cukup lewat update env + 
 
 ## Arsitektur akhir
 
-- Frontend hanya memakai:
-  - `VITE_MIDTRANS_CLIENT_KEY`
-  - `VITE_MIDTRANS_ENVIRONMENT`
+- Frontend hanya menerima `snap_token`, `payment_url`, status payment, dan pesan UI dari backend.
+- Frontend tidak menyimpan `VITE_MIDTRANS_*`.
 - Backend hanya memakai secret/config server-side:
   - `MIDTRANS_ENVIRONMENT`
   - `MIDTRANS_SERVER_KEY`
+  - `MIDTRANS_CLIENT_KEY`
   - `MIDTRANS_MERCHANT_ID`
   - `MIDTRANS_SNAP_ENABLED`
   - `MIDTRANS_WEBHOOK_BASE_URL`
@@ -21,21 +21,12 @@ Dokumen ini dibuat supaya cutover Midtrans di KaffePOS cukup lewat update env + 
 
 ## Nilai env frontend
 
-### Sandbox
-
 ```env
 VITE_API_BASE_URL=https://api.kaffepos.my.id
-VITE_MIDTRANS_CLIENT_KEY=SB-Mid-client-xxxxxxxx
-VITE_MIDTRANS_ENVIRONMENT=sandbox
+VITE_APP_VERSION=2.0.0
 ```
 
-### Production
-
-```env
-VITE_API_BASE_URL=https://api.kaffepos.my.id
-VITE_MIDTRANS_CLIENT_KEY=Mid-client-xxxxxxxx
-VITE_MIDTRANS_ENVIRONMENT=production
-```
+Jangan tambahkan `VITE_MIDTRANS_CLIENT_KEY` atau `VITE_MIDTRANS_ENVIRONMENT`.
 
 ## Nilai env backend
 
@@ -44,6 +35,7 @@ VITE_MIDTRANS_ENVIRONMENT=production
 ```env
 MIDTRANS_ENVIRONMENT=sandbox
 MIDTRANS_SERVER_KEY=SB-Mid-server-xxxxxxxx
+MIDTRANS_CLIENT_KEY=SB-Mid-client-xxxxxxxx
 MIDTRANS_MERCHANT_ID=G123456789
 MIDTRANS_SNAP_ENABLED=true
 MIDTRANS_WEBHOOK_BASE_URL=https://api.kaffepos.my.id
@@ -57,6 +49,7 @@ MIDTRANS_ERROR_URL=https://kaffepos.my.id/settings?billing=failed
 ```env
 MIDTRANS_ENVIRONMENT=production
 MIDTRANS_SERVER_KEY=Mid-server-xxxxxxxx
+MIDTRANS_CLIENT_KEY=Mid-client-xxxxxxxx
 MIDTRANS_MERCHANT_ID=G123456789
 MIDTRANS_SNAP_ENABLED=true
 MIDTRANS_WEBHOOK_BASE_URL=https://api.kaffepos.my.id
@@ -71,7 +64,7 @@ MIDTRANS_ERROR_URL=https://kaffepos.my.id/settings?billing=failed
 2. Pastikan payment method yang aktif hanya yang memang mau dipakai untuk subscription.
 3. Pastikan Notification URL di dashboard menunjuk ke:
    - `https://api.kaffepos.my.id/api/payments/midtrans/webhook`
-4. Pastikan `Client Key`, `Server Key`, dan `Merchant ID` yang dipakai benar-benar milik environment production.
+4. Pastikan `Client Key`, `Server Key`, dan `Merchant ID` yang dipakai backend benar-benar milik environment production.
 5. Pastikan QRIS dan Virtual Account aktif di akun production Midtrans.
 
 ## Langkah go-live
@@ -79,12 +72,11 @@ MIDTRANS_ERROR_URL=https://kaffepos.my.id/settings?billing=failed
 1. Update env backend:
    - `MIDTRANS_ENVIRONMENT=production`
    - `MIDTRANS_SERVER_KEY=<production server key>`
+   - `MIDTRANS_CLIENT_KEY=<production client key>`
    - `MIDTRANS_MERCHANT_ID=<production merchant id>`
-2. Update env frontend:
-   - `VITE_MIDTRANS_ENVIRONMENT=production`
-   - `VITE_MIDTRANS_CLIENT_KEY=<production client key>`
+2. Pastikan frontend tidak memiliki env `VITE_MIDTRANS_*`.
 3. Redeploy `KaffePOS API`.
-4. Redeploy `KaffePOS Web`.
+4. Redeploy `KaffePOS Web` bila flow payment UI berubah.
 5. Verifikasi `/system-status` menunjukkan:
    - `payment.environment = production`
    - `payment.apiBaseUrl = https://app.midtrans.com`
@@ -110,9 +102,9 @@ MIDTRANS_ERROR_URL=https://kaffepos.my.id/settings?billing=failed
 
 1. Pause sementara promosi atau akses pembelian jika ada incident payment.
 2. Kembalikan env backend ke sandbox.
-3. Kembalikan env frontend ke sandbox.
+3. Pastikan frontend tetap tanpa `VITE_MIDTRANS_*`.
 4. Redeploy backend.
-5. Redeploy frontend.
+5. Redeploy frontend hanya bila diperlukan.
 6. Pastikan `/system-status` kembali menunjukkan environment sandbox.
 7. Audit transaksi production yang sempat masuk sebelum mengaktifkan ulang.
 
@@ -121,8 +113,9 @@ MIDTRANS_ERROR_URL=https://kaffepos.my.id/settings?billing=failed
 - Production account Midtrans sudah approved.
 - `MIDTRANS_ENVIRONMENT` sudah `production`.
 - Production `MIDTRANS_SERVER_KEY` sudah terpasang.
-- Production `VITE_MIDTRANS_CLIENT_KEY` sudah terpasang.
+- Production `MIDTRANS_CLIENT_KEY` sudah terpasang di backend.
 - Production `MIDTRANS_MERCHANT_ID` sudah terpasang.
+- Tidak ada `VITE_MIDTRANS_*` di frontend.
 - Notification/webhook URL sudah benar di dashboard Midtrans.
 - Backend sudah diredeploy.
 - Frontend sudah diredeploy.

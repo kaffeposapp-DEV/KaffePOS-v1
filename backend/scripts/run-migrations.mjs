@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import 'dotenv/config';
+import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,6 +38,11 @@ async function ensureMigrationTable(client) {
       applied_at timestamptz not null default now()
     )
   `);
+  await client.query('alter table public.schema_migrations add column if not exists checksum text');
+}
+
+function checksumSql(sql) {
+  return createHash('sha256').update(sql).digest('hex');
 }
 
 async function main() {
@@ -58,22 +64,27 @@ async function main() {
 
     for (const file of files) {
       const version = file.replace(/\.sql$/, '');
+      const sql = await readFile(join(migrationsDir, file), 'utf8');
+      const checksum = checksumSql(sql);
       const applied = await client.query(
-        'select version from public.schema_migrations where version = $1 limit 1',
+        'select version, checksum from public.schema_migrations where version = $1 limit 1',
         [version],
       );
 
       if (applied.rows[0]) {
+        const existingChecksum = applied.rows[0].checksum;
+        if (existingChecksum && existingChecksum !== checksum) {
+          throw new Error(`Checksum mismatch for applied migration ${version}. Create a new migration instead of editing applied SQL.`);
+        }
         console.log(`Skipping ${version}, already applied.`);
         continue;
       }
 
-      const sql = await readFile(join(migrationsDir, file), 'utf8');
       console.log(`Applying ${version}...`);
       await client.query(sql);
       await client.query(
-        'insert into public.schema_migrations (version, name) values ($1, $2)',
-        [version, file],
+        'insert into public.schema_migrations (version, name, checksum) values ($1, $2, $3)',
+        [version, file, checksum],
       );
     }
 

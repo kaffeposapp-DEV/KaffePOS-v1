@@ -21,6 +21,9 @@ import {
   buildUpdateClause,
   insertNotification,
   adminEmails,
+  sendFeedbackThankYouEmail,
+  log,
+  serializeError,
 } from '../core';
 import type { PoolClient } from '../core/db';
 
@@ -43,7 +46,7 @@ const pushSubscriptionSchema = z.object({
 const betaFeedbackSchema = z.object({
   store_id: z.string().uuid().optional().nullable(),
   rating: z.number().int().min(1).max(5).optional().nullable(),
-  category: z.enum(['Bug', 'Saran Fitur', 'Lainnya']).optional().default('Lainnya'),
+  category: z.enum(['Bug', 'Saran', 'Fitur Baru', 'Lainnya']).optional().default('Lainnya'),
   description: z.string().trim().max(2400).optional().default(''),
   screenshot_data: z.string().trim().max(1_500_000).optional().nullable(),
   liked: z.string().trim().max(1200).optional().default(''),
@@ -1170,6 +1173,15 @@ router.post('/api/beta-feedback', async (req, res, next) => {
         payload.store_id ?? null,
       )));
     });
+
+    if (req.authUser?.email) {
+      sendFeedbackThankYouEmail(req.authUser.email, payload.category)
+        .catch((error) => log('warn', 'feedback.thank_you_email_failed', {
+          userId: req.authUser?.id,
+          feedbackId: feedback.id,
+          error: serializeError(error),
+        }));
+    }
 
     res.status(201).json(feedback);
   } catch (error) {

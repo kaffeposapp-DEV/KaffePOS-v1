@@ -76,6 +76,24 @@ export type SystemStatusResponse = {
   warnings?: string[];
 };
 
+export type AppVersionResponse = {
+  ok: boolean;
+  appVersion: string;
+  apiVersion: string;
+  databaseSchemaVersion: string | null;
+  releaseChannel: string;
+  releaseNotes: string | null;
+  updateMode: 'none' | 'soft' | 'hard';
+  hardUpdateRequired: boolean;
+  softUpdateAvailable: boolean;
+  minimumSupportedVersion: string;
+  sync: {
+    postUpdateSyncRecommended: boolean;
+    migrationEndpoint: string;
+  };
+  checkedAt: string;
+};
+
 export class ApiError extends Error {
   status: number;
 
@@ -218,6 +236,30 @@ export const logoutRequest = () => apiFetch<{ success: boolean }>('/api/auth/log
   json: {},
 });
 export const getSystemStatus = () => apiFetch<SystemStatusResponse>('/system-status', { auth: false });
+export const getAppVersion = (params: { clientVersion: string; platform: 'web' | 'apk' | 'android' | 'ios' | 'unknown' }) =>
+  apiFetch<AppVersionResponse>(
+    `/api/app/version?clientVersion=${encodeURIComponent(params.clientVersion)}&platform=${encodeURIComponent(params.platform)}`,
+    { auth: false },
+  );
+export const logAppUpdateEvent = (payload: {
+  store_id?: string | null;
+  event_name:
+    | 'version_checked'
+    | 'update_detected'
+    | 'client_storage_migrated'
+    | 'post_update_sync_started'
+    | 'post_update_sync_completed'
+    | 'post_update_sync_failed';
+  client_version?: string | null;
+  server_version?: string | null;
+  platform: 'web' | 'apk' | 'android' | 'ios' | 'unknown';
+  update_mode?: 'none' | 'soft' | 'hard';
+  migration_report?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}) => apiFetch<{ success: boolean }>('/api/app/update-events', {
+  method: 'POST',
+  json: payload,
+});
 
 export type ProfileResponse = {
   id: string;
@@ -608,8 +650,10 @@ export const logUpgradePromptEvent = (payload: UpgradePromptEventPayload) =>
 export const trackOpsEventRequest = (payload: {
   event_name:
     | 'login'
+    | 'register'
     | 'checkout'
     | 'transaction_created'
+    | 'first_transaction'
     | 'upgrade_clicked'
     | 'gamification_used'
     | 'loyalty_used'
@@ -684,7 +728,7 @@ export const registerPushSubscription = (payload: {
 export const submitBetaFeedback = (payload: {
   store_id?: string | null;
   rating?: number | null;
-  category?: 'Bug' | 'Saran Fitur' | 'Lainnya';
+  category?: 'Bug' | 'Saran' | 'Fitur Baru' | 'Lainnya';
   description?: string;
   screenshot_data?: string | null;
   liked?: string;

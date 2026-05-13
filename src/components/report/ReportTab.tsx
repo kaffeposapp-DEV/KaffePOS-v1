@@ -431,7 +431,7 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
     netProfit,
     grossMargin,
     avgTrx,
-    filtered.length,
+    filtered,
     trendData,
     menuRanking,
     paymentData,
@@ -469,7 +469,12 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
       toast.showToast('Laporan PDF berhasil diunduh!', 'success');
     } catch (e:any) {
       toast.showToast(`Gagal membuat PDF: ${e?.message || 'Error'}`, 'error');
-      console.error(e);
+      void trackOpsEvent({
+        event_name: 'pdf_exported',
+        status: 'failure',
+        error_message: e?.message || 'PDF export failed',
+        metadata: { period, transactions: filtered.length, revenue: totalRevenue },
+      });
     } finally {
       setDl(false);
     }

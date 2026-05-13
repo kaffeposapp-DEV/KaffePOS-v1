@@ -275,13 +275,12 @@ export default function PrintActionSheet({
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-end justify-center"
-      style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+      className="kaffe-modal-overlay fixed inset-0 z-[80] flex items-end justify-center bg-slate-900/50 backdrop-blur-sm sm:items-center"
       onClick={onBackdropClick}
     >
       <div
         ref={panelRef}
-        className="bg-white w-full max-w-md rounded-t-3xl overflow-hidden"
+        className="kaffe-modal-panel bg-white w-full max-w-md overflow-y-auto rounded-t-[28px] sm:rounded-[28px]"
         aria-labelledby="print-action-sheet-title"
         {...dialogProps}
         style={{ animation: 'slideUp 0.25s ease-out' }}

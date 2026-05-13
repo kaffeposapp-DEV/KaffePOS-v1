@@ -20,6 +20,7 @@ import { getStoreCacheKey } from '@/utils/sessionIsolation';
 import { ToastContainer, useToast } from './ui/Toast';
 import DailyOpeningModal, { useNeedsOpeningCash } from './pos/DailyOpeningModal';
 import SyncConflictCenter from './sync/SyncConflictCenter';
+import AppVersionSync from './sync/AppVersionSync';
 import type { Tab, ToastType } from '@/types';
 import { isPostUpdateSyncPending, markPostUpdateSyncComplete, readUpgradeReport } from '@/lib/appUpgrade';
 import { subscriptionManager } from '@/services/SubscriptionManager';
@@ -200,6 +201,16 @@ export default function AppShell() {
   const [upgradeBannerDismissedAt, setUpgradeBannerDismissedAt] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { toasts, showToast, dismissToast, showDownloadSuccess, showDownloadError } = useToast();
+
+  const runSafeUpdateSync = useCallback(async () => {
+    const tasks = await Promise.allSettled([
+      refreshProfile(),
+      subscriptionManager.getStatus(true).then(() => undefined),
+      storeId ? loadAll(storeId) : Promise.resolve(),
+    ]);
+    const failed = tasks.find((task) => task.status === 'rejected');
+    if (failed?.status === 'rejected') throw failed.reason;
+  }, [loadAll, refreshProfile, storeId]);
 
   useEffect(() => {
     const handleGlobalToast = (e: Event) => {
@@ -433,7 +444,7 @@ export default function AppShell() {
       isTrial: subscriptionAccess.isTrial,
       trialEndsAt: subscriptionAccess.expiryDate,
       trialDaysRemaining: subscriptionAccess.isTrial ? subscriptionAccess.daysRemaining : null,
-      shouldShowTrialUpgradePrompt: subscriptionAccess.isTrial && [4, 2, 1].includes(subscriptionAccess.daysRemaining ?? -1),
+      shouldShowTrialUpgradePrompt: subscriptionAccess.isTrial && [4, 1, 0].includes(subscriptionAccess.daysRemaining ?? -1),
     };
   }, [localMonthlyTransactionCount, profile?.created_at, profile?.id, profile?.owner_id, storeId, subscriptionAccess.daysRemaining, subscriptionAccess.expiryDate, subscriptionAccess.isTrial, subscriptionAccess.plan, subscriptionAccess.transactionLimit, subscriptionUsage, user?.id]);
 
@@ -469,18 +480,21 @@ export default function AppShell() {
     if (!subscriptionAccess.isTrial || subscriptionAccess.daysRemaining === null) return;
     const daysLeft = subscriptionAccess.daysRemaining;
     const daysUsed = 14 - daysLeft;
-    if (![10, 13].includes(daysUsed)) return;
-    const promptKey = `secangkir_trial_day_${daysUsed}:${user.id}`;
+    const isExpiredPrompt = daysLeft <= 0;
+    if (![10, 13].includes(daysUsed) && !isExpiredPrompt) return;
+    const promptKey = isExpiredPrompt ? `secangkir_trial_expired:${user.id}` : `secangkir_trial_day_${daysUsed}:${user.id}`;
     if (shouldThrottleUpgradePrompt(user.id, promptKey, 1)) return;
 
-    const message = daysUsed === 10
+    const message = isExpiredPrompt
+      ? 'Trial Signature sudah selesai. Pilih paket agar fitur premium tetap aktif.'
+      : daysUsed === 10
       ? `Trial Signature tersisa ${daysLeft} hari. Semua fitur premium masih aktif.`
       : `Trial Signature tersisa ${daysLeft} hari. Pilih paket agar fitur premium tetap aktif.`;
     showToast(message, 'info');
     if (typeof Notification !== 'undefined') {
       const sendNotification = () => new Notification('KaffePOS Closed Beta', {
         body: message,
-        tag: `kaffepos-trial-day-${daysUsed}`,
+        tag: isExpiredPrompt ? 'kaffepos-trial-expired' : `kaffepos-trial-day-${daysUsed}`,
       });
       if (Notification.permission === 'granted') {
         sendNotification();
@@ -491,13 +505,15 @@ export default function AppShell() {
       }
     }
     dispatchUpgradePrompt({
-      trigger: `trial_day_${daysUsed}`,
+      trigger: isExpiredPrompt ? 'trial_expired' : `trial_day_${daysUsed}`,
       promptKey,
       recommendedPlan: 'signature',
-      title: `Trial Signature tersisa ${daysLeft} hari`,
+      title: isExpiredPrompt ? 'Trial Signature sudah selesai' : `Trial Signature tersisa ${daysLeft} hari`,
       description: role === 'cashier'
         ? 'Minta Owner/Admin memilih paket agar fitur premium tetap aktif setelah trial.'
-        : 'Upgrade ke Signature kapan saja agar Gamification, Advanced Kopi Passport Loyalty, AI Insights, dan Notification Center tetap aktif setelah trial.',
+        : isExpiredPrompt
+          ? 'Pilih paket agar Gamification, Advanced Kopi Passport Loyalty, AI Insights, dan Notification Center tetap aktif untuk operasional cafe.'
+          : 'Upgrade ke Signature kapan saja agar Gamification, Advanced Kopi Passport Loyalty, AI Insights, dan Notification Center tetap aktif setelah trial.',
       metadata: { daysUsed, daysLeft, trialEndsAt: subscriptionAccess.expiryDate },
     });
   }, [ready, role, showToast, subscriptionAccess.daysRemaining, subscriptionAccess.expiryDate, subscriptionAccess.isTrial, upgradePrompt, user?.id]);
@@ -663,6 +679,14 @@ export default function AppShell() {
         <div className="pointer-events-none absolute right-3 top-3 z-50 lg:hidden">
           <NotificationBell onOpen={() => setNotificationsOpen(true)} className="pointer-events-auto" />
         </div>
+
+        <AppVersionSync
+          ready={ready}
+          storeId={storeId}
+          userId={user?.id}
+          onSync={runSafeUpdateSync}
+          showToast={showToast}
+        />
 
         {postUpdateNotice && (postUpdateNotice.firstLaunchAfterUpdate || postUpdateNotice.recoveredKeys.length > 0) ? (
           <div className="px-3 pt-2 flex-shrink-0">

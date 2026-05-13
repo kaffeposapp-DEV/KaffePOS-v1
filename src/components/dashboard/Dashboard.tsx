@@ -310,7 +310,7 @@ export default function Dashboard() {
             <div className="flex shrink-0 items-center gap-2">
               {showBetaBadge ? (
                 <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-orange-100 bg-orange-50 px-3 text-[10px] font-black uppercase tracking-wider text-[#FF6A00]">
-                  Beta Version
+                  Closed Beta
                   <button
                     type="button"
                     onClick={() => {

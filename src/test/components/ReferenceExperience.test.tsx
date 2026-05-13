@@ -42,11 +42,11 @@ describe('KaffePOS reference experience', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole('heading', { name: /Sistem Kasir Modern Untuk Bisnis Anda/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Kasir Cafe Paling Seru di Indonesia/i })).toBeInTheDocument();
     expect(screen.getByTestId('reference-device-showcase')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Fitur Lengkap untuk Bisnis Anda/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Pantau Bisnis Anda dalam Sekejap/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Coba KaffePOS Gratis 14 Hari Full Fitur Premium/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Satu POS, Banyak Cara Bikin Cafe Makin Hidup/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Dari Transaksi Harian Jadi Keputusan Bisnis/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Mulai Murah, Upgrade Saat Cafe Makin Ramai/i })).toBeInTheDocument();
   });
 
   it('renders a mobile-first auth surface for web mobile and APK login', () => {

@@ -8,6 +8,7 @@ type ModalBehaviorOptions = {
   trapFocus?: boolean;
   initialFocus?: boolean;
   disabled?: boolean;
+  disableClose?: boolean;
 };
 
 let bodyScrollLockCount = 0;
@@ -59,6 +60,7 @@ export function useModalBehavior<T extends HTMLElement>({
   trapFocus = true,
   initialFocus = true,
   disabled = false,
+  disableClose = false,
 }: ModalBehaviorOptions) {
   const panelRef = useRef<T | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
@@ -84,9 +86,9 @@ export function useModalBehavior<T extends HTMLElement>({
     }, 0);
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (disabled || !isTopModal()) return;
+      if (!isTopModal()) return;
 
-      if (event.key === 'Escape' && closeOnEscape) {
+      if (event.key === 'Escape' && closeOnEscape && !disableClose) {
         event.preventDefault();
         event.stopPropagation();
         onCloseRef.current();
@@ -125,13 +127,13 @@ export function useModalBehavior<T extends HTMLElement>({
       previouslyFocusedRef.current?.focus?.({ preventScroll: true });
       previouslyFocusedRef.current = null;
     };
-  }, [closeOnEscape, disabled, initialFocus, isTopModal, lockScroll, modalId, open, trapFocus]);
+  }, [closeOnEscape, disableClose, disabled, initialFocus, isTopModal, lockScroll, modalId, open, trapFocus]);
 
   const onBackdropClick = useCallback((event: MouseEvent<HTMLElement>) => {
-    if (!disabled && isBackdropEvent(event) && isTopModal()) {
+    if (!disableClose && isBackdropEvent(event) && isTopModal()) {
       onCloseRef.current();
     }
-  }, [disabled, isTopModal]);
+  }, [disableClose, isTopModal]);
 
   return {
     panelRef,

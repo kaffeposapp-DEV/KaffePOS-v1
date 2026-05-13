@@ -7,8 +7,10 @@ import { z } from 'zod';
 export const opsEventSchema = z.object({
   event_name: z.enum([
     'login',
+    'register',
     'checkout',
     'transaction_created',
+    'first_transaction',
     'upgrade_clicked',
     'gamification_used',
     'loyalty_used',

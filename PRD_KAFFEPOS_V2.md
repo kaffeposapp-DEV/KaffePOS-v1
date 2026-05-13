@@ -2,9 +2,9 @@
 
 ## KaffePOS v2
 
-Versi dokumen: 1.1
-Tanggal: 5 Mei 2026
-Basis dokumen: codebase `kaffepos-v2`, backend API self-hosted, PostgreSQL production, konfigurasi aplikasi, migrasi database, dan implementasi UI/flow yang ada saat ini.
+Versi dokumen: 2.0-beta
+Tanggal: 13 Mei 2026
+Basis dokumen: codebase `kaffepos-v2`, backend API self-hosted, PostgreSQL production, safe update system, closed beta flow, integrasi Cloudflare/Resend/GA4/Clarity/Midtrans, konfigurasi aplikasi, migrasi database, dan implementasi UI/flow yang ada saat ini.
 
 ---
 
@@ -16,6 +16,7 @@ Dokumen pendamping:
 
 - RFC index: [docs/rfc/README.md](/Users/macbook/kaffepos-new/kaffepos-v2/docs/rfc/README.md)
 - RFC scope dan arsitektur awal: [docs/rfc/0001-product-scope-and-architecture.md](/Users/macbook/kaffepos-new/kaffepos-v2/docs/rfc/0001-product-scope-and-architecture.md)
+- RFC Closed Beta dan integrasi: [docs/rfc/0003-closed-beta-consolidation-and-integrations.md](/Users/macbook/kaffepos-new/kaffepos-v2/docs/rfc/0003-closed-beta-consolidation-and-integrations.md)
 - Go-live checklist: [GO_LIVE_CHECKLIST.md](/Users/macbook/kaffepos-new/kaffepos-v2/GO_LIVE_CHECKLIST.md)
 - Final release checklist: [docs/final-release-checklist.md](/Users/macbook/kaffepos-new/kaffepos-v2/docs/final-release-checklist.md)
 
@@ -31,7 +32,7 @@ Aturan perubahan:
 
 ## 1. Ringkasan Produk
 
-KaffePOS adalah aplikasi Point of Sale modern untuk kedai kopi, cafe kecil-menengah, bakery, dan bisnis F&B serupa. Produk ini dibangun sebagai web app yang juga dapat dikemas menjadi APK Android melalui Capacitor. Fokus utama produk adalah membantu owner mengelola transaksi kasir, stok bahan baku, resep menu, laporan operasional, dan langganan aplikasi dalam satu sistem yang ringan dipakai harian.
+KaffePOS adalah aplikasi Point of Sale modern untuk kedai kopi, cafe kecil-menengah, bakery, dan bisnis F&B serupa. Produk ini dibangun sebagai web app yang juga dapat dikemas menjadi APK Android melalui Capacitor. Fokus utama produk adalah membantu owner mengelola transaksi kasir, stok bahan baku, resep menu, laporan operasional, loyalty, gamification, dan langganan aplikasi dalam satu sistem yang ringan dipakai harian.
 
 Karakter utama produk saat ini:
 
@@ -40,10 +41,16 @@ Karakter utama produk saat ini:
 - Pengurangan stok otomatis saat penjualan
 - Laporan penjualan, laba, pengeluaran, dan ringkasan kas
 - Insight bisnis berbasis AI
+- Gamification untuk staff dan operasional
+- Kopi Passport loyalty untuk pelanggan
+- KDS / order checker untuk workflow dapur
+- Payment subscription Midtrans melalui backend
+- Closed Beta feedback system
+- Safe update dan data migration system untuk web/APK
 - Dukungan printer thermal browser, Bluetooth, dan USB
 - Mode web dan Android dari satu codebase
 - Backend API self-hosted
-- Pendekatan offline-first terbatas untuk cache dan sinkronisasi ulang
+- Pendekatan offline-first untuk cache, queue operasi utama, dan sinkronisasi ulang
 
 ---
 
@@ -58,7 +65,8 @@ Masalah utama yang ingin diselesaikan:
 3. Kasir butuh alur checkout sederhana dan cepat di perangkat mobile.
 4. Laporan operasional belum rapi untuk evaluasi bisnis.
 5. Usaha kecil membutuhkan aplikasi yang bisa tetap nyaman dipakai di Android.
-6. Aktivasi pelanggan berbayar harus tetap sederhana walau tanpa payment gateway otomatis.
+6. Aktivasi pelanggan berbayar harus tetap sederhana dengan opsi Midtrans aman atau fallback manual admin.
+7. Update web/APK tidak boleh membuat data lama hilang, user logout paksa, atau app terasa reset.
 
 ---
 
@@ -73,7 +81,7 @@ Menjadi sistem POS cafe yang sederhana, cepat, dan cukup cerdas untuk membantu o
 ### Tujuan bisnis
 
 - Meningkatkan retensi pengguna dengan pengalaman kasir yang ringan dan stabil.
-- Mengonversi pengguna gratis ke paket berbayar lewat fitur laporan, printer, dan AI Insight.
+- Mengonversi pengguna gratis ke paket berbayar lewat trial Full Signature 14 hari, laporan, printer, loyalty, gamification, dan AI Insight.
 - Menjaga biaya operasional backend tetap ramping dengan backend API self-hosted yang sederhana.
 - Mendukung distribusi via web dan APK Android dari codebase yang sama.
 - Menjaga arah produk tetap sempit: POS F&B ringan untuk operasional harian, bukan ERP umum.
@@ -84,7 +92,8 @@ Menjadi sistem POS cafe yang sederhana, cepat, dan cukup cerdas untuk membantu o
 - Mengetahui stok bahan kritis sebelum habis.
 - Mendapat laporan penjualan dan laba tanpa proses manual.
 - Mengatur tampilan struk dan printer sesuai kebutuhan outlet.
-- Memahami performa menu dan tren bisnis dengan insight yang mudah dipahami.
+- Memahami performa menu, staff, pelanggan, dan tren bisnis dengan insight yang mudah dipahami.
+- Mengirim feedback beta langsung dari aplikasi tanpa keluar dari flow kerja.
 
 ---
 
@@ -94,9 +103,7 @@ Fitur berikut bukan fokus inti implementasi saat ini atau belum benar-benar tere
 
 - Multi-store penuh untuk satu akun owner
 - Multi-branch reporting
-- Payment gateway otomatis end-to-end
-- CRM pelanggan lengkap
-- Program loyalty / membership customer
+- CRM pelanggan lengkap di luar loyalty ringan
 - Integrasi akuntansi eksternal
 - Backoffice desktop native terpisah
 - Marketplace plugin pihak ketiga
@@ -104,6 +111,7 @@ Fitur berikut bukan fokus inti implementasi saat ini atau belum benar-benar tere
 - Sistem HR/payroll
 - Inventory multi-gudang kompleks
 - Custom workflow per pelanggan tanpa RFC
+- Payment provider selain Midtrans tanpa RFC
 
 Catatan: struktur data `stores` sudah membuka kemungkinan ekspansi ke multi-store, tetapi implementasi saat ini masih mengasumsikan satu owner memiliki satu store aktif.
 
@@ -156,29 +164,39 @@ Kebutuhan:
 - Dashboard bisnis
 - Report export PDF
 - AI Insight
+- Gamification staff
+- Kopi Passport loyalty
+- Kitchen Display System / order checker
 - Notification center
 - Subscription status dan histori pembayaran
+- Subscription payment via Midtrans backend-only
+- Closed Beta badge, feedback form, dan admin notification
+- Trial countdown dan upgrade prompt
+- Safe app update/version checker untuk web dan APK
+- Centralized analytics event tracking
+- Resend transactional email templates
+- Cloudflare CDN/helper untuk asset delivery
 - Admin panel internal
 - Android packaging via Capacitor
 - Thermal printer support
 
 ### Partially implemented / evolving
 
-- Offline queue untuk beberapa operasi data
+- Offline queue untuk POS, cart, transaksi, stock deduction, loyalty, gamification, dan sync ulang
 - Feature entitlement per paket
 - Audit log inventori checkout
 - Telegram admin workflow
 - Operational metrics dashboard
-- Midtrans production payment flow
+- Midtrans production payment rollout
 - Production observability dan alerting eksternal
 
 ### Explicitly out of scope tanpa RFC baru
 
 - Multi-store penuh dan multi-branch report
-- Loyalty, CRM customer, dan delivery/order online
+- CRM customer penuh dan delivery/order online
 - Integrasi akuntansi eksternal
 - Payment provider selain Midtrans
-- Mode offline checkout penuh yang tetap memotong stok lintas device
+- Mode offline checkout penuh yang menjamin stok lintas device tanpa konflik
 - Custom feature per merchant yang membuat flow POS berbeda dari baseline produk
 
 ---
@@ -189,9 +207,9 @@ Kebutuhan:
 
 1. User membuka web atau APK.
 2. User register dengan email dan password; Google sign-in boleh tersedia sebagai flow opsional.
-3. Sistem membuat `profile` dan free subscription default.
+3. Sistem membuat `profile`, store default, dan trial Full Signature 14 hari.
 4. User verifikasi email melalui OTP / email flow.
-5. Saat login pertama, sistem menyiapkan `store` default otomatis jika belum ada.
+5. Saat login pertama, sistem menyiapkan `store` default otomatis jika belum ada, menjalankan safe update check, dan menampilkan countdown trial.
 
 ### 8.2 Operasional harian outlet
 
@@ -206,9 +224,26 @@ Kebutuhan:
 ### 8.3 Pengelolaan subscription
 
 1. User membuka halaman paket/langganan.
-2. User memilih plan lalu diarahkan ke alur konfirmasi manual via Instagram/admin.
-3. Admin internal mengaktifkan paket dari panel admin.
-4. Sistem membuat record subscription, payment history, dan sinkronisasi state profile.
+2. User memilih plan dan melihat ringkasan order.
+3. Backend membuat session Midtrans Snap; secret key tidak pernah dikirim ke frontend.
+4. User menyelesaikan payment atau mendapat status pending/cancel/expire/deny.
+5. Webhook backend memvalidasi signature, mengubah payment/subscription, dan mengirim email invoice/receipt bila sukses.
+6. Jika online payment belum tersedia, sistem memberi fallback aktivasi manual admin.
+
+### 8.4 Closed Beta feedback
+
+1. User melihat badge Closed Beta dan pesan terima kasih.
+2. User membuka floating button `Kirim Feedback`.
+3. User mengisi rating, kategori, deskripsi, dan screenshot opsional.
+4. Backend menyimpan feedback, mengirim notifikasi admin, dan mengirim email terima kasih bila email user tersedia.
+
+### 8.5 Safe update web/APK
+
+1. App dibuka setelah update.
+2. Frontend menjalankan local storage migration dan restore backup kritikal bila perlu.
+3. Frontend cek `/api/app/version`.
+4. Jika ada update data, app menampilkan pesan ringan `Memperbarui data...`.
+5. Event update dicatat ke backend; offline case ditandai untuk sync saat online kembali.
 
 ---
 
@@ -579,7 +614,8 @@ Commercial release dinyatakan `GO` hanya jika:
 Status release yang boleh dipakai:
 
 - `Internal`: hanya developer/admin, data boleh reset.
-- `Pilot`: merchant terbatas, payment boleh manual, monitoring manual harian wajib.
+- `Closed Beta`: 10-20 owner cafe, data user harus aman, feedback dipantau harian, payment boleh sandbox/manual sesuai gate.
+- `Pilot`: merchant terbatas lebih luas, payment boleh manual jika production payment belum lulus, monitoring manual harian wajib.
 - `Commercial`: payment, support, monitoring, backup, dan QA lapangan sudah memenuhi release gate.
 
 ---
@@ -612,10 +648,17 @@ Status release yang boleh dipakai:
 - PostgreSQL production
 - Express backend API self-hosted
 - Coolify deployment
+- Cloudflare CDN / static caching
+- Resend EmailService
+- Midtrans backend-only payment
+- GA4 + Microsoft Clarity analytics
+- Sentry-compatible error tracking
 - JSON stdout/stderr logging
 - Health check `/health`
 - System status `/system-status`
-- Upload storage saat ini masih nonaktif
+- App version endpoint `/api/app/version`
+- Versioned SQL migrations + critical backup script
+- Upload storage saat ini masih nonaktif selain attachment feedback lokal/API yang didukung
 
 ## 11.4 Reporting & Documents
 

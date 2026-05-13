@@ -15,6 +15,7 @@ import paymentRouter from './routes/payment';
 import adminRouter from './routes/admin';
 import miscRouter from './routes/misc';
 import webhooksRouter from './routes/webhooks';
+import { appVersionAuthenticatedRouter, appVersionPublicRouter } from './routes/appVersion';
 
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { type Server } from 'node:http';
@@ -2657,6 +2658,7 @@ async function bootstrapAiInsightsSchema() {
 // Health, system-status → extracted to routes/health.ts
 setHealthRuntimeState({ serviceStartedAt, isShuttingDown: () => isShuttingDown });
 app.use(healthRouter);
+app.use(appVersionPublicRouter);
 
 
 // Pre-auth webhook routes
@@ -2686,6 +2688,7 @@ app.use(
   subscriptionsRouter,
   paymentRouter,
   adminRouter,
+  appVersionAuthenticatedRouter,
   miscRouter,
 );
 
@@ -2703,6 +2706,7 @@ app.use(challengesRouter);
 app.use(subscriptionsRouter);
 app.use(paymentRouter);
 app.use(adminRouter);
+app.use(appVersionAuthenticatedRouter);
 app.use(miscRouter);
 
 

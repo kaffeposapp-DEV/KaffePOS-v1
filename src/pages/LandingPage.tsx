@@ -1,9 +1,6 @@
 import { useState, useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  BarChart3,
-  ShieldCheck,
-  Smartphone,
   Store,
   Zap,
   ArrowRight,
@@ -16,18 +13,19 @@ import {
   MessageCircle,
   HelpCircle,
   Wifi,
-  BarChart,
-  Cpu,
   Shield,
   FileText,
   FileCheck,
   Scale,
   ShoppingBag,
-  Package,
-  Tag,
-  Users,
-  Headset,
   Cloud,
+  Trophy,
+  Brain,
+  Printer,
+  ChefHat,
+  Star,
+  Gift,
+  BadgePercent,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,10 +43,12 @@ const NAV_LINKS = [
 ];
 
 type FeatureTitle =
-  | 'Smart Cloud POS'
-  | 'Manajemen Stok (RECIPE)'
-  | 'Laporan Dashboard AI'
-  | 'Keamanan Berlapis';
+  | 'POS Offline First'
+  | 'Gamification Seru'
+  | 'Kopi Passport Loyalty'
+  | 'AI Insights'
+  | 'Inventory + Resep + KDS'
+  | 'Thermal Printer Ready';
 
 type SafeContentKey = 'ADVISORY' | 'TERMS' | 'PRIVACY' | 'AUDIT';
 
@@ -105,71 +105,128 @@ const PRICING = [
   }
 ];
 
+const BENEFITS = [
+  {
+    title: 'Mulai hemat dari Rp49.000/bulan',
+    desc: 'Biaya ringan untuk cafe kecil, warung kopi, booth, sampai brand yang mulai punya cabang.',
+    icon: BadgePercent,
+  },
+  {
+    title: 'Gratis 14 hari Full Signature',
+    desc: 'Coba fitur premium lengkap dulu: Gamification, AI Insights, Kopi Passport, KDS, dan laporan.',
+    icon: Gift,
+  },
+  {
+    title: 'Tim makin semangat jualan',
+    desc: 'Misi, poin, level, dan leaderboard bikin operasional terasa lebih hidup tanpa ribet.',
+    icon: Trophy,
+  },
+];
+
 const FEATURES: MarketingFeature[] = [
   {
-    title: 'Penjualan Cepat',
-    desc: 'Proses transaksi cepat dan mudah dengan tampilan yang intuitif.',
+    title: 'POS Offline First',
+    desc: 'Transaksi tetap jalan saat internet putus. Data otomatis sync saat online kembali.',
     icon: ShoppingBag,
     color: 'bg-orange-50 text-[#FF6A00]',
   },
   {
-    title: 'Kelola Produk',
-    desc: 'Kelola produk, variasi, kategori, dan harga dengan mudah.',
-    icon: Package,
+    title: 'Gamification Seru',
+    desc: 'Poin, level, misi harian, dan leaderboard untuk bikin kasir lebih engaged.',
+    icon: Trophy,
     color: 'bg-orange-50 text-[#FF6A00]',
   },
   {
-    title: 'Manajemen Stok',
-    desc: 'Pantau stok real-time dan dapatkan notifikasi stok menipis.',
-    icon: Tag,
+    title: 'Kopi Passport Loyalty',
+    desc: 'Stamp, poin, tier pelanggan, dan reward yang terasa cocok untuk cafe Indonesia.',
+    icon: Gift,
     color: 'bg-orange-50 text-[#FF6A00]',
   },
   {
-    title: 'Laporan Lengkap',
-    desc: 'Laporan penjualan, stok, dan keuntungan lengkap dan akurat.',
-    icon: BarChart3,
+    title: 'AI Insights',
+    desc: 'Baca tren revenue, menu terlaris, peak hour, dan rekomendasi operasional.',
+    icon: Brain,
     color: 'bg-orange-50 text-[#FF6A00]',
   },
   {
-    title: 'Kelola Pelanggan',
-    desc: 'Simpan data pelanggan dan riwayat transaksi dengan rapi.',
-    icon: Users,
+    title: 'Inventory + Resep + KDS',
+    desc: 'Stok bahan otomatis terpotong dari resep, pesanan masuk ke Kitchen Display.',
+    icon: ChefHat,
     color: 'bg-orange-50 text-[#FF6A00]',
   },
   {
-    title: 'Multi Perangkat',
-    desc: 'Akses aplikasi di berbagai perangkat dengan sinkronisasi real-time.',
-    icon: Smartphone,
+    title: 'Thermal Printer Ready',
+    desc: 'Cetak struk cepat di tablet Android, mobile, dan desktop dengan alur kasir rapi.',
+    icon: Printer,
     color: 'bg-orange-50 text-[#FF6A00]',
   },
 ];
 
 const FEATURE_DETAILS: Record<FeatureTitle, FeatureDetail> = {
-  'Smart Cloud POS': {
-    highlights: ['Offline-First Engine', 'Instant Digital Receipts', 'Split-Bill Matrix', 'Multi-Terminal Sync'],
-    details: 'Sistem inti KaffePOS dirancang untuk keandalan maksimal. Dengan teknologi Offline-First, bisnis Anda tetap berjalan meski internet terputus. Data akan disinkronkan secara otomatis ke cloud saat koneksi kembali tersedia.',
-    stats: { metric: 'Sync Status', value: 'Real-time' },
+  'POS Offline First': {
+    highlights: ['Offline Checkout', 'Auto Sync', 'Digital Receipt', 'Tablet POS Mode'],
+    details: 'Kasir tetap bisa transaksi saat internet putus. Order tersimpan aman di perangkat lalu tersinkron otomatis saat koneksi kembali tersedia.',
+    stats: { metric: 'Internet Putus', value: 'Tetap Jualan' },
     icon: Wifi,
   },
-  'Manajemen Stok (RECIPE)': {
-    highlights: ['Raw Material Tracking', 'Automated HPP Calculation', 'Cogs Visibility', 'Stock Level Alerts'],
-    details: 'Kendali penuh atas setiap gram bahan baku Anda. Sistem Recipe kami secara otomatis memotong stok bahan baku saat menu terjual, menghitung HPP secara real-time, dan memberi peringatan ketika stok mulai menipis.',
-    stats: { metric: 'Accuracy', value: '99.9%' },
-    icon: Cpu,
+  'Gamification Seru': {
+    highlights: ['Daily Mission', 'Leaderboard', 'Level & Points', 'Staff Motivation'],
+    details: 'KaffePOS bikin tim kasir lebih semangat lewat misi, poin, level, dan leaderboard yang mudah dipahami.',
+    stats: { metric: 'Team Energy', value: 'Naik' },
+    icon: Trophy,
   },
-  'Laporan Dashboard AI': {
-    highlights: ['Sales Forecasting', 'Best-Seller Heatmaps', 'Inventory Prediction', 'Profitability Audit'],
-    details: 'Ubah data menjadi keputusan bisnis yang lebih cepat. AI KaffePOS menganalisis pola penjualan untuk membantu membaca kebutuhan stok, melihat menu paling menguntungkan, dan merapikan evaluasi operasional mingguan.',
-    stats: { metric: 'Insights', value: 'Real-time' },
-    icon: BarChart,
+  'Kopi Passport Loyalty': {
+    highlights: ['Stamp Digital', 'Poin Pelanggan', 'Reward', 'Tier Loyalty'],
+    details: 'Program loyalty terasa natural untuk cafe: pelanggan kumpulkan stamp, poin, dan reward tanpa kartu fisik.',
+    stats: { metric: 'Repeat Order', value: 'Lebih Mudah' },
+    icon: Gift,
   },
-  'Keamanan Berlapis': {
-    highlights: ['OTP Verification', 'Row-Level Security', 'Server-Side Validation', 'Role-Based Access'],
-    details: 'Keamanan operasional dijaga lewat verifikasi email, pembatasan akses data per akun dan toko, serta validasi server untuk alur yang sensitif. Fokusnya adalah menjaga data bisnis tetap terpisah dan hanya diakses oleh pihak yang berwenang.',
-    stats: { metric: 'Protection', value: 'Server-side' },
-    icon: ShieldCheck,
+  'AI Insights': {
+    highlights: ['Revenue Trend', 'Top Menu', 'Peak Hour', 'Smart Recommendation'],
+    details: 'AI Insights membantu membaca pola penjualan, menu terlaris, jam ramai, dan rekomendasi praktis untuk keputusan harian.',
+    stats: { metric: 'Decision', value: 'Lebih Cepat' },
+    icon: Brain,
+  },
+  'Inventory + Resep + KDS': {
+    highlights: ['Recipe Stock Deduction', 'COGS Visibility', 'Kitchen Display', 'Low Stock Alert'],
+    details: 'Setiap menu bisa punya resep. Saat transaksi terjadi, bahan otomatis berkurang dan pesanan bisa masuk ke Kitchen Display.',
+    stats: { metric: 'Dapur & Stok', value: 'Sinkron' },
+    icon: ChefHat,
+  },
+  'Thermal Printer Ready': {
+    highlights: ['58mm / 80mm Preview', 'Android Tablet Friendly', 'Digital Receipt', 'Fast Checkout'],
+    details: 'Struk digital dan printer thermal disiapkan untuk operasional kasir harian di mobile, tablet, dan desktop.',
+    stats: { metric: 'Receipt', value: 'Siap Cetak' },
+    icon: Printer,
   },
 };
+
+const PROMOTIONAL_TEXTS = {
+  shortTaglines: [
+    'Kasir cafe paling seru di Indonesia.',
+    'POS murah, fiturnya serius.',
+    'Jualan rapi, tim makin happy.',
+  ],
+  longTagline:
+    'KaffePOS membantu cafe jualan lebih cepat, stok lebih rapi, tim lebih semangat, dan keputusan bisnis lebih pintar mulai dari Rp49.000/bulan.',
+  instagramCaption:
+    'Cafe kamu butuh kasir yang bukan cuma buat transaksi? Kenalan dengan KaffePOS: POS offline-first, Gamification paling seru, Kopi Passport Loyalty, AI Insights, Inventory resep + KDS, dan thermal printer. Coba gratis 14 hari Full Signature. Mulai dari Rp49.000/bulan.',
+  whatsappCaption:
+    'Halo, kami lagi buka akses KaffePOS untuk cafe owner. Fiturnya lengkap: kasir offline-first, stok resep, KDS, loyalty, gamification, AI Insights, laporan PDF, dan printer thermal. Ada trial 14 hari Full Signature, lalu mulai Rp49.000/bulan.',
+  launchPromo:
+    'Promo Early Bird: daftar saat launch dan nikmati akses prioritas, onboarding beta, serta harga awal yang ramah untuk cafe pertama kamu.',
+};
+
+const CLOSED_BETA_INVITES = {
+  whatsapp:
+    'Halo Kak, KaffePOS sedang membuka Closed Beta untuk 10-20 cafe owner. Kakak bisa coba gratis 14 hari Full Signature: POS, Gamification, Kopi Passport Loyalty, AI Insights, Inventory resep + KDS, Offline Mode, dan Thermal Printer. Sebagai beta user, feedback Kakak akan langsung membantu kami memoles produk sebelum rilis publik. Mau kami aktifkan aksesnya?',
+  emailSubject: 'Undangan Closed Beta KaffePOS untuk Cafe Owner',
+  emailBody:
+    'Halo Kak,\n\nKami mengundang Kakak bergabung dalam Closed Beta KaffePOS, sistem kasir cafe dengan POS offline-first, Gamification, Kopi Passport Loyalty, AI Insights, Inventory resep + KDS, laporan PDF, dan thermal printer.\n\nSelama beta, Kakak mendapatkan trial 14 hari Full Signature dan akses prioritas untuk memberi feedback langsung ke tim KaffePOS.\n\nJika berkenan, balas email ini dan kami bantu aktifkan aksesnya.\n\nSalam hangat,\nTim KaffePOS',
+};
+
+void PROMOTIONAL_TEXTS;
+void CLOSED_BETA_INVITES;
 
 function getFeatureDetail(title: string): FeatureDetail {
   return FEATURE_DETAILS[title as FeatureTitle] ?? {
@@ -221,70 +278,49 @@ const SAFE_CONTENT: Record<SafeContentKey, SafeContentItem> = {
 
 const TESTIMONIALS = [
   {
-    name: 'Dani Sanjaya',
-    handle: '@kopi_senja',
-    body: 'KaffePOS beneran ngerubah cara kami kelola stok. Dulu sering tekor bahan, sekarang semua keganti otomatis!',
+    name: 'Owner Cafe Beta',
+    handle: 'Closed Beta Participant',
+    body: 'Placeholder testimonial: POS terasa cepat, trial full fitur membantu tim mencoba semua alur sebelum berlangganan.',
     rating: 5,
   },
   {
-    name: 'Siti Aminah',
-    handle: '@bakery_ceria',
-    body: 'Laporan PDF-nya rapi banget buat pajak harian. Tinggal klik langsung jadi di HP.',
+    name: 'Head Barista Beta',
+    handle: 'Closed Beta Participant',
+    body: 'Placeholder testimonial: Gamification bikin shift lebih seru, leaderboard jadi bahan evaluasi harian yang ringan.',
     rating: 5,
   },
   {
-    name: 'Budi Santoso',
-    handle: '@angkringan_milenial',
-    body: 'Aplikasi teringan yang pernah saya coba. Di HP spek rendah pun tetep lancar jaya buat jualan.',
-    rating: 5,
-  },
-  {
-    name: 'Riska Putri',
-    handle: '@gelato_heaven',
-    body: 'Fitur resepnya gila banget! HPP jadi akurat sampai ke gram terakhir. Sangat membantu profit margin.',
-    rating: 5,
-  },
-  {
-    name: 'Fahmi Idris',
-    handle: '@brew_cloud',
-    body: 'Sinkronisasi Cloud-nya instan. Saya bisa pantau 3 cabang sekaligus dari rumah tanpa perlu telepon manager.',
-    rating: 5,
-  },
-  {
-    name: 'Maya Sartika',
-    handle: '@dimsum_queen',
-    body: 'Dukungan printernya luas. Pakai printer thermal murah pun langsung konek via Bluetooth tanpa ribet.',
-    rating: 5,
-  },
-  {
-    name: 'Hendra Wijaya',
-    handle: '@steak_house_pdp',
-    body: 'Sistem shift kasirnya rapi. Gak ada lagi selisih uang di laci setiap ganti pegawai. Sangat aman!',
-    rating: 5,
-  },
-  {
-    name: 'Lestari Wahyu',
-    handle: '@healthy_bowl',
-    body: 'Tampilannya modern & clean. Pelanggan sering salfok lihat kasir kami pakai KaffePOS karena estetik.',
-    rating: 5,
-  },
-  {
-    name: 'Dedi Kurniawan',
-    handle: '@martabak_bangka',
-    body: 'Dashboard analytics-nya bantu banget buat nentuin promo mingguan. Data real-time itu kuncinya!',
-    rating: 5,
-  },
-  {
-    name: 'Nina Marlina',
-    handle: '@bubble_tea_hub',
-    body: 'Mudah dipelajari. Pegawai baru cukup 10 menit training sudah bisa pake buat jualan. Hemat waktu banget.',
+    name: 'Manager Outlet Beta',
+    handle: 'Closed Beta Participant',
+    body: 'Placeholder testimonial: inventory resep dan KDS membantu dapur tetap sinkron dengan kasir.',
     rating: 5,
   },
 ];
 
+const FAQS = [
+  {
+    q: 'Apakah benar gratis 14 hari?',
+    a: 'Ya. Trial Secangkir membuka Full Signature selama 14 hari, jadi cafe bisa mencoba fitur premium sebelum lanjut ke paket berbayar.',
+  },
+  {
+    q: 'Mulai bayar dari berapa?',
+    a: 'Paket Kopi Susu mulai Rp49.000/bulan. Paket Signature tersedia untuk cafe yang ingin Gamification, AI Insights, dan fitur lanjutan.',
+  },
+  {
+    q: 'Bisa dipakai saat internet mati?',
+    a: 'Bisa. POS, cart, transaksi offline, dan sinkronisasi dibuat offline-first. Data dikirim otomatis saat koneksi kembali stabil.',
+  },
+  {
+    q: 'Apakah support printer thermal?',
+    a: 'Ya. KaffePOS disiapkan untuk printer thermal 58mm/80mm, termasuk alur Android tablet untuk kasir.',
+  },
+  {
+    q: 'Apakah cocok untuk cafe kecil?',
+    a: 'Cocok. KaffePOS dibuat agar cafe kecil bisa mulai murah, lalu upgrade saat transaksi dan tim makin berkembang.',
+  },
+];
+
 void PRICING;
-void FEATURES;
-void TESTIMONIALS;
 
 
 // Reusable Counter Component
@@ -763,10 +799,10 @@ export default function LandingPage() {
           <div className="mx-auto grid min-w-0 max-w-7xl items-center gap-12 lg:grid-cols-[0.95fr_1.2fr]">
             <div className="relative z-10 min-w-0 text-left">
               <h1 className="max-w-[340px] break-words font-display text-[34px] font-extrabold leading-[1.14] text-slate-900 sm:max-w-[620px] sm:text-[52px] md:text-[64px]">
-                Sistem Kasir Modern Untuk <span className="text-[#FF6A00]">Bisnis Anda</span>
+                Kasir Cafe Paling Seru di <span className="text-[#FF6A00]">Indonesia</span>
               </h1>
               <p className="mt-6 max-w-[340px] break-words text-base font-medium leading-8 text-slate-600 sm:max-w-[560px] md:text-lg">
-                kaffePOS adalah aplikasi kasir yang mudah digunakan, cepat, dan lengkap untuk mengelola penjualan, stok, pelanggan, dan laporan bisnis Anda.
+                Mulai dari Rp49.000/bulan. Coba gratis 14 hari Full Signature: Gamification, Kopi Passport Loyalty, AI Insights, Inventory resep + KDS, Offline Mode, dan thermal printer.
               </p>
 
               <div className="mt-8 flex max-w-[340px] flex-col gap-3 sm:max-w-none sm:flex-row">
@@ -774,22 +810,22 @@ export default function LandingPage() {
                   onClick={() => navigate('/register')}
                   className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#FF6A00] px-7 text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(255,106,0,0.22)] hover:bg-[#ef6200] sm:w-auto"
                 >
-                  Mulai Gratis <ArrowRight size={16} />
+                  Coba Gratis 14 Hari <ArrowRight size={16} />
                 </button>
                 <a
                   href="#features"
                   onClick={(e) => scrollToSection(e, '#features')}
                   className="inline-flex h-12 w-full items-center justify-center rounded-lg border border-[#FF6A00]/40 bg-white px-7 text-sm font-extrabold text-[#FF6A00] hover:bg-orange-50 sm:w-auto"
                 >
-                  Lihat Fitur
+                  Lihat Fitur Seru
                 </a>
               </div>
 
               <div className="mt-10 grid max-w-[560px] gap-5 sm:grid-cols-3">
                 {[
-                  { title: 'Berbasis Cloud', desc: 'Akses kapan saja di mana saja', icon: Cloud },
-                  { title: 'Aman & Terpercaya', desc: 'Data bisnis aman terlindungi', icon: Shield },
-                  { title: 'Dukungan 24/7', desc: 'Tim support siap membantu Anda', icon: Headset },
+                  { title: 'Offline First', desc: 'Tetap jualan saat internet putus', icon: Cloud },
+                  { title: 'Gamification', desc: 'Tim kasir makin semangat', icon: Trophy },
+                  { title: 'AI Insights', desc: 'Keputusan bisnis lebih cepat', icon: Brain },
                 ].map((item) => {
                   const Icon = item.icon;
                   return (
@@ -814,7 +850,7 @@ export default function LandingPage() {
         {/* Partner Section */}
         <section className="bg-white px-5 py-10 sm:px-6">
           <div className="mx-auto max-w-7xl">
-            <p className="text-center text-xs font-semibold text-slate-400">Dipercaya oleh berbagai bisnis di Indonesia</p>
+            <p className="text-center text-xs font-semibold text-slate-400">Dibuat untuk cafe owner yang ingin kasirnya cepat, rapi, dan menyenangkan</p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-5 text-sm font-extrabold text-slate-500 md:gap-x-14">
               <div className="flex items-center gap-2"><Coffee size={18} className="text-[#FF6A00]" /> Kopi Kita</div>
               <div className="flex items-center gap-2"><Zap size={18} className="text-[#FF6A00]" /> Brewlicious</div>
@@ -825,11 +861,33 @@ export default function LandingPage() {
           </div>
         </section>
 
+        <section className="px-5 py-10 sm:px-6 md:py-14">
+          <div className="mx-auto max-w-7xl">
+            <div className="grid gap-4 md:grid-cols-3">
+              {BENEFITS.map((benefit) => {
+                const Icon = benefit.icon;
+                return (
+                  <div key={benefit.title} className="rounded-2xl border border-orange-100 bg-white p-5 shadow-sm">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-[#FF6A00]">
+                      <Icon size={22} />
+                    </div>
+                    <h2 className="mt-5 font-display text-xl font-extrabold text-slate-900">{benefit.title}</h2>
+                    <p className="mt-3 text-sm font-semibold leading-7 text-slate-500">{benefit.desc}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
         <section id="features" className="px-5 py-8 sm:px-6">
           <div className="kaffe-soft-section mx-auto max-w-7xl rounded-[24px] px-5 py-8 md:px-8 md:py-10">
             <h2 className="text-center font-display text-2xl font-extrabold text-slate-900 md:text-3xl">
-              Fitur Lengkap untuk Bisnis Anda
+              Satu POS, Banyak Cara Bikin Cafe Makin Hidup
             </h2>
+            <p className="mx-auto mt-3 max-w-2xl text-center text-sm font-semibold leading-7 text-slate-500">
+              KaffePOS menggabungkan transaksi cepat, loyalty, game untuk tim, insight pintar, stok resep, KDS, dan printer dalam workflow yang tetap ringan.
+            </p>
             <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               {FEATURES.map((feature) => {
                 const Icon = feature.icon;
@@ -855,15 +913,15 @@ export default function LandingPage() {
         <section id="about" className="px-5 py-12 sm:px-6 md:py-16">
           <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[0.72fr_1.28fr]">
             <div>
-              <p className="text-xs font-extrabold uppercase text-[#FF6A00]">Pantau Bisnis Anda</p>
+              <p className="text-xs font-extrabold uppercase text-[#FF6A00]">AI Insights & Dashboard</p>
               <h2 className="mt-4 font-display text-3xl font-extrabold leading-tight text-slate-900 md:text-4xl">
-                Pantau Bisnis Anda dalam Sekejap
+                Dari Transaksi Harian Jadi Keputusan Bisnis
               </h2>
               <p className="mt-5 text-sm leading-7 text-slate-600 md:text-base">
-                Dashboard ringkasan menampilkan informasi penting untuk membantu Anda mengambil keputusan bisnis yang lebih baik.
+                Dashboard KaffePOS membantu owner melihat revenue, menu favorit, jam ramai, stok kritis, dan performa tim tanpa harus buka banyak file.
               </p>
               <div className="mt-7 space-y-4">
-                {['Ringkasan penjualan harian', 'Grafik dan analisis penjualan', 'Produk terlaris', 'Transaksi terbaru'].map((item) => (
+                {['Revenue harian, mingguan, dan bulanan', 'AI Insights untuk menu dan peak hour', 'Top menu, metode pembayaran, dan margin', 'PDF report clean untuk evaluasi owner'].map((item) => (
                   <div key={item} className="flex items-center gap-3 text-sm font-semibold text-slate-700">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full border border-[#FF6A00] text-[11px] text-[#FF6A00]">✓</span>
                     {item}
@@ -877,6 +935,15 @@ export default function LandingPage() {
 
         <section id="pricing" className="px-5 pb-16 sm:px-6 md:pb-20">
           <div className="mx-auto max-w-7xl">
+            <div className="mb-6 text-center">
+              <p className="text-xs font-extrabold uppercase tracking-widest text-[#FF6A00]">Harga Ramah Cafe</p>
+              <h2 className="mt-3 font-display text-3xl font-extrabold text-slate-900 md:text-4xl">
+                Mulai Murah, Upgrade Saat Cafe Makin Ramai
+              </h2>
+              <p className="mx-auto mt-4 max-w-2xl text-sm font-semibold leading-7 text-slate-500">
+                Mulai dengan trial 14 hari Full Signature. Setelah itu pilih paket sesuai tahap cafe: Kopi Susu mulai Rp49.000 atau Signature untuk fitur paling lengkap.
+              </p>
+            </div>
             <PricingPage
               selectedCycle={pricingCycle}
               onCycleChange={setPricingCycle}
@@ -890,10 +957,10 @@ export default function LandingPage() {
                 </div>
                 <div className="min-w-0">
                   <h3 className="font-display text-2xl font-extrabold text-white md:text-3xl">
-                    Mulai dari paket gratis, upgrade saat cafe makin ramai.
+                    Promo Launch: coba Full Signature dulu, bayar saat sudah cocok.
                   </h3>
                   <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-white/90">
-                    KaffePOS siap dipakai dari hari pertama: POS, stok, loyalty, gamification, dan insight bisnis dalam satu aplikasi.
+                    Early Bird beta user mendapat akses prioritas, onboarding lebih dekat, dan kesempatan ikut menentukan fitur KaffePOS berikutnya.
                   </p>
                 </div>
               </div>
@@ -901,8 +968,64 @@ export default function LandingPage() {
                 onClick={() => navigate('/register')}
                 className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-white px-7 text-sm font-extrabold text-[#FF6A00] shadow-[0_14px_30px_rgba(31,41,51,0.16)] hover:bg-orange-50"
               >
-                Mulai Gratis <ArrowRight size={16} />
+                Ambil Trial Gratis <ArrowRight size={16} />
               </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-white px-5 py-14 sm:px-6 md:py-18">
+          <div className="mx-auto max-w-7xl">
+            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-widest text-[#FF6A00]">Testimonial</p>
+                <h2 className="mt-3 font-display text-3xl font-extrabold text-slate-900 md:text-4xl">
+                  Sedang Dipoles Bersama Cafe Owner Beta
+                </h2>
+              </div>
+              <p className="max-w-xl text-sm font-semibold leading-7 text-slate-500">
+                Placeholder ini siap diganti dengan quote asli setelah Closed Beta berjalan.
+              </p>
+            </div>
+            <div className="mt-8 grid gap-4 md:grid-cols-3">
+              {TESTIMONIALS.map((item) => (
+                <div key={item.name} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-5">
+                  <div className="mb-4 flex gap-1 text-[#FF6A00]">
+                    {Array.from({ length: item.rating }).map((_, index) => (
+                      <Star key={index} size={16} fill="#FF6A00" />
+                    ))}
+                  </div>
+                  <p className="text-sm font-semibold leading-7 text-slate-600">&ldquo;{item.body}&rdquo;</p>
+                  <div className="mt-5">
+                    <p className="text-sm font-extrabold text-slate-900">{item.name}</p>
+                    <p className="text-xs font-bold text-slate-400">{item.handle}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="px-5 pb-16 sm:px-6 md:pb-20">
+          <div className="mx-auto max-w-4xl">
+            <div className="text-center">
+              <p className="text-xs font-extrabold uppercase tracking-widest text-[#FF6A00]">FAQ</p>
+              <h2 className="mt-3 font-display text-3xl font-extrabold text-slate-900 md:text-4xl">
+                Pertanyaan yang Sering Muncul
+              </h2>
+            </div>
+            <div className="mt-8 space-y-3">
+              {FAQS.map((item) => (
+                <details key={item.q} className="group rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-extrabold text-slate-900">
+                    {item.q}
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-50 text-[#FF6A00] transition group-open:rotate-45">
+                      +
+                    </span>
+                  </summary>
+                  <p className="mt-4 text-sm font-semibold leading-7 text-slate-500">{item.a}</p>
+                </details>
+              ))}
             </div>
           </div>
         </section>

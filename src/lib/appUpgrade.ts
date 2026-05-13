@@ -113,6 +113,28 @@ function archiveCorruptedKey(key: string, reason: string, recoveredKeys: string[
   recoveredKeys.push(key);
 }
 
+function backupCriticalLocalStorage(report: AppUpgradeReport) {
+  try {
+    const snapshot: Record<string, string> = {};
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index) || '';
+      if (!APP_DATA_PREFIXES.some((prefix) => key.startsWith(prefix))) continue;
+      const value = localStorage.getItem(key);
+      if (value !== null) snapshot[key] = value;
+    }
+    if (Object.keys(snapshot).length === 0) return;
+    localStorage.setItem(`${RECOVERY_PREFIX}pre_migration_snapshot`, JSON.stringify({
+      appVersion: CURRENT_APP_VERSION,
+      schemaVersionBefore: report.schemaVersionBefore,
+      createdAt: new Date().toISOString(),
+      keys: snapshot,
+    }));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Backup local storage gagal.';
+    report.errors.push(message);
+  }
+}
+
 function hasPersistedAppData() {
   try {
     for (let index = 0; index < localStorage.length; index += 1) {
@@ -295,6 +317,7 @@ export async function runAppUpgradeBootstrap(): Promise<AppUpgradeReport> {
   let schemaVersion = metaBefore.schemaVersion;
 
   try {
+    backupCriticalLocalStorage(report);
     for (const migration of migrations) {
       if (schemaVersion >= migration.version) continue;
       migration.run(report);

@@ -2,8 +2,10 @@ import { trackOpsEventRequest } from '@/lib/backendApi';
 
 type OpsEventName =
   | 'login'
+  | 'register'
   | 'checkout'
   | 'transaction_created'
+  | 'first_transaction'
   | 'upgrade_clicked'
   | 'gamification_used'
   | 'loyalty_used'

@@ -27,6 +27,9 @@ Checklist ini dipakai untuk memastikan Web, APK, backend API, Coolify, VPS, dan 
 - [ ] `profiles`, `stores`, `menu_items`, `inventory`, `expenses`, `cash_register`, `subscriptions`, `notifications`, `transactions` ada di DB production
 - [ ] Checkout menulis transaksi ke PostgreSQL production
 - [ ] Void transaksi mengembalikan stok di PostgreSQL production
+- [ ] Payment subscription dan webhook menulis ke PostgreSQL production
+- [ ] Closed Beta feedback menulis ke PostgreSQL production
+- [ ] `app_versions` dan `app_update_events` tersedia
 - [ ] Import local storage menulis ke PostgreSQL production
 - [ ] Admin subscription menulis ke PostgreSQL production
 
@@ -40,6 +43,10 @@ Checklist ini dipakai untuk memastikan Web, APK, backend API, Coolify, VPS, dan 
 - [ ] Menu, inventory, expenses, notifications, subscriptions, transactions load dari backend API
 - [ ] Checkout berhasil
 - [ ] Void transaksi berhasil
+- [ ] Feedback beta berhasil dikirim
+- [ ] Trial countdown tampil benar
+- [ ] PDF report berhasil export
+- [ ] `/api/app/version` terbaca dan update banner tidak mengganggu flow
 
 ## 5. Validasi APK
 
@@ -51,6 +58,9 @@ Checklist ini dipakai untuk memastikan Web, APK, backend API, Coolify, VPS, dan 
 - [ ] Data yang tampil sama dengan Web untuk store/user yang sama
 - [ ] Checkout di APK langsung terbaca saat load ulang di Web
 - [ ] Void transaksi di APK langsung terbaca saat load ulang di Web
+- [ ] Session restore bertahan setelah app ditutup dan dibuka ulang
+- [ ] Offline queue tersimpan lalu sync saat online
+- [ ] Printer config tetap bertahan setelah update APK
 
 ## 6. Validasi Coolify
 
@@ -68,6 +78,9 @@ Checklist ini dipakai untuk memastikan Web, APK, backend API, Coolify, VPS, dan 
 - [ ] Health endpoint bisa dipantau dari Coolify
 - [ ] Request log dan error log cukup untuk troubleshooting
 - [ ] Crashlytics Android aktif bila `google-services.json` tersedia
+- [ ] GA4 menerima event register/login/first_transaction/payment/pdf_export/feedback
+- [ ] Microsoft Clarity menerima session web
+- [ ] Error tracking frontend/backend menerima event dummy tanpa data sensitif
 - [ ] Ada prosedur cek log startup dan request setelah deploy
 
 ## 8. Smoke Test Operasional
@@ -84,6 +97,11 @@ Lakukan urutan ini setelah deploy:
 8. Refresh Web lalu cek transaksi masuk
 9. Void salah satu transaksi
 10. Cek stok bahan kembali sesuai audit inventory
+11. Buat payment subscription sandbox/production sesuai environment
+12. Simulasikan pending, settlement, cancel, expire, deny
+13. Kirim feedback Closed Beta
+14. Export PDF report
+15. Matikan koneksi, buat draft/queue yang didukung, nyalakan lagi, cek sync
 
 ## 9. Command Verifikasi
 
@@ -97,8 +115,11 @@ npm run build-apk-debug
 
 # backend
 cd backend
+npm run backup:critical
+npm run migrate
 npm run check
 
 # health
 curl https://api.kaffepos.my.id/health
+curl https://api.kaffepos.my.id/api/app/version
 ```

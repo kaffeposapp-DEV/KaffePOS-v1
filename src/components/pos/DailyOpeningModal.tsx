@@ -171,10 +171,10 @@ export default function DailyOpeningModal({ cashierName, toast, onDone }: Props)
   });
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-[100] flex items-end sm:items-center justify-center backdrop-blur-sm" onClick={onBackdropClick}>
+    <div className="kaffe-modal-overlay fixed inset-0 z-[100] flex items-end justify-center bg-slate-900/50 backdrop-blur-sm sm:items-center" onClick={onBackdropClick}>
       <div
         ref={panelRef}
-        className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl"
+        className="kaffe-modal-panel bg-white w-full max-w-md overflow-y-auto rounded-t-[28px] shadow-2xl sm:rounded-[28px]"
         aria-labelledby="daily-opening-title"
         {...dialogProps}
         style={{ animation: 'slideUp 0.3s ease-out' }}>

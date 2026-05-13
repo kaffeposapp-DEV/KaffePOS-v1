@@ -16,6 +16,7 @@ import { autoConnectOnResume } from './utils/bluetoothPrinter';
 import { getAuthModeFromLocation, isAuthSurfacePath } from './utils/authFlow';
 import { initAnalytics, trackPageView } from '@/lib/analytics';
 import GlobalErrorBoundary from './components/ui/GlobalErrorBoundary';
+import Modal from './components/ui/Modal';
 
 const AuthPage = lazy(() => import('./components/auth/AuthPage'));
 const AppShell = lazy(() => import('./components/AppShell'));
@@ -93,24 +94,33 @@ function OfflineBanner({ show }: { show: boolean }) {
 
 // ── Exit Confirm Dialog ────────────────────────────────────────
 function ExitConfirmDialog({ show, onConfirm, onCancel }: { show: boolean; onConfirm: () => void; onCancel: () => void }) {
-  if (!show) return null;
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div style={{ background: '#fff', borderRadius: 20, padding: 24, maxWidth: 320, width: '100%' }}>
-        <p style={{ fontWeight: 900, fontSize: 18, marginBottom: 8, color: '#1e293b' }}>Keluar dari KaffePOS?</p>
-        <p style={{ fontSize: 13, color: '#64748b', marginBottom: 20 }}>Semua data akan tetap tersimpan.</p>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button onClick={onCancel}
-            style={{ flex: 1, padding: '12px 0', border: '2px solid #e2e8f0', borderRadius: 14, fontWeight: 700, fontSize: 14, color: '#475569', background: '#fff' }}>
+    <Modal
+      open={show}
+      onClose={onCancel}
+      labelledBy="exit-confirm-title"
+      overlayClassName="z-[99999]"
+      panelClassName="w-full max-w-[320px] rounded-[24px] p-6"
+    >
+        <p id="exit-confirm-title" className="mb-2 text-lg font-black text-slate-800">Keluar dari KaffePOS?</p>
+        <p className="mb-5 text-[13px] font-medium leading-relaxed text-slate-500">Semua data akan tetap tersimpan.</p>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 rounded-2xl border-2 border-slate-200 bg-white py-3 text-sm font-bold text-slate-600 active:scale-95"
+          >
             Batal
           </button>
-          <button onClick={onConfirm}
-            style={{ flex: 1, padding: '12px 0', background: '#ef4444', border: 'none', borderRadius: 14, fontWeight: 900, fontSize: 14, color: '#fff' }}>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="flex-1 rounded-2xl bg-rose-500 py-3 text-sm font-black text-white active:scale-95"
+          >
             Keluar
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

@@ -2,7 +2,7 @@
 
 ## 1. Database
 
-Jalankan [database/production-bootstrap.sql](/Users/macbook/kaffepos-new/kaffepos-v2/database/production-bootstrap.sql) ke PostgreSQL production.
+Untuk environment baru, jalankan [database/production-bootstrap.sql](/Users/macbook/kaffepos-new/kaffepos-v2/database/production-bootstrap.sql) ke PostgreSQL production.
 
 Tujuannya:
 
@@ -10,6 +10,16 @@ Tujuannya:
 - membuat tabel auth internal
 - menyiapkan session dan password reset token
 - backfill kredensial dasar dari `profiles`
+
+Untuk environment yang sudah hidup, jangan ulang bootstrap tanpa review. Jalankan backup dan migrasi terkontrol:
+
+```bash
+cd backend
+npm run backup:critical
+npm run migrate
+```
+
+Migration runner menyimpan checksum di tabel `migrations`. Versioning aplikasi disimpan di `app_versions` dan event update user/store dicatat di `app_update_events`.
 
 ## 2. Coolify backend
 
@@ -31,7 +41,9 @@ Tujuannya:
 NODE_ENV=production
 PORT=8787
 SERVICE_NAME=kaffepos-backend
-APP_VERSION=1.0.0
+APP_VERSION=2.0.0-beta
+MIN_SUPPORTED_WEB_VERSION=2.0.0
+MIN_SUPPORTED_APK_VERSION=2.0.0
 LOG_LEVEL=info
 ADMIN_EMAILS=kaffeposapp@gmail.com
 SESSION_TTL_DAYS=30
@@ -39,6 +51,12 @@ EMAIL_CODE_TTL_MINUTES=10
 PASSWORD_RESET_TTL_MINUTES=60
 WEB_BASE_URL=https://kaffepos.my.id
 API_BASE_URL=https://api.kaffepos.my.id
+
+CLOUDFLARE_ACCOUNT_ID=
+CLOUDFLARE_R2_BUCKET=kaffepos-assets
+CLOUDFLARE_R2_PUBLIC_URL=https://cdn.kaffepos.my.id
+CLOUDFLARE_IMAGES_ACCOUNT_HASH=
+CLOUDFLARE_IMAGES_DELIVERY_URL=
 
 DB_HOST=kaffepos-postgres
 DB_PORT=5432
@@ -66,6 +84,9 @@ AUTH_EMAIL_RATE_LIMIT_MAX=5
 AUTH_VERIFY_RATE_LIMIT_MAX=20
 PAYMENT_CREATE_RATE_LIMIT_MAX=12
 GEMINI_API_KEY=
+SENTRY_DSN=
+SENTRY_ENVIRONMENT=production
+SENTRY_TRACES_SAMPLE_RATE=0
 CORS_ORIGIN=https://kaffepos.my.id,https://www.kaffepos.my.id,https://api.kaffepos.my.id,https://localhost,capacitor://localhost,http://localhost
 ```
 
@@ -86,6 +107,10 @@ Rekomendasi:
 - SSL mode: `Full (strict)`
 - Always Use HTTPS: aktif
 - Automatic HTTPS Rewrites: aktif
+- Static assets memakai header dari [public/_headers](/Users/macbook/kaffepos-new/kaffepos-v2/public/_headers)
+- Branded fallback page ada di [public/404.html](/Users/macbook/kaffepos-new/kaffepos-v2/public/404.html)
+- Asset/logo/image bisa diarahkan ke `VITE_CLOUDFLARE_CDN_BASE_URL` atau `CLOUDFLARE_R2_PUBLIC_URL`
+- Jangan cache HTML terlalu lama; cache agresif hanya untuk hashed assets `/assets/*`
 
 ## 4. Web deploy
 
@@ -93,11 +118,16 @@ Frontend harus membaca API yang sama:
 
 ```env
 VITE_API_BASE_URL=https://api.kaffepos.my.id
+VITE_APP_VERSION=2.0.0
+VITE_CLOUDFLARE_CDN_BASE_URL=https://cdn.kaffepos.my.id
+VITE_CLOUDFLARE_IMAGE_DELIVERY_URL=
 VITE_GA_MEASUREMENT_ID=G-VNQJ3XPCGG
 VITE_CLARITY_PROJECT_ID=wf7x39iiqr
-VITE_MIDTRANS_CLIENT_KEY=
-VITE_MIDTRANS_ENVIRONMENT=production
+VITE_SENTRY_DSN=
+VITE_SENTRY_TRACES_SAMPLE_RATE=0
 ```
+
+Midtrans secret, server key, client key, dan environment hanya boleh berada di backend env. Jangan set `VITE_MIDTRANS_*` di frontend.
 
 ## 5. Resend
 
@@ -114,6 +144,9 @@ Flow email yang dipakai:
 - password reset
 - welcome email
 - subscription activation / cancellation
+- trial reminder hari ke-10 dan ke-13
+- invoice / receipt
+- feedback thank you
 
 ## 6. Google Analytics + Microsoft Clarity
 
@@ -150,6 +183,7 @@ Troubleshooting jika dashboard masih menulis tag belum terdeteksi:
 Konfigurasi yang dipakai:
 
 - `POST /api/subscriptions/payments/create` untuk membuat link pembayaran subscription
+- `POST /api/subscriptions/payments/quote` untuk estimasi harga sebelum create payment
 - `POST /api/payments/midtrans/webhook` untuk settlement webhook
 
 Rekomendasi rollout:
@@ -167,6 +201,8 @@ Endpoint utama:
 - [health](/Users/macbook/kaffepos-new/kaffepos-v2/backend/src/index.ts#L815)
 - [health/db](/Users/macbook/kaffepos-new/kaffepos-v2/backend/src/index.ts#L845)
 - [system-status](/Users/macbook/kaffepos-new/kaffepos-v2/backend/src/index.ts#L862)
+- `GET /api/app/version`
+- `POST /api/app/update-events`
 
 Log penting di Coolify:
 
@@ -189,10 +225,13 @@ Log penting di Coolify:
 7. buat pembayaran subscription via Midtrans
 8. cek webhook settlement masuk
 9. cek subscription aktif dan sinkron ke web/APK
-10. cek history
-11. kirim forgot password
-12. reset password dari email
-13. login ulang di web dan APK
+10. cek `/api/app/version` dan soft update banner
+11. kirim feedback beta dari app
+12. cek event GA4/Clarity untuk login, register, first transaction, payment success, pdf export, feedback submitted
+13. cek history
+14. kirim forgot password
+15. reset password dari email
+16. login ulang di web dan APK
 
 ## 10. Kitchen / Order Checker realtime
 

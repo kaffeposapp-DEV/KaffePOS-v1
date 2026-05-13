@@ -311,8 +311,9 @@ export function deriveConnectivityMode(input: {
   lastSyncSucceeded?: boolean;
 }): ConnectivityMode {
   if (!input.isOnline) return 'offline';
-  if (input.isSyncing || input.summary.syncing > 0 || input.summary.pending > 0) return 'syncing';
+  if (input.isSyncing || input.summary.syncing > 0) return 'syncing';
   if (input.summary.failed > 0 || input.summary.conflicted > 0) return 'sync_failed';
+  if (input.summary.pending > 0) return 'syncing';
   if (input.lastSyncSucceeded) return 'sync_success';
   return 'online';
 }

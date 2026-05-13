@@ -15,6 +15,7 @@ RFC adalah dokumen keputusan untuk perubahan besar produk atau teknis. Gunakan R
 | --- | --- | --- |
 | [0001](0001-product-scope-and-architecture.md) | Accepted | Product Scope and Architecture Guardrails |
 | [0002](0002-commercial-readiness-hardening.md) | Accepted | Commercial Readiness Hardening Plan |
+| [0003](0003-closed-beta-consolidation-and-integrations.md) | Accepted | Closed Beta Consolidation, Safe Update, and Integrations |
 
 ## Kapan Wajib Membuat RFC
 

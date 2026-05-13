@@ -20,7 +20,7 @@ import {
 } from '@/lib/upgradePrompts';
 import SubscriptionCheckoutFlow from '@/components/settings/SubscriptionCheckoutFlow';
 import type { ToastType } from '@/types';
-import { useModalBehavior } from '@/hooks/useModalBehavior';
+import Modal from '@/components/ui/Modal';
 import { trackAnalyticsEvent } from '@/lib/analytics';
 import { trackOpsEvent } from '@/lib/opsMetrics';
 
@@ -114,11 +114,6 @@ export default function UpgradeModal({
     onClose();
   }, [currentPlan, metadata, onClose, recommendedPlan, resolvedPromptKey, storeId, trigger]);
 
-  const { panelRef, onBackdropClick, dialogProps } = useModalBehavior<HTMLDivElement>({
-    open,
-    onClose: close,
-  });
-
   if (!open) return null;
 
   const handlePrimaryAction = () => {
@@ -148,16 +143,13 @@ export default function UpgradeModal({
 
   return (
     <>
-      <div
-        className="fixed inset-0 z-[90] flex h-[100dvh] items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm md:items-center md:p-4"
-        onClick={onBackdropClick}
+      <Modal
+        open={open}
+        onClose={close}
+        labelledBy="upgrade-modal-title"
+        overlayClassName="z-[90] h-[100dvh] bg-slate-950/50 p-0 md:p-4"
+        panelClassName="kaffe-responsive-surface flex max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-[30px] md:max-h-[92dvh] md:max-w-[880px] md:rounded-[32px]"
       >
-        <div
-          ref={panelRef}
-          className="kaffe-responsive-surface flex max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-[30px] bg-white shadow-[0_24px_100px_rgba(15,23,42,0.22)] md:max-h-[92dvh] md:max-w-[880px] md:rounded-[32px]"
-          aria-labelledby="upgrade-modal-title"
-          {...dialogProps}
-        >
           <div className="shrink-0 border-b border-slate-100 bg-white px-5 py-4 sm:px-6 md:px-8">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
@@ -272,8 +264,7 @@ export default function UpgradeModal({
               </button>
             </div>
           </div>
-        </div>
-      </div>
+      </Modal>
 
       {isOwner && (
         <SubscriptionCheckoutFlow

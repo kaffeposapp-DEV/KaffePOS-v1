@@ -24,6 +24,7 @@ import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthMode, getAuthModeFromLocation, getAuthPathForMode } from '@/utils/authFlow';
 import { getPasswordResetParams } from '@/utils/authFlow';
+import { normalizeUserFacingError } from '@/lib/errorMessages';
 import LOGO_ICON from '@/assets/logo-kaffeposappicon.svg';
 
 const brandHighlights = [
@@ -157,8 +158,11 @@ export default function AuthPage() {
     if (isAuthenticated) {
       localStorage.removeItem('kaffepos_registered_email');
       sessionStorage.removeItem('kaffepos_registered_email');
+      if (mode !== 'reset') {
+        navigate('/', { replace: true });
+      }
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, mode, navigate]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | undefined;
@@ -242,18 +246,22 @@ export default function AuthPage() {
         return;
       }
 
-      setOk('Akun berhasil diverifikasi. Tunggu sebentar...');
-      setTimeout(() => {
+      setOk('Akun berhasil diverifikasi. Menyiapkan dashboard...');
+      const loginResult = await signIn(email.trim(), pass);
+      if (loginResult.error) {
         setRegistered(false);
         setVerificationCode('');
         switchMode('login');
-      }, 1500);
+        setOk('Akun berhasil diverifikasi. Silakan login untuk melanjutkan.');
+        return;
+      }
+      navigate('/', { replace: true });
     } catch (e: any) {
-      setErr(e.message || 'Terjadi kesalahan sistem.');
+      setErr(normalizeUserFacingError(e, 'Verifikasi belum bisa diproses. Coba lagi.'));
     } finally {
       setConfirming(false);
     }
-  }, [email, verificationCode, verifyEmailCode, switchMode]);
+  }, [email, navigate, pass, signIn, verificationCode, verifyEmailCode, switchMode]);
 
   const handleCancelVerification = useCallback(() => {
     setRegistered(false);
@@ -268,6 +276,7 @@ export default function AuthPage() {
   }, []);
 
   const submit = async () => {
+    if (busy) return;
     setErr('');
     setOk('');
 
@@ -299,6 +308,8 @@ export default function AuthPage() {
           } else {
             setErr(result.error);
           }
+        } else {
+          navigate('/', { replace: true });
         }
       } else if (mode === 'register') {
         if (!uname) {
@@ -313,6 +324,7 @@ export default function AuthPage() {
           setErr(result.error);
         } else {
           setRegistered(true);
+          setOk(result.message || 'Akun berhasil dibuat. Cek email untuk kode verifikasi.');
           localStorage.setItem('kaffepos_registered_email', email);
         }
       } else if (mode === 'forgot') {
@@ -340,7 +352,7 @@ export default function AuthPage() {
         }
       }
     } catch (e: any) {
-      setErr(e.message || 'Terjadi kesalahan tidak terduga.');
+      setErr(normalizeUserFacingError(e, 'Terjadi kesalahan tidak terduga. Coba lagi.'));
     } finally {
       setBusy(false);
     }
@@ -836,7 +848,10 @@ export default function AuthPage() {
                     className="w-full mt-6 flex items-center justify-center gap-3 rounded-2xl h-14 text-[16px] font-black text-white transition-all shadow-premium disabled:opacity-50 disabled:pointer-events-none bg-[#FF6A00] uppercase italic tracking-widest"
                   >
                     {busy ? (
-                      <RefreshCw size={22} className="animate-spin" aria-hidden="true" />
+                      <>
+                        <RefreshCw size={22} className="animate-spin" aria-hidden="true" />
+                        {mode === 'login' ? 'Memproses...' : mode === 'register' ? 'Mendaftarkan...' : mode === 'forgot' ? 'Mengirim...' : 'Menyimpan...'}
+                      </>
                     ) : (
                       <>
                         {mode === 'login' ? 'Masuk' : mode === 'register' ? 'Daftar Gratis' : mode === 'forgot' ? 'Reset Password' : 'Update Password'}

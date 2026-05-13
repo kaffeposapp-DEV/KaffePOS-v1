@@ -25,6 +25,10 @@ import {
   syncProfileSubscriptionState,
   env,
   getMidtransBaseUrl,
+  insertNotification,
+  sendTrialReminderEmail,
+  log,
+  serializeError,
 } from '../core';
 import {
   listSubscriptionPaymentMethods,
@@ -93,7 +97,7 @@ router.get('/api/subscriptions/usage-limits', async (req, res, next) => {
     const [profileResult, usageResult, firstTransactionResult] = await Promise.all([
       pool.query(
         `
-          select id, tier, tier_expires_at, is_pro, pro_plan, pro_expires_at, created_at
+          select id, email, display_name, username, tier, tier_expires_at, is_pro, pro_plan, pro_expires_at, created_at
           from public.profiles
           where id = $1
           limit 1
@@ -128,6 +132,44 @@ router.get('/api/subscriptions/usage-limits', async (req, res, next) => {
     const trialDaysRemaining = trialEndsAt
       ? Math.max(0, Math.ceil((new Date(String(trialEndsAt)).getTime() - Date.now()) / 86_400_000))
       : null;
+    if (isTrial && (trialDaysRemaining === 4 || trialDaysRemaining === 1) && profile?.email) {
+      const daysUsed = trialDaysRemaining === 4 ? 10 : 13;
+      const promptKey = `trial_email_day_${daysUsed}`;
+      const reminderLogged = await pool.query(
+        `
+          select id
+          from public.notifications
+          where user_id = $1
+            and metadata->>'promptKey' = $2
+          limit 1
+        `,
+        [ownerId, promptKey],
+      );
+      if (!reminderLogged.rows[0]) {
+        await withTransaction(async (client) => {
+          await insertNotification(
+            client,
+            ownerId,
+            'Email reminder trial terkirim',
+            `Reminder trial hari ke-${daysUsed} sudah dikirim ke email owner.`,
+            'info',
+            { promptKey, daysUsed, daysRemaining: trialDaysRemaining, trialEndsAt },
+            String(store.id),
+          );
+        });
+        sendTrialReminderEmail(
+          String(profile.email),
+          String(profile.display_name || profile.username || 'KaffePOS'),
+          daysUsed,
+          trialDaysRemaining,
+          trialEndsAt ? String(trialEndsAt) : null,
+        ).catch((error) => log('warn', 'subscription.trial_reminder_email_failed', {
+          ownerId,
+          daysUsed,
+          error: serializeError(error),
+        }));
+      }
+    }
     const transactionLimit = isTrial || plan !== 'secangkir' ? -1 : 100;
     const transactionsUsed = Number(usageResult.rows[0]?.used ?? 0);
     const percentUsed = transactionLimit > 0
@@ -160,7 +202,7 @@ router.get('/api/subscriptions/usage-limits', async (req, res, next) => {
       isTrial,
       trialEndsAt,
       trialDaysRemaining,
-      shouldShowTrialUpgradePrompt: isTrial && [4, 2, 1].includes(trialDaysRemaining ?? -1),
+      shouldShowTrialUpgradePrompt: isTrial && [4, 1, 0].includes(trialDaysRemaining ?? -1),
     });
   } catch (error) {
     next(error);

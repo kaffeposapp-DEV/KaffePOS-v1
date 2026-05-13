@@ -22,6 +22,8 @@ import {
 } from '@/lib/subscriptionPlans';
 import { canStartOnlineBillingFlow, getOnlineBillingBlockedMessage } from '@/lib/offlinePolicy';
 import { useModalBehavior } from '@/hooks/useModalBehavior';
+import { trackAnalyticsEvent } from '@/lib/analytics';
+import { trackOpsEvent } from '@/lib/opsMetrics';
 
 type PaidPlan = 'kopi_susu' | 'signature';
 type PaidCycle = Exclude<BillingCycle, 'free'>;
@@ -150,6 +152,11 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
     }
     setSubmitting(true);
     try {
+      trackAnalyticsEvent('upgrade_started', {
+        plan: selectedPlan,
+        billing_cycle: selectedCycle,
+        payment_method: selectedMethod,
+      });
       const result = await createSubscriptionPayment({
         plan: selectedPlan,
         billingCycle: selectedCycle,
@@ -161,6 +168,23 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
         throw new Error('Link pembayaran tidak tersedia.');
       }
 
+      trackAnalyticsEvent('payment_started', {
+        plan: selectedPlan,
+        billing_cycle: selectedCycle,
+        payment_method: selectedMethod,
+        payment_provider: 'midtrans',
+      });
+      void trackOpsEvent({
+        event_name: 'payment_started',
+        status: 'success',
+        metadata: {
+          source: 'subscription_checkout',
+          plan: selectedPlan,
+          billingCycle: selectedCycle,
+          paymentMethod: selectedMethod,
+          reused: result.reused,
+        },
+      });
       toast.showToast(result.reused ? 'Melanjutkan pembayaran Anda...' : 'Membuka gerbang pembayaran aman...', 'success');
       window.location.assign(result.payment.redirect_url);
     } catch (error) {
@@ -179,7 +203,6 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
   const { panelRef, onBackdropClick, dialogProps } = useModalBehavior<HTMLDivElement>({
     open,
     onClose: closeFlow,
-    disabled: submitting,
   });
 
   if (!open) return null;
@@ -211,8 +234,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
             </div>
             <button
               onClick={closeFlow}
-              disabled={submitting}
-              className="shrink-0 rounded-full p-2 text-slate-300 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"
+              className="shrink-0 rounded-full p-2 text-slate-300 transition-colors hover:bg-slate-50 hover:text-slate-900"
               aria-label="Tutup checkout langganan"
             >
               <X size={24} />

@@ -8,6 +8,7 @@ export type UpgradePromptTrigger =
   | 'trial_day_10'
   | 'trial_day_12'
   | 'trial_day_13'
+  | 'trial_expired'
   | 'ai_insight'
   | 'advanced_reports'
   | 'report_export'

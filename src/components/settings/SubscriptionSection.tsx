@@ -17,6 +17,8 @@ import { buildSubscriptionAccess, type SubscriptionAccess } from '@/lib/subscrip
 import { isAdminEmail } from '@/lib/admin';
 import SubscriptionCheckoutFlow from './SubscriptionCheckoutFlow';
 import PricingPage from '../subscription/PricingPage';
+import { trackAnalyticsEvent } from '@/lib/analytics';
+import { trackOpsEvent } from '@/lib/opsMetrics';
 
 interface SubscriptionSectionProps {
   isPro: boolean;
@@ -122,7 +124,16 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
     if (!billing) return;
 
     billingNoticeShown.current = true;
-    if (billing === 'success') toast.showToast('Pembayaran berhasil. Status lisensi sedang diperbarui.', 'success');
+    if (billing === 'success') {
+      toast.showToast('Pembayaran berhasil. Status lisensi sedang diperbarui.', 'success');
+      trackAnalyticsEvent('upgrade_completed', { source: 'subscription_return' });
+      trackAnalyticsEvent('payment_success', { source: 'subscription_return', payment_provider: 'midtrans' });
+      void trackOpsEvent({
+        event_name: 'payment_completed',
+        status: 'success',
+        metadata: { source: 'subscription_return', paymentProvider: 'midtrans' },
+      });
+    }
     if (billing === 'pending') toast.showToast('Pembayaran masih menunggu konfirmasi.', 'info');
     if (billing === 'failed') toast.showToast('Pembayaran gagal atau dibatalkan.', 'warning');
 

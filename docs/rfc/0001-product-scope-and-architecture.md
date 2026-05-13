@@ -4,6 +4,8 @@ Status: Accepted
 Tanggal: 5 Mei 2026
 Owner: Product/Engineering KaffePOS
 
+Catatan 13 Mei 2026: scope Closed Beta terbaru ada di PRD v2.0-beta dan [RFC 0003](0003-closed-beta-consolidation-and-integrations.md). RFC ini tetap menjadi guardrail awal, tetapi daftar out-of-scope lama yang menyebut loyalty/CRM tidak lagi berlaku untuk Kopi Passport loyalty ringan yang sudah masuk baseline beta.
+
 ## Ringkasan
 
 KaffePOS v2 diposisikan sebagai POS F&B ringan untuk cafe kecil-menengah di Indonesia. Produk harus fokus pada operasional harian: auth, store setup, POS checkout, inventory berbasis recipe, void, laporan, subscription, admin internal, printer thermal, dan deployment web/APK dari satu codebase.

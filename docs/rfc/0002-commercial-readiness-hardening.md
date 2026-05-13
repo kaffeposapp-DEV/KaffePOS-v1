@@ -4,6 +4,8 @@ Status: Accepted
 Tanggal: 5 Mei 2026
 Owner: Product/Engineering KaffePOS
 
+Catatan 13 Mei 2026: Closed Beta Candidate ditangani oleh [RFC 0003](0003-closed-beta-consolidation-and-integrations.md). RFC ini tetap berlaku untuk gate commercial general release.
+
 ## Ringkasan
 
 KaffePOS v2 tidak boleh masuk paid/commercial launch umum sebelum production readiness gate hijau. Sprint berikutnya harus fokus pada hardening release, bukan fitur baru.

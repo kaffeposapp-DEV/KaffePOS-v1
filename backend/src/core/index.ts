@@ -82,6 +82,8 @@ export {
   sendWelcomeEmail,
   sendPasswordChangedEmail,
   sendPaymentSuccessEmail,
+  sendTrialReminderEmail,
+  sendFeedbackThankYouEmail,
 } from './email';
 export {
   revokeUserSessions,

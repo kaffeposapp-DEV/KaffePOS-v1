@@ -11,6 +11,7 @@
     "start:coolify": "node dist/index.js",
     "check": "npm run typecheck && npm run build",
     "migrate": "node scripts/run-migrations.mjs",
+    "backup:critical": "node scripts/backup-critical-data.mjs",
     "deploy:kds": "cd .. && bash scripts/deploy-kds-one-command.sh"
   },
   "dependencies": {

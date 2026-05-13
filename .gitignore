@@ -27,6 +27,7 @@ android/app/google-services.json
 .DS_Store
 coverage/
 backups/*.sql
+backend/backups/
 public/downloads/*.apk
 # Optional: Keep these for convenience
 .vscode/
