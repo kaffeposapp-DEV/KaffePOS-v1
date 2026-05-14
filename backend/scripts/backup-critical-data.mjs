@@ -4,6 +4,7 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import pg from 'pg';
+import { buildPoolConfig } from './db-config.mjs';
 
 const { Pool } = pg;
 
@@ -24,24 +25,6 @@ const criticalTables = [
   'user_challenge_progress',
   'payment_orders',
 ];
-
-function buildPoolConfig() {
-  if (process.env.DATABASE_URL) {
-    return {
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-    };
-  }
-
-  return {
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT || 5432),
-    database: process.env.DB_NAME || 'kaffepos_production',
-    user: process.env.DB_USER || 'kaffepos',
-    password: process.env.DB_PASSWORD,
-    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-  };
-}
 
 function quoteIdent(identifier) {
   return `"${identifier.replaceAll('"', '""')}"`;

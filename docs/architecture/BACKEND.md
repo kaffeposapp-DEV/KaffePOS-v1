@@ -135,4 +135,4 @@ npm run backup:critical
 npm run migrate
 ```
 
-Migrasi mencatat checksum di tabel `migrations`. Versioning aplikasi memakai `app_versions`; event update memakai `app_update_events`.
+Migrasi mencatat checksum di tabel `schema_migrations`. Versioning aplikasi memakai `app_versions`; event update memakai `app_update_events`.

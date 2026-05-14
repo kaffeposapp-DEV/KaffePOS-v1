@@ -41,6 +41,7 @@ import {
   sendPasswordResetEmail,
   sendWelcomeEmail,
 } from '../core/email';
+import { handleReferralRegistration } from '../lib/affiliateWebhookHelper';
 import {
   getPermissionsForRole,
   normalizeUserRole,
@@ -208,6 +209,7 @@ router.post('/api/auth/register', authEmailRateLimiter, async (req, res, next) =
       );
 
       return {
+        userId,
         email,
         code: code.code,
         storeName: (profileResult.rows[0]?.display_name as string | null) ?? displayName,
@@ -215,6 +217,12 @@ router.post('/api/auth/register', authEmailRateLimiter, async (req, res, next) =
     });
 
     await sendSignupOtpEmail(result.email, result.code, result.storeName);
+
+    // Track referral registration if referral code exists
+    const referralCode = req.cookies?.kpos_ref || req.query?.ref as string;
+    if (referralCode) {
+      await handleReferralRegistration(pool, result.userId, referralCode);
+    }
 
     res.status(201).json({
       success: true,

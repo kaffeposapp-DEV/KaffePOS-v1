@@ -568,6 +568,94 @@ Kebutuhan:
 
 ## 10.1 Reliability
 
+## 9.14 Affiliate & Referral Program
+
+### Fitur
+
+**Referral Program (Semua User):**
+- Generate kode referral unik per user
+- Bonus Rp150.000 untuk setiap teman yang berlangganan paket berbayar dan aktif 30 hari
+- Tracking clicks, registrations, dan paid conversions
+- Copy link dan native share functionality
+- Dashboard referral dengan stats real-time
+
+**Affiliate Program (Perlu Approval):**
+- Aplikasi affiliate dengan approval admin
+- Komisi 20% dari pembayaran pertama customer
+- Dashboard affiliate dengan performance metrics
+- Payout via transfer bank (manual, admin-managed)
+- Status: pending → active → suspended/rejected
+
+**Admin Features:**
+- Approve/reject aplikasi affiliate
+- Manage status affiliate (active, suspended, rejected)
+- View semua referrals dan affiliates
+- Approve/reject/mark paid commission
+- Track system-wide referral metrics
+
+### Requirement
+
+- Setiap user bisa generate referral code unik (format: KPOS + 6 karakter alphanumeric)
+- Referral click tracking via cookie dan query param
+- Referral registration tracking saat user baru register
+- Commission auto-created saat referred user bayar subscription pertama kali
+- Commission harus idempotent (tidak boleh double)
+- Self-referral harus dicegah di database level
+- Duplicate referral harus dicegah (UNIQUE constraint pada referred_user_id)
+- Fake referral harus dicegah (commission hanya dibuat setelah payment success)
+- RLS enforced pada semua tabel affiliate/referral
+- Sensitive payout details tidak boleh di-expose ke frontend
+- Analytics tracking untuk key events (copy, share, apply, commission)
+
+### Database Tables
+
+- `referral_codes` - Kode referral unik per user
+- `referral_clicks` - Tracking klik referral link
+- `referral_registrations` - Tracking registrasi dari referral
+- `affiliate_profiles` - Profile affiliate dengan status approval
+- `commission_transactions` - Transaksi komisi affiliate
+- `commission_payouts` - Payout komisi ke affiliate
+- `affiliate_terms_acceptances` - Record persetujuan terms
+
+### API Endpoints
+
+**Public:**
+- `GET /ref/:code` - Track click dan redirect
+
+**User:**
+- `GET /api/referrals/me` - Get referral stats
+- `POST /api/referrals/generate` - Generate referral code
+- `GET /api/affiliate/me` - Get affiliate dashboard
+- `POST /api/affiliate/apply` - Apply for affiliate program
+- `PATCH /api/affiliate/me/payout` - Update payout details
+
+**Admin:**
+- `GET /api/admin/affiliates` - List all affiliates
+- `PATCH /api/admin/affiliates/:id/status` - Update affiliate status
+- `GET /api/admin/referrals` - List all referrals
+- `GET /api/admin/commissions` - List all commissions
+- `PATCH /api/admin/commissions/:id/approve` - Approve commission
+- `PATCH /api/admin/commissions/:id/reject` - Reject commission
+- `PATCH /api/admin/commissions/:id/mark-paid` - Mark as paid
+
+### Integration Points
+
+- Registration flow: Track referral dari cookie/query param
+- Payment webhook: Auto-create commission setelah subscription activation
+- Analytics: Track key events via GA4
+
+### Security & Anti-Abuse
+
+- Self-referral prevention via database constraint
+- Duplicate referral prevention via UNIQUE constraint
+- Fake referral prevention (commission hanya setelah payment)
+- Double commission prevention (idempotent operation)
+- RLS enforced dengan FORCE ROW LEVEL SECURITY
+- No secrets in frontend
+
+---
+
+
 - Aplikasi harus tetap usable walau koneksi putus untuk kebutuhan baca cache dan sebagian penulisan antrian.
 - Sinkronisasi ulang harus berjalan saat koneksi kembali online.
 - Auth flow native harus tahan terhadap gangguan lifecycle Android.
@@ -908,6 +996,17 @@ Legacy/manual activation key table.
 ---
 
 ## 13.3 Communication & support tables
+
+**Affiliate & Referral Tables:**
+
+- `referral_codes` - Kode referral unik per user (id, user_id, code, is_active, created_at, updated_at)
+- `referral_clicks` - Tracking klik referral link (id, referral_code_id, ip_address, user_agent, referrer_url, clicked_at)
+- `referral_registrations` - Tracking registrasi dari referral (id, referral_code_id, referred_user_id, referrer_user_id, registered_at, trial_started_at, first_payment_at, active_30_days_at, reward_credited_at, reward_amount_idr)
+- `affiliate_profiles` - Profile affiliate (id, user_id, status, commission_rate, payout_method, payout_details, applied_at, approved_at, rejected_at, rejection_reason, total_clicks, total_registrations, total_paid_conversions, total_commission_earned_idr, total_commission_paid_idr, updated_at)
+- `commission_transactions` - Transaksi komisi (id, affiliate_user_id, referred_user_id, referral_registration_id, payment_order_id, payment_amount_idr, commission_rate, commission_amount_idr, status, eligible_at, approved_at, rejected_at, paid_at, cancelled_at, rejection_reason, notes, created_at, updated_at)
+- `commission_payouts` - Payout komisi (id, affiliate_user_id, payout_amount_idr, payout_method, payout_details, commission_ids, status, requested_at, processed_at, completed_at, failed_at, failure_reason, notes, created_at, updated_at)
+- `affiliate_terms_acceptances` - Record persetujuan terms (id, user_id, terms_version, accepted_at, ip_address, user_agent)
+
 
 ### `notifications`
 

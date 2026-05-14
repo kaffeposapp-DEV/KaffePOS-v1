@@ -1,4 +1,5 @@
 import type { Tab } from '@/types';
+import { isAffiliateEnabled, isReferralEnabled } from '@/lib/config/feature-flags';
 
 export type UserRole = 'owner_admin' | 'cashier';
 
@@ -55,7 +56,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 };
 
 const ROLE_TAB_ACCESS: Record<UserRole, Tab[]> = {
-  owner_admin: ['dashboard', 'performance', 'challenges', 'pos', 'loyalty', 'kitchen', 'warehouse', 'menu', 'history', 'report', 'settings'],
+  owner_admin: ['dashboard', 'performance', 'challenges', 'referrals', 'affiliate', 'pos', 'loyalty', 'kitchen', 'warehouse', 'menu', 'history', 'report', 'settings'],
   cashier: ['pos', 'loyalty', 'performance', 'challenges', 'kitchen', 'history'],
 };
 
@@ -74,7 +75,11 @@ export function hasPermission(role: unknown, permission: Permission): boolean {
 }
 
 export function getVisibleTabs(role: unknown): Tab[] {
-  return ROLE_TAB_ACCESS[normalizeUserRole(role)];
+  return ROLE_TAB_ACCESS[normalizeUserRole(role)].filter((tab) => {
+    if (tab === 'referrals') return isReferralEnabled();
+    if (tab === 'affiliate') return isAffiliateEnabled();
+    return true;
+  });
 }
 
 export function canAccessTab(role: unknown, tab: Tab): boolean {

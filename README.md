@@ -1,193 +1,430 @@
 # KaffePOS v2
 
-KaffePOS sekarang berjalan tanpa dependensi backend lama, dengan arsitektur:
+**Modern POS System for Coffee Shops & Small F&B Businesses**
 
-- Web: `https://kaffepos.my.id`
-- API: `https://api.kaffepos.my.id`
-- Backend: Express + PostgreSQL
-- Infra: Contabo VPS + Coolify + Cloudflare
-- Email: Resend
-- Payment: Midtrans (subscription)
-- Analytics: Google Analytics + Microsoft Clarity
+KaffePOS is a full-stack point-of-sale system designed for coffee shops, cafes, bakeries, and small F&B businesses. Built with React, TypeScript, Express, and PostgreSQL, it provides fast cashier operations, inventory management, kitchen display, loyalty programs, and subscription billing.
 
-## Struktur penting
+---
 
-- [frontend env](/Users/macbook/kaffepos-new/kaffepos-v2/.env.example)
-- [backend env](/Users/macbook/kaffepos-new/kaffepos-v2/backend/.env.example)
-- [PRD / product source of truth](/Users/macbook/kaffepos-new/kaffepos-v2/PRD_KAFFEPOS_V2.md)
-- [RFC index / decision records](/Users/macbook/kaffepos-new/kaffepos-v2/docs/rfc/README.md)
-- [backend API](/Users/macbook/kaffepos-new/kaffepos-v2/backend/src/index.ts)
-- [midtrans switch guide](/Users/macbook/kaffepos-new/kaffepos-v2/MIDTRANS_SANDBOX_TO_PRODUCTION_SWITCH.md)
-- [frontend API client](/Users/macbook/kaffepos-new/kaffepos-v2/src/lib/backendApi.ts)
-- [auth session client](/Users/macbook/kaffepos-new/kaffepos-v2/src/lib/authSession.ts)
-- [database bootstrap SQL](/Users/macbook/kaffepos-new/kaffepos-v2/database/production-bootstrap.sql)
-- [production guide](/Users/macbook/kaffepos-new/kaffepos-v2/PRODUCTION_DEPLOYMENT_GUIDE.md)
-
-## Frontend env
-
-```env
-VITE_API_BASE_URL=
-VITE_APP_NAME=KaffePOS
-VITE_APP_VERSION=2.0.0
-VITE_CLOUDFLARE_CDN_BASE_URL=https://cdn.kaffepos.my.id
-VITE_CLOUDFLARE_IMAGE_DELIVERY_URL=
-VITE_GA_MEASUREMENT_ID=G-VNQJ3XPCGG
-VITE_CLARITY_PROJECT_ID=wf7x39iiqr
-VITE_SENTRY_DSN=
-VITE_SENTRY_TRACES_SAMPLE_RATE=0
-```
-
-Midtrans key dan environment hanya dikonfigurasi di backend. Jangan tambahkan `VITE_MIDTRANS_*` ke frontend.
-
-Biarkan `VITE_API_BASE_URL` kosong jika:
-
-- local dev memakai proxy Vite ke `http://localhost:8787`
-- production memakai fallback otomatis ke `https://api.kaffepos.my.id`
-
-Untuk analytics:
-
-- `VITE_GA_MEASUREMENT_ID` mengaktifkan Google Analytics
-- `VITE_CLARITY_PROJECT_ID` mengaktifkan Microsoft Clarity
-- nilai production KaffePOS saat ini:
-  - `VITE_GA_MEASUREMENT_ID=G-VNQJ3XPCGG`
-  - `VITE_CLARITY_PROJECT_ID=wf7x39iiqr`
-- perubahan kedua env ini baru terbaca saat frontend dibuild ulang, jadi setelah mengisi atau mengganti nilainya di service `KaffePOS Web`, frontend wajib diredeploy
-
-## Backend env
-
-Salin [backend/.env.example](/Users/macbook/kaffepos-new/kaffepos-v2/backend/.env.example) ke `backend/.env`.
-
-Nilai minimal production:
-
-```env
-SERVICE_NAME=kaffepos-backend
-APP_VERSION=2.0.0-beta
-MIN_SUPPORTED_WEB_VERSION=2.0.0
-MIN_SUPPORTED_APK_VERSION=2.0.0
-NODE_ENV=production
-PORT=8787
-LOG_LEVEL=info
-ADMIN_EMAILS=kaffeposapp@gmail.com
-SESSION_TTL_DAYS=30
-EMAIL_CODE_TTL_MINUTES=10
-PASSWORD_RESET_TTL_MINUTES=60
-WEB_BASE_URL=https://kaffepos.my.id
-API_BASE_URL=https://api.kaffepos.my.id
-
-CLOUDFLARE_ACCOUNT_ID=
-CLOUDFLARE_R2_BUCKET=kaffepos-assets
-CLOUDFLARE_R2_PUBLIC_URL=https://cdn.kaffepos.my.id
-CLOUDFLARE_IMAGES_ACCOUNT_HASH=
-CLOUDFLARE_IMAGES_DELIVERY_URL=
-
-DB_HOST=kaffepos-postgres
-DB_PORT=5432
-DB_NAME=kaffepos_production
-DB_USER=kaffepos
-DB_PASSWORD=replace-me
-DB_SSL=false
-DB_SSL_REJECT_UNAUTHORIZED=true
-DB_SSL_CA=
-
-RESEND_API_KEY=
-RESEND_FROM_EMAIL=KaffePOS <no-reply@kaffepos.my.id>
-MIDTRANS_ENVIRONMENT=production
-MIDTRANS_IS_PRODUCTION=true
-MIDTRANS_SERVER_KEY=
-MIDTRANS_CLIENT_KEY=
-MIDTRANS_MERCHANT_ID=
-MIDTRANS_SNAP_ENABLED=true
-MIDTRANS_WEBHOOK_BASE_URL=https://api.kaffepos.my.id
-MIDTRANS_FINISH_URL=https://kaffepos.my.id/settings?billing=success
-MIDTRANS_UNFINISH_URL=https://kaffepos.my.id/settings?billing=pending
-MIDTRANS_ERROR_URL=https://kaffepos.my.id/settings?billing=failed
-SUBSCRIPTION_PAYMENT_MODE=auto
-AUTH_RATE_LIMIT_WINDOW_MS=900000
-AUTH_LOGIN_RATE_LIMIT_MAX=10
-AUTH_EMAIL_RATE_LIMIT_MAX=5
-AUTH_VERIFY_RATE_LIMIT_MAX=20
-PAYMENT_CREATE_RATE_LIMIT_MAX=12
-GEMINI_API_KEY=
-SENTRY_DSN=
-SENTRY_ENVIRONMENT=production
-SENTRY_TRACES_SAMPLE_RATE=0
-CORS_ORIGIN=https://kaffepos.my.id,https://www.kaffepos.my.id,https://api.kaffepos.my.id,capacitor://localhost,https://localhost,http://localhost,http://localhost:4173,http://127.0.0.1:4173
-```
-
-## Command run/build
+## 🚀 Quick Start
 
 ```bash
-# frontend
+# Install dependencies
 npm install
-npm run dev
-npm run build
-npm run build:mobile
+cd backend && npm install
 
-# backend
-cd backend
-npm install
-npm run dev
-npm run check
-npm run backup:critical
-npm run migrate
-npm run start
+# Set up environment
+cp .env.example .env
+# Edit .env with your configuration
+
+# Run development
+npm run dev              # Frontend (Vite)
+cd backend && npm run dev # Backend (Express)
+
+# Build for production
+npm run build            # Web build
+npm run build:mobile     # Android build
 ```
 
-## Android / APK
+---
+
+## 📚 Documentation
+
+**All documentation is in `/docs` - this is the single source of truth.**
+
+### Core Documentation
+
+| Document | Location | Purpose |
+|----------|----------|---------|
+| **System Requirements** | [`docs/requirements/SRS.md`](docs/requirements/SRS.md) | Technical requirements, architecture, API specs |
+| **Product Requirements** | [`docs/product/PRD.md`](docs/product/PRD.md) | Product vision, features, user stories |
+| **Feature Registry** | [`docs/product/FEATURE_REGISTRY.md`](docs/product/FEATURE_REGISTRY.md) | Feature status, modules, APIs, tables |
+| **Product Changelog** | [`docs/product/CHANGELOG_PRODUCT.md`](docs/product/CHANGELOG_PRODUCT.md) | Product changes, releases, updates |
+
+### Engineering Documentation
+
+| Document | Location | Purpose |
+|----------|----------|---------|
+| **AI Agent Guide** | [`docs/engineering/AI_AGENT_GUIDE.md`](docs/engineering/AI_AGENT_GUIDE.md) | Rules for AI agents working on codebase |
+| **Agent Instructions** | [`docs/engineering/AGENTS.md`](docs/engineering/AGENTS.md) | Root-level agent instructions |
+| **Security Hardening** | [`docs/engineering/SECURITY_HARDENING.md`](docs/engineering/SECURITY_HARDENING.md) | Security best practices, implementation guide |
+| **Performance Guide** | [`docs/engineering/PERFORMANCE_GUIDE.md`](docs/engineering/PERFORMANCE_GUIDE.md) | Performance optimization strategies |
+| **App Update Safety** | [`docs/engineering/APP_UPDATE_SAFETY.md`](docs/engineering/APP_UPDATE_SAFETY.md) | Safe app update procedures |
+| **Audit Report (2026-05-14)** | [`docs/engineering/AUDIT_REPORT_2026_05_14.md`](docs/engineering/AUDIT_REPORT_2026_05_14.md) | Security, performance, scalability audit |
+| **Audit Summary (2026-05-14)** | [`docs/engineering/AUDIT_SUMMARY_2026_05_14.md`](docs/engineering/AUDIT_SUMMARY_2026_05_14.md) | Executive summary of audit findings |
+
+
+
+### Authentication & RBAC
+
+| Document | Location | Purpose |
+|----------|----------|---------|
+| **RBAC Permission Matrix** | [`docs/engineering/RBAC_PERMISSION_MATRIX.md`](docs/engineering/RBAC_PERMISSION_MATRIX.md) | Complete permission matrix, role definitions, API mappings |
+| **Auth & RBAC QA Checklist** | [`docs/engineering/AUTH_RBAC_QA_CHECKLIST.md`](docs/engineering/AUTH_RBAC_QA_CHECKLIST.md) | Authentication and authorization testing checklist |
+
+### Backend Observability
+
+| Document | Location | Purpose |
+|----------|----------|---------|
+| **Backend Observability QA** | [`docs/engineering/BACKEND_OBSERVABILITY_QA_CHECKLIST.md`](docs/engineering/BACKEND_OBSERVABILITY_QA_CHECKLIST.md) | Rate limiting, logging, error handling validation |
+
+### Architecture Documentation
+
+| Document | Location | Purpose |
+|----------|----------|---------|
+| **Backend Architecture** | [`docs/architecture/BACKEND.md`](docs/architecture/BACKEND.md) | Backend structure, patterns, conventions |
+| **Backend API Migration** | [`docs/architecture/BACKEND_API_MIGRATION.md`](docs/architecture/BACKEND_API_MIGRATION.md) | API migration guide |
+
+### Affiliate & Referral Documentation
+
+| Document | Location | Purpose |
+|----------|----------|---------|
+| **Overview** | [`docs/affiliate-referral/OVERVIEW.md`](docs/affiliate-referral/OVERVIEW.md) | Affiliate & referral system overview |
+| **Admin SOP** | [`docs/affiliate-referral/ADMIN_SOP.md`](docs/affiliate-referral/ADMIN_SOP.md) | Admin operations procedures |
+| **Metrics** | [`docs/affiliate-referral/METRICS.md`](docs/affiliate-referral/METRICS.md) | Metrics, formulas, monitoring |
+| **Release Checklist** | [`docs/affiliate-referral/RELEASE_CHECKLIST.md`](docs/affiliate-referral/RELEASE_CHECKLIST.md) | Pre-production checklist |
+
+### Launch & Deployment Documentation
+
+| Document | Location | Purpose |
+|----------|----------|---------|
+| **Go-Live Checklist** | [`docs/launch/GO_LIVE_CHECKLIST.md`](docs/launch/GO_LIVE_CHECKLIST.md) | Production launch checklist |
+| **Deployment Guide** | [`docs/launch/DEPLOYMENT_GUIDE.md`](docs/launch/DEPLOYMENT_GUIDE.md) | Production deployment procedures |
+| **Validation Checklist** | [`docs/launch/VALIDATION_CHECKLIST.md`](docs/launch/VALIDATION_CHECKLIST.md) | End-to-end validation |
+| **Android Release Signing** | [`docs/launch/ANDROID_RELEASE_SIGNING.md`](docs/launch/ANDROID_RELEASE_SIGNING.md) | Android APK signing guide |
+| **Midtrans Production Switch** | [`docs/launch/MIDTRANS_PRODUCTION_SWITCH.md`](docs/launch/MIDTRANS_PRODUCTION_SWITCH.md) | Payment production setup |
+
+### Operations Documentation
+
+| Document | Location | Purpose |
+|----------|----------|---------|
+| **Incident Playbook** | [`docs/operations/INCIDENT_PLAYBOOK.md`](docs/operations/INCIDENT_PLAYBOOK.md) | Incident response procedures |
+| **Support SOP** | [`docs/operations/SUPPORT_SOP.md`](docs/operations/SUPPORT_SOP.md) | Customer support procedures |
+| **Metrics Dashboard** | [`docs/operations/METRICS_DASHBOARD.md`](docs/operations/METRICS_DASHBOARD.md) | Operational metrics |
+| **Maintenance Roadmap** | [`docs/operations/MAINTENANCE_ROADMAP.md`](docs/operations/MAINTENANCE_ROADMAP.md) | Maintenance schedule |
+| **Printer Matrix** | [`docs/operations/PRINTER_APPROVED_MATRIX.md`](docs/operations/PRINTER_APPROVED_MATRIX.md) | Approved printer models |
+
+### Testing Documentation
+
+| Document | Location | Purpose |
+|----------|----------|---------|
+| **QA Checklist** | [`docs/testing/QA_CHECKLIST.md`](docs/testing/QA_CHECKLIST.md) | Security, performance, quality checklist |
+| **Audit Remediation** | [`docs/testing/AUDIT_REMEDIATION.md`](docs/testing/AUDIT_REMEDIATION.md) | Audit issue tracking |
+| **Hardening QA Matrix** | [`docs/testing/HARDENING_QA_MATRIX.md`](docs/testing/HARDENING_QA_MATRIX.md) | Security hardening tests |
+| **Unit Test Guide** | [`docs/testing/UNIT_TEST_GUIDE.md`](docs/testing/UNIT_TEST_GUIDE.md) | Unit testing guidelines |
+
+### Legal Documentation
+
+| Document | Location | Purpose |
+|----------|----------|---------|
+| **Refund Policy** | [`docs/legal/REFUND_POLICY.md`](docs/legal/REFUND_POLICY.md) | Refund terms and conditions |
+| **Data Retention Policy** | [`docs/legal/DATA_RETENTION_POLICY.md`](docs/legal/DATA_RETENTION_POLICY.md) | Data retention rules |
+
+### RFCs (Request for Comments)
+
+| Document | Location | Purpose |
+|----------|----------|---------|
+| **RFC Index** | [`docs/rfc/README.md`](docs/rfc/README.md) | RFC process and index |
+| **RFC 0001** | [`docs/rfc/0001-product-scope-and-architecture.md`](docs/rfc/0001-product-scope-and-architecture.md) | Product scope and architecture |
+| **RFC 0002** | [`docs/rfc/0002-commercial-readiness-hardening.md`](docs/rfc/0002-commercial-readiness-hardening.md) | Commercial readiness |
+| **RFC 0003** | [`docs/rfc/0003-closed-beta-consolidation-and-integrations.md`](docs/rfc/0003-closed-beta-consolidation-and-integrations.md) | Beta consolidation |
+
+---
+
+## 🏗️ Tech Stack
+
+### Frontend
+- **Framework:** React 18 + TypeScript
+- **Build Tool:** Vite
+- **Styling:** Tailwind CSS (utility classes)
+- **Mobile:** Capacitor (Android)
+- **State Management:** React Context + Hooks
+- **HTTP Client:** Fetch API
+- **Validation:** Zod (shared schemas)
+
+### Backend
+- **Runtime:** Node.js + Express
+- **Language:** TypeScript
+- **Database:** PostgreSQL
+- **Validation:** Zod
+- **Authentication:** JWT (custom implementation)
+- **Password Hashing:** bcrypt
+- **Session Management:** Custom (SHA-256 token hashing)
+
+### Infrastructure
+- **Database:** PostgreSQL (self-hosted)
+- **CDN:** Cloudflare (static assets)
+- **Images:** Cloudflare Images
+- **Email:** Resend
+- **Payment:** Midtrans
+- **Analytics:** Google Analytics 4, Microsoft Clarity
+- **Error Tracking:** Sentry
+- **AI:** Gemini (backend proxy)
+
+### Development
+- **Package Manager:** npm
+- **Linting:** ESLint
+- **Type Checking:** TypeScript
+- **Testing:** Vitest (unit tests)
+- **Version Control:** Git
+
+---
+
+## 📁 Project Structure
+
+```
+kaffepos-v2/
+├── src/                    # Frontend source code
+│   ├── components/         # React components
+│   ├── contexts/           # React contexts
+│   ├── lib/                # Utilities, API client
+│   ├── types/              # TypeScript types
+│   └── test/               # Frontend tests
+├── backend/                # Backend source code
+│   ├── src/
+│   │   ├── routes/         # API routes
+│   │   ├── core/           # Core utilities (auth, db, email)
+│   │   ├── lib/            # Business logic libraries
+│   │   └── services/       # Service layer
+│   └── migrations/         # Database migrations
+├── database/               # Database scripts
+│   ├── production-bootstrap.sql
+│   ├── performance-indexes-migration.sql
+│   └── *.sql               # Feature migrations
+├── docs/                   # Documentation (source of truth)
+│   ├── requirements/       # System requirements
+│   ├── product/            # Product docs
+│   ├── engineering/        # Engineering guides
+│   ├── architecture/       # Architecture docs
+│   ├── affiliate-referral/ # Affiliate/referral docs
+│   ├── launch/             # Launch checklists
+│   ├── operations/         # Operations guides
+│   ├── testing/            # Testing docs
+│   ├── legal/              # Legal docs
+│   ├── rfc/                # RFCs
+│   └── archive/            # Archived docs
+├── public/                 # Static assets
+├── android/                # Capacitor Android project
+└── README.md               # This file
+```
+
+---
+
+## 🔐 Security
+
+KaffePOS follows security best practices:
+
+- ✅ Passwords hashed with bcrypt (cost 12)
+- ✅ Session tokens hashed with SHA-256
+- ✅ Parameterized SQL queries (no SQL injection)
+- ✅ Input validation with Zod schemas
+- ✅ Rate limiting on auth/payment endpoints
+- ✅ RBAC (Role-Based Access Control)
+- ✅ Store ownership verification
+- ✅ Payment webhook signature verification
+- ✅ Idempotent payment processing
+- ✅ No secrets in frontend
+- ✅ No PII sent to analytics
+
+**Security Guide:** [`docs/engineering/SECURITY_HARDENING.md`](docs/engineering/SECURITY_HARDENING.md)
+
+---
+
+## ⚡ Performance
+
+Performance optimizations:
+
+- ✅ Database connection pooling
+- ✅ Debouncing on search inputs
+- ✅ Vite code splitting
+- ✅ Cloudflare CDN for static assets
+- ✅ Cloudflare Images for uploads
+- ⚠️ Database indexes (apply `database/performance-indexes-migration.sql`)
+
+**Performance Guide:** [`docs/engineering/PERFORMANCE_GUIDE.md`](docs/engineering/PERFORMANCE_GUIDE.md)
+
+---
+
+## 🤖 AI Agent Rules
+
+**Before coding, AI agents MUST read:**
+
+1. [`docs/requirements/SRS.md`](docs/requirements/SRS.md) - System requirements
+2. [`docs/product/PRD.md`](docs/product/PRD.md) - Product requirements
+3. [`docs/engineering/AI_AGENT_GUIDE.md`](docs/engineering/AI_AGENT_GUIDE.md) - AI agent rules
+4. [`docs/product/FEATURE_REGISTRY.md`](docs/product/FEATURE_REGISTRY.md) - Feature status
+
+**After coding, AI agents MUST update:**
+
+1. Relevant documentation in `/docs`
+2. [`docs/product/FEATURE_REGISTRY.md`](docs/product/FEATURE_REGISTRY.md) - Feature status
+3. [`docs/product/CHANGELOG_PRODUCT.md`](docs/product/CHANGELOG_PRODUCT.md) - Product changelog
+
+**Golden Rules:**
+
+- ❌ No undocumented features
+- ❌ No UI redesign without approval
+- ❌ No secrets in frontend
+- ✅ Backend-only payment verification
+- ✅ Database migrations + documentation
+- ✅ Small, safe, focused changes
+
+**Full Guide:** [`docs/engineering/AI_AGENT_GUIDE.md`](docs/engineering/AI_AGENT_GUIDE.md)
+
+---
+
+## 📦 Database
+
+### Migrations
+
+Database migrations are in `database/` and `backend/migrations/`:
 
 ```bash
-npm run cap:sync
-npm run build-apk-debug
-npm run build-apk-release
-cd android && ./gradlew assembleRelease
+# Apply performance indexes (critical for production)
+psql -d kaffepos_production -f database/performance-indexes-migration.sql
+
+# Apply feature migrations
+psql -d kaffepos_production -f database/affiliate-referral-migration.sql
+psql -d kaffepos_production -f database/loyalty-migration.sql
+psql -d kaffepos_production -f database/challenges-migration.sql
+psql -d kaffepos_production -f database/kitchen-order-checker-migration.sql
 ```
 
-## Endpoint utama
+### Schema
 
-- `GET /health`
-- `GET /health/db`
-- `GET /system-status` publik, sudah direduksi untuk display readiness
-- `GET /api/admin/system-status` detail operasional untuk admin
-- `GET /api/app/version`
-- `POST /api/app/update-events`
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `POST /api/auth/verification/resend`
-- `POST /api/auth/verification/confirm`
-- `POST /api/auth/password/forgot`
-- `POST /api/auth/password/reset`
-- `GET /api/auth/session`
-- `POST /api/auth/logout`
-- `GET /api/profile/me`
-- `GET /api/stores`
-- `GET /api/menu-items`
-- `GET /api/inventory`
-- `GET /api/expenses`
-- `GET /api/subscriptions`
-- `POST /api/subscriptions/payments/quote`
-- `POST /api/subscriptions/payments/create`
-- `POST /api/payments/midtrans/webhook`
-- `POST /api/beta-feedback`
-- `GET /api/notifications`
-- `POST /api/notifications/mark-read`
-- `GET /api/transactions`
-- `POST /api/transactions/checkout`
-- `POST /api/ai-insight`
+Main tables:
+- `profiles` - User accounts
+- `stores` - Store settings
+- `transactions` - POS transactions
+- `menu_items` - Menu catalog
+- `inventory` - Stock management
+- `subscriptions` - Subscription billing
+- `kitchen_orders` - Kitchen display
+- `loyalty_passports` - Loyalty program
+- `challenges` - Gamification
+- `referral_codes` - Referral tracking
+- `affiliate_profiles` - Affiliate program
+- `commission_transactions` - Commission tracking
 
-## Deploy singkat
+---
 
-1. Jalankan SQL bootstrap di [database/production-bootstrap.sql](/Users/macbook/kaffepos-new/kaffepos-v2/database/production-bootstrap.sql) untuk environment baru
-2. Jalankan `npm run backup:critical` dari folder `backend` sebelum migration besar
-3. Jalankan `npm run migrate` dari folder `backend`
-4. Deploy backend dari folder `backend` ke Coolify via Dockerfile
-5. Set domain API ke `api.kaffepos.my.id`
-6. Set health check ke `/health`
-7. Deploy web ke domain `kaffepos.my.id`
-8. Tambahkan analytics/env Cloudflare bila sudah siap, lalu rebuild dan redeploy frontend
-9. Jalankan smoke test login, verifikasi email, reset password, app version, feedback, load store, checkout, payment, history
+## 🚀 Deployment
 
-Lanjutan detail DNS, SSL, Cloudflare, Coolify, Resend, GA, dan Clarity ada di [PRODUCTION_DEPLOYMENT_GUIDE.md](/Users/macbook/kaffepos-new/kaffepos-v2/PRODUCTION_DEPLOYMENT_GUIDE.md).
+### Production Checklist
 
-Panduan cutover Midtrans sandbox ke production ada di [MIDTRANS_SANDBOX_TO_PRODUCTION_SWITCH.md](/Users/macbook/kaffepos-new/kaffepos-v2/MIDTRANS_SANDBOX_TO_PRODUCTION_SWITCH.md).
+**Before production launch:**
 
-Selama akun Midtrans production masih proses verifikasi, biarkan `SUBSCRIPTION_PAYMENT_MODE=auto`. Pada backend production yang masih memakai Midtrans sandbox, checkout online subscription otomatis ditutup dan user diarahkan ke aktivasi manual admin.
+1. ✅ Apply database indexes (`database/performance-indexes-migration.sql`)
+2. ✅ Enable database SSL/TLS (`DB_SSL=true`)
+3. ✅ Configure CORS (`CORS_ORIGIN=https://kaffepos.my.id`)
+4. ✅ Enable Sentry error tracking
+5. ✅ Implement database backups
+6. ✅ Review [`docs/launch/GO_LIVE_CHECKLIST.md`](docs/launch/GO_LIVE_CHECKLIST.md)
+
+**Deployment Guide:** [`docs/launch/DEPLOYMENT_GUIDE.md`](docs/launch/DEPLOYMENT_GUIDE.md)
+
+---
+
+## 🧪 Testing
+
+```bash
+# Frontend tests
+npm run test
+
+# Backend tests
+cd backend && npm run test
+
+# Type checking
+npm run typecheck
+cd backend && npm run typecheck
+
+# Linting
+npm run lint
+cd backend && npm run lint
+```
+
+**Testing Guide:** [`docs/testing/QA_CHECKLIST.md`](docs/testing/QA_CHECKLIST.md)
+
+---
+
+## 📝 Contributing
+
+1. Read [`docs/engineering/AI_AGENT_GUIDE.md`](docs/engineering/AI_AGENT_GUIDE.md)
+2. Check [`docs/product/FEATURE_REGISTRY.md`](docs/product/FEATURE_REGISTRY.md) for feature status
+3. Follow existing code patterns
+4. Update documentation
+5. Update [`docs/product/CHANGELOG_PRODUCT.md`](docs/product/CHANGELOG_PRODUCT.md)
+
+---
+
+## 📄 License
+
+Proprietary - KaffePOS
+
+---
+
+## 📞 Support
+
+- **Documentation:** `/docs` (source of truth)
+- **Issues:** Check [`docs/operations/SUPPORT_SOP.md`](docs/operations/SUPPORT_SOP.md)
+- **Incidents:** Follow [`docs/operations/INCIDENT_PLAYBOOK.md`](docs/operations/INCIDENT_PLAYBOOK.md)
+
+---
+
+## 🎯 Production Readiness
+
+**Current Status:** ⚠️ Not Ready for Production
+
+**Blockers:**
+1. Missing database indexes (critical performance issue)
+2. No database SSL/TLS (security requirement)
+3. No database backups (data loss risk)
+4. No production monitoring (operational risk)
+
+**After Quick Wins (1 week):** ✅ Ready for Soft Launch
+
+**Full Audit Report:** [`docs/engineering/AUDIT_REPORT_2026_05_14.md`](docs/engineering/AUDIT_REPORT_2026_05_14.md)
+
+---
+
+**Built with ❤️ for coffee shops and small F&B businesses**
+
+
+## 📋 API Standards
+
+KaffePOS uses standardized API contracts for consistency and predictability.
+
+**Response Formats:**
+- Success: `{ success: true, data: {...} }`
+- Error: `{ success: false, error: { code, message, details? } }`
+- Paginated: `{ success: true, data: [...], meta: {...} }`
+
+**Error Codes:**
+- `VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `RATE_LIMITED`, `PAYMENT_ERROR`, `FEATURE_DISABLED`, `INTERNAL_SERVER_ERROR`
+
+**Pagination:**
+- Query params: `page`, `limit`, `offset`, `sortBy`, `sortOrder`, `search`
+- Metadata: `page`, `limit`, `total`, `totalPages`, `hasMore`, `nextOffset`
+
+**Full API Documentation:** [`docs/architecture/API.md`](docs/architecture/API.md)
+
+
+## 🗄️ Database
+
+KaffePOS uses PostgreSQL with a custom migration system.
+
+**Migration System:**
+- Custom Node.js runner with SHA-256 checksum validation
+- Transaction safety with automatic rollback
+- Command: `npm run migrate` (from backend folder)
+
+**Key Features:**
+- 40+ tables covering auth, POS, payments, subscriptions, loyalty, affiliate/referral
+- Data integrity constraints (self-referral prevention, numeric constraints, date progression)
+- Idempotency protections (commission, referral, payment, session tokens)
+- Performance indexes (100+ indexes for common queries)
+- Security measures (encrypted payout accounts, hashed IPs, bcrypt passwords)
+
+**Database Documentation:** [`docs/architecture/DATABASE.md`](docs/architecture/DATABASE.md)
+**QA Checklist:** [`docs/engineering/DATABASE_QA_CHECKLIST.md`](docs/engineering/DATABASE_QA_CHECKLIST.md)
+

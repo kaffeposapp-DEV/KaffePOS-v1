@@ -48,7 +48,7 @@ const betaFeedbackSchema = z.object({
   rating: z.number().int().min(1).max(5).optional().nullable(),
   category: z.enum(['Bug', 'Saran', 'Fitur Baru', 'Lainnya']).optional().default('Lainnya'),
   description: z.string().trim().max(2400).optional().default(''),
-  screenshot_data: z.string().trim().max(1_500_000).optional().nullable(),
+  screenshot_data: z.string().trim().max(750_000).optional().nullable(),
   liked: z.string().trim().max(1200).optional().default(''),
   improve: z.string().trim().max(1200).optional().default(''),
   metadata: z.record(z.string(), z.unknown()).optional().default({}),
@@ -1124,7 +1124,7 @@ router.post('/api/beta-feedback', async (req, res, next) => {
         ) values (
           $1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb
         )
-        returning id, user_id, store_id, rating, category, description, screenshot_data, liked, improve, metadata, created_at
+        returning id, user_id, store_id, rating, category, description, liked, improve, metadata, created_at, (screenshot_data is not null) as has_screenshot
       `,
       [
         req.authUser!.id,

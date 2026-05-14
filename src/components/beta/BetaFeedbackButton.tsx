@@ -159,8 +159,8 @@ export default function BetaFeedbackButton({ storeId, toast }: { storeId?: strin
       toast.showToast('Lampiran harus berupa gambar.', 'warning');
       return;
     }
-    if (file.size > 900_000) {
-      toast.showToast('Ukuran screenshot maksimal 900KB.', 'warning');
+    if (file.size > 500_000) {
+      toast.showToast('Ukuran screenshot maksimal 500KB.', 'warning');
       return;
     }
     const reader = new FileReader();

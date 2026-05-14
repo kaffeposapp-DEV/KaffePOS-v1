@@ -19,7 +19,7 @@ npm run backup:critical
 npm run migrate
 ```
 
-Migration runner menyimpan checksum di tabel `migrations`. Versioning aplikasi disimpan di `app_versions` dan event update user/store dicatat di `app_update_events`.
+Migration runner menyimpan checksum di tabel `schema_migrations`. Versioning aplikasi disimpan di `app_versions` dan event update user/store dicatat di `app_update_events`.
 
 ## 2. Coolify backend
 

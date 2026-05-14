@@ -62,7 +62,7 @@ Endpoint:
 
 Tabel terkait:
 
-- `migrations`
+- `schema_migrations`
 - `app_versions`
 - `app_update_events`
 

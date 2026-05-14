@@ -4,7 +4,7 @@ import type { Permission, UserRole } from '@/lib/accessControl';
  
  
  
-export type Tab = 'dashboard' | 'performance' | 'challenges' | 'pos' | 'loyalty' | 'kitchen' | 'warehouse' | 'menu' | 'history' | 'report' | 'settings';
+export type Tab = 'dashboard' | 'performance' | 'challenges' | 'referrals' | 'affiliate' | 'pos' | 'loyalty' | 'kitchen' | 'warehouse' | 'menu' | 'history' | 'report' | 'settings';
 export interface StoreSettings {
   id: string; owner_id: string; store_name: string;
   address?: string; whatsapp?: string; tagline?: string;

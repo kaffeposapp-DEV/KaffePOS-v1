@@ -51,6 +51,11 @@ function isApkPlatform(platform: string) {
   return platform === 'apk' || platform === 'android';
 }
 
+function resolveMinimumSupportedVersion(rowValue: unknown, envValue: string) {
+  const dbValue = typeof rowValue === 'string' ? rowValue : '';
+  return compareVersions(dbValue, envValue) >= 0 ? dbValue : envValue;
+}
+
 async function readVersionState() {
   const tables = await pool.query(`
     select
@@ -78,14 +83,22 @@ async function readVersionState() {
     : { rows: [] };
   const row = appVersionResult.rows[0] || {};
   const schemaRow = schemaResult.rows[0] || {};
+  const minSupportedWebVersion = resolveMinimumSupportedVersion(
+    row.min_supported_web_version,
+    env.MIN_SUPPORTED_WEB_VERSION,
+  );
+  const minSupportedApkVersion = resolveMinimumSupportedVersion(
+    row.min_supported_apk_version,
+    env.MIN_SUPPORTED_APK_VERSION,
+  );
   return {
     appVersion: String(row.version || env.APP_VERSION),
     databaseSchemaVersion: typeof schemaRow.version === 'string' ? schemaRow.version : null,
     updatePolicy: (row.update_policy === 'hard' || row.update_policy === 'soft' || row.update_policy === 'none')
       ? row.update_policy
       : 'soft',
-    minSupportedWebVersion: String(row.min_supported_web_version || env.MIN_SUPPORTED_WEB_VERSION),
-    minSupportedApkVersion: String(row.min_supported_apk_version || env.MIN_SUPPORTED_APK_VERSION),
+    minSupportedWebVersion,
+    minSupportedApkVersion,
     releaseChannel: String(row.release_channel || env.APP_RELEASE_CHANNEL),
     releaseNotes: typeof row.release_notes === 'string' ? row.release_notes : null,
   };

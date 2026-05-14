@@ -10,7 +10,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/AppShell.tsx — KaffePOS v5 — FAST INIT: cache storeId, show instantly
 import React, { useState, useEffect, useCallback, useRef, Suspense, lazy, useMemo } from 'react';
-import { ShoppingBag, Package, Tag, History, BarChart3, Settings, WifiOff, LayoutDashboard, ChefHat, RefreshCw, LogOut, Trophy, BadgePercent, Target } from 'lucide-react';
+import { ShoppingBag, Package, Tag, History, BarChart3, Settings, WifiOff, LayoutDashboard, ChefHat, RefreshCw, LogOut, Trophy, BadgePercent, Target, Gift, Handshake } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStore } from '@/hooks/useStore';
@@ -51,6 +51,8 @@ import LOGO_ICON from '@/assets/logo-kaffeposappicon.svg';
 const DashboardTab = lazy(() => import('./dashboard/Dashboard'));
 const StaffPersonalProfileTab = lazy(() => import('./gamification/StaffPersonalProfile'));
 const ChallengesTab = lazy(() => import('./challenges/ChallengesPage'));
+const ReferralDashboardTab = lazy(() => import('./referrals/ReferralDashboardPage'));
+const AffiliateDashboardTab = lazy(() => import('./affiliate/AffiliateDashboardPage'));
 const POSTab       = lazy(() => import('./pos/POSTab'));
 const LoyaltyTab   = lazy(() => import('./loyalty/LoyaltyTab'));
 const KitchenTab   = lazy(() => import('./kitchen/KitchenTab'));
@@ -64,6 +66,8 @@ const NAV = [
   { id: 'dashboard' as Tab, label: 'Dashboard',  icon: LayoutDashboard },
   { id: 'performance' as Tab, label: 'Performa', icon: Trophy },
   { id: 'challenges' as Tab, label: 'Misi', icon: Target },
+  { id: 'referrals' as Tab, label: 'Referral', icon: Gift },
+  { id: 'affiliate' as Tab, label: 'Affiliate', icon: Handshake },
   { id: 'pos'       as Tab, label: 'Kasir',      icon: ShoppingBag },
   { id: 'loyalty'   as Tab, label: 'Loyalty',    icon: BadgePercent },
   { id: 'kitchen'   as Tab, label: 'Dapur',     icon: ChefHat },
@@ -149,6 +153,8 @@ function createLoadedTabsState(initialTab: Tab): Record<Tab, boolean> {
     dashboard: initialTab === 'dashboard',
     performance: initialTab === 'performance',
     challenges: initialTab === 'challenges',
+    referrals: initialTab === 'referrals',
+    affiliate: initialTab === 'affiliate',
     pos: initialTab === 'pos',
     loyalty: initialTab === 'loyalty',
     kitchen: initialTab === 'kitchen',
@@ -799,6 +805,8 @@ export default function AppShell() {
             {renderTabPanel('dashboard', 'Beranda', <DashboardTab />)}
             {renderTabPanel('performance', 'Performa', <StaffPersonalProfileTab profile={profile} role={role} />)}
             {renderTabPanel('challenges', 'Misi Harian', <ChallengesTab profile={profile} role={role} subscriptionAccess={subscriptionAccess} />)}
+            {renderTabPanel('referrals', 'Referral', <ReferralDashboardTab toast={toast} />)}
+            {renderTabPanel('affiliate', 'Affiliate', <AffiliateDashboardTab toast={toast} />)}
             {renderTabPanel('pos', 'POS', <POSTab toast={toast} profile={profile} subscriptionAccess={subscriptionAccess} />)}
             {renderTabPanel('loyalty', 'Loyalty', <LoyaltyTab toast={toast} profile={profile} role={role} subscriptionAccess={subscriptionAccess} />)}
             {renderTabPanel('kitchen', 'Dapur', <KitchenTab toast={toast} profile={profile} />)}

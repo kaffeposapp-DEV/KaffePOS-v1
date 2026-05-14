@@ -21,6 +21,8 @@ import {
 } from '../core';
 import { classifyMidtransWebhookStatus } from '../lib/midtransStatus';
 import { PaymentService } from '../services/PaymentService';
+import { CommissionService } from '../services/CommissionService';
+import { isReferralCommissionCreationEnabled } from '../lib/config/feature-flags';
 
 const router = Router();
 
@@ -76,6 +78,7 @@ async function handleMidtransWebhook(req: Parameters<Parameters<typeof router.po
     const payload = midtransWebhookSchema.parse(req.body);
     const expectedSignature = createMidtransSignature(payload.order_id, payload.status_code, payload.gross_amount);
     if (payload.signature_key !== expectedSignature) {
+      log('warn', 'payment_webhook_signature_failed', { orderId: payload.order_id, transactionStatus: payload.transaction_status });
       await logPaymentWebhook({
         orderId: payload.order_id,
         signatureValid: false,
@@ -84,6 +87,8 @@ async function handleMidtransWebhook(req: Parameters<Parameters<typeof router.po
       });
       throw new ApiError(401, 'Signature Midtrans tidak valid.');
     }
+
+    log('info', 'midtrans_webhook_received', { orderId: payload.order_id, transactionStatus: payload.transaction_status });
 
     await logPaymentWebhook({
       orderId: payload.order_id,
@@ -305,6 +310,9 @@ async function handleMidtransWebhook(req: Parameters<Parameters<typeof router.po
 
       let activationResult: Awaited<ReturnType<typeof activatePaidSubscription>> | null = null;
 
+      const commissionService = new CommissionService(client);
+      let commissionSync: Awaited<ReturnType<CommissionService['createFromPayment']>> | Awaited<ReturnType<CommissionService['cancelForPayment']>> | null = null;
+
       if (statusDecision.shouldActivateLicense && !paymentSession.subscription_id) {
         activationResult = await activatePaidSubscription(client, {
           userId: paymentSession.user_id as string,
@@ -317,7 +325,35 @@ async function handleMidtransWebhook(req: Parameters<Parameters<typeof router.po
           paidAt,
           sessionId: paymentSession.id as string,
         });
+      }
+
+      if (statusDecision.shouldActivateLicense) {
+        if (isReferralCommissionCreationEnabled()) {
+          commissionSync = await commissionService.createFromPayment({
+            userId: paymentSession.user_id as string,
+            paymentId: paymentSession.id as string,
+            grossAmount: Number(paymentSession.amount ?? 0),
+            paidAt,
+            orderId: payload.order_id,
+          });
+          log('info', 'affiliate.commission_sync_success', {
+            orderId: payload.order_id,
+            userId: paymentSession.user_id,
+            created: 'created' in commissionSync ? commissionSync.created : false,
+            reason: 'reason' in commissionSync ? commissionSync.reason : null,
+          });
+        } else {
+          log('info', 'affiliate.commission_sync_disabled', { orderId: payload.order_id, userId: paymentSession.user_id });
+        }
       } else if (statusDecision.shouldNotifyFailure) {
+        if (isReferralCommissionCreationEnabled()) {
+          commissionSync = await commissionService.cancelForPayment({
+            userId: paymentSession.user_id as string,
+            paymentId: paymentSession.id as string,
+            status: rawStatus,
+            orderId: payload.order_id,
+          });
+        }
         await insertNotification(
           client,
           paymentSession.user_id as string,
@@ -334,6 +370,7 @@ async function handleMidtransWebhook(req: Parameters<Parameters<typeof router.po
         transactionStatus: statusDecision.storedStatus,
         orderStatus: statusDecision.shouldActivateLicense ? 'paid' : statusDecision.shouldNotifyFailure ? 'failed' : 'pending',
         orderKind: 'subscription',
+        commissionSync,
         kitchenOrder: null,
         storeId: null,
         transactionId: null,
@@ -375,6 +412,7 @@ async function handleMidtransWebhook(req: Parameters<Parameters<typeof router.po
   }
 }
 
+router.post('/api/webhooks/midtrans', handleMidtransWebhook);
 router.post('/api/payments/midtrans/webhook', handleMidtransWebhook);
 router.post('/api/payment/webhook', handleMidtransWebhook);
 router.post('/api/payment/midtrans-webhook', handleMidtransWebhook);

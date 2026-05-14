@@ -16,12 +16,16 @@ import { autoConnectOnResume } from './utils/bluetoothPrinter';
 import { getAuthModeFromLocation, isAuthSurfacePath } from './utils/authFlow';
 import { initAnalytics, trackPageView } from '@/lib/analytics';
 import GlobalErrorBoundary from './components/ui/GlobalErrorBoundary';
+import { isAdminCommissionEnabled } from '@/lib/config/feature-flags';
 import Modal from './components/ui/Modal';
 
 const AuthPage = lazy(() => import('./components/auth/AuthPage'));
 const AppShell = lazy(() => import('./components/AppShell'));
 const PlanConfirmation = lazy(() => import('./pages/PlanConfirmation'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
+const AdminAffiliatePage = lazy(() => import('./pages/admin/AdminAffiliatePage'));
+const AdminReferralPage = lazy(() => import('./pages/admin/AdminReferralPage'));
+const AdminCommissionPage = lazy(() => import('./pages/admin/AdminCommissionPage'));
 const LegalPage = lazy(() => import('./pages/LegalPage'));
 const SystemStatusPage = lazy(() => import('./pages/SystemStatusPage'));
 const IS_MOBILE_TARGET_BUILD = import.meta.env.VITE_APP_TARGET === 'mobile';
@@ -159,6 +163,15 @@ function AppRoutes() {
       <Route path="/system-status" element={<SystemStatusPage />} />
       <Route path="/admin" element={
         isAuthenticated ? <AdminPanel /> : <Navigate to="/login" replace />
+      } />
+      <Route path="/admin/affiliates" element={
+        isAuthenticated ? (isAdminCommissionEnabled() ? <AdminAffiliatePage /> : <Navigate to="/admin" replace />) : <Navigate to="/login" replace />
+      } />
+      <Route path="/admin/referrals" element={
+        isAuthenticated ? (isAdminCommissionEnabled() ? <AdminReferralPage /> : <Navigate to="/admin" replace />) : <Navigate to="/login" replace />
+      } />
+      <Route path="/admin/commissions" element={
+        isAuthenticated ? (isAdminCommissionEnabled() ? <AdminCommissionPage /> : <Navigate to="/admin" replace />) : <Navigate to="/login" replace />
       } />
       <Route path="/*" element={
         isAuthenticated ? <AppShell /> : <Navigate to="/" replace />

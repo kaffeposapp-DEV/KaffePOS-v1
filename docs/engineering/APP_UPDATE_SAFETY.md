@@ -30,7 +30,7 @@ Backend memakai migrasi SQL aman dari folder [backend/migrations](/Users/macbook
 
 Komponen utama:
 
-- tabel `migrations` menyimpan nama migration, checksum, waktu jalan, dan status
+- tabel `schema_migrations` menyimpan nama migration, checksum, waktu jalan, dan status
 - tabel `app_versions` menyimpan versi rilis aktif, minimum web/APK yang didukung, rollout note, dan force update flag
 - tabel `app_update_events` mencatat update/sync event per user/store
 - script [backend/scripts/run-migrations.mjs](/Users/macbook/kaffepos-new/kaffepos-v2/backend/scripts/run-migrations.mjs) menolak checksum mismatch agar file migration yang sudah pernah jalan tidak diam-diam berubah

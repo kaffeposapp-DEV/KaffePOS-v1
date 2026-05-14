@@ -116,7 +116,7 @@ npm --prefix backend run backup:critical
 npm --prefix backend run migrate
 ```
 
-- Pastikan tabel `migrations`, `app_versions`, dan `app_update_events` tersedia setelah migrasi.
+- Pastikan tabel `schema_migrations`, `app_versions`, dan `app_update_events` tersedia setelah migrasi.
 - Validasi:
 
 ```bash

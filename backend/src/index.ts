@@ -16,6 +16,8 @@ import adminRouter from './routes/admin';
 import miscRouter from './routes/misc';
 import webhooksRouter from './routes/webhooks';
 import { appVersionAuthenticatedRouter, appVersionPublicRouter } from './routes/appVersion';
+import referralsRouter from './routes/referrals';
+import affiliateRouter from './routes/affiliate';
 
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { type Server } from 'node:http';
@@ -2661,6 +2663,7 @@ app.use(healthRouter);
 app.use(appVersionPublicRouter);
 
 
+app.use(referralsRouter);
 // Pre-auth webhook routes
 app.use(webhooksRouter);
 
@@ -2705,6 +2708,7 @@ app.use(loyaltyRouter);
 app.use(challengesRouter);
 app.use(subscriptionsRouter);
 app.use(paymentRouter);
+app.use(affiliateRouter);
 app.use(adminRouter);
 app.use(appVersionAuthenticatedRouter);
 app.use(miscRouter);

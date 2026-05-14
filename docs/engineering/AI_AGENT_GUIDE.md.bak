@@ -1,0 +1,168 @@
+# KaffePOS AI Agent Guide
+
+Version: 1.0
+Date: 2026-05-13
+Status: Mandatory source of truth
+
+## 1. Golden Rules
+
+1. Before coding, read `docs/requirements/SRS.md`, `docs/product/PRD.md`, `docs/engineering/AI_AGENT_GUIDE.md`, and `docs/product/FEATURE_REGISTRY.md`.
+2. After coding, update relevant docs and `docs/CHANGELOG_PRODUCT.md`.
+3. No undocumented feature is complete.
+4. Do not implement a new feature unless it exists in SRS/PRD/registry or user explicitly asks to document it first.
+5. Do not change UI design language unless accepted docs/RFC says so.
+6. Keep clean white UI with warm orange KaffePOS accents.
+7. No secrets in frontend.
+8. Payment is verified by backend only.
+9. Database changes require migration and documentation.
+10. Prefer small focused changes over broad rewrites.
+
+## 2. Required Pre-Coding Checklist
+
+Before any code change:
+
+- Read source-of-truth docs listed above.
+- Identify affected feature ID in `docs/product/FEATURE_REGISTRY.md`.
+- If no feature row exists, add one before or with implementation.
+- Check whether change needs RFC: major user journey, data model, API contract, payment, subscription, offline sync, auth, printer, release gate, architecture.
+- Inspect existing code style and nearby tests.
+- Confirm frontend/backend boundary.
+
+## 3. UI Rules
+
+- Preserve current KaffePOS visual identity: white base, warm orange accent, coffee brand feel.
+- Do not redesign navigation, layout system, cards, modals, auth, POS, dashboard, or settings without explicit approval.
+- Keep mobile-first POS usability.
+- Do not add visual noise or new color system.
+- Do not replace existing components if a small patch works.
+- Loading, empty, and error states must be clear.
+- Android mobile target must not expose desktop/landing-only surfaces.
+
+## 4. Architecture Rules
+
+### Frontend
+
+- Use React TypeScript patterns already present in `src/`.
+- API access belongs in `src/lib/backendApi.ts` or adjacent module with same style.
+- Auth state comes from `src/contexts/AuthContext.tsx` and `src/lib/authSession.ts`.
+- Do not add backend secrets to `VITE_*`; Vite env is public.
+- Use shared subscription/permission helpers instead of duplicating plan checks.
+- Preserve safe update storage keys.
+
+### Backend
+
+- Use Express TypeScript route style under `backend/src/routes/`.
+- Validate inputs with Zod or existing schema pattern.
+- Use parameterized SQL only.
+- Enforce auth, permission, and store ownership in backend.
+- Keep sensitive integrations behind backend: Midtrans, Resend, Gemini, database, Cloudflare secrets.
+- Return safe user-facing error messages.
+- Log operational context without secrets.
+
+### Database
+
+- Add migrations in `database/` or backend migration path.
+- Keep migrations idempotent where possible.
+- Add indexes for new lookup paths.
+- Use constraints for business invariants where practical.
+- Document new tables/columns in `docs/requirements/SRS.md` and `docs/product/FEATURE_REGISTRY.md`.
+
+### Mobile / Capacitor
+
+- Build mobile with `npm run build:mobile`.
+- Keep production API HTTPS-only.
+- Do not enable mixed content.
+- Avoid web APIs that break Android WebView without guard.
+
+## 5. Documentation Update Rules
+
+For every feature or behavior change:
+
+- Update `docs/requirements/SRS.md` when requirements, API, database, business rules, security, analytics, or acceptance criteria change.
+- Update `docs/product/PRD.md` when user value, scope, goals, UX, risk, affiliate/referral, or MVP scope changes.
+- Update `docs/product/FEATURE_REGISTRY.md` for status, module, APIs, tables, docs updated, and notes.
+- Update `docs/CHANGELOG_PRODUCT.md` under Added, Changed, Fixed, or Docs.
+- Update `README.md` when setup, source-of-truth paths, commands, or architecture pointers change.
+- If large architectural/product decision: create/update RFC under `docs/rfc/`.
+
+## 6. Definition of Done
+
+A task is done only when:
+
+- Code compiles or validation command result is reported.
+- Tests/build/typecheck relevant to changed area pass, or skipped reason is explicit.
+- UI remains within no-redesign rule.
+- Backend authorization and validation are not weakened.
+- Payment/security/database rules are followed.
+- Docs and changelog are updated.
+- Feature registry reflects current state.
+- No secrets are introduced.
+- User-facing behavior is documented.
+
+## 7. Payment Rules
+
+- Midtrans server key must exist only in backend env.
+- Frontend must not verify final payment state from redirect, query string, or Snap client result.
+- Backend must create payment sessions/quotes.
+- Backend must verify Midtrans webhook signature before updating payment/subscription state.
+- Payment activation must be idempotent.
+- Manual activation requires admin-only path and audit trail.
+- Subscription UI must show backend state, not assumed state.
+
+## 8. Affiliate / Referral Rules
+
+- Referral attribution is backend-owned.
+- `/ref/:code` tracking must not leak private affiliate data.
+- Referral cookies must be HTTP-only where possible.
+- Affiliate application, approval, commission, and payout state must be auditable.
+- Do not change commission formulas, payout thresholds, or approval rules without docs/RFC.
+- Do not expose payout details unnecessarily in frontend.
+- Fraud-prone events need backend validation and logs.
+
+## 9. Security Rules
+
+- Never commit secrets or real credentials.
+- Never put secrets in `VITE_*` env vars.
+- Validate all write payloads.
+- Use backend permission checks for every sensitive action.
+- Verify store ownership for store-scoped data.
+- Use parameterized SQL.
+- Do not log passwords, tokens, OTPs, raw payment signatures, or secret env values.
+- Keep CORS strict for production.
+- Keep Android production on HTTPS.
+- Preserve rate limits on auth, OTP/email, and payment creation.
+
+## 10. Common Validation Commands
+
+Use relevant commands only:
+
+```bash
+npm run typecheck
+npm run lint
+npm run test:frontend
+npm run test:backend
+npm run build
+npm run build:mobile
+cd backend && npm run check
+cd backend && npm run migrate
+```
+
+For documentation-only changes, validation may be limited to markdown review unless user requests full checks.
+
+
+## Affiliate / Referral Feature Flags
+
+- Default rollout flags must be `false` in examples and production until explicitly enabled.
+- Backend flags: `AFFILIATE_REFERRAL_ENABLED`, `REFERRAL_ENABLED`, `AFFILIATE_ENABLED`, `ADMIN_COMMISSION_ENABLED`, `REFERRAL_COMMISSION_CREATION_ENABLED`.
+- Frontend flags: `VITE_AFFILIATE_REFERRAL_ENABLED`, `VITE_REFERRAL_ENABLED`, `VITE_AFFILIATE_ENABLED`, `VITE_ADMIN_COMMISSION_ENABLED`.
+- Do not create commission from payment webhook when `REFERRAL_COMMISSION_CREATION_ENABLED=false`.
+- Do not delete existing affiliate/referral/commission data when disabling flags.
+- Hide disabled frontend navigation and block direct admin/user route access safely.
+
+
+## Operational Docs Rules
+
+- Affiliate/referral admin operations live in `docs/SOP_AFFILIATE_REFERRAL_ADMIN.md`.
+- Affiliate/referral metrics live in `docs/METRICS_AFFILIATE_REFERRAL.md`.
+- Any feature affecting payout, fraud, admin action, or commission state must update SOP/metrics docs when behavior changes.
+- Logs must not include raw IP, payout account numbers, secrets, or unnecessary PII.

@@ -42,7 +42,7 @@ Sebelum Closed Beta, beberapa area masih belum punya kontrak release yang jelas:
 
 ### Safe Update
 
-- Tambah migration SQL versioned dengan tabel `migrations`, `app_versions`, dan `app_update_events`.
+- Tambah migration SQL versioned dengan tabel `schema_migrations`, `app_versions`, dan `app_update_events`.
 - Jalankan `npm run backup:critical` sebelum migration besar.
 - Jalankan `npm run migrate` untuk semua schema change.
 - Frontend menjalankan local storage migration, cek `/api/app/version`, dan mencatat update event.

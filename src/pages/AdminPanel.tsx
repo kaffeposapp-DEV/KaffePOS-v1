@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { CreditCard, Loader2, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -8,6 +8,7 @@ import {
   getAdminSubscriptionOverview,
 } from '@/lib/backendApi';
 import { ADMIN_EMAILS, isAdminEmail } from '@/lib/admin';
+import { isAdminCommissionEnabled } from '@/lib/config/feature-flags';
 import {
   BILLING_CYCLE_LABELS,
   ACTIVE_SUBSCRIPTION_PLAN_IDS,
@@ -231,6 +232,13 @@ export default function AdminPanel() {
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
+            {isAdminCommissionEnabled() && (
+              <>
+                <Link to="/admin/affiliates" className="rounded-full bg-orange-50 px-4 py-2 text-sm font-black text-orange-700">Affiliates</Link>
+                <Link to="/admin/referrals" className="rounded-full bg-orange-50 px-4 py-2 text-sm font-black text-orange-700">Referrals</Link>
+                <Link to="/admin/commissions" className="rounded-full bg-orange-50 px-4 py-2 text-sm font-black text-orange-700">Commissions</Link>
+              </>
+            )}
             {TABS.map((tab) => (
               <button
                 key={tab}
