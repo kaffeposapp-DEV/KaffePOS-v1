@@ -6,7 +6,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { env, adminEmails } from './env';
 import { pool } from './db';
-import { ApiError, log } from './errors';
+import { ApiError, log, serializeError } from './errors';
+import { writeAuditLog } from '../lib/auditLog';
 import {
   getPermissionsForRole,
   hasPermission,
@@ -140,13 +141,59 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
   }
 }
 
-export function requireAdmin(req: Request, _res: Response, next: NextFunction) {
-  if (!isAdminUser(req.authUser)) {
-    next(new ApiError(403, 'Akses admin ditolak.'));
-    return;
-  }
+function isAdminMfaExemptPath(path: string) {
+  return path.startsWith('/api/admin/mfa/');
+}
 
-  next();
+export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!isAdminUser(req.authUser)) {
+      await writeAuditLog({
+        userId: req.authUser?.id ?? null,
+        action: 'admin.access_denied',
+        ip: req.ip,
+        details: { method: req.method, path: req.originalUrl },
+      });
+      next(new ApiError(403, 'Akses admin ditolak.'));
+      return;
+    }
+
+    if (!isAdminMfaExemptPath(req.path)) {
+      const mfaResult = await pool.query(
+        'select enabled_at from public.admin_mfa_settings where user_id = $1 limit 1',
+        [req.authUser!.id],
+      ).catch((error) => {
+        log('warn', 'admin.mfa_check_failed', { error: serializeError(error), userId: req.authUser?.id ?? null });
+        return { rows: [] };
+      });
+
+      if (!mfaResult.rows[0]?.enabled_at) {
+        await writeAuditLog({
+          userId: req.authUser!.id,
+          action: 'admin.mfa_required',
+          ip: req.ip,
+          details: { method: req.method, path: req.originalUrl },
+        });
+        next(new ApiError(403, 'Admin MFA wajib diaktifkan.'));
+        return;
+      }
+    }
+
+    res.on('finish', () => {
+      if (res.statusCode < 400) {
+        void writeAuditLog({
+          userId: req.authUser?.id ?? null,
+          action: `admin.${req.method.toLowerCase()}.${req.path}`,
+          ip: req.ip,
+          details: { method: req.method, path: req.originalUrl, params: req.params, statusCode: res.statusCode },
+        });
+      }
+    });
+
+    next();
+  } catch (error) {
+    next(error);
+  }
 }
 
 export function requirePermission(permission: Permission): RequestHandler {

@@ -68,7 +68,7 @@ export function validate(schemas: {
       }
       
       if (schemas.params) {
-        req.params = schemas.params.parse(req.params);
+        req.params = schemas.params.parse(req.params) as typeof req.params;
       }
       
       next();

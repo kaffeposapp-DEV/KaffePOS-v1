@@ -4,10 +4,11 @@
  
  
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useMemo } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { Plus, Archive, X, AlertTriangle, ChevronDown, ChevronUp, Search, RefreshCw, ChefHat, Calculator, Upload, CheckCircle2, FileSpreadsheet, ClipboardCheck } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import DeleteConfirmSheet from '@/components/ui/DeleteConfirmSheet';
+import { InventoryRow } from '@/components/warehouse/InventoryRow';
 import type { BulkImportMode } from '@/lib/stockEngine';
 import {
   buildBulkImportPreview,
@@ -17,10 +18,14 @@ import {
   type BulkImportRow,
 } from '@/lib/stockEngine';
 import { getRecipeSaveErrorMessage, normalizeUserFacingError } from '@/lib/errorMessages';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import type { InventoryItem, InventoryItemUpdate, MenuItem } from '@/types';
 import { getInventoryUsageMap } from '@/utils/receipt';
 
 const fRp = (n: number) => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
+const WarehouseSkeleton = memo(function WarehouseSkeleton() {
+  return <div className="space-y-3">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-20 rounded-[24px] bg-slate-100 animate-pulse" />)}</div>;
+});
 
 interface WarehouseForm {
   id: string;
@@ -63,10 +68,11 @@ export default function WarehouseTab({ toast }: { toast:any }) {
   const [opnameTarget, setOpnameTarget] = useState<InventoryItem | null>(null);
   const [opnameForm, setOpnameForm] = useState({ countedStock: '', reason: 'Opname stok fisik', note: '' });
   const [opnameSaving, setOpnameSaving] = useState(false);
+  const dSearch = useDebouncedValue(search, 300);
 
   const filtered = useMemo(() =>
-    inventory.filter(i => !search || i.name.toLowerCase().includes(search.toLowerCase()))
-  , [inventory, search]);
+    inventory.filter(i => !dSearch || i.name.toLowerCase().includes(dSearch.toLowerCase()))
+  , [inventory, dSearch]);
 
   const lowStock = inventory.filter(i => i.stock <= i.min_stock);
   const activeInventory = inventory.filter(i => i.is_active !== false);
@@ -389,7 +395,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
           </div>
         )}
 
-        {section === 'ingredients' && (filtered.length === 0 ? (
+        {section === 'ingredients' && (search !== dSearch ? <WarehouseSkeleton /> : filtered.length === 0 ? (
           <div className="kaffe-empty-state flex flex-col items-center justify-center h-60 rounded-3xl text-slate-300">
              <Archive size={48} className="mb-4 opacity-10" />
              <p className="text-[12px] font-black uppercase tracking-[0.2em]">Stok masih kosong</p>
@@ -400,71 +406,17 @@ export default function WarehouseTab({ toast }: { toast:any }) {
         ) : (
             <div className="kaffe-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
             {filtered.map(item => {
-          const isLow = item.stock <= item.min_stock;
-          const stockMeta = getStockMeta(item);
           const inMenus = usedInMenu[item.id] || [];
-          const expanded = expandedId === item.id;
-
           return (
-            <div key={item.id} className={`kaffe-action-card group bg-white rounded-2xl border transition-all duration-300 hover:shadow-premium hover:border-[#FF6A00]/20 ${isLow?'border-rose-100 bg-rose-50/10 shadow-soft':'border-slate-100 shadow-soft'}`}>
-              <div className="p-6">
-                <div className="flex items-start justify-between mb-5">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-3">
-                      <p className="font-bold text-slate-800 text-[16px] group-hover:text-[#FF6A00] transition-colors">{item.name}</p>
-                      {isLow && <span className="text-[9px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md uppercase tracking-widest">Kritis</span>}
-                      {inMenus.length>0 && (
-                        <button onClick={()=>setExpandedId(expanded?null:item.id)}
-                          className="text-[9px] font-black text-blue-500 bg-blue-50 px-2 py-0.5 rounded-md flex items-center gap-1.5 uppercase tracking-widest">
-                          {inMenus.length} resep {expanded?<ChevronUp size={12}/>:<ChevronDown size={12}/>}
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex items-baseline gap-2">
-                      <span className={`font-black text-3xl tracking-tighter italic ${isLow?'text-rose-500':'text-slate-900'}`}>
-                        {item.stock.toLocaleString('id-ID')}
-                      </span>
-                      <span className="text-[11px] font-black text-slate-300 uppercase tracking-widest">{item.unit}</span>
-                    </div>
-                    <div className="flex flex-col gap-1 mt-4">
-                       <div className="flex items-center gap-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.05em]">
-                         <span>HPP: {fRp(item.cost_per_unit)}/{item.unit}</span>
-                         <div className="w-1 h-1 rounded-full bg-slate-100" />
-                         <span>Aset: {fRp(item.stock * item.cost_per_unit)}</span>
-                       </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-2 ml-4 shrink-0">
-                    <button onClick={()=>openRestock(item)} className="p-2.5 bg-orange-50 text-[#FF6A00] rounded-2xl hover:bg-orange-100 transition-colors border border-orange-100"><Archive size={18}/></button>
-                    <button aria-label={`Opname ${item.name}`} onClick={()=>openOpname(item)} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-2xl hover:bg-emerald-100 transition-colors border border-emerald-100"><ClipboardCheck size={18}/></button>
-                    <button onClick={()=>openEdit(item)} className="p-2.5 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100 transition-colors border border-slate-100"><Plus size={18} className="rotate-45"/></button>
-                  </div>
-                </div>
-
-                {/* Stock bar */}
-                <div className="w-full bg-slate-50 rounded-full h-3 overflow-hidden border border-slate-100/50">
-                  <div className="h-3 rounded-full transition-all" style={{width:`${stockMeta.fillPct}%`, backgroundColor:stockMeta.barColor}}/>
-                </div>
-                <div className="flex justify-between text-[10px] mt-2 font-bold uppercase tracking-widest">
-                  <span className={isLow ? 'text-rose-500' : 'text-slate-300'}>{stockMeta.label}</span>
-                  <span className="text-slate-300">{stockMeta.fillPct}% sisa stok</span>
-                </div>
-              </div>
-
-              {/* Menu yang menggunakan bahan ini */}
-              {expanded && inMenus.length>0 && (
-                <div className="border-t border-slate-50 bg-blue-50/30 px-6 py-4">
-                  <p className="text-[10px] font-black text-blue-300 uppercase tracking-widest mb-3">DIGUNAKAN DI MENU</p>
-                  <div className="flex flex-wrap gap-2">
-                    {inMenus.map((name,i)=>(
-                      <span key={i} className="text-[11px] font-black bg-white text-blue-600 border border-blue-100 px-3 py-1 rounded-xl shadow-sm">
-                        {name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            <InventoryRow
+              key={item.id}
+              item={item}
+              usedInMenus={inMenus}
+              onEdit={openEdit}
+              onRestock={openRestock}
+              onOpname={openOpname}
+              onDelete={(item) => setDeleteTarget({id: item.id, name: item.name})}
+            />
           );
             })}
           </div>

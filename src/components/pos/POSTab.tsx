@@ -5,7 +5,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/pos/POSTab.tsx — KaffePOS v5
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { memo, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   ShoppingBag, Plus, Minus, X, ChevronRight,
   Search, Printer, RefreshCw, CheckCircle2, ChefHat,
@@ -33,6 +33,7 @@ import {
 import { enqueueOfflineOperation } from '@/lib/offlineQueue';
 import { dispatchUpgradePrompt } from '@/lib/upgradePrompts';
 import { openMidtransSnap } from '@/lib/midtrans';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
   calculateLoyaltyRewardDiscount,
   canRedeemReward,
@@ -49,6 +50,10 @@ import { trackOpsEvent } from '@/lib/opsMetrics';
 
 const fRp = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
+
+const POSSkeleton = memo(function POSSkeleton() {
+  return <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-40 rounded-[24px] bg-slate-100 animate-pulse" />)}</div>;
+});
 
 interface Props {
   toast:   { showToast: (m: string, t?: 'success' | 'error' | 'warning' | 'info') => void };
@@ -106,7 +111,6 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
 
   const [cat,        setCat]        = useState('All');
   const [search,     setSearch]     = useState('');
-  const [dSearch,    setDSearch]    = useState('');
   const [showPay,    setShowPay]    = useState(false);
   const [showVouchers, setShowVouchers] = useState(false);
   const [method,     setMethod]     = useState<'Tunai'|'Transfer'|'QRIS'>('Tunai');
@@ -124,14 +128,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
   const [loyaltySearching, setLoyaltySearching] = useState(false);
   const [loyaltyPassport, setLoyaltyPassport] = useState<LoyaltyPassport | null>(null);
   const [loyaltyReward, setLoyaltyReward] = useState<LoyaltyReward | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
-
-  // Debounce search input
-  const handleSearch = useCallback((val: string) => {
-    setSearch(val);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDSearch(val), 200);
-  }, [],   );
+  const dSearch = useDebouncedValue(search, 300);
 
   const cats = useMemo(() =>
     ['All', ...new Set(menu.map(m => m.category))],
@@ -654,7 +651,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
           </div>
           <div className="relative">
             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"/>
-            <input value={search} onChange={e => handleSearch(e.target.value)}
+            <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Cari menu kopi, snack..."
               className="w-full h-12 bg-slate-50 border border-slate-200/60 rounded-2xl pl-12 pr-4 text-[15px] focus:outline-none focus:ring-4 focus:ring-[#FF6A00]/10 focus:border-[#FF6A00]/30 transition-all font-medium text-slate-700 placeholder:text-slate-400 shadow-soft"
             />
@@ -670,7 +667,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 md:p-5">
-          {filtered.length === 0 ? (
+          {search !== dSearch ? <POSSkeleton /> : filtered.length === 0 ? (
             <div className="kaffe-empty-state flex flex-col items-center justify-center h-full rounded-3xl text-slate-400 gap-3">
               <ShoppingBag size={48} strokeWidth={1.5} className="opacity-20" />
               <p className="font-bold text-sm tracking-tight">Menu tidak ditemukan</p>

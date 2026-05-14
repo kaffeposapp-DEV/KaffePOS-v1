@@ -1,4 +1,5 @@
-import { createCipheriv, createHash, randomBytes } from 'node:crypto';
+import { createHash } from 'node:crypto';
+import { encryptBankAccountNumber } from '../lib/encryption';
 
 function normalize(value: string) {
   return value.trim();
@@ -32,17 +33,6 @@ export class FraudGuardService {
   }
 
   static protectPayoutAccountNumber(accountNumber: string) {
-    const value = normalize(accountNumber);
-    const key = normalize(process.env.AFFILIATE_PAYOUT_ENCRYPTION_KEY ?? '');
-    if (key.length >= 32) {
-      const keyHash = createHash('sha256').update(key).digest();
-      const iv = randomBytes(12);
-      const cipher = createCipheriv('aes-256-gcm', keyHash, iv);
-      const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
-      const tag = cipher.getAuthTag();
-      return `enc:v1:${iv.toString('base64')}:${tag.toString('base64')}:${encrypted.toString('base64')}`;
-    }
-
-    return `sha256:${createHash('sha256').update(value).digest('hex')}`;
+    return encryptBankAccountNumber(normalize(accountNumber));
   }
 }

@@ -18,6 +18,8 @@ import webhooksRouter from './routes/webhooks';
 import { appVersionAuthenticatedRouter, appVersionPublicRouter } from './routes/appVersion';
 import referralsRouter from './routes/referrals';
 import affiliateRouter from './routes/affiliate';
+import adminMfaRouter from './routes/admin-mfa';
+import { securityHeaders } from './middleware/securityHeaders';
 
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { type Server } from 'node:http';
@@ -103,11 +105,11 @@ let server: Server | null = null;
 const allowedOrigins = buildAllowedCorsOrigins(env.CORS_ORIGIN);
 
 const app = express();
+app.use(securityHeaders);
 initBackendErrorTracking();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
-
 app.use((req, res, next) => {
   const startedAt = Date.now();
   const requestId = req.header('x-request-id')?.trim() || randomUUID();
@@ -2690,6 +2692,7 @@ app.use(
   challengesRouter,
   subscriptionsRouter,
   paymentRouter,
+  adminMfaRouter,
   adminRouter,
   appVersionAuthenticatedRouter,
   miscRouter,
@@ -2708,6 +2711,8 @@ app.use(loyaltyRouter);
 app.use(challengesRouter);
 app.use(subscriptionsRouter);
 app.use(paymentRouter);
+app.use(affiliateRouter);
+app.use(adminMfaRouter);
 app.use(adminRouter);
 app.use(appVersionAuthenticatedRouter);
 app.use(miscRouter);

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import { normalizeUserFacingError } from '@/lib/errorMessages';
+import { usePagination } from '@/hooks/usePagination';
 import type { KitchenOrder, KitchenOrderStatus, KitchenStation, Profile, ToastType } from '@/types';
 
 interface Props {
@@ -25,6 +26,7 @@ const STATIONS: Array<{ id: KitchenStation | 'all'; label: string }> = [
   { id: 'dessert', label: 'Dessert' },
   { id: 'other', label: 'Lainnya' },
 ];
+const PAGE_SIZE = 12;
 
 function minutesSince(value: string) {
   const diff = Math.max(0, Date.now() - new Date(value).getTime());
@@ -97,6 +99,7 @@ export default function KitchenTab({ toast, profile }: Props) {
       return order.items.some((item) => item.station === station);
     });
   }, [kitchenOrders, station, status]);
+  const { visibleItems: visibleOrders, hasMore, remaining, loadMore } = usePagination(filteredOrders, { pageSize: PAGE_SIZE, resetKeys: [status, station] });
 
   const counts = useMemo(() => {
     return STATUS_TABS.reduce<Record<string, number>>((acc, tab) => {
@@ -217,7 +220,7 @@ export default function KitchenTab({ toast, profile }: Props) {
 
       {/* ── MAIN CONTENT: CONSISTENT GRID ── */}
       <main className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
-        {filteredOrders.length === 0 ? (
+        {visibleOrders.length === 0 ? (
           <div className="kaffe-empty-state flex h-full min-h-[360px] flex-col items-center justify-center rounded-3xl text-center opacity-60">
             <div className="w-24 h-24 bg-slate-100 rounded-[40px] flex items-center justify-center mb-6">
               <ChefHat size={48} className="text-slate-300" />
@@ -227,7 +230,7 @@ export default function KitchenTab({ toast, profile }: Props) {
           </div>
         ) : (
           <div className="kaffe-card-grid grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 animate-in fade-in duration-300">
-            {filteredOrders.map((order) => {
+            {visibleOrders.map((order) => {
               const action = nextAction(order.overall_status);
               const minutes = minutesSince(order.created_at);
               const isFresh = minutes < 2 && order.overall_status === 'pending';
@@ -338,6 +341,11 @@ export default function KitchenTab({ toast, profile }: Props) {
               );
             })}
           </div>
+        )}
+        {hasMore && (
+          <button type="button" onClick={loadMore} className="mt-5 w-full rounded-2xl border border-slate-200 bg-white py-3 text-sm font-black text-slate-600">
+            Muat Lebih Banyak ({remaining} lagi)
+          </button>
         )}
       </main>
 

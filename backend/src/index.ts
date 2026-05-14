@@ -18,6 +18,14 @@ import webhooksRouter from './routes/webhooks';
 import { appVersionAuthenticatedRouter, appVersionPublicRouter } from './routes/appVersion';
 import referralsRouter from './routes/referrals';
 import affiliateRouter from './routes/affiliate';
+import adminMfaRouter from './routes/admin-mfa';
+import { securityHeaders } from './middleware/securityHeaders';
+import { compression } from './middleware/compression';
+import { trackApiCall } from './lib/monitoring';
+import { initEmailJobs } from './lib/emailJobs';
+import { jobQueue } from './lib/jobQueue';
+
+import { handleAnalyticsJob, handleCommissionJob, handleEmailJob, handleNotificationJob } from './lib/jobQueueHandlers';
 
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { type Server } from 'node:http';
@@ -70,6 +78,15 @@ import {
   type StockBulkImportRow,
 } from './lib/stockImport';
 
+import {
+  errorLoggingMiddleware,
+  installDatabaseApm,
+  metricsHandler,
+  requestContextMiddleware,
+  requestLoggingMiddleware,
+  startApmMonitoring,
+} from './middleware/apm';
+
 type AuthenticatedUser = {
   id: string;
   email: string | null;
@@ -103,31 +120,17 @@ let server: Server | null = null;
 const allowedOrigins = buildAllowedCorsOrigins(env.CORS_ORIGIN);
 
 const app = express();
+app.use(securityHeaders);
 initBackendErrorTracking();
+initEmailJobs();
+installDatabaseApm(pool);
+startApmMonitoring();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
-
-app.use((req, res, next) => {
-  const startedAt = Date.now();
-  const requestId = req.header('x-request-id')?.trim() || randomUUID();
-  req.requestId = requestId;
-  res.setHeader('x-request-id', requestId);
-
-  res.on('finish', () => {
-    log('info', 'request.completed', {
-      requestId,
-      method: req.method,
-      path: req.originalUrl,
-      statusCode: res.statusCode,
-      durationMs: Date.now() - startedAt,
-      ip: req.ip,
-      userId: req.authUser?.id ?? null,
-    });
-  });
-
-  next();
-});
+app.use(compression);
+app.use(requestContextMiddleware());
+app.use(requestLoggingMiddleware());
 
 app.use(
   cors({
@@ -2661,6 +2664,7 @@ async function bootstrapAiInsightsSchema() {
 setHealthRuntimeState({ serviceStartedAt, isShuttingDown: () => isShuttingDown });
 app.use(healthRouter);
 app.use(appVersionPublicRouter);
+app.get('/metrics', metricsHandler);
 
 
 app.use(referralsRouter);
@@ -2690,6 +2694,7 @@ app.use(
   challengesRouter,
   subscriptionsRouter,
   paymentRouter,
+  adminMfaRouter,
   adminRouter,
   appVersionAuthenticatedRouter,
   miscRouter,
@@ -2709,11 +2714,14 @@ app.use(challengesRouter);
 app.use(subscriptionsRouter);
 app.use(paymentRouter);
 app.use(affiliateRouter);
+app.use(adminMfaRouter);
 app.use(adminRouter);
 app.use(appVersionAuthenticatedRouter);
 app.use(miscRouter);
 
 
+
+app.use(errorLoggingMiddleware);
 
 app.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {
   if (error instanceof z.ZodError) {
@@ -2820,6 +2828,7 @@ async function verifyDependenciesOnStartup() {
 }
 
 async function shutdown(signal: NodeJS.Signals | 'FATAL') {
+  jobQueue.stop();
   if (isShuttingDown) return;
   isShuttingDown = true;
 
@@ -2878,6 +2887,11 @@ process.on('uncaughtException', (error) => {
 });
 
 async function start() {
+  jobQueue.registerHandler('email', handleEmailJob);
+  jobQueue.registerHandler('analytics', handleAnalyticsJob);
+  jobQueue.registerHandler('notification', handleNotificationJob);
+  jobQueue.registerHandler('commission', handleCommissionJob);
+  jobQueue.start();
   log('info', 'startup.boot', {
     port: env.PORT,
     env: env.NODE_ENV,

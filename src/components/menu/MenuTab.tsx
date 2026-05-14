@@ -5,17 +5,25 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/menu/MenuTab.tsx
-import { useState, useMemo, useRef } from 'react';
+import { memo, useState, useMemo, useRef } from 'react';
 import { Plus, Edit, Trash2, X, ChevronDown, Image, Search, ShoppingBag } from 'lucide-react';
 import ProductPlaceholder from '@/components/ui/ProductPlaceholder';
 import { useStore } from '@/hooks/useStore';
 import DeleteConfirmSheet from '@/components/ui/DeleteConfirmSheet';
+import { MenuItemCard } from '@/components/menu/MenuItemCard';
 import { normalizeUserFacingError } from '@/lib/errorMessages';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { usePagination } from '@/hooks/usePagination';
 import type { MenuItem } from '@/types';
 
 const fRp = (n: number) => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
 const EMPTY: Partial<MenuItem> = { name:'', price:0, category:'Coffee', image_url:'', description:'', recipe:[], variants:[], is_available:true };
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const PAGE_SIZE = 24;
+
+const LoadingSkeleton = memo(function LoadingSkeleton() {
+  return <div className="grid grid-cols-1 sm:grid-cols-2 lg:hidden gap-3">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-32 rounded-[24px] bg-slate-100 animate-pulse" />)}</div>;
+});
 
 export default function MenuTab({ toast }:any) {
   const { menu, inventory, saveMenuItem, deleteMenuItem } = useStore();
@@ -26,9 +34,11 @@ export default function MenuTab({ toast }:any) {
   const [,             setSaving]       = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MenuItem|null>(null); // konfirmasi hapus
   const imgRef = useRef<HTMLInputElement>(null);
+  const dSearch = useDebouncedValue(search, 300);
 
   const cats     = useMemo(() => ['All', ...new Set(menu.map(m => m.category))], [menu]);
-  const filtered = useMemo(() => menu.filter(m => (cat==='All'||m.category===cat) && (!search||m.name.toLowerCase().includes(search.toLowerCase()))), [menu,cat,search]);
+  const filtered = useMemo(() => menu.filter(m => (cat==='All'||m.category===cat) && (!dSearch||m.name.toLowerCase().includes(dSearch.toLowerCase()))), [menu,cat,dSearch]);
+  const { visibleItems, hasMore, remaining, loadMore } = usePagination(filtered, { pageSize: PAGE_SIZE, resetKeys: [cat, dSearch] });
 
   const openNew  = () => { setForm({ ...EMPTY, recipe: [] }); setShowModal(true); };
   const openEdit = (item: MenuItem) => { setForm({ ...item, recipe: item.recipe ? [...item.recipe] : [] }); setShowModal(true); };
@@ -135,7 +145,7 @@ export default function MenuTab({ toast }:any) {
 
       {/* List */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-5">
-        {filtered.length===0 ? (
+        {search !== dSearch ? <LoadingSkeleton /> : filtered.length===0 ? (
           <div className="kaffe-empty-state flex flex-col items-center justify-center h-48 rounded-3xl text-slate-400">
             <div className="w-16 h-16 bg-slate-100 rounded-[24px] flex items-center justify-center mb-4 text-slate-300">
                <ShoppingBag size={32} />
@@ -148,58 +158,17 @@ export default function MenuTab({ toast }:any) {
         ) : (
           <>
             <div className="kaffe-card-grid kaffe-product-grid grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden">
-              {filtered.map(item => {
-                const stockStatus = getStockStatus(item);
-                const status = getProductStatus(item);
-                return (
-                  <div key={item.id} className={`kaffe-action-card group min-w-0 bg-white rounded-2xl border border-slate-200/80 p-4 transition-all duration-300 hover:shadow-premium hover:border-[#FF6A00]/20 ${!item.is_available ? 'opacity-70 bg-slate-50/50' : 'shadow-sm'}`}>
-                    <div className="flex items-center gap-4">
-                      <div className="w-20 h-20 rounded-xl overflow-hidden shrink-0 border border-slate-100 bg-slate-50 relative group">
-                        {item.image_url
-                          ? <img src={item.image_url} alt={item.name} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-500"/>
-                          : <ProductPlaceholder category={item.category} iconSize={24} />
-                        }
-                        {!item.is_available && (
-                          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center">
-                            <span className="text-[10px] font-black text-white uppercase tracking-widest">Habis</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-start gap-2">
-                          <p className="font-bold text-slate-900 text-[16px] truncate leading-tight">{item.name}</p>
-                          <div className="flex items-center gap-1">
-                            <button type="button" aria-label={`Edit ${item.name}`} onClick={()=>openEdit(item)} className="p-1.5 text-slate-400 hover:text-[#FF6A00] transition-colors"><Edit size={14}/></button>
-                            <button type="button" aria-label={`Hapus ${item.name}`} onClick={() => setDeleteTarget(item)} className="p-1.5 text-slate-400 hover:text-rose-500 transition-colors"><Trash2 size={14}/></button>
-                          </div>
-                        </div>
-
-                        <p className="text-[#FF6A00] font-black text-[17px] mt-1 tracking-tight">{fRp(item.price)}</p>
-
-                        <div className="flex items-center justify-between mt-3">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md uppercase tracking-wider">{item.category}</span>
-                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${status.className}`}>{status.label}</span>
-                            {item.recipe && item.recipe.length > 0 && (
-                              <div className={`w-2 h-2 rounded-full ${stockStatus==='low'?'bg-rose-500 animate-pulse':'bg-emerald-500'}`} title={stockStatus==='low'?'Stok Menipis':'Stok Aman'} />
-                            )}
-                          </div>
-
-                          <button
-                            type="button"
-                            aria-label={`${item.is_available ? 'Nonaktifkan' : 'Aktifkan'} ${item.name}`}
-                            onClick={()=>toggleAvailable(item)}
-                            className={`w-10 h-6 rounded-full transition-all relative ${item.is_available ? 'bg-emerald-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]' : 'bg-slate-200'}`}
-                          >
-                            <div className={`h-[18px] w-[18px] bg-white rounded-full absolute top-[3px] transition-all duration-300 ${item.is_available ? 'left-[19px]' : 'left-[3px]'}`}/>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {visibleItems.map(item => (
+                <MenuItemCard
+                  key={item.id}
+                  item={item}
+                  onEdit={openEdit}
+                  onDelete={setDeleteTarget}
+                  onToggleAvailable={toggleAvailable}
+                  getProductStatus={getProductStatus}
+                  getStockStatus={getStockStatus}
+                />
+              ))}
             </div>
 
             <div className="kaffe-table-surface hidden lg:block">
@@ -214,7 +183,7 @@ export default function MenuTab({ toast }:any) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filtered.map((item) => {
+                  {visibleItems.map((item) => {
                     const status = getProductStatus(item);
                     return (
                       <tr key={item.id} className={!item.is_available ? 'bg-slate-50/50 opacity-75' : 'bg-white'}>
@@ -257,6 +226,11 @@ export default function MenuTab({ toast }:any) {
                 </tbody>
               </table>
             </div>
+            {hasMore && (
+              <button type="button" onClick={loadMore} className="mt-4 w-full rounded-2xl border border-slate-200 bg-white py-3 text-sm font-black text-slate-600">
+                Muat Lebih Banyak ({remaining} lagi)
+              </button>
+            )}
           </>
         )}
       </div>

@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useState } from 'react';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { adminGetReferralDetail, adminGetReferrals } from '@/lib/backendApi';
 import { trackAnalyticsEvent } from '@/lib/analytics';
 import { fDate } from '@/utils/format';
@@ -11,11 +12,12 @@ export default function AdminReferralPage() {
   const [status, setStatus] = useState('all');
   const [type, setType] = useState('all');
   const [search, setSearch] = useState('');
+  const dSearch = useDebouncedValue(search, 300);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<AdminReferralDetail | null>(null);
-  const load = async () => { try { setLoading(true); setError(null); const data = await adminGetReferrals({ status, referral_type: type, search, limit: 50 }); setItems(data.items || []); } catch (err) { setError(err instanceof Error ? err.message : 'Gagal memuat referral.'); } finally { setLoading(false); } };
-  useEffect(() => { void load(); }, [status, type]);
+  const load = async () => { try { setLoading(true); setError(null); const data = await adminGetReferrals({ status, referral_type: type, search: dSearch, limit: 50 }); setItems(data.items || []); } catch (err) { setError(err instanceof Error ? err.message : 'Gagal memuat referral.'); } finally { setLoading(false); } };
+  useEffect(() => { void load(); }, [status, type, dSearch]);
   const summary = useMemo(() => [
     { label: 'Total', value: items.length }, { label: 'Registered', value: items.filter((i) => i.status === 'registered').length }, { label: 'Trial', value: items.filter((i) => i.status === 'trial_started').length }, { label: 'Paid', value: items.filter((i) => i.status === 'paid').length }, { label: 'Eligible', value: items.filter((i) => i.status === 'eligible').length }, { label: 'Rejected/Cancel', value: items.filter((i) => i.status === 'rejected' || i.status === 'cancelled').length },
   ], [items]);

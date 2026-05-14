@@ -24,6 +24,7 @@ import {
   type StockBulkImportRow,
 } from '../lib/stockImport';
 import { calculateStockAdjustmentDelta, stockAdjustmentInputSchema } from '../lib/stockAdjustment';
+import { InventoryService } from '../services/InventoryService';
 
 const router = Router();
 const storeIdSchema = z.string().uuid();
@@ -83,15 +84,8 @@ const stockBulkImportCommitSchema = z.object({
 router.get('/api/inventory', async (req, res, next) => {
   try {
     const storeId = storeIdSchema.parse(req.query.storeId);
-    const result = await withTransaction(async (client) => {
-      await assertStoreOwned(client, storeId, req.authUser!.id);
-      return client.query(
-        `select ${inventoryColumns} from public.inventory where store_id = $1 order by name asc, created_at asc`,
-        [storeId],
-      );
-    });
-
-    res.json({ items: result.rows.map((row: Record<string, unknown>) => normalizeInventory(row)) });
+    const items = await InventoryService.listInventory(storeId, req.authUser!.id);
+    res.json({ items });
   } catch (error) {
     next(error);
   }
@@ -100,36 +94,8 @@ router.get('/api/inventory', async (req, res, next) => {
 router.post('/api/inventory', requirePermission('can_manage_inventory'), async (req, res, next) => {
   try {
     const payload = inventoryWriteSchema.parse(req.body);
-    const result = await withTransaction(async (client) => {
-      await assertStoreOwned(client, payload.store_id, req.authUser!.id);
-      return client.query(
-        `
-          insert into public.inventory (
-            id, store_id, name, sku, stock, unit, base_unit, purchase_unit, conversion_ratio, min_stock, cost_per_unit, is_active
-          ) values (
-            coalesce($1, gen_random_uuid()),
-            $2, $3, $4, $5, $6, coalesce($7, $6), coalesce($8, $6), coalesce($9, 1), $10, $11, coalesce($12, true)
-          )
-          returning ${inventoryColumns}
-        `,
-        [
-          payload.id ?? null,
-          payload.store_id,
-          payload.name,
-          payload.sku ?? null,
-          payload.stock,
-          payload.unit,
-          payload.base_unit ?? null,
-          payload.purchase_unit ?? null,
-          payload.conversion_ratio ?? null,
-          payload.min_stock ?? 5,
-          payload.cost_per_unit ?? 0,
-          payload.is_active ?? true,
-        ],
-      );
-    });
-
-    res.status(201).json(normalizeInventory(result.rows[0]));
+    const item = await InventoryService.createInventoryItem(payload, req.authUser!.id);
+    res.status(201).json(item);
   } catch (error) {
     next(error);
   }
@@ -138,20 +104,8 @@ router.post('/api/inventory', requirePermission('can_manage_inventory'), async (
 router.get('/api/inventory/conversions', async (req, res, next) => {
   try {
     const storeId = storeIdSchema.parse(req.query.storeId);
-    const result = await withTransaction(async (client) => {
-      await assertStoreOwned(client, storeId, req.authUser!.id);
-      return client.query(
-        `
-          select ${stockUnitConversionColumns}
-          from public.inventory_unit_conversions
-          where store_id = $1
-          order by created_at asc
-        `,
-        [storeId],
-      );
-    });
-
-    res.json({ items: result.rows.map((row: Record<string, unknown>) => normalizeStockUnitConversion(row)) });
+    const items = await InventoryService.listUnitConversions(storeId, req.authUser!.id);
+    res.json({ items });
   } catch (error) {
     next(error);
   }
@@ -160,40 +114,8 @@ router.get('/api/inventory/conversions', async (req, res, next) => {
 router.post('/api/inventory/conversions', requirePermission('can_manage_inventory'), async (req, res, next) => {
   try {
     const payload = stockUnitConversionWriteSchema.parse(req.body);
-    const result = await withTransaction(async (client) => {
-      await assertStoreOwned(client, payload.store_id, req.authUser!.id);
-      if (payload.ingredient_id) {
-        const ingredient = await client.query(
-          `select id from public.inventory where id = $1 and store_id = $2 limit 1`,
-          [payload.ingredient_id, payload.store_id],
-        );
-        if (!ingredient.rows[0]) {
-          throw new ApiError(404, 'Bahan baku untuk konversi tidak ditemukan.');
-        }
-      }
-
-      return client.query(
-        `
-          insert into public.inventory_unit_conversions (
-            id, store_id, ingredient_id, from_unit, to_unit, ratio, is_active
-          ) values (
-            coalesce($1, gen_random_uuid()), $2, $3, $4, $5, $6, coalesce($7, true)
-          )
-          returning ${stockUnitConversionColumns}
-        `,
-        [
-          payload.id ?? null,
-          payload.store_id,
-          payload.ingredient_id ?? null,
-          payload.from_unit,
-          payload.to_unit,
-          payload.ratio,
-          payload.is_active ?? true,
-        ],
-      );
-    });
-
-    res.status(201).json(normalizeStockUnitConversion(result.rows[0]));
+    const item = await InventoryService.createUnitConversion(payload, req.authUser!.id);
+    res.status(201).json(item);
   } catch (error) {
     next(error);
   }

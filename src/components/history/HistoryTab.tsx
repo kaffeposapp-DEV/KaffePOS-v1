@@ -5,13 +5,16 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/history/HistoryTab.tsx — KaffePOS v4 — PrintActionSheet
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { memo, useState, useMemo, useCallback } from 'react';
 import { X, Ban, Search, Printer, ChevronDown } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import PrintActionSheet from '@/components/pos/PrintActionSheet';
+import { TransactionCard } from '@/components/history/TransactionCard';
 import { normalizeUserFacingError } from '@/lib/errorMessages';
 import type { SubscriptionAccess } from '@/lib/subscriptionAccess';
 import { useModalBehavior } from '@/hooks/useModalBehavior';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { usePagination } from '@/hooks/usePagination';
 
 const fRp = (n: number) =>
   new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
@@ -19,6 +22,9 @@ const fDt = (d: string) =>
   new Date(d).toLocaleString('id-ID',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
 const PAGE_SIZE = 30;
+const HistorySkeleton = memo(function HistorySkeleton() {
+  return <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-24 rounded-[24px] bg-slate-100 animate-pulse" />)}</div>;
+});
 
 type Period = 'today' | '7d' | '30d' | 'all';
 
@@ -32,22 +38,14 @@ export default function HistoryTab({
   const { transactions, voidTransaction, storeSettings } = useStore();
 
   const [search,   setSearch]   = useState('');
-  const [dSearch,  setDSearch]  = useState('');
   const [detail,   setDetail]   = useState<any>(null);
   const [voidR,    setVoidR]    = useState('');
   const [showVoid, setShowVoid] = useState<any>(null);
   const [voiding,  setVoiding]  = useState(false);
   const [period,   setPeriod]   = useState<Period>('all');
-  const [page,     setPage]     = useState(1);
   const [showPrintSheet, setShowPrintSheet] = useState(false);
   const [printTx, setPrintTx] = useState<any>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
-
-  const handleSearch = useCallback((val: string) => {
-    setSearch(val);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => { setDSearch(val); setPage(1); }, 250);
-  }, [],   );
+  const dSearch = useDebouncedValue(search, 300);
 
   // ── Period filter ────────────────────────────────────────────
   const periodCutoff = useMemo((): number | null => {
@@ -77,8 +75,7 @@ export default function HistoryTab({
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, dSearch, periodCutoff]);
 
-  const pageCount  = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated  = useMemo(() => filtered.slice(0, page * PAGE_SIZE), [filtered, page]);
+  const { visibleItems: paginated, hasMore, remaining, loadMore } = usePagination(filtered, { pageSize: PAGE_SIZE, resetKeys: [dSearch, period] });
   const totalRev   = useMemo(() => filtered.filter(t => !t.is_void).reduce((s,t) => s+t.total, 0), [filtered]);
   const totalVoid  = useMemo(() => filtered.filter(t => t.is_void).length, [filtered]);
   const totalCount = useMemo(() => filtered.filter(t => !t.is_void).length, [filtered]);
@@ -143,7 +140,7 @@ export default function HistoryTab({
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"/>
           <input
             value={search}
-            onChange={e=>handleSearch(e.target.value)}
+            onChange={e=>setSearch(e.target.value)}
             placeholder="Cari ID, menu, atau kasir..."
             className="w-full h-12 bg-slate-50/50 border border-slate-100 rounded-2xl pl-12 pr-4 text-[15px] focus:outline-none focus:ring-4 focus:ring-[#FF6A00]/5 focus:border-[#FF6A00]/20 transition-all font-bold text-slate-700 placeholder:text-slate-300 shadow-sm"
           />
@@ -154,7 +151,7 @@ export default function HistoryTab({
           {PERIODS.map(p => (
             <button
               key={p.id}
-              onClick={() => { setPeriod(p.id); setPage(1); }}
+              onClick={() => setPeriod(p.id)}
               className={`shrink-0 pb-3 text-[13px] font-black uppercase tracking-widest transition-all relative ${
                 period===p.id
                   ? 'text-[#FF6A00]'
@@ -169,7 +166,7 @@ export default function HistoryTab({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
-        {paginated.length === 0 ? (
+        {search !== dSearch ? <HistorySkeleton /> : paginated.length === 0 ? (
           <div className="kaffe-empty-state flex flex-col items-center justify-center h-60 rounded-3xl text-slate-300">
             <Search size={40} className="mb-3 opacity-20" />
             <p className="text-[12px] font-black uppercase tracking-[0.2em]">Belum ada transaksi</p>
@@ -181,44 +178,20 @@ export default function HistoryTab({
           <div className="flex flex-col gap-4">
             <div className="kaffe-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {paginated.map(tx => (
-              <div key={tx.id} onClick={() => setDetail(tx)}
-                className={`kaffe-action-card group min-w-0 bg-white rounded-[28px] border p-5 cursor-pointer transition-all duration-300 hover:shadow-premium hover:border-[#FF6A00]/20 active:scale-[0.98]
-                  ${tx.is_void?'border-rose-100 bg-rose-50/10 opacity-70':'border-slate-100 shadow-soft'}`}>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-[10px] font-black text-slate-300 truncate uppercase tracking-widest">{tx.id}</span>
-                      {tx.is_void && <span className="text-[9px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md uppercase tracking-wider">Void</span>}
-                    </div>
-                    <p className="text-[15px] font-bold text-slate-800 truncate mb-1 group-hover:text-[#FF6A00] transition-colors">
-                      {tx.items.map(i=>`${i.name} x${i.qty}`).join(', ')}
-                    </p>
-                    <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                       <span>{fDt(tx.date)}</span>
-                       <div className="w-1 h-1 rounded-full bg-slate-100" />
-                       <span>{tx.method}</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-3 ml-4 shrink-0">
-                    <p className={`font-black text-lg tracking-tighter italic ${tx.is_void?'text-rose-300 line-through':'text-slate-900'}`}>
-                      {fRp(tx.total).replace('Rp', '').trim()}
-                    </p>
-                    <button
-                      onClick={e => { e.stopPropagation(); handlePrint(tx); }}
-                      className="p-2 text-slate-300 hover:text-[#FF6A00] transition-colors bg-slate-50 rounded-xl">
-                      <Printer size={16}/>
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <TransactionCard
+                key={tx.id}
+                transaction={tx}
+                onDetail={setDetail}
+                onPrint={handlePrint}
+              />
             ))}
             </div>
 
             {/* Load more */}
-            {page < pageCount && (
-              <button onClick={() => setPage(p => p + 1)}
+            {hasMore && (
+              <button onClick={loadMore}
                 className="w-full py-3 border-2 border-slate-200 rounded-2xl text-sm font-bold text-slate-500 flex items-center justify-center gap-2 active:scale-95">
-                <ChevronDown size={16}/> Muat Lebih Banyak ({filtered.length - paginated.length} lagi)
+                <ChevronDown size={16}/> Muat Lebih Banyak ({remaining} lagi)
               </button>
             )}
           </div>

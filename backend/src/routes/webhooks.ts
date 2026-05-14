@@ -23,6 +23,7 @@ import { classifyMidtransWebhookStatus } from '../lib/midtransStatus';
 import { PaymentService } from '../services/PaymentService';
 import { CommissionService } from '../services/CommissionService';
 import { isReferralCommissionCreationEnabled } from '../lib/config/feature-flags';
+import { alertOnPaymentWebhookFailure } from '../lib/alerting';
 
 const router = Router();
 
@@ -79,6 +80,10 @@ async function handleMidtransWebhook(req: Parameters<Parameters<typeof router.po
     const expectedSignature = createMidtransSignature(payload.order_id, payload.status_code, payload.gross_amount);
     if (payload.signature_key !== expectedSignature) {
       log('warn', 'payment_webhook_signature_failed', { orderId: payload.order_id, transactionStatus: payload.transaction_status });
+      alertOnPaymentWebhookFailure('Midtrans webhook signature validation failed', {
+        orderId: payload.order_id,
+        transactionStatus: payload.transaction_status,
+      });
       await logPaymentWebhook({
         orderId: payload.order_id,
         signatureValid: false,
@@ -408,6 +413,10 @@ async function handleMidtransWebhook(req: Parameters<Parameters<typeof router.po
       orderKind: result.orderKind,
     });
   } catch (error) {
+    alertOnPaymentWebhookFailure('Midtrans webhook processing failed', {
+      error: String(error),
+      orderId: (error as any)?.orderId ?? null,
+    });
     next(error);
   }
 }

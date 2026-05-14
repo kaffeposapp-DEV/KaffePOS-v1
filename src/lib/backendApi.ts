@@ -124,7 +124,7 @@ async function getAccessToken() {
 
 async function readErrorMessage(response: Response) {
   try {
-    const data = await response.json() as { message?: string; errors?: Array<{ message?: string }> };
+    const data = await readJsonResponse<{ message?: string; errors?: Array<{ message?: string }> }>(response);
     return normalizeUserFacingError({
       message: data.message || data.errors?.[0]?.message || `Request gagal (${response.status})`,
       status: response.status,
@@ -132,6 +132,20 @@ async function readErrorMessage(response: Response) {
   } catch {
     return normalizeUserFacingError({ message: `Request gagal (${response.status})`, status: response.status });
   }
+}
+
+async function readJsonResponse<T>(response: Response): Promise<T> {
+  const contentLength = response.headers.get('content-length');
+  if (response.status === 204 || contentLength === '0') {
+    return undefined as T;
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    return undefined as T;
+  }
+
+  return response.json() as Promise<T>;
 }
 
 export async function apiFetch<T>(path: string, init: RequestInitWithJson = {}): Promise<T> {
@@ -169,11 +183,7 @@ export async function apiFetch<T>(path: string, init: RequestInitWithJson = {}):
     throw new ApiError(message, response.status);
   }
 
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json() as Promise<T>;
+  return readJsonResponse<T>(response);
 }
 
 export type AuthSessionResponse = {

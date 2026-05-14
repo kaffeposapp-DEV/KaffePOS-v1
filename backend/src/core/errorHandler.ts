@@ -9,7 +9,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { ApiError, log, serializeError, getSafeApiErrorMessage } from './errors';
 import { KitchenStatusError } from '../lib/kitchenStatus';
-import { captureBackendException } from './sentry';
+import { captureBackendException } from './errorTracking';
 import {
   createErrorResponse,
   formatZodErrors,
@@ -45,7 +45,7 @@ export function errorHandler(error: unknown, req: Request, res: Response, _next:
     const response = createErrorResponse(
       'VALIDATION_ERROR',
       error.issues[0]?.message ?? 'Payload tidak valid.',
-      formatZodErrors(error.issues),
+      formatZodErrors(error.issues as any),
     );
 
     res.status(400).json(response);

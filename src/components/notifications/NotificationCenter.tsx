@@ -16,6 +16,9 @@ import {
 } from '@/lib/notifications';
 import NotificationCard, { NotificationEmptyState } from './NotificationCard';
 import { useModalBehavior } from '@/hooks/useModalBehavior';
+import { usePagination } from '@/hooks/usePagination';
+
+const PAGE_SIZE = 30;
 
 export default function NotificationCenter({
   isOpen,
@@ -42,6 +45,7 @@ export default function NotificationCenter({
     if (activeCategory === 'all') return notifications;
     return notifications.filter((notification) => getNotificationCategory(notification) === activeCategory);
   }, [activeCategory, notifications]);
+  const { visibleItems: paginatedNotifications, hasMore, remaining, loadMore } = usePagination(visibleNotifications, { pageSize: PAGE_SIZE, resetKeys: [activeCategory] });
   const { panelRef, dialogProps } = useModalBehavior<HTMLDivElement>({
     open: isOpen,
     onClose,
@@ -190,13 +194,18 @@ export default function NotificationCenter({
             <Loader2 size={26} className="animate-spin text-[#FF6A00]" />
             <p className="mt-3 text-sm font-bold text-slate-400">Memuat notifikasi...</p>
           </div>
-        ) : visibleNotifications.length === 0 ? (
+        ) : paginatedNotifications.length === 0 ? (
           <NotificationEmptyState />
         ) : (
           <div className="mx-auto max-w-3xl space-y-3">
-            {visibleNotifications.map((notification) => (
+            {paginatedNotifications.map((notification) => (
               <NotificationCard key={notification.id} notification={notification} />
             ))}
+            {hasMore && (
+              <button type="button" onClick={loadMore} className="w-full rounded-2xl border border-slate-200 bg-white py-3 text-sm font-black text-slate-600">
+                Muat Lebih Banyak ({remaining} lagi)
+              </button>
+            )}
           </div>
         )}
       </div>

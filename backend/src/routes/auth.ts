@@ -3,7 +3,7 @@
  * Extracted from monolith index.ts — exact same behavior.
  */
 import { randomUUID } from 'node:crypto';
-import { Router } from 'express';
+import { Router, type Request } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import {
@@ -40,8 +40,11 @@ import {
   sendSignupOtpEmail,
   sendPasswordResetEmail,
   sendWelcomeEmail,
+  sendEmail,
+  buildEmailTemplate,
 } from '../core/email';
 import { handleReferralRegistration } from '../lib/affiliateWebhookHelper';
+import { writeAuditLog } from '../lib/auditLog';
 import {
   getPermissionsForRole,
   normalizeUserRole,
@@ -80,6 +83,86 @@ const resetPasswordSchema = z.object({
   token: z.string().trim().min(20),
   password: z.string().min(10),
 });
+
+
+async function ensureAccountLockoutTable(client = pool) {
+  await client.query(`
+    create table if not exists public.auth_account_lockouts (
+      email text primary key,
+      user_id uuid,
+      failed_attempts integer not null default 0,
+      locked_until timestamptz,
+      last_failed_at timestamptz,
+      notified_at timestamptz
+    )
+  `);
+}
+
+async function sendAccountLockoutEmail(email: string, lockedUntil: Date) {
+  const subject = 'Akun KaffePOS terkunci sementara';
+  const text = `Akun kamu terkunci sampai ${lockedUntil.toISOString()} karena 5 percobaan login gagal.`;
+  const html = buildEmailTemplate(subject, 'Akun terkunci sementara.', `
+    <p style="margin:0 0 12px;color:#334155;">Akun kamu terkunci sementara karena 5 percobaan login gagal.</p>
+    <p style="margin:0;color:#334155;">Coba lagi setelah <strong>${lockedUntil.toISOString()}</strong>. Jika ini bukan kamu, segera ganti password.</p>
+  `);
+  await sendEmail({ to: email, subject, text, html });
+}
+
+async function assertLoginNotLocked(email: string) {
+  await ensureAccountLockoutTable();
+  const result = await pool.query(
+    'select locked_until from public.auth_account_lockouts where email = $1 and locked_until > now() limit 1',
+    [email],
+  );
+  if (result.rows[0]?.locked_until) {
+    throw new ApiError(423, 'Akun terkunci sementara. Coba lagi dalam 15 menit.');
+  }
+}
+
+async function recordFailedLogin(email: string, userId: string | null, req: Request) {
+  await ensureAccountLockoutTable();
+  const result = await pool.query(
+    `
+      insert into public.auth_account_lockouts (email, user_id, failed_attempts, last_failed_at)
+      values ($1, $2, 1, now())
+      on conflict (email) do update set
+        user_id = coalesce(public.auth_account_lockouts.user_id, excluded.user_id),
+        failed_attempts = case
+          when public.auth_account_lockouts.locked_until is not null and public.auth_account_lockouts.locked_until > now() then public.auth_account_lockouts.failed_attempts
+          when public.auth_account_lockouts.last_failed_at < now() - interval '15 minutes' then 1
+          else public.auth_account_lockouts.failed_attempts + 1
+        end,
+        last_failed_at = now(),
+        locked_until = case
+          when public.auth_account_lockouts.locked_until is not null and public.auth_account_lockouts.locked_until > now() then public.auth_account_lockouts.locked_until
+          when public.auth_account_lockouts.last_failed_at >= now() - interval '15 minutes' and public.auth_account_lockouts.failed_attempts + 1 >= 5 then now() + interval '15 minutes'
+          else null
+        end,
+        notified_at = case
+          when public.auth_account_lockouts.last_failed_at >= now() - interval '15 minutes' and public.auth_account_lockouts.failed_attempts + 1 >= 5 then public.auth_account_lockouts.notified_at
+          else null
+        end
+      returning failed_attempts, locked_until, notified_at
+    `,
+    [email, userId],
+  );
+
+  await writeAuditLog({ userId, action: 'auth.failed_login', ip: req.ip, details: { email, failedAttempts: result.rows[0]?.failed_attempts ?? 1 } });
+
+  const lockedUntil = result.rows[0]?.locked_until ? new Date(result.rows[0].locked_until) : null;
+  if (lockedUntil && !result.rows[0]?.notified_at) {
+    await pool.query('update public.auth_account_lockouts set notified_at = now() where email = $1', [email]);
+    await writeAuditLog({ userId, action: 'auth.account_lockout', ip: req.ip, details: { email, lockedUntil: lockedUntil.toISOString() } });
+    await sendAccountLockoutEmail(email, lockedUntil).catch((error) => {
+      log('warn', 'auth.lockout_email_failed', { email, error: serializeError(error) });
+    });
+  }
+}
+
+async function clearFailedLogin(email: string) {
+  await ensureAccountLockoutTable();
+  await pool.query('delete from public.auth_account_lockouts where email = $1', [email]);
+}
 
 async function insertAuthNotification(
   client: Parameters<typeof insertNotification>[0],
@@ -374,6 +457,8 @@ router.post('/api/auth/login', authLoginRateLimiter, async (req, res, next) => {
     const payload = authLoginSchema.parse(req.body);
     const email = normalizeEmail(payload.email);
 
+    await assertLoginNotLocked(email);
+
     const authResult = await withTransaction(async (client) => {
       const credentialResult = await client.query(
         `
@@ -415,6 +500,7 @@ router.post('/api/auth/login', authLoginRateLimiter, async (req, res, next) => {
 
       const passwordOk = await bcrypt.compare(payload.password, credential.password_hash as string);
       if (!passwordOk) {
+        await recordFailedLogin(email, credential.user_id as string, req);
         throw new ApiError(401, 'Email atau password salah.');
       }
 
@@ -422,6 +508,7 @@ router.post('/api/auth/login', authLoginRateLimiter, async (req, res, next) => {
         throw new ApiError(403, 'email_not_confirmed');
       }
 
+      await clearFailedLogin(email);
       await revokeUserSessions(client, credential.user_id as string);
       const session = await createSession(client, {
         id: credential.user_id as string,
@@ -600,7 +687,7 @@ router.post('/api/auth/password/reset', authEmailRateLimiter, async (req, res, n
     const email = normalizeEmail(payload.email);
     const passwordHash = await bcrypt.hash(payload.password, 12);
 
-    await withTransaction(async (client) => {
+    const resetResult = await withTransaction(async (client) => {
       const tokenResult = await client.query(
         `
           select id, user_id
@@ -650,7 +737,11 @@ router.post('/api/auth/password/reset', authEmailRateLimiter, async (req, res, n
         'Password akun KaffePOS kamu baru saja diganti.',
         'warning',
       );
+
+      return { userId: tokenRow.user_id as string };
     });
+
+    await writeAuditLog({ userId: resetResult.userId, action: 'auth.password_change', ip: req.ip, details: { email } });
 
     res.json({
       success: true,

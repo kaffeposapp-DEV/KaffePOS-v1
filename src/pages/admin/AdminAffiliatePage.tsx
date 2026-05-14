@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useState } from 'react';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { adminGetAffiliateDetail, adminGetAffiliates, adminUpdateAffiliateStatus } from '@/lib/backendApi';
 import { trackAnalyticsEvent } from '@/lib/analytics';
 import { fDate, fRp } from '@/utils/format';
@@ -10,14 +11,15 @@ export default function AdminAffiliatePage() {
   const [items, setItems] = useState<AdminAffiliateListItem[]>([]);
   const [status, setStatus] = useState<AffiliateStatus | 'all'>('all');
   const [search, setSearch] = useState('');
+  const dSearch = useDebouncedValue(search, 300);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<AdminAffiliateDetail | null>(null);
   const [action, setAction] = useState<{ id: string; status: AffiliateStatus; note: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const load = async () => { try { setLoading(true); setError(null); const data = await adminGetAffiliates({ status, search, limit: 50 }); setItems(data.items || []); } catch (err) { setError(err instanceof Error ? err.message : 'Gagal memuat affiliate.'); } finally { setLoading(false); } };
-  useEffect(() => { void load(); }, [status]);
+  const load = async () => { try { setLoading(true); setError(null); const data = await adminGetAffiliates({ status, search: dSearch, limit: 50 }); setItems(data.items || []); } catch (err) { setError(err instanceof Error ? err.message : 'Gagal memuat affiliate.'); } finally { setLoading(false); } };
+  useEffect(() => { void load(); }, [status, dSearch]);
 
   const summary = useMemo(() => [
     { label: 'Total', value: items.length },

@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useState } from 'react';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { adminApproveCommission, adminGetCommissionDetail, adminGetCommissions, adminMarkCommissionPaid, adminRejectCommission } from '@/lib/backendApi';
 import { trackAnalyticsEvent } from '@/lib/analytics';
 import { fDate, fRp } from '@/utils/format';
@@ -13,13 +14,14 @@ export default function AdminCommissionPage() {
   const [status, setStatus] = useState<CommissionStatus | 'all'>('all');
   const [type, setType] = useState('all');
   const [search, setSearch] = useState('');
+  const dSearch = useDebouncedValue(search, 300);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<AdminCommissionDetail | null>(null);
   const [action, setAction] = useState<Action | null>(null);
   const [saving, setSaving] = useState(false);
-  const load = async () => { try { setLoading(true); setError(null); const data = await adminGetCommissions({ status, type, search, limit: 50 }); setItems(data.items || []); } catch (err) { setError(err instanceof Error ? err.message : 'Gagal memuat komisi.'); } finally { setLoading(false); } };
-  useEffect(() => { void load(); }, [status, type]);
+  const load = async () => { try { setLoading(true); setError(null); const data = await adminGetCommissions({ status, type, search: dSearch, limit: 50 }); setItems(data.items || []); } catch (err) { setError(err instanceof Error ? err.message : 'Gagal memuat komisi.'); } finally { setLoading(false); } };
+  useEffect(() => { void load(); }, [status, type, dSearch]);
   const summary = useMemo(() => [
     { label: 'Pending', value: sum('pending'), money: true }, { label: 'Eligible', value: sum('eligible'), money: true }, { label: 'Approved', value: sum('approved'), money: true }, { label: 'Paid', value: sum('paid'), money: true }, { label: 'Rejected', value: sum('rejected'), money: true }, { label: 'Total', value: items.reduce((s, i) => s + amount(i), 0), money: true },
   ], [items]);
