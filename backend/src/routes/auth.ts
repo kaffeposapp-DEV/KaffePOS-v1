@@ -54,6 +54,55 @@ import {
   normalizeCashierStatus,
 } from '../lib/cashierManagement';
 
+
+// Helper function untuk detect database connection errors
+function isDatabaseConnectionError(error: unknown): boolean {
+  if (!error) return false;
+  const message = error instanceof Error ? error.message : String(error);
+  const lower = message.toLowerCase();
+  
+  return (
+    lower.includes('econnrefused') ||
+    lower.includes('connection refused') ||
+    lower.includes('connect econnrefused') ||
+    lower.includes('connection terminated') ||
+    lower.includes('connection timeout') ||
+    (lower.includes('database') && lower.includes('connect')) ||
+    lower.includes('pool') && lower.includes('timeout') ||
+    lower.includes('ssl') && lower.includes('connection') ||
+    lower.includes('etimedout')
+  );
+}
+
+// Helper function untuk user-friendly error messages
+function getAuthErrorMessage(error: unknown, context: string): string | null {
+  log('error', `auth.${context}.error`, {
+    error: error instanceof Error ? {
+      message: error.message,
+      name: error.name,
+      stack: error.stack?.split('\n').slice(0, 3).join('\n'),
+    } : String(error),
+  });
+
+  if (isDatabaseConnectionError(error)) {
+    return 'Server sedang mengalami gangguan koneksi database. Coba lagi dalam beberapa menit atau hubungi support jika masalah berlanjut.';
+  }
+  
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    
+    if (message.includes('too many') || message.includes('rate limit')) {
+      return 'Terlalu banyak percobaan login. Tunggu 15 menit lalu coba lagi.';
+    }
+    
+    if (message.includes('timeout') || message.includes('timed out')) {
+      return 'Koneksi ke server terlalu lama. Periksa koneksi internet dan coba lagi.';
+    }
+  }
+  
+  return null;
+}
+
 const router = Router();
 
 // ── Schemas ────────────────────────────────────────────────────
@@ -611,6 +660,13 @@ router.post('/api/auth/login', authLoginRateLimiter, async (req, res, next) => {
       profile: authResult.profile,
     });
   } catch (error) {
+    // Log error dengan detail untuk debugging
+    const errorMessage = getAuthErrorMessage(error, 'login');
+    if (errorMessage) {
+      // Jika ada custom error message, gunakan itu
+      return next(new ApiError(500, errorMessage));
+    }
+    // Otherwise pass original error
     next(error);
   }
 });

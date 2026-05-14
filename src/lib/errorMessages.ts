@@ -17,8 +17,17 @@ const INTERNAL_ERROR_PATTERNS = [
   'query failed',
   'database error',
   'pg_',
+  'connection refused',
+  'econnrefused',
+  'etimedout',
+  'connection timeout',
+  'pool timeout',
+  'database connection',
+  'connect timeout',
 ];
 
+
+const DATABASE_ERROR_MESSAGE = 'Server sedang mengalami gangguan. Tim kami sedang memperbaikinya. Coba lagi dalam beberapa menit.';
 const CONNECTION_ERROR_MESSAGE = 'Tidak bisa terhubung ke server. Pastikan internet aktif atau coba lagi beberapa saat.';
 const OFFLINE_ERROR_MESSAGE = 'Perangkat sedang offline. Sambungkan internet lalu coba lagi.';
 const TIMEOUT_ERROR_MESSAGE = 'Koneksi ke server terlalu lama. Coba lagi beberapa saat.';
@@ -58,6 +67,18 @@ export function normalizeUserFacingError(
 
   if (lower === 'email_not_confirmed') {
     return 'email_not_confirmed';
+  }
+
+    // Check for database connection errors
+  if (
+    lower.includes('database') ||
+    lower.includes('econnrefused') ||
+    lower.includes('connection refused') ||
+    lower.includes('etimedout') ||
+    lower.includes('pool timeout') ||
+    lower.includes('connect timeout')
+  ) {
+    return DATABASE_ERROR_MESSAGE;
   }
 
   if (lower.includes('internet disconnected') || lower.includes('err_internet_disconnected') || lower.includes('offline')) {

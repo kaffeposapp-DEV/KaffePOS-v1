@@ -223,6 +223,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
+    // Check network status first
+    if (!navigator.onLine) {
+      console.warn('[AuthContext] Device is offline');
+      return { error: 'Perangkat sedang offline. Sambungkan internet lalu coba lagi.' };
+    }
+    
+
     try {
       const parsed = loginSchema.parse({
         email: email.trim().toLowerCase(),
@@ -249,6 +256,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       return { error: null };
     } catch (error) {
+      // Log error details untuk debugging
+      console.error('[AuthContext] Login error:', {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorName: error instanceof Error ? error.name : 'Unknown',
+        timestamp: new Date().toISOString(),
+      });
+      
       const validationMessage = getValidationMessage(error);
       if (validationMessage) return { error: validationMessage };
       const message = normalizeUserFacingError(error, 'Login belum bisa diproses. Coba lagi beberapa saat.');

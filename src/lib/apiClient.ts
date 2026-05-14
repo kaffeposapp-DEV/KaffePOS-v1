@@ -30,7 +30,7 @@ export type StandardApiErrorResponse = {
   error: {
     code: ApiErrorCode;
     message: string;
-    details?: ValidationErrorDetail[];
+    details?: ValidationErrorDetail[] | undefined;
   };
 };
 
