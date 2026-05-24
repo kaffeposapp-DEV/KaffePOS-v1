@@ -624,6 +624,7 @@ export function LoyaltyPage({ toast, profile, role, subscriptionAccess }: { toas
                       if (event.key === 'Enter') void handleSearch();
                     }}
                     placeholder="Cari nama atau nomor HP"
+                    aria-label="Cari pelanggan loyalty"
                     className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#FF6A00]/40 focus:ring-4 focus:ring-[#FF6A00]/10"
                   />
                 </div>
@@ -644,6 +645,7 @@ export function LoyaltyPage({ toast, profile, role, subscriptionAccess }: { toas
                   value={customerName}
                   onChange={(event) => setCustomerName(event.target.value)}
                   placeholder="Nama pelanggan"
+                  aria-label="Nama pelanggan"
                   className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#FF6A00]/40 focus:ring-4 focus:ring-[#FF6A00]/10"
                 />
                 <input
@@ -651,6 +653,7 @@ export function LoyaltyPage({ toast, profile, role, subscriptionAccess }: { toas
                   onChange={(event) => setCustomerPhone(event.target.value)}
                   placeholder="Nomor HP"
                   inputMode="tel"
+                  aria-label="Nomor HP pelanggan"
                   className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#FF6A00]/40 focus:ring-4 focus:ring-[#FF6A00]/10"
                 />
                 <input
@@ -659,6 +662,7 @@ export function LoyaltyPage({ toast, profile, role, subscriptionAccess }: { toas
                   placeholder="Nominal transaksi"
                   inputMode="numeric"
                   type="number"
+                  aria-label="Nominal transaksi"
                   className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#FF6A00]/40 focus:ring-4 focus:ring-[#FF6A00]/10"
                 />
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
@@ -836,17 +840,20 @@ export function LoyaltyPage({ toast, profile, role, subscriptionAccess }: { toas
                       value={rewardDraft.name}
                       onChange={(event) => setRewardDraft((current) => ({ ...current, name: event.target.value }))}
                       placeholder="Nama reward"
+                      aria-label="Nama reward"
                       className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#FF6A00]/40 focus:ring-4 focus:ring-[#FF6A00]/10"
                     />
                     <input
                       value={rewardDraft.description}
                       onChange={(event) => setRewardDraft((current) => ({ ...current, description: event.target.value }))}
                       placeholder="Deskripsi singkat"
+                      aria-label="Deskripsi reward"
                       className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#FF6A00]/40 focus:ring-4 focus:ring-[#FF6A00]/10"
                     />
                     <select
                       value={rewardDraft.type}
                       onChange={(event) => setRewardDraft((current) => ({ ...current, type: event.target.value as LoyaltyRewardType }))}
+                      aria-label="Tipe reward"
                       className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none transition-all focus:border-[#FF6A00]/40 focus:ring-4 focus:ring-[#FF6A00]/10"
                     >
                       {rewardTypeOptions.map((option) => (
@@ -859,6 +866,7 @@ export function LoyaltyPage({ toast, profile, role, subscriptionAccess }: { toas
                         onChange={(event) => setRewardDraft((current) => ({ ...current, reward_value: event.target.value }))}
                         placeholder="Value"
                         type="number"
+                        aria-label="Nilai reward"
                         className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#FF6A00]/40 focus:ring-4 focus:ring-[#FF6A00]/10"
                       />
                       <input
@@ -866,6 +874,7 @@ export function LoyaltyPage({ toast, profile, role, subscriptionAccess }: { toas
                         onChange={(event) => setRewardDraft((current) => ({ ...current, points_cost: event.target.value }))}
                         placeholder="Poin"
                         type="number"
+                        aria-label="Poin dibutuhkan"
                         className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#FF6A00]/40 focus:ring-4 focus:ring-[#FF6A00]/10"
                       />
                       <input
@@ -873,6 +882,7 @@ export function LoyaltyPage({ toast, profile, role, subscriptionAccess }: { toas
                         onChange={(event) => setRewardDraft((current) => ({ ...current, stamps_cost: event.target.value }))}
                         placeholder="Stamp"
                         type="number"
+                        aria-label="Stamp dibutuhkan"
                         className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#FF6A00]/40 focus:ring-4 focus:ring-[#FF6A00]/10"
                       />
                     </div>

@@ -24,6 +24,7 @@ function tx(partial: Partial<Transaction>): Transaction {
 }
 
 describe('StaffPersonalProfile', () => {
+  const ownerRoleProps = { role: 'owner_admin' as const };
   const profile: Profile = {
     id: 'cashier_1',
     display_name: 'Rina Agustina',
@@ -81,7 +82,7 @@ describe('StaffPersonalProfile', () => {
   });
 
   it('shows owner team mode and team leaderboard', () => {
-    render(<StaffPersonalProfile profile={{ id: 'owner_1', display_name: 'Owner', email: 'owner@example.com', role: 'owner_admin' }} role="owner_admin" />);
+    render(<StaffPersonalProfile profile={{ id: 'owner_1', display_name: 'Owner', email: 'owner@example.com', role: 'owner_admin' }} {...ownerRoleProps} />);
 
     expect(screen.getByText('Performa Tim')).toBeInTheDocument();
     expect(screen.getByText('Leaderboard Tim')).toBeInTheDocument();

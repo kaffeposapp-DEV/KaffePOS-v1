@@ -8,10 +8,11 @@ interface PaginationOptions {
 export function usePagination<T>(items: T[], options: PaginationOptions = {}) {
   const { pageSize = 30, resetKeys = [] } = options;
   const [page, setPage] = useState(1);
+  const resetKey = resetKeys.map((key) => String(key)).join('\u0001');
 
   useEffect(() => {
     setPage(1);
-  }, resetKeys);
+  }, [resetKey]);
 
   const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
   const visibleItems = useMemo(() => items.slice(0, page * pageSize), [items, page, pageSize]);

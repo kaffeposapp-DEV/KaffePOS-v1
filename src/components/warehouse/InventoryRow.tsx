@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Edit, Trash2, Plus, TrendingDown, ClipboardCheck } from 'lucide-react';
+import { Edit, Trash2, Plus, ClipboardCheck } from 'lucide-react';
 import type { InventoryItem } from '@/types';
 
 const fRp = (n: number) => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
@@ -35,8 +35,8 @@ export const InventoryRow = memo(function InventoryRow({
           <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{item.unit}</p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <button type="button" onClick={()=>onEdit(item)} className="p-2 text-slate-400 hover:text-[#FF6A00] transition-colors rounded-lg"><Edit size={14}/></button>
-          <button type="button" onClick={()=>onDelete(item)} className="p-2 text-slate-400 hover:text-rose-500 transition-colors rounded-lg"><Trash2 size={14}/></button>
+          <button type="button" aria-label="Edit item" onClick={()=>onEdit(item)} className="p-2 text-slate-400 hover:text-[#FF6A00] transition-colors rounded-lg"><Edit size={14}/></button>
+          <button type="button" aria-label="Hapus item" onClick={()=>onDelete(item)} className="p-2 text-slate-400 hover:text-rose-500 transition-colors rounded-lg"><Trash2 size={14}/></button>
         </div>
       </div>
 
@@ -66,7 +66,7 @@ export const InventoryRow = memo(function InventoryRow({
         <button type="button" onClick={()=>onRestock(item)} className="flex-1 h-9 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 transition-all">
           <Plus size={14}/> Restock
         </button>
-        <button type="button" onClick={()=>onOpname(item)} className="flex-1 h-9 bg-orange-50 border border-orange-200 text-orange-700 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 transition-all">
+        <button type="button" aria-label={`Opname ${item.name}`} onClick={()=>onOpname(item)} className="flex-1 h-9 bg-orange-50 border border-orange-200 text-orange-700 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 transition-all">
           <ClipboardCheck size={14}/> Opname
         </button>
       </div>

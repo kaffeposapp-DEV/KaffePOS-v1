@@ -44,6 +44,7 @@ const overview: LoyaltyOverview = {
 
 describe('LoyaltyTab', () => {
   const toast = { showToast: vi.fn() };
+  const ownerRoleProps = { role: 'owner_admin' as const };
   const profile: Profile = {
     id: 'owner_1',
     display_name: 'Owner',
@@ -64,7 +65,7 @@ describe('LoyaltyTab', () => {
   });
 
   it('renders cached Kopi Passport data in offline mode', async () => {
-    render(<LoyaltyTab toast={toast} profile={profile} role="owner_admin" />);
+    render(<LoyaltyTab toast={toast} profile={profile} {...ownerRoleProps} />);
 
     expect(await screen.findByText('Loyalty pelanggan')).toBeInTheDocument();
     expect(screen.getAllByText('Rina Agustina').length).toBeGreaterThan(0);
@@ -74,7 +75,7 @@ describe('LoyaltyTab', () => {
   });
 
   it('shows owner-only loyalty settings', async () => {
-    render(<LoyaltyTab toast={toast} profile={profile} role="owner_admin" />);
+    render(<LoyaltyTab toast={toast} profile={profile} {...ownerRoleProps} />);
 
     expect(await screen.findByText('Admin settings')).toBeInTheDocument();
     expect(screen.getByText('Reward builder')).toBeInTheDocument();

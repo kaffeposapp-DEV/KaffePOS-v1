@@ -1,3 +1,49 @@
+## 2026-05-24 UI/UX Wired Sync & WCAG Accessibility Audit
+
+### Added
+- Created comprehensive QA checklist: `docs/engineering/UI_UX_WIRED_SYNC_QA_CHECKLIST.md` documenting visual consistency, responsive design, and WCAG accessibility standards across 15+ pages.
+- Implemented explicit WCAG `aria-label` tags across all interactive data-entry fields, search inputs, icon-only action targets, and modal close targets.
+
+### Fixed
+- **POS & Printing**: Added accessibility support to `PrintActionSheet.tsx` close icon (`X`) and all print targets (Bluetooth, USB OTG, WhatsApp).
+- **History & Transactions**: Added explicit `aria-label="Cetak struk"` to the printer button inside `TransactionCard.tsx` rows.
+- **Warehouse & Inventory**: Upgraded `InventoryRow.tsx` edit/delete icon buttons and `WarehouseTab.tsx` search inputs, close buttons, unit conversion controls, recipe builder selectors, and bulk import textareas for full screen-reader compliance.
+- **Loyalty Program**: Added explicit labels to search controls, client registration inputs, and reward builder configurations inside `LoyaltyTab.tsx`.
+- **Admin Panels**: Resolved lack of labels on modal close actions (`DetailModal` in `adminUi.tsx`), affiliate management, referral attribution filters, and commission tracking grids (`AdminAffiliatePage.tsx`, `AdminReferralPage.tsx`, `AdminCommissionPage.tsx`).
+- **Kitchen Order KDS**: Upgraded chime audio toggle controls and manual list refresh actions inside `KitchenTab.tsx` with dynamic and standard `aria-label` definitions.
+- **Spacing and Layouts**: Confirmed clean responsive grids, safe-area mobile paddings, and high contrast styling without altering any business logic, API integrations, or the pristine white/orange brand theme.
+
+### Verification
+- TypeScript (`npm run typecheck`), ESLint (`npm run lint`), and Vitest test suite (`npm run test`) compile and pass with 100% green status.
+- React Doctor latest/diff scans remain at a flawless 100/100 score.
+
+## 2026-05-24 Final Engineering Quality Gate
+
+### Fixed
+- No code changes required during final quality gate; typecheck, lint, tests, and React Doctor scans passed after prior cleanup.
+
+### Docs
+- Recorded final quality gate status and React Doctor pinned diff validation note.
+
+## 2026-05-24 Backend Modular Bootstrap Cleanup
+
+### Fixed
+- Moved the backend metrics endpoint registration into a dedicated route module so `backend/src/index.ts` mounts route modules consistently without direct `app.get/post/put/patch/delete` route definitions.
+- Preserved `/metrics` behavior, middleware order, health routes, auth routes, payment routes, and Midtrans webhook routing.
+
+### Docs
+- Documented the metrics operational endpoint and modular bootstrap route registration in API architecture docs.
+
+## 2026-05-24 TypeScript Validation Cleanup
+
+### Fixed
+- Fixed existing TypeScript validation blockers in transaction history, warehouse inventory, admin route gating, and standardized API error handling.
+- Removed unused warehouse/history declarations left by earlier UI logic without changing visual layout, copy tone, spacing, or interaction patterns.
+- Made `ApiClientError` assignment compatible with `exactOptionalPropertyTypes` so optional error code/detail fields stay type-safe and are only present when provided.
+
+### Docs
+- Documented the typecheck cleanup after React Doctor full and diff scans were already clean.
+
 ## 2026-05-14 Authentication & RBAC Audit and Documentation
 
 ### Added
@@ -596,4 +642,3 @@ Format per release/date:
 - **High-growth tables**: Monitor sizes, implement retention policies
 - **No soft delete**: Consider adding for financial records
 - **No audit trail**: Consider general audit log for admin actions
-

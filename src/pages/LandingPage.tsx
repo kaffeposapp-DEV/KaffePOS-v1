@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
+import { useState, useEffect, type MouseEvent as ReactMouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Store,
@@ -323,42 +323,6 @@ const FAQS = [
 void PRICING;
 
 
-// Reusable Counter Component
-function Counter({ end, duration = 2000, suffix = "" }: { end: number, duration?: number, suffix?: string }) {
-  const [count, setCount] = useState(0);
-  const countRef = useRef<HTMLDivElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) setIsVisible(true);
-      },
-      { threshold: 0.1 }
-    );
-    if (countRef.current) observer.observe(countRef.current);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!isVisible) return;
-    let start = 0;
-    const step = (timestamp: number) => {
-      if (!start) start = timestamp;
-      const progress = Math.min((timestamp - start) / duration, 1);
-      setCount(Math.floor(progress * end));
-      if (progress < 1) {
-        window.requestAnimationFrame(step);
-      }
-    };
-    window.requestAnimationFrame(step);
-  }, [isVisible, end, duration]);
-
-  return <div ref={countRef} className="tabular-nums">{count.toLocaleString('id-ID')}{suffix}</div>;
-}
-
-void Counter;
-
 function DashboardPreview() {
   const chartBars = [32, 44, 38, 52, 68, 48, 59, 76, 62, 84, 95, 118];
   const topProducts = ['Americano', 'Latte', 'Cappuccino', 'Caramel Macchiato'];
@@ -378,7 +342,7 @@ function DashboardPreview() {
           </div>
         </div>
       </div>
-      <div className="grid min-h-[360px] grid-cols-[150px_1fr] bg-slate-50/60">
+      <div className="grid min-h-[360px] grid-cols-1 sm:grid-cols-[150px_1fr] bg-slate-50/60">
         <div className="hidden border-r border-slate-100 bg-white p-4 sm:block">
           {['Dashboard', 'Penjualan', 'Produk', 'Stok', 'Pelanggan', 'Laporan'].map((item, index) => (
             <div
@@ -484,7 +448,7 @@ function MobileCheckoutPreview() {
           <span className="text-xs font-bold text-slate-500">Total</span>
           <span className="text-sm font-extrabold text-slate-900">Rp 86.000</span>
         </div>
-        <button className="mt-4 h-10 w-full rounded-lg bg-[#FF6A00] text-xs font-extrabold text-white">
+        <button type="button" className="mt-4 h-10 w-full rounded-lg bg-[#FF6A00] text-xs font-extrabold text-white">
           Bayar
         </button>
       </div>
@@ -558,13 +522,6 @@ export default function LandingPage() {
     scrollToTarget(id);
   };
 
-  const handleLogoKeyDown = (e: ReactKeyboardEvent<HTMLElement>) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      scrollToTarget('#top');
-    }
-  };
-
   const handleDownload = (e: ReactMouseEvent<HTMLElement>) => {
     e.preventDefault();
     if (!isAuthenticated) {
@@ -623,14 +580,6 @@ export default function LandingPage() {
       </a>
 
       {/* Persistent Background Layer */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        html {
-          scroll-behavior: smooth;
-        }
-        .animate-float {
-          animation: float 6s ease-in-out infinite;
-        }
-      `}} />
       <div className="fixed inset-0 pointer-events-none z-0" aria-hidden="true">
         <div
           className="absolute inset-0 opacity-[0.03]"
@@ -648,12 +597,10 @@ export default function LandingPage() {
           : 'bg-white/90 backdrop-blur-xl border-b border-slate-100 py-4'
       }`}>
         <nav className="max-w-[1400px] mx-auto px-6 md:px-12 flex items-center justify-between" aria-label="Main Navigation">
-          <div
-            className="flex items-center gap-4 cursor-pointer group focus-visible:ring-4 focus-visible:ring-[#FF6A00]/50 outline-none rounded-2xl transition-all"
+          <button
+            type="button"
+            className="flex items-center gap-4 cursor-pointer group focus-visible:ring-4 focus-visible:ring-[#FF6A00]/50 outline-none rounded-2xl transition-all text-left"
             onClick={() => scrollToTarget('#top')}
-            role="button"
-            tabIndex={0}
-            onKeyDown={handleLogoKeyDown}
           >
             <div className="flex items-center gap-3 group-hover:scale-105 transition-transform duration-500 ease-out">
               <img
@@ -666,7 +613,7 @@ export default function LandingPage() {
                 Kaffe<span className="text-[#FF6A00]">POS</span>
               </span>
             </div>
-          </div>
+          </button>
 
           {/* Desktop Navigation */}
           <ul className="hidden lg:flex items-center gap-10 list-none">
@@ -689,6 +636,7 @@ export default function LandingPage() {
           <div className="hidden md:flex items-center gap-5">
             {isAuthenticated ? (
               <button
+                type="button"
                 onClick={() => navigate('/')}
                 className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-3 rounded-lg text-[14px] font-bold transition-all shadow-sm group flex items-center gap-2"
               >
@@ -697,12 +645,14 @@ export default function LandingPage() {
             ) : (
               <>
                 <button
+                  type="button"
                   onClick={() => navigate('/login')}
                   className="text-slate-600 hover:text-slate-900 px-4 py-2.5 text-[14px] font-bold transition-all rounded-lg"
                 >
                   Masuk
                 </button>
                 <button
+                  type="button"
                   onClick={() => navigate('/register')}
                   className="bg-[#FF6A00] hover:bg-[#FF8A1C] text-white px-6 py-3 rounded-lg text-[14px] font-extrabold transition-all shadow-[0_10px_24px_rgba(255,106,0,0.2)]"
                 >
@@ -713,6 +663,7 @@ export default function LandingPage() {
           </div>
 
           <button
+            type="button"
             className="lg:hidden text-slate-900 w-11 h-11 flex items-center justify-center bg-white rounded-lg border border-slate-200 shadow-sm"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label={mobileMenuOpen ? "Tutup menu" : "Buka menu"}
@@ -750,8 +701,10 @@ export default function LandingPage() {
                 <span className="text-lg font-extrabold text-slate-900 tracking-tight">Kaffe<span className="text-[#FF6A00]">POS</span></span>
               </div>
               <button
+                type="button"
                 onClick={() => setMobileMenuOpen(false)}
                 className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-colors"
+                aria-label="Tutup menu"
               >
                 <X size={24} />
               </button>
@@ -759,7 +712,7 @@ export default function LandingPage() {
 
             {/* Navigation Links Area */}
             <div className="px-6 pb-10">
-              <div className="flex flex-col border-t border-slate-100 py-6 space-y-5">
+              <div className="flex flex-col gap-5 border-t border-slate-100 py-6">
                 {NAV_LINKS.map((link) => (
                   <a
                     key={link.name}
@@ -775,12 +728,14 @@ export default function LandingPage() {
               {/* Action Buttons Area */}
               <div className="flex flex-col border-t border-slate-100 pt-6 gap-4">
                 <button
+                  type="button"
                   onClick={() => { setMobileMenuOpen(false); navigate('/login'); }}
                   className="w-full py-4 text-slate-600 font-bold hover:text-slate-900 transition-colors"
                 >
                   Masuk Akun
                 </button>
                 <button
+                  type="button"
                   onClick={() => { setMobileMenuOpen(false); navigate('/register'); }}
                   className="w-full bg-[#FF6A00] text-white py-4 rounded-2xl font-bold shadow-lg shadow-[#FF6A00]/20"
                 >
@@ -807,6 +762,7 @@ export default function LandingPage() {
 
               <div className="mt-8 flex max-w-[340px] flex-col gap-3 sm:max-w-none sm:flex-row">
                 <button
+                  type="button"
                   onClick={() => navigate('/register')}
                   className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#FF6A00] px-7 text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(255,106,0,0.22)] hover:bg-[#ef6200] sm:w-auto"
                 >
@@ -965,6 +921,7 @@ export default function LandingPage() {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => navigate('/register')}
                 className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-white px-7 text-sm font-extrabold text-[#FF6A00] shadow-[0_14px_30px_rgba(31,41,51,0.16)] hover:bg-orange-50"
               >
@@ -1035,7 +992,12 @@ export default function LandingPage() {
       {/* Download Warning Modal */}
       {showDownloadWarning && (
         <div className="kaffe-modal-overlay fixed inset-0 z-[100] flex justify-center">
-           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-300" onClick={closeDownloadWarning} />
+           <button
+             type="button"
+             className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-300"
+             onClick={closeDownloadWarning}
+             aria-label="Tutup peringatan unduhan"
+           />
            <div
              ref={downloadModal.panelRef}
              className="kaffe-modal-panel kaffe-modal-scroll relative w-full bg-white border border-slate-100 p-6 sm:p-8 md:p-10 shadow-premium animate-in zoom-in slide-in-from-bottom-10 duration-500 [--kaffe-modal-max-width:540px]"
@@ -1051,12 +1013,14 @@ export default function LandingPage() {
               </p>
               <div className="flex flex-col gap-4">
                  <button
+                   type="button"
                    onClick={() => navigate('/register')}
                    className="w-full bg-[#FF6A00] text-white py-4 sm:py-5 rounded-2xl font-black text-sm sm:text-base shadow-premium hover:scale-[1.02] transition-all uppercase italic"
                  >
                    Daftar Gratis Sekarang
                  </button>
                  <button
+                   type="button"
                    onClick={closeDownloadWarning}
                    className="w-full bg-slate-50 text-slate-400 py-4 sm:py-5 rounded-2xl font-black text-sm hover:bg-slate-100 transition-all uppercase tracking-widest"
                  >
@@ -1070,7 +1034,12 @@ export default function LandingPage() {
       {/* Feature Intelligence Detail Overlay */}
       {isFeatureDetailOpen && selectedFeature && (
         <div className="kaffe-modal-overlay fixed inset-0 z-[110] flex justify-center">
-           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-500" onClick={closeFeatureDetail} />
+           <button
+             type="button"
+             className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-500"
+             onClick={closeFeatureDetail}
+             aria-label="Tutup detail fitur"
+           />
 
            <div
              ref={featureModal.panelRef}
@@ -1089,7 +1058,7 @@ export default function LandingPage() {
                     const DetailIcon = detail?.icon || HelpCircle;
                     return (
                        <div className="relative z-10 text-center">
-                          <div className={`w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-2xl sm:rounded-[28px] flex items-center justify-center mx-auto mb-6 sm:mb-8 shadow-premium bg-white border border-[#FF6A00]/10 text-[#FF6A00] animate-bounce duration-[4000ms]`}>
+                          <div className="mx-auto mb-6 flex size-20 items-center justify-center rounded-2xl border border-[#FF6A00]/10 bg-white text-[#FF6A00] shadow-premium motion-safe:animate-[bounce_4s_infinite] sm:mb-8 sm:size-24 sm:rounded-[28px] md:size-28">
                              <DetailIcon size={52} strokeWidth={1.5} />
                           </div>
                           <div className="kaffe-safe-text text-[10px] sm:text-[11px] font-black uppercase tracking-[0.24em] sm:tracking-[0.42em] text-slate-400 mb-3 opacity-60">{detail.stats.metric}</div>
@@ -1103,6 +1072,7 @@ export default function LandingPage() {
               {/* Right Side: Logic/Content */}
               <div className="md:w-1/2 p-6 sm:p-8 md:p-12 bg-white">
                  <button
+                   type="button"
                    onClick={closeFeatureDetail}
                    className="absolute top-4 right-4 sm:top-6 sm:right-6 text-slate-400 hover:text-slate-900 transition-colors"
                    aria-label="Tutup detail fitur"
@@ -1129,6 +1099,7 @@ export default function LandingPage() {
                  </div>
 
                  <button
+                   type="button"
                    onClick={closeFeatureDetail}
                    className="mt-10 sm:mt-12 w-full py-4 sm:py-5 rounded-2xl bg-slate-50 border border-slate-100 text-slate-500 font-black hover:bg-slate-100 transition-all uppercase tracking-[0.18em] sm:tracking-widest italic text-xs sm:text-sm"
                  >
@@ -1142,7 +1113,12 @@ export default function LandingPage() {
       {/* Safe Detail Overlay - Legal & Advisory */}
       {isSafeDetailOpen && selectedSafeItem && (
         <div className="kaffe-modal-overlay fixed inset-0 z-[110] flex justify-center">
-           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-500" onClick={closeSafeDetail} />
+           <button
+             type="button"
+             className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-500"
+             onClick={closeSafeDetail}
+             aria-label="Tutup dokumen keamanan"
+           />
 
            <div
              ref={safeModal.panelRef}
@@ -1153,6 +1129,7 @@ export default function LandingPage() {
               {/* Header Box */}
               <div className="p-6 sm:p-8 md:p-12 bg-slate-50 border-b border-slate-100 relative">
                  <button
+                   type="button"
                    onClick={closeSafeDetail}
                    className="absolute top-4 right-4 sm:top-6 sm:right-6 text-slate-400 hover:text-slate-900 transition-colors"
                    aria-label="Tutup dokumen keamanan"
@@ -1204,6 +1181,7 @@ export default function LandingPage() {
                  <div className="mt-12 sm:mt-16 pt-8 sm:pt-10 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-5 sm:gap-6">
                     <div className="kaffe-safe-text text-center md:text-left text-slate-400 text-xs sm:text-sm font-black italic tracking-widest uppercase">Platform Internal Audit &bull; 2026</div>
                     <button
+                      type="button"
                       onClick={closeSafeDetail}
                       className="w-full md:w-auto px-8 sm:px-10 py-4 rounded-2xl bg-slate-50 text-slate-500 font-black text-xs sm:text-sm hover:bg-slate-100 transition-all uppercase tracking-[0.2em] sm:tracking-[0.28em] italic border border-slate-100"
                     >
@@ -1219,7 +1197,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
             <div>
-              <button className="mb-5 flex items-center gap-3" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+              <button type="button" className="mb-5 flex items-center gap-3" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
                 <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-50 ring-1 ring-orange-100">
                   <img src={LOGO_ICON} alt="" className="h-7 w-7" />
                 </span>
@@ -1251,9 +1229,9 @@ export default function LandingPage() {
             <div>
               <h4 className="mb-4 text-sm font-extrabold text-slate-900">Bantuan</h4>
               <ul className="space-y-3 text-sm font-semibold text-slate-600">
-                <li className="cursor-pointer" onClick={() => { setSelectedSafeItem('ADVISORY'); setIsSafeDetailOpen(true); }}>Pusat Bantuan</li>
-                <li className="cursor-pointer" onClick={() => { setSelectedSafeItem('TERMS'); setIsSafeDetailOpen(true); }}>Panduan</li>
-                <li className="cursor-pointer" onClick={() => { setSelectedSafeItem('PRIVACY'); setIsSafeDetailOpen(true); }}>Kebijakan Privasi</li>
+                <li><button type="button" className="text-left" onClick={() => { setSelectedSafeItem('ADVISORY'); setIsSafeDetailOpen(true); }}>Pusat Bantuan</button></li>
+                <li><button type="button" className="text-left" onClick={() => { setSelectedSafeItem('TERMS'); setIsSafeDetailOpen(true); }}>Panduan</button></li>
+                <li><button type="button" className="text-left" onClick={() => { setSelectedSafeItem('PRIVACY'); setIsSafeDetailOpen(true); }}>Kebijakan Privasi</button></li>
               </ul>
             </div>
 
@@ -1279,6 +1257,7 @@ export default function LandingPage() {
       {/* Back to Top */}
       {showScrollTop && (
         <button
+          type="button"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           className="fixed bottom-12 right-12 z-[60] bg-[#FF6A00] text-white w-20 h-20 rounded-[32px] flex items-center justify-center shadow-premium hover:scale-110 active:scale-90 transition-all animate-in fade-in zoom-in duration-500 ring-8 ring-[#FF6A00]/10"
           aria-label="Kembali ke atas"

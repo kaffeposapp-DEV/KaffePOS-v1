@@ -91,6 +91,7 @@ const authPreviewCards = [
 export default function AuthPage() {
   const { signIn, signUp, resetPassword, updatePassword, resendVerification, verifyEmailCode, isAuthenticated } = useAuth();
   const location = useLocation();
+  const { pathname, search } = location;
   const navigate = useNavigate();
   const isNative = Capacitor.isNativePlatform();
 
@@ -120,8 +121,8 @@ export default function AuthPage() {
   const invalidResetLink = mode === 'reset' && (!resetParams.email || !resetParams.token);
 
   useEffect(() => {
-    const resolvedMode = getAuthModeFromLocation(location.pathname, location.search);
-    const params = new URLSearchParams(location.search);
+    const resolvedMode = getAuthModeFromLocation(pathname, search);
+    const params = new URLSearchParams(search);
     const verified = params.get('verified') === '1';
     const registeredEmail = localStorage.getItem('kaffepos_registered_email');
 
@@ -144,7 +145,7 @@ export default function AuthPage() {
     if (resolvedMode !== 'register') {
       setRegistered(false);
     }
-  }, [location.pathname, location.search]);
+  }, [pathname, search]);
 
   useEffect(() => {
     if (!registered && mode !== 'reset') {

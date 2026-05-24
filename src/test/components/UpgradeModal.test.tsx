@@ -12,13 +12,14 @@ vi.mock('@/lib/backendApi', async (importOriginal) => {
   };
 });
 
+const ownerRoleProps = { role: 'owner_admin' as const };
+
 function renderModal(overrides: Partial<ComponentProps<typeof UpgradeModal>> = {}) {
   const onClose = vi.fn();
   const result = render(
     <UpgradeModal
       open
       onClose={onClose}
-      role="owner_admin"
       currentPlan="secangkir"
       recommendedPlan="signature"
       trigger="trial_day_13"
@@ -28,6 +29,7 @@ function renderModal(overrides: Partial<ComponentProps<typeof UpgradeModal>> = {
       storeId="00000000-0000-0000-0000-000000000001"
       toast={{ showToast: vi.fn() }}
       metadata={{ daysLeft: 1 }}
+      {...ownerRoleProps}
       {...overrides}
     />,
   );

@@ -15,6 +15,7 @@ import paymentRouter from './routes/payment';
 import adminRouter from './routes/admin';
 import miscRouter from './routes/misc';
 import webhooksRouter from './routes/webhooks';
+import metricsRouter from './routes/metrics';
 import { appVersionAuthenticatedRouter, appVersionPublicRouter } from './routes/appVersion';
 import referralsRouter from './routes/referrals';
 import affiliateRouter from './routes/affiliate';
@@ -81,7 +82,6 @@ import {
 import {
   errorLoggingMiddleware,
   installDatabaseApm,
-  metricsHandler,
   requestContextMiddleware,
   requestLoggingMiddleware,
   startApmMonitoring,
@@ -2664,7 +2664,7 @@ async function bootstrapAiInsightsSchema() {
 setHealthRuntimeState({ serviceStartedAt, isShuttingDown: () => isShuttingDown });
 app.use(healthRouter);
 app.use(appVersionPublicRouter);
-app.get('/metrics', metricsHandler);
+app.use(metricsRouter);
 
 
 app.use(referralsRouter);

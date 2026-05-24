@@ -18,8 +18,6 @@ import { usePagination } from '@/hooks/usePagination';
 
 const fRp = (n: number) =>
   new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
-const fDt = (d: string) =>
-  new Date(d).toLocaleString('id-ID',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
 const PAGE_SIZE = 30;
 const HistorySkeleton = memo(function HistorySkeleton() {

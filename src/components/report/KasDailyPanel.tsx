@@ -1,9 +1,3 @@
- 
- 
- 
-/* eslint-disable react-refresh/only-export-components */
- 
- 
 // src/components/report/KasDailyPanel.tsx
 // Panel Kas Harian: Saldo Kasir Awal → Pengeluaran → Selisih
 // Menampilkan detail akuntansi per hari dengan status sumber dana
@@ -288,14 +282,4 @@ export default function KasDailyPanel({ cashRegister, expenses, transactions, pe
       </div>
     </div>
   );
-}
-
-// ── Export helper untuk PDF ───────────────────────────────────────
-export function buildKasPDFData(
-  cashRegister: CashRegisterEntry[],
-  expenses:     ExpenseEntry[],
-  transactions: TransactionEntry[],
-  period:       string
-) {
-  return groupByDay(cashRegister, expenses, transactions, period);
 }

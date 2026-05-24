@@ -159,6 +159,11 @@
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
+  .kaffe-btn-compact {
+    min-height: 0 !important;
+    min-width: 0 !important;
+  }
+
   img, video, canvas {
     max-width: 100%;
   }
@@ -395,6 +400,7 @@ h1, h2, h3, h4, h5, h6, .font-display {
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
+  word-wrap: break-word;
 }
 
 .kaffe-responsive-surface > * {
@@ -408,7 +414,8 @@ h1, h2, h3, h4, h5, h6, .font-display {
 .kaffe-metric-card,
 .kaffe-table-surface {
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
 }
 
 .kaffe-modal-overlay {
@@ -423,7 +430,8 @@ h1, h2, h3, h4, h5, h6, .font-display {
   max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1.5rem);
   border-radius: 28px 28px 18px 18px;
   overflow: hidden;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
 }
 
 .kaffe-modal-scroll {
@@ -435,7 +443,8 @@ h1, h2, h3, h4, h5, h6, .font-display {
 
 .kaffe-safe-text {
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
   hyphens: auto;
 }
 

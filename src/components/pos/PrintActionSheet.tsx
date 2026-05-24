@@ -168,6 +168,10 @@ export interface PrintActionSheetProps {
   toast:         { showToast: (m: string, t?: 'success' | 'error' | 'warning' | 'info') => void };
 }
 
+function Spinner() {
+  return <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />;
+}
+
 // ── Komponen utama ───────────────────────────────────────────────────────────
 export default function PrintActionSheet({
   visible, onClose, transaction, storeSettings, allowThermalPrint = true, toast,
@@ -258,10 +262,6 @@ export default function PrintActionSheet({
     } finally { setLoading(null); }
   };
 
-  const Spinner = () => (
-    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-  );
-
   const btStatus = printer.btReconnecting
     ? { label: 'Menghubungkan...', color: 'text-yellow-500', dot: '🟡' }
     : printer.btConnected
@@ -302,7 +302,7 @@ export default function PrintActionSheet({
                 {tx.id} &nbsp;·&nbsp; <span className="font-bold text-orange-500">{fRp(tx.total)}</span>
               </p>
             </div>
-            <button onClick={doClose} className="p-2 rounded-full bg-slate-100 active:scale-90">
+            <button onClick={doClose} className="p-2 rounded-full bg-slate-100 active:scale-90" aria-label="Tutup">
               <X size={16} className="text-slate-500" />
             </button>
           </div>
@@ -355,6 +355,7 @@ export default function PrintActionSheet({
           <button
             onClick={handleBluetooth}
             disabled={loading !== null}
+            aria-label="Cetak via Bluetooth"
             className={`w-full flex items-center gap-3.5 p-4 rounded-2xl border active:scale-[0.98] disabled:opacity-60 transition-transform ${allowThermalPrint ? 'bg-orange-50 border-orange-100' : 'bg-slate-50 border-slate-200'}`}
           >
             <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center shrink-0">
@@ -378,6 +379,7 @@ export default function PrintActionSheet({
           <button
             onClick={handleUsb}
             disabled={loading !== null}
+            aria-label="Cetak via USB OTG"
             className={`w-full flex items-center gap-3.5 p-4 rounded-2xl border active:scale-[0.98] disabled:opacity-60 transition-transform ${allowThermalPrint ? 'bg-blue-50 border-blue-100' : 'bg-slate-50 border-slate-200'}`}
           >
             <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center shrink-0">
@@ -398,6 +400,7 @@ export default function PrintActionSheet({
           <button
             onClick={handleWhatsApp}
             disabled={loading !== null}
+            aria-label="Kirim Struk via WhatsApp"
             className="w-full flex items-center gap-3.5 p-4 rounded-2xl active:scale-[0.98] disabled:opacity-60 transition-transform"
             style={{ backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0' }}
           >

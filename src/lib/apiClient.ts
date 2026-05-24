@@ -70,8 +70,8 @@ export class ApiClientError extends Error {
     super(message);
     this.name = 'ApiClientError';
     this.status = status;
-    this.code = code;
-    this.details = details;
+    if (code !== undefined) this.code = code;
+    if (details !== undefined) this.details = details;
   }
 }
 

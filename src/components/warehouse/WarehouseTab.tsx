@@ -5,7 +5,7 @@
  
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { memo, useState, useMemo } from 'react';
-import { Plus, Archive, X, AlertTriangle, ChevronDown, ChevronUp, Search, RefreshCw, ChefHat, Calculator, Upload, CheckCircle2, FileSpreadsheet, ClipboardCheck } from 'lucide-react';
+import { Plus, Archive, X, AlertTriangle, Search, RefreshCw, ChefHat, Calculator, Upload, CheckCircle2, FileSpreadsheet } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import DeleteConfirmSheet from '@/components/ui/DeleteConfirmSheet';
 import { InventoryRow } from '@/components/warehouse/InventoryRow';
@@ -20,7 +20,6 @@ import {
 import { getRecipeSaveErrorMessage, normalizeUserFacingError } from '@/lib/errorMessages';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import type { InventoryItem, InventoryItemUpdate, MenuItem } from '@/types';
-import { getInventoryUsageMap } from '@/utils/receipt';
 
 const fRp = (n: number) => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
 const WarehouseSkeleton = memo(function WarehouseSkeleton() {
@@ -41,7 +40,6 @@ export default function WarehouseTab({ toast }: { toast:any }) {
   const {
     inventory,
     menu,
-    transactions,
     unitConversions,
     saveInventoryItem,
     adjustInventoryStock,
@@ -56,7 +54,6 @@ export default function WarehouseTab({ toast }: { toast:any }) {
   const [form,         setForm]         = useState<WarehouseForm>({ id:'', name:'', qty:'', cost:'', unit:'gr', minStock:'5', type:'new' });
   const [search,       setSearch]       = useState('');
   const [saving,       setSaving]       = useState(false);
-  const [expandedId,   setExpandedId]   = useState<string|null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{id:string;name:string}|null>(null);
   const [conversionForm, setConversionForm] = useState({ ingredient_id: '', from_unit: '', to_unit: 'pcs', ratio: '1' });
   const [recipeForm, setRecipeForm] = useState({ product_id: '', ingredient_id: '', qty: '', unit_reference: '' });
@@ -89,11 +86,6 @@ export default function WarehouseTab({ toast }: { toast:any }) {
     () => buildBulkImportPreview(importRows, { inventory, menu, conversions: unitConversions, mode: importMode }),
     [importMode, importRows, inventory, menu, unitConversions],
   );
-  const usageMap = useMemo(() => {
-    const rows = getInventoryUsageMap(inventory, menu, transactions, unitConversions);
-    return new Map(rows.map((row) => [row.itemId, row]));
-  }, [inventory, menu, transactions, unitConversions]);
-
   // Which menus use each inventory item
   const usedInMenu = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -270,22 +262,6 @@ export default function WarehouseTab({ toast }: { toast:any }) {
     }
   };
 
-  const getStockMeta = (item: InventoryItem) => {
-    const usage = usageMap.get(item.id);
-    const healthPct = item.min_stock > 0 ? Math.min((item.stock / item.min_stock) * 100, 200) : 100;
-    const fillPct = usage?.percent ?? 100;
-    const isLow = item.stock <= item.min_stock;
-    const barColor = isLow ? '#ef4444' : fillPct < 40 ? '#f97316' : '#10b981';
-    return {
-      used: usage?.used || 0,
-      baseline: usage?.baseline || item.stock,
-      fillPct,
-      healthPct,
-      barColor,
-      label: isLow ? 'Stok menipis' : fillPct >= 70 ? 'Stok full' : 'Stok aman',
-    };
-  };
-
   return (
     <div className="kaffe-responsive-surface flex-1 flex flex-col overflow-hidden bg-white lg:bg-slate-50/50">
       <div className="bg-white border-b border-slate-100 px-4 sm:px-6 pt-6 pb-4 z-10">
@@ -341,6 +317,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
             value={search} 
             onChange={e=>setSearch(e.target.value)} 
             placeholder="Cari bahan baku..."
+            aria-label="Cari bahan baku"
             className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl pl-12 pr-4 text-[15px] focus:outline-none focus:ring-4 focus:ring-[#FF6A00]/5 focus:border-[#FF6A00]/20 transition-all font-bold text-slate-700 placeholder:text-slate-300 shadow-sm"
           />
         </div>}
@@ -426,15 +403,15 @@ export default function WarehouseTab({ toast }: { toast:any }) {
           <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-5">
             <form onSubmit={handleSaveConversion} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-soft space-y-3">
               <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">Tambah Konversi</p>
-              <select value={conversionForm.ingredient_id} onChange={e=>setConversionForm(f=>({...f,ingredient_id:e.target.value}))} className="w-full h-11 border border-slate-200 rounded-2xl px-3 text-sm font-bold">
+              <select aria-label="Bahan baku asal" value={conversionForm.ingredient_id} onChange={e=>setConversionForm(f=>({...f,ingredient_id:e.target.value}))} className="w-full h-11 border border-slate-200 rounded-2xl px-3 text-sm font-bold">
                 <option value="">Global / semua bahan</option>
                 {inventory.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
               </select>
               <div className="grid grid-cols-2 gap-2">
-                <input value={conversionForm.from_unit} onChange={e=>setConversionForm(f=>({...f,from_unit:e.target.value}))} placeholder="mika / bal" className="h-11 border border-slate-200 rounded-2xl px-3 text-sm font-bold"/>
-                <input value={conversionForm.to_unit} onChange={e=>setConversionForm(f=>({...f,to_unit:e.target.value}))} placeholder="pcs / gram" className="h-11 border border-slate-200 rounded-2xl px-3 text-sm font-bold"/>
+                <input aria-label="Satuan asal" value={conversionForm.from_unit} onChange={e=>setConversionForm(f=>({...f,from_unit:e.target.value}))} placeholder="mika / bal" className="h-11 border border-slate-200 rounded-2xl px-3 text-sm font-bold"/>
+                <input aria-label="Satuan tujuan" value={conversionForm.to_unit} onChange={e=>setConversionForm(f=>({...f,to_unit:e.target.value}))} placeholder="pcs / gram" className="h-11 border border-slate-200 rounded-2xl px-3 text-sm font-bold"/>
               </div>
-              <input type="number" step="0.0001" value={conversionForm.ratio} onChange={e=>setConversionForm(f=>({...f,ratio:e.target.value}))} placeholder="15" className="h-11 w-full border border-slate-200 rounded-2xl px-3 text-sm font-bold"/>
+              <input aria-label="Rasio konversi" type="number" step="0.0001" value={conversionForm.ratio} onChange={e=>setConversionForm(f=>({...f,ratio:e.target.value}))} placeholder="15" className="h-11 w-full border border-slate-200 rounded-2xl px-3 text-sm font-bold"/>
               <button className="w-full h-11 rounded-2xl bg-slate-900 text-white font-black text-[12px] uppercase tracking-widest">Simpan Konversi</button>
             </form>
             <div className="bg-white border border-slate-100 rounded-2xl shadow-soft overflow-hidden">
@@ -460,17 +437,17 @@ export default function WarehouseTab({ toast }: { toast:any }) {
           <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-5">
             <form onSubmit={handleSaveRecipe} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-soft space-y-3">
               <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">Tambah Resep</p>
-              <select value={recipeForm.product_id} onChange={e=>setRecipeForm(f=>({...f,product_id:e.target.value}))} className="w-full h-11 border border-slate-200 rounded-2xl px-3 text-sm font-bold">
+              <select aria-label="Produk" value={recipeForm.product_id} onChange={e=>setRecipeForm(f=>({...f,product_id:e.target.value}))} className="w-full h-11 border border-slate-200 rounded-2xl px-3 text-sm font-bold">
                 <option value="">Pilih produk</option>
                 {menu.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
               </select>
-              <select value={recipeForm.ingredient_id} onChange={e=>setRecipeForm(f=>({...f,ingredient_id:e.target.value}))} className="w-full h-11 border border-slate-200 rounded-2xl px-3 text-sm font-bold">
+              <select aria-label="Bahan baku resep" value={recipeForm.ingredient_id} onChange={e=>setRecipeForm(f=>({...f,ingredient_id:e.target.value}))} className="w-full h-11 border border-slate-200 rounded-2xl px-3 text-sm font-bold">
                 <option value="">Pilih bahan</option>
                 {inventory.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
               </select>
               <div className="grid grid-cols-2 gap-2">
-                <input type="number" step="0.0001" value={recipeForm.qty} onChange={e=>setRecipeForm(f=>({...f,qty:e.target.value}))} placeholder="Qty / porsi" className="h-11 border border-slate-200 rounded-2xl px-3 text-sm font-bold"/>
-                <input value={recipeForm.unit_reference} onChange={e=>setRecipeForm(f=>({...f,unit_reference:e.target.value}))} placeholder="pcs / gram" className="h-11 border border-slate-200 rounded-2xl px-3 text-sm font-bold"/>
+                <input aria-label="Jumlah bahan per porsi" type="number" step="0.0001" value={recipeForm.qty} onChange={e=>setRecipeForm(f=>({...f,qty:e.target.value}))} placeholder="Qty / porsi" className="h-11 border border-slate-200 rounded-2xl px-3 text-sm font-bold"/>
+                <input aria-label="Satuan rujukan" value={recipeForm.unit_reference} onChange={e=>setRecipeForm(f=>({...f,unit_reference:e.target.value}))} placeholder="pcs / gram" className="h-11 border border-slate-200 rounded-2xl px-3 text-sm font-bold"/>
               </div>
               {recipeError && (
                 <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600">{recipeError}</p>
@@ -530,17 +507,18 @@ export default function WarehouseTab({ toast }: { toast:any }) {
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-2 text-slate-700 font-black"><FileSpreadsheet size={18}/> CSV Import</div>
                 <div className="flex gap-2">
-                  <select value={importMode} onChange={e=>setImportMode(e.target.value as BulkImportMode)} className="h-10 border border-slate-200 rounded-xl px-3 text-xs font-black">
+                  <select aria-label="Mode impor" value={importMode} onChange={e=>setImportMode(e.target.value as BulkImportMode)} className="h-10 border border-slate-200 rounded-xl px-3 text-xs font-black">
                     <option value="create_only">Create only</option>
                     <option value="update_existing">Update existing</option>
                     <option value="upsert">Upsert</option>
                   </select>
-                  <input type="file" accept=".csv,text/csv" onChange={e=>handleImportFile(e.target.files?.[0])} className="max-w-44 text-xs font-bold"/>
+                  <input aria-label="Pilih file CSV" type="file" accept=".csv,text/csv" onChange={e=>handleImportFile(e.target.files?.[0])} className="max-w-44 text-xs font-bold"/>
                 </div>
               </div>
               <textarea
                 value={importText}
                 onChange={e=>handleImportText(e.target.value)}
+                aria-label="CSV data"
                 className="w-full min-h-72 border border-slate-200 rounded-2xl p-4 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                 placeholder={'kind,name,stock,base_unit,total_cost,from_unit,to_unit,ratio,product_name,ingredient_name,qty_per_serving,price,category\ningredient,Gula Aren,10,kg,45000,,,,,,,\nconversion,,,,,kg,gram,1000,,,,,\nproduct,Kopi Susu,,,,,,,,,,18000,Coffee\nrecipe,,,,,,,,Kopi Susu,Gula Aren,20,,'}
               />
@@ -584,6 +562,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
               </h3>
               <button 
                 onClick={()=>setShowModal(false)} 
+                aria-label="Tutup modal"
                 className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 active:bg-slate-100"
               >
                 <X size={20}/>
@@ -614,7 +593,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-bold text-slate-700 pl-0.5">Satuan</label>
-                  <select value={form.unit} onChange={e=>setForm(f=>({...f,unit:e.target.value}))}
+                  <select aria-label="Satuan bahan" value={form.unit} onChange={e=>setForm(f=>({...f,unit:e.target.value}))}
                     className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-[16px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white transition-all appearance-none">
                     {['gr','kg','ml','L','pcs','btl','bks','lbr','sachet'].map(u=><option key={u}>{u}</option>)}
                   </select>
@@ -666,6 +645,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
               </div>
               <button
                 onClick={()=>setOpnameTarget(null)}
+                aria-label="Tutup opname"
                 className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 active:bg-slate-100"
               >
                 <X size={20}/>

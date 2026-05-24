@@ -1,11 +1,9 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-
 
 
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/pos/POSTab.tsx — KaffePOS v5
-import { memo, useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { memo, useState, useMemo, useCallback, useEffect } from 'react';
 import {
   ShoppingBag, Plus, Minus, X, ChevronRight,
   Search, Printer, RefreshCw, CheckCircle2, ChefHat,
@@ -48,11 +46,23 @@ import { useModalBehavior } from '@/hooks/useModalBehavior';
 import { trackAnalyticsEvent } from '@/lib/analytics';
 import { trackOpsEvent } from '@/lib/opsMetrics';
 
-const fRp = (n: number) =>
-  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
+const IDR_FORMATTER = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+
+const SKELETON_KEYS = Array.from({ length: 8 }, (_, index) => `pos-skeleton-${index + 1}`);
+
+const PROMOS = [
+  { l: 'Diskon 10%', v: '10%', d: 'Potongan 10% dari subtotal' },
+  { l: 'Diskon 50%', v: '50%', d: 'Potongan setengah harga' },
+  { l: 'Potongan 5rb', v: '5000', d: 'Potongan flat Rp 5.000' },
+  { l: 'Potongan 10rb', v: '10000', d: 'Potongan flat Rp 10.000' },
+  { l: 'Jumat Berkah (20%)', v: '20%', d: 'Promo khusus hari Jumat' },
+  { l: 'Batal Diskon', v: '', d: 'Hapus semua potongan' },
+] as const;
+
+const fRp = (n: number) => IDR_FORMATTER.format(n || 0);
 
 const POSSkeleton = memo(function POSSkeleton() {
-  return <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-40 rounded-[24px] bg-slate-100 animate-pulse" />)}</div>;
+  return <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">{SKELETON_KEYS.map((key) => <div key={key} className="h-40 rounded-[24px] bg-slate-100 animate-pulse" />)}</div>;
 });
 
 interface Props {
@@ -112,6 +122,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
   const [cat,        setCat]        = useState('All');
   const [search,     setSearch]     = useState('');
   const [showPay,    setShowPay]    = useState(false);
+  const [showMobileCart, setShowMobileCart] = useState(false);
   const [showVouchers, setShowVouchers] = useState(false);
   const [method,     setMethod]     = useState<'Tunai'|'Transfer'|'QRIS'>('Tunai');
   const [cash,       setCash]       = useState('');
@@ -129,6 +140,11 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
   const [loyaltyPassport, setLoyaltyPassport] = useState<LoyaltyPassport | null>(null);
   const [loyaltyReward, setLoyaltyReward] = useState<LoyaltyReward | null>(null);
   const dSearch = useDebouncedValue(search, 300);
+
+  const handleClearCart = useCallback(() => {
+    clearCart();
+    setShowMobileCart(false);
+  }, [clearCart]);
 
   const cats = useMemo(() =>
     ['All', ...new Set(menu.map(m => m.category))],
@@ -573,6 +589,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
       setLoyaltyPassport(null);
       setLoyaltyReward(null);
       setShowPay(false);
+      setShowMobileCart(false);
       setShowRcpt(true);
       toast.showToast(
         savedTx.sync_status === 'pending'
@@ -585,7 +602,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
     } finally {
       setCheckingOut(false);
     }
-  }, [cart, clearCart, currentMonthTransactionCount, discAmt, discount, inventory, isOnline, menu, method, paid, pollPaymentOrder, profile, saveTransaction, storeId, subscriptionAccess.transactionLimit, subtotal, taxAmt, toast, total, unitConversions]);
+  }, [cart, change, clearCart, currentMonthTransactionCount, custName, discAmt, discount, inventory, isOnline, loyaltyPassport, loyaltyPhone, loyaltyReward, menu, method, paid, pollPaymentOrder, profile, saveTransaction, storeId, subscriptionAccess.transactionLimit, subtotal, taxAmt, toast, total, transactions, unitConversions]);
 
 
   const lowStock = useMemo(() =>
@@ -636,29 +653,32 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
               <h2 className="font-display text-xl font-extrabold text-slate-800 tracking-tight">Katalog Menu</h2>
               {lowStock.length > 0 && (
                 <p className="text-[11px] text-rose-500 font-bold mt-0.5 flex items-center gap-1">
-                  <span className="w-1 h-1 rounded-full bg-rose-500 animate-pulse" />
+                  <span className="size-1 rounded-full bg-rose-500 animate-pulse" />
                   {lowStock.length} bahan kritis
                 </p>
               )}
             </div>
-            <div
-              onClick={() => { if(!isOnline) window.location.reload(); }}
-              className={`flex shrink-0 items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer active:scale-95 transition-all ${isOnline?'bg-emerald-50 border-emerald-100 text-emerald-600':'bg-rose-50 border-rose-100 text-rose-600 animate-bounce shadow-lg shadow-rose-200/50'}`}
-            >
-              <div className={`w-1.5 h-1.5 rounded-full ${isOnline?'bg-emerald-500 animate-pulse':'bg-rose-500'}`} />
-              <span className="text-[10px] font-bold uppercase tracking-widest">{isOnline?'Terhubung':'Offline'}</span>
-            </div>
+              <button
+                type="button"
+                onClick={() => { if(!isOnline) window.location.reload(); }}
+                className={`flex shrink-0 items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer active:scale-95 transition-all ${isOnline?'bg-emerald-50 border-emerald-100 text-emerald-600':'bg-rose-50 border-rose-100 text-rose-600 animate-bounce shadow-lg shadow-rose-200/50'}`}
+                aria-label={isOnline ? 'Status koneksi terhubung' : 'Muat ulang karena offline'}
+              >
+                <div className={`size-1.5 rounded-full ${isOnline?'bg-emerald-500 animate-pulse':'bg-rose-500'}`} />
+                <span className="text-[10px] font-bold uppercase tracking-widest">{isOnline?'Terhubung':'Offline'}</span>
+              </button>
           </div>
           <div className="relative">
             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"/>
-            <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Cari menu kopi, snack..."
+            <label className="sr-only" htmlFor="pos-menu-search">Cari menu</label>
+            <input id="pos-menu-search" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Cari menu kopi, snack…"
               className="w-full h-12 bg-slate-50 border border-slate-200/60 rounded-2xl pl-12 pr-4 text-[15px] focus:outline-none focus:ring-4 focus:ring-[#FF6A00]/10 focus:border-[#FF6A00]/30 transition-all font-medium text-slate-700 placeholder:text-slate-400 shadow-soft"
             />
           </div>
           <div className="kaffe-scroll-tabs kaffe-command-bar flex gap-2 mt-4 overflow-x-auto pb-1 scrollbar-hide">
             {cats.map(c => (
-              <button key={c} onClick={() => setCat(c)}
+              <button type="button" key={c} onClick={() => setCat(c)}
                 className={`shrink-0 h-10 px-5 rounded-xl text-[13px] font-bold transition-all duration-300 ${cat===c?'bg-[#FF6A00] text-white shadow-premium':'bg-slate-50 text-slate-500 border border-slate-200 hover:bg-white hover:border-slate-300'}`}>
                 {c}
               </button>
@@ -680,12 +700,13 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
               {filtered.map(item => {
                 const totalQty = cart.filter(c => c.id === item.id || c._baseId === item.id).reduce((s,c)=>s+c.qty,0);
                 return (
-                  <div key={item.id} onClick={() => handleAdd(item)}
-                    className="kaffe-action-card group min-w-0 bg-white rounded-3xl overflow-hidden shadow-soft border border-slate-100 cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-premium active:scale-[0.98] flex flex-col relative"
+                  <button type="button" key={item.id} onClick={() => handleAdd(item)}
+                    className="kaffe-action-card group min-w-0 bg-white rounded-3xl overflow-hidden shadow-soft border border-slate-100 cursor-pointer text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-premium active:scale-[0.98] flex flex-col relative"
+                    aria-label={`Tambah ${item.name} ke keranjang`}
                   >
                     {item.image_url ? (
                       <div className="relative pt-[75%] w-full overflow-hidden bg-slate-50">
-                        <img src={item.image_url} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" />
+                        <img src={item.image_url} alt={item.name} className="absolute inset-0 size-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" />
                       </div>
                     ) : (
                       <div className="pt-[75%] w-full relative">
@@ -700,12 +721,12 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
                     {totalQty > 0 && (
                       <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-md rounded-2xl shadow-premium border border-white/50 px-3 py-1.5 flex items-center gap-2 z-10 animate-in zoom-in">
                         <span className="font-bold text-xs text-slate-800">{totalQty}x</span>
-                        <div className="w-6 h-6 rounded-lg bg-[#FF6A00] text-white flex items-center justify-center">
+                        <div className="size-6 rounded-lg bg-[#FF6A00] text-white flex items-center justify-center">
                            <Plus size={12} strokeWidth={3} />
                         </div>
                       </div>
                     )}
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -715,9 +736,9 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
         {/* ── MOBILE: BUTTON KERANJANG MENGAMBANG ── */}
         {cart.length > 0 && (
           <div className="kaffe-sticky-action md:hidden absolute bottom-4 left-4 right-4 z-20">
-            <button onClick={() => setShowPay(true)} className="w-full bg-slate-900 text-white p-4 rounded-3xl flex items-center justify-between shadow-[0_10px_40px_rgb(0,0,0,0.3)] active:scale-[0.97] transition-all border border-slate-700">
+            <button type="button" onClick={() => setShowMobileCart(true)} className="w-full bg-slate-900 text-white p-4 rounded-3xl flex items-center justify-between shadow-[0_10px_40px_rgb(0,0,0,0.3)] active:scale-[0.97] transition-all border border-slate-700">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center font-black text-sm">{cart.length}</div>
+                <div className="size-8 rounded-full bg-white/20 flex items-center justify-center font-black text-sm">{cart.length}</div>
                 <span className="font-bold text-sm">Keranjang</span>
               </div>
               <div className="flex items-center gap-2 font-black text-lg">
@@ -728,12 +749,26 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
         )}
       </div>
 
-      {/* ── KANAN: SIDEBAR CHECKOUT PERSISTEN (TABLET/DESKTOP) ── */}
-      <div className="kaffe-checkout-panel hidden md:flex min-w-0 flex-col w-[340px] lg:w-[420px] bg-white border-l border-slate-200/60 shadow-[-10px_0_30px_rgb(0,0,0,0.02)] z-20 relative">
+      {/* ── KANAN: SIDEBAR CHECKOUT PERSISTEN (TABLET/DESKTOP/MOBILE) ── */}
+      <div className={`kaffe-checkout-panel min-w-0 flex-col bg-white border-slate-200/60 z-[60] md:z-20
+        ${showMobileCart 
+          ? 'fixed inset-0 w-full h-full flex animate-in slide-in-from-bottom duration-300' 
+          : 'hidden md:flex w-[340px] lg:w-[420px] border-l shadow-[-10px_0_30px_rgb(0,0,0,0.02)] relative'
+        }`}
+      >
         <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <h2 className="font-extrabold text-slate-800">Pesanan Hari Ini</h2>
+          <div className="flex items-center gap-3">
+            <button type="button"
+              onClick={() => setShowMobileCart(false)}
+              className="md:hidden size-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-800 min-w-0 min-h-0 kaffe-btn-compact transition-colors"
+              aria-label="Tutup keranjang"
+            >
+              <X size={16} />
+            </button>
+            <h2 className="font-extrabold text-slate-800">Pesanan Hari Ini</h2>
+          </div>
           {cart.length > 0 && (
-            <button onClick={clearCart} className="text-[10px] uppercase tracking-wider font-bold text-slate-400 hover:text-red-500 transition-colors">
+            <button type="button" onClick={handleClearCart} className="text-[10px] uppercase tracking-wider font-bold text-slate-400 hover:text-red-500 transition-colors">
               Kosongkan (X)
             </button>
           )}
@@ -776,7 +811,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
 
         {cart.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center px-8 text-center">
-            <div className="w-32 h-32 bg-slate-50 rounded-[40px] flex items-center justify-center mb-8 relative">
+            <div className="size-32 bg-slate-50 rounded-[40px] flex items-center justify-center mb-8 relative">
               <div className="absolute inset-0 bg-slate-100/50 rounded-[40px] animate-ping duration-[3000ms]" />
               <ShoppingBag size={56} className="text-slate-200 relative z-10"/>
             </div>
@@ -793,7 +828,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
                 <div className="flex-1 overflow-hidden">
                   <div className="flex justify-between items-start gap-2 mb-1">
                     <p className="font-bold text-slate-800 text-[14px] truncate">{c.name}</p>
-                    <button onClick={() => updateQty(c.id, 0)} className="text-slate-300 hover:text-rose-500 transition-colors">
+                    <button type="button" onClick={() => updateQty(c.id, 0)} className="text-slate-300 hover:text-rose-500 transition-colors kaffe-btn-compact" aria-label="Hapus item">
                        <X size={14} />
                     </button>
                   </div>
@@ -801,16 +836,17 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
                   <input
                     value={c.note || ''}
                     onChange={(e) => setCartItemNote(c.id, e.target.value)}
-                    placeholder="Catatan..."
+                    aria-label={`Catatan untuk ${c.name}`}
+                    placeholder="Catatan…"
                     className="w-full rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-[12px] font-semibold text-slate-600 outline-none transition focus:border-[#FF6A00]/30 focus:bg-white focus:ring-4 focus:ring-[#FF6A00]/5"
                   />
                 </div>
                 <div className="flex flex-col items-end justify-between py-1">
                   <p className="font-extrabold text-slate-800 text-[14px]">{fRp(c.price * c.qty)}</p>
                   <div className="flex items-center gap-2.5 mt-2 bg-slate-50 rounded-xl border border-slate-200/60 p-1 shadow-inner">
-                    <button onClick={() => updateQty(c.id, c.qty - 1)} className="w-7 h-7 flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-800 rounded-lg shadow-sm transition-all"><Minus size={12} strokeWidth={3}/></button>
+                    <button type="button" onClick={() => updateQty(c.id, c.qty - 1)} className="size-7 flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-800 rounded-lg shadow-sm transition-all kaffe-btn-compact" aria-label={`Kurangi ${c.name}`}><Minus size={12} strokeWidth={3}/></button>
                     <span className="font-bold text-xs w-4 text-center">{c.qty}</span>
-                    <button onClick={() => updateQty(c.id, c.qty + 1)} className="w-7 h-7 flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-800 rounded-lg shadow-sm transition-all"><Plus size={12} strokeWidth={3}/></button>
+                    <button type="button" onClick={() => updateQty(c.id, c.qty + 1)} className="size-7 flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-800 rounded-lg shadow-sm transition-all kaffe-btn-compact" aria-label={`Tambah ${c.name}`}><Plus size={12} strokeWidth={3}/></button>
                   </div>
                 </div>
               </div>
@@ -845,13 +881,13 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
             </div>
 
             <div className="flex gap-3">
-              <button
-                onClick={clearCart}
+              <button type="button"
+                onClick={handleClearCart}
                 className="flex-1 h-14 rounded-2xl border-2 border-slate-100 text-slate-400 font-bold hover:bg-slate-50 hover:border-slate-200 transition-all"
               >
                 Batal
               </button>
-              <button
+              <button type="button"
                 onClick={() => setShowPay(true)}
                 className="flex-[2] h-14 rounded-2xl bg-[#FF6A00] text-white font-black uppercase italic tracking-wider shadow-premium hover:shadow-xl hover:scale-[1.02] active:scale-100 transition-all flex items-center justify-center gap-2"
               >
@@ -876,7 +912,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
                 <h3 id="pos-payment-title" className="font-display text-2xl font-extrabold text-slate-900 tracking-tight">Pembayaran</h3>
                 <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest mt-1">Konfirmasi pesanan</p>
               </div>
-              <button onClick={closePaymentModal} className="p-3 bg-white border border-slate-100 rounded-2xl text-slate-500 hover:bg-orange-50 hover:text-[#FF6A00] transition-colors"><X size={22}/></button>
+              <button type="button" onClick={closePaymentModal} className="p-3 bg-white border border-slate-100 rounded-2xl text-slate-500 hover:bg-orange-50 hover:text-[#FF6A00] transition-colors"><X size={22}/></button>
             </div>
 
             <div className="kaffe-soft-section text-center mb-8 rounded-2xl p-6">
@@ -929,8 +965,8 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
 
             <div className="space-y-4 mb-8">
                <div>
-                  <label className="text-[11px] font-black tracking-wider text-slate-400 uppercase block mb-2 ml-1">Nama Pelanggan (Opsional)</label>
-                  <input value={custName} onChange={e => setCustName(e.target.value)} placeholder="Contoh: Budi - Meja 05" className="w-full h-14 bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 text-[16px] font-bold focus:outline-none focus:border-[#FF6A00] transition-all"/>
+                  <label htmlFor="pos-customer-name" className="text-[11px] font-black tracking-wider text-slate-400 uppercase block mb-2 ml-1">Nama Pelanggan (Opsional)</label>
+                  <input id="pos-customer-name" value={custName} onChange={e => setCustName(e.target.value)} placeholder="Contoh: Budi - Meja 05" className="h-14 w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 text-[16px] font-bold focus:outline-none focus:border-[#FF6A00] transition-all"/>
                </div>
 
                <LoyaltyCheckoutModal
@@ -948,13 +984,14 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
 
                <div>
                   <div className="flex items-center justify-between mb-2 ml-1">
-                    <label className="text-[11px] font-black tracking-wider text-slate-400 uppercase">Promo & Diskon</label>
-                    <button onClick={() => setShowVouchers(true)} className="inline-flex items-center gap-1.5 text-[11px] font-black text-orange-500 uppercase tracking-widest hover:underline">
+                    <label htmlFor="pos-discount" className="text-[11px] font-black tracking-wider text-slate-400 uppercase">Promo & Diskon</label>
+                    <button type="button" onClick={() => setShowVouchers(true)} className="inline-flex items-center gap-1.5 text-[11px] font-black text-orange-500 uppercase tracking-widest hover:underline">
                       <Gift size={13} /> Pilih Promo
                     </button>
                   </div>
                   <div className="relative">
                     <input
+                      id="pos-discount"
                       value={discount || ''}
                       onChange={e => setDiscount(e.target.value)}
                       placeholder="10% atau 5000"
@@ -975,11 +1012,11 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
                 ] as const).map((m) => {
                   const Icon = m.icon;
                   return (
-                    <button key={m.id} onClick={() => setMethod(m.id)}
+                    <button type="button" key={m.id} onClick={() => setMethod(m.id)}
                       disabled={!isOnline && !canProcessPosPaymentOffline(m.id)}
                       className={`flex items-center justify-between p-5 rounded-2xl border-2 font-black text-[15px] transition-all disabled:opacity-30 ${method===m.id?'border-[#FF6A00] bg-orange-50 text-[#FF6A00] shadow-sm':'border-slate-100 text-slate-500 bg-white hover:border-slate-200'}`}>
                       <div className="flex items-center gap-4">
-                        <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${method===m.id ? 'bg-white text-[#FF6A00]' : 'bg-slate-50 text-slate-400'}`}>
+                        <span className={`flex size-10 items-center justify-center rounded-xl ${method===m.id ? 'bg-white text-[#FF6A00]' : 'bg-slate-50 text-slate-400'}`}>
                           <Icon size={19} />
                         </span>
                         <span>{m.id}</span>
@@ -993,10 +1030,10 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
 
             {method === 'Tunai' && (
               <div className="mb-10 animate-in slide-up duration-300">
-                <label className="text-[11px] font-black tracking-wider text-slate-400 uppercase block mb-2 ml-1">Uang Diterima</label>
+                <label htmlFor="pos-cash-received" className="text-[11px] font-black tracking-wider text-slate-400 uppercase block mb-2 ml-1">Uang Diterima</label>
                 <div className="relative">
                    <span className="absolute left-5 top-1/2 -translate-y-1/2 font-black text-slate-400">Rp</span>
-                   <input type="number" value={cash} onChange={e => setCash(e.target.value)} placeholder={String(total)} className="w-full border-2 border-slate-100 rounded-2xl pl-12 pr-5 py-5 text-3xl font-black focus:outline-none focus:border-[#FF6A00] transition-all bg-slate-50" autoFocus inputMode="numeric"/>
+                   <input id="pos-cash-received" type="number" value={cash} onChange={e => setCash(e.target.value)} placeholder={String(total)} className="w-full border-2 border-slate-100 rounded-2xl pl-12 pr-5 py-5 text-3xl font-black focus:outline-none focus:border-[#FF6A00] transition-all bg-slate-50" inputMode="numeric"/>
                 </div>
                 {paid >= total && paid > 0 && (
                   <div className="mt-4 flex justify-between items-center bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
@@ -1006,7 +1043,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
                 )}
                 <div className="flex gap-2 mt-4 overflow-x-auto scrollbar-hide pb-1">
                   {quickAmounts(total).map(amt => (
-                    <button key={amt} onClick={() => setCash(String(amt))} className="shrink-0 px-5 py-3 bg-white border-2 border-slate-100 rounded-xl text-xs font-black text-slate-600 active:scale-95 hover:border-[#FF6A00]/30">
+                    <button type="button" key={amt} onClick={() => setCash(String(amt))} className="shrink-0 px-5 py-3 bg-white border-2 border-slate-100 rounded-xl text-xs font-black text-slate-600 active:scale-95 hover:border-[#FF6A00]/30">
                       {fRp(amt)}
                     </button>
                   ))}
@@ -1014,7 +1051,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
               </div>
             )}
 
-            <button onClick={handleCheckout} disabled={checkingOut || !cart.length || (method === 'Tunai' && paid < total)}
+            <button type="button" onClick={handleCheckout} disabled={checkingOut || !cart.length || (method === 'Tunai' && paid < total)}
               className="kaffe-gradient-button w-full py-5 text-white font-black text-base rounded-2xl active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 transition-all hover:shadow-xl hover:scale-[1.01] uppercase tracking-wider">
               {checkingOut ? <><RefreshCw size={24} className="animate-spin" /> MEMPROSES...</> : <>KONFIRMASI BAYAR <CheckCircle2 size={24}/></>}
             </button>
@@ -1032,7 +1069,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
             {...receiptModal.dialogProps}
           >
             <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3 text-3xl shadow-[0_0_30px_rgb(34,197,94,0.2)]">✓</div>
+              <div className="size-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3 text-3xl shadow-[0_0_30px_rgb(34,197,94,0.2)]">✓</div>
               <h3 id="pos-receipt-title" className="font-extrabold text-xl text-slate-800">Lunas!</h3>
               <p className="text-slate-400 text-xs font-medium mt-1">#{lastTx.id}</p>
               {lastTx.sync_status === 'pending' && (
@@ -1057,8 +1094,8 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
             )}
 
             <div className="bg-white border border-slate-200 border-dashed rounded-2xl p-4 mb-6 text-sm">
-              {lastTx.items.map((i:any, idx: number) => (
-                <div key={idx} className="mb-2 font-medium">
+              {lastTx.items.map((i:any) => (
+                <div key={`${i.id || i.menu_item_id || i.name}-${i.qty}-${i.subtotal}`} className="mb-2 font-medium">
                   <div className="flex justify-between">
                     <span className="text-slate-600">{i.name} <span className="font-bold text-slate-800">x{i.qty}</span></span>
                     <span className="font-bold text-slate-800">{fRp(i.subtotal)}</span>
@@ -1074,15 +1111,15 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
               </div>
             </div>
 
-            <button onClick={() => setShowPrintSheet(true)} className="w-full py-3.5 mb-3 bg-white border-2 border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 font-extrabold rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all">
+            <button type="button" onClick={() => setShowPrintSheet(true)} className="w-full py-3.5 mb-3 bg-white border-2 border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 font-extrabold rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all">
               <Printer size={16} strokeWidth={2.5}/> Cetak Struk Fisik
             </button>
 
-            <button onClick={shareReceiptToWhatsApp} className="w-full py-3.5 mb-3 bg-orange-50 border-2 border-orange-100 text-orange-600 hover:bg-orange-100 font-extrabold rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all">
+            <button type="button" onClick={shareReceiptToWhatsApp} className="w-full py-3.5 mb-3 bg-orange-50 border-2 border-orange-100 text-orange-600 hover:bg-orange-100 font-extrabold rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all">
               <Share2 size={16} strokeWidth={2.5}/> Share WA
             </button>
 
-            <button onClick={closeReceiptModal} className="w-full py-4 bg-orange-500 text-white font-black rounded-2xl active:scale-95 transition-all shadow-lg shadow-orange-500/20">
+            <button type="button" onClick={closeReceiptModal} className="w-full py-4 bg-orange-500 text-white font-black rounded-2xl active:scale-95 transition-all shadow-lg shadow-orange-500/20">
               Transaksi Baru
             </button>
           </div>
@@ -1106,20 +1143,13 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
                 <h3 id="pos-voucher-title" className="font-display text-2xl font-extrabold text-slate-900 tracking-tight">Pilih Promo</h3>
                 <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Diskon Terpopuler</p>
               </div>
-              <button onClick={closeVoucherModal} className="p-3 bg-white border border-slate-100 rounded-2xl text-slate-500 hover:bg-orange-50 hover:text-[#FF6A00] transition-colors"><X size={22}/></button>
+              <button type="button" onClick={closeVoucherModal} className="p-3 bg-white border border-slate-100 rounded-2xl text-slate-500 hover:bg-orange-50 hover:text-[#FF6A00] transition-colors"><X size={22}/></button>
             </div>
 
             <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 scrollbar-thin">
-              {[
-                { l: 'Diskon 10%', v: '10%', d: 'Potongan 10% dari subtotal' },
-                { l: 'Diskon 50%', v: '50%', d: 'Potongan setengah harga' },
-                { l: 'Potongan 5rb', v: '5000', d: 'Potongan flat Rp 5.000' },
-                { l: 'Potongan 10rb', v: '10000', d: 'Potongan flat Rp 10.000' },
-                { l: 'Jumat Berkah (20%)', v: '20%', d: 'Promo khusus hari Jumat' },
-                { l: 'Batal Diskon', v: '', d: 'Hapus semua potongan' },
-              ].map((promo, idx) => (
-                <button
-                  key={idx}
+              {PROMOS.map((promo) => (
+                <button type="button"
+                  key={promo.l}
                   onClick={() => { setDiscount(promo.v); setShowVouchers(false); toast.showToast(`Promo ${promo.l} diterapkan!`, 'success'); }}
                   className={`w-full text-left p-5 rounded-2xl border-2 transition-all active:scale-[0.98] flex items-center justify-between group ${discount === promo.v ? 'border-orange-500 bg-orange-50' : 'border-slate-100 bg-white hover:border-orange-200 hover:bg-orange-50/40'}`}
                 >
@@ -1127,7 +1157,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
                     <p className={`font-black text-lg italic uppercase tracking-tight ${discount === promo.v ? 'text-orange-600' : 'text-slate-800'}`}>{promo.l}</p>
                     <p className="text-slate-400 text-xs font-medium mt-0.5">{promo.d}</p>
                   </div>
-                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${discount === promo.v ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/40' : 'bg-white text-slate-300 border border-slate-200 group-hover:border-slate-300'}`}>
+                  <div className={`size-10 rounded-2xl flex items-center justify-center transition-all ${discount === promo.v ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/40' : 'bg-white text-slate-300 border border-slate-200 group-hover:border-slate-300'}`}>
                     <Plus size={20} />
                   </div>
                 </button>
@@ -1136,7 +1166,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
 
             <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col gap-4">
               <p className="text-[10px] font-black text-slate-400 uppercase text-center tracking-[0.3em]">Atau input manual di halaman checkout</p>
-              <button
+              <button type="button"
                 onClick={closeVoucherModal}
                 className="w-full py-5 bg-slate-900 text-white font-black rounded-2xl uppercase tracking-widest italic text-sm shadow-xl active:scale-95 transition-all"
               >

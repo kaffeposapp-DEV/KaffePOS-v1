@@ -131,13 +131,14 @@ function ExitConfirmDialog({ show, onConfirm, onCancel }: { show: boolean; onCon
 function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
+  const { pathname, search } = location;
   const isNative = Capacitor.isNativePlatform() || IS_MOBILE_TARGET_BUILD;
-  const currentAuthMode = getAuthModeFromLocation(location.pathname, location.search);
-  const onAuthSurface = isAuthSurfacePath(location.pathname);
+  const currentAuthMode = getAuthModeFromLocation(pathname, search);
+  const onAuthSurface = isAuthSurfacePath(pathname);
 
   useEffect(() => {
-    trackPageView(`${location.pathname}${location.search}`);
-  }, [location.pathname, location.search]);
+    trackPageView(`${pathname}${search}`);
+  }, [pathname, search]);
 
   if (loading) return <AuthLoading />;
   if (isAuthenticated && onAuthSurface && currentAuthMode !== 'reset') {
@@ -231,6 +232,10 @@ export default function App() {
 
   // Back button Android
   useEffect(() => {
+    let removed = false;
+    let backButtonHandler: { remove: () => void } | undefined;
+    let exitDialogTimer: ReturnType<typeof setTimeout> | undefined;
+
     const handler = CapApp.addListener('backButton', ({ canGoBack }) => {
       if (canGoBack) {
         window.history.back();
@@ -244,14 +249,28 @@ export default function App() {
         backPressTime.current = now;
         setShowExitDlg(true);
         // Auto hide setelah 3 detik
-        setTimeout(() => setShowExitDlg(false), 3000);
+        if (exitDialogTimer) clearTimeout(exitDialogTimer);
+        exitDialogTimer = setTimeout(() => setShowExitDlg(false), 3000);
       }
     });
-    return () => { handler.then(h => h.remove()); };
+    handler.then((h) => {
+      if (removed) h.remove();
+      else backButtonHandler = h;
+    });
+
+    return () => {
+      removed = true;
+      if (exitDialogTimer) clearTimeout(exitDialogTimer);
+      if (backButtonHandler) backButtonHandler.remove();
+    };
   }, [],   );
 
   // ── FIX 4: APP Lifecycle & Network Status ──────────────────────
   useEffect(() => {
+    let removed = false;
+    let networkStatusHandler: { remove: () => void } | undefined;
+    let appStateHandler: { remove: () => void } | undefined;
+
     // Network status listener
     const statusListener = Network.addListener('networkStatusChange', async (status) => {
       setIsOffline(!status.connected);
@@ -272,9 +291,20 @@ export default function App() {
     // Initial check
     Network.getStatus().then(s => setIsOffline(!s.connected)).catch(() => {});
 
+    statusListener.then((l) => {
+      if (removed) l.remove();
+      else networkStatusHandler = l;
+    });
+
+    stateListener.then((l) => {
+      if (removed) l.remove();
+      else appStateHandler = l;
+    });
+
     return () => {
-      statusListener.then(l => l.remove());
-      stateListener.then(l => l.remove());
+      removed = true;
+      if (networkStatusHandler) networkStatusHandler.remove();
+      if (appStateHandler) appStateHandler.remove();
     };
   }, [reloadStoreData],   );
 

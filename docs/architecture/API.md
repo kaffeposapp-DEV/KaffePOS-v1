@@ -355,6 +355,15 @@ Third-party webhooks (e.g., Midtrans) do NOT follow the standard API format. The
 
 ## 8. API Endpoint Groups
 
+Backend startup keeps route registration modular: `backend/src/index.ts` mounts route modules with `app.use(...)`, while individual endpoint definitions live under `backend/src/routes/*`. This keeps route ownership predictable and avoids duplicate direct bootstrap definitions.
+
+### 8.0 Operational Endpoints
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/health` | GET | No | Backend health check |
+| `/metrics` | GET | No | Backend metrics snapshot / Prometheus-compatible metrics |
+
 ### 8.1 Authentication
 
 | Endpoint | Method | Auth | Description |

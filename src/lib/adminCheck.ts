@@ -19,8 +19,6 @@ import type { AuthUser } from '@/lib/authSession';
 export function isAdminUser(user: AuthUser | null): boolean {
   if (!user?.email) return false;
   
-  const email = user.email.trim().toLowerCase();
-  
   // TODO: This list should match ADMIN_EMAILS in backend env
   // For now, we check if user has owner_admin role as a proxy
   // Real admin check happens on backend

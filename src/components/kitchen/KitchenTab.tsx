@@ -60,6 +60,22 @@ function playChime() {
   } catch { /* Audio is optional */ }
 }
 
+function ConnectionIndicator({ status }: { status: string }) {
+  const isConnected = status === 'connected';
+  const isError = status === 'error' || status === 'offline';
+
+  return (
+    <div className={`flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest border transition-all ${
+      isConnected ? 'bg-emerald-50 border-emerald-100 text-emerald-600' :
+      isError ? 'bg-rose-50 border-rose-100 text-rose-600 animate-pulse' :
+      'bg-amber-50 border-amber-100 text-amber-600'
+    }`}>
+      {isConnected ? <Wifi size={10} /> : <WifiOff size={10} />}
+      {status}
+    </div>
+  );
+}
+
 export default function KitchenTab({ toast, profile }: Props) {
   const {
     storeId,
@@ -122,22 +138,6 @@ export default function KitchenTab({ toast, profile }: Props) {
     }
   };
 
-  const ConnectionIndicator = () => {
-    const isConnected = kitchenRealtimeStatus === 'connected';
-    const isError = kitchenRealtimeStatus === 'error' || kitchenRealtimeStatus === 'offline';
-
-    return (
-      <div className={`flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest border transition-all ${
-        isConnected ? 'bg-emerald-50 border-emerald-100 text-emerald-600' :
-        isError ? 'bg-rose-50 border-rose-100 text-rose-600 animate-pulse' :
-        'bg-amber-50 border-amber-100 text-amber-600'
-      }`}>
-        {isConnected ? <Wifi size={10} /> : <WifiOff size={10} />}
-        {kitchenRealtimeStatus}
-      </div>
-    );
-  };
-
   return (
     <div className="kaffe-responsive-surface flex-1 min-h-0 bg-slate-50 text-slate-900 flex flex-col overflow-hidden font-sans">
       {/* ── HEADER: CLEAN & FAMILIAR APK STYLE ── */}
@@ -150,7 +150,7 @@ export default function KitchenTab({ toast, profile }: Props) {
             <div>
               <h2 className="font-display text-xl font-extrabold text-slate-800 tracking-tight">Antrean Dapur</h2>
               <div className="mt-1 flex items-center gap-3">
-                <ConnectionIndicator />
+                <ConnectionIndicator status={kitchenRealtimeStatus} />
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Operator: {operatorName}</span>
               </div>
             </div>
@@ -163,6 +163,7 @@ export default function KitchenTab({ toast, profile }: Props) {
                 soundOn ? 'border-orange-500 bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'border-slate-200 bg-white text-slate-400 hover:bg-slate-50'
               }`}
               title="Bunyi order baru"
+              aria-label={soundOn ? 'Matikan suara bel' : 'Aktifkan suara bel'}
             >
               <Bell size={18} />
             </button>
@@ -170,6 +171,7 @@ export default function KitchenTab({ toast, profile }: Props) {
               onClick={() => storeId && loadKitchenOrders(storeId)}
               className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-400 transition-all active:scale-95 hover:bg-slate-50"
               title="Refresh"
+              aria-label="Segarkan data"
             >
               <RefreshCw size={18} className={kitchenRealtimeStatus === 'connecting' || kitchenRealtimeStatus === 'reconnecting' ? 'animate-spin' : ''} />
             </button>

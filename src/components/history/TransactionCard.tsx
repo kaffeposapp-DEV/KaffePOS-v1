@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { Printer } from 'lucide-react';
+import type { Transaction } from '@/types';
 
 const fRp = (n: number) =>
   new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
@@ -7,9 +8,9 @@ const fDt = (d: string) =>
   new Date(d).toLocaleString('id-ID',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
 interface TransactionCardProps {
-  transaction: any;
-  onDetail: (tx: any) => void;
-  onPrint: (tx: any) => void;
+  transaction: Transaction;
+  onDetail: (tx: Transaction) => void;
+  onPrint: (tx: Transaction) => void;
 }
 
 export const TransactionCard = memo(function TransactionCard({
@@ -30,7 +31,7 @@ export const TransactionCard = memo(function TransactionCard({
             {tx.is_void && <span className="text-[9px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md uppercase tracking-wider">Void</span>}
           </div>
           <p className="text-[15px] font-bold text-slate-800 truncate mb-1 group-hover:text-[#FF6A00] transition-colors">
-            {tx.items.map((i: any) => `${i.name} x${i.qty}`).join(', ')}
+            {tx.items.map((item) => `${item.name} x${item.qty}`).join(', ')}
           </p>
           <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
             <span>{fDt(tx.date)}</span>
@@ -43,8 +44,10 @@ export const TransactionCard = memo(function TransactionCard({
             {fRp(tx.total).replace('Rp', '').trim()}
           </p>
           <button
+            type="button"
             onClick={e => { e.stopPropagation(); onPrint(tx); }}
             className="p-2 text-slate-300 hover:text-[#FF6A00] transition-colors bg-slate-50 rounded-xl"
+            aria-label="Cetak struk"
           >
             <Printer size={16}/>
           </button>
