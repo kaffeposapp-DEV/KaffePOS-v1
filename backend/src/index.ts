@@ -16,6 +16,7 @@ import adminRouter from './routes/admin';
 import miscRouter from './routes/misc';
 import webhooksRouter from './routes/webhooks';
 import metricsRouter from './routes/metrics';
+import stagingRouter from './routes/staging';
 import { appVersionAuthenticatedRouter, appVersionPublicRouter } from './routes/appVersion';
 import referralsRouter from './routes/referrals';
 import affiliateRouter from './routes/affiliate';
@@ -2673,6 +2674,7 @@ app.use(webhooksRouter);
 
 // Auth, profile → extracted to routes/auth.ts
 app.use(authRouter);
+app.use(stagingRouter);
 
 function rewriteApiV1Request(req: Request, _res: Response, next: NextFunction) {
   req.url = `/api${req.url}`;

@@ -29,6 +29,15 @@ cd backend && npm run dev # Backend (Express)
 # Build for production
 npm run build            # Web build
 npm run build:mobile     # Android build
+
+# Create ignored local staging env files from safe templates
+npm run staging:env:init
+
+# Verify staging smoke environment without printing secrets
+npm run verify:staging-env -- --env-file=.env.staging.local --env-file=backend/.env.staging.local
+
+# Check Coolify staging automation readiness without printing secrets
+npm run coolify:staging:deploy -- --check
 ```
 
 ---
@@ -54,6 +63,37 @@ npm run build:mobile     # Android build
 | **Agent Instructions** | [`docs/engineering/AGENTS.md`](docs/engineering/AGENTS.md) | Root-level agent instructions |
 | **Security Hardening** | [`docs/engineering/SECURITY_HARDENING.md`](docs/engineering/SECURITY_HARDENING.md) | Security best practices, implementation guide |
 | **Performance Guide** | [`docs/engineering/PERFORMANCE_GUIDE.md`](docs/engineering/PERFORMANCE_GUIDE.md) | Performance optimization strategies |
+| **Production Readiness** | [`docs/engineering/PRODUCTION_READINESS_CHECKLIST.md`](docs/engineering/PRODUCTION_READINESS_CHECKLIST.md) | Release quality gates, security gates, operations gates |
+| **Deployment Checklist** | [`docs/engineering/DEPLOYMENT_CHECKLIST.md`](docs/engineering/DEPLOYMENT_CHECKLIST.md) | Pre-deploy, runtime, database, payment, rollback checks |
+| **Environment Security** | [`docs/engineering/ENVIRONMENT_SECURITY_CHECKLIST.md`](docs/engineering/ENVIRONMENT_SECURITY_CHECKLIST.md) | Frontend/public env and backend secret handling |
+| **Environment Contract** | [`docs/engineering/ENV_CONTRACT.md`](docs/engineering/ENV_CONTRACT.md) | Canonical frontend, backend, Coolify, and smoke env names plus deprecated aliases |
+| **Staging Secret Setup** | [`docs/engineering/STAGING_SECRET_SETUP_GUIDE.md`](docs/engineering/STAGING_SECRET_SETUP_GUIDE.md) | Safe local staging secret provisioning without printing or committing secrets |
+| **Staging Value Collection** | [`docs/engineering/STAGING_VALUE_COLLECTION_CHECKLIST.md`](docs/engineering/STAGING_VALUE_COLLECTION_CHECKLIST.md) | Checklist for collecting staging URLs, credentials, integrations, and smoke users |
+| **Staging Infrastructure Provisioning** | [`docs/engineering/STAGING_INFRASTRUCTURE_PROVISIONING_GUIDE.md`](docs/engineering/STAGING_INFRASTRUCTURE_PROVISIONING_GUIDE.md) | Provisioning steps for staging frontend, API, database, DNS, integrations, smoke users, and restore DB |
+| **Staging Infrastructure Checklist** | [`docs/engineering/STAGING_INFRASTRUCTURE_CHECKLIST.md`](docs/engineering/STAGING_INFRASTRUCTURE_CHECKLIST.md) | Release checklist for staging domains, database, backend, frontend, integrations, smoke users, and restore drill |
+| **Coolify Staging Deployment** | [`docs/engineering/COOLIFY_STAGING_DEPLOYMENT_GUIDE.md`](docs/engineering/COOLIFY_STAGING_DEPLOYMENT_GUIDE.md) | Coolify/VPS staging setup for frontend, backend, PostgreSQL, domains, health checks, and integrations |
+| **Coolify Env Mapping** | [`docs/engineering/COOLIFY_ENV_MAPPING.md`](docs/engineering/COOLIFY_ENV_MAPPING.md) | Frontend, backend, and smoke env placement rules for Coolify staging |
+| **Coolify Manual Execution** | [`docs/engineering/COOLIFY_STAGING_MANUAL_EXECUTION.md`](docs/engineering/COOLIFY_STAGING_MANUAL_EXECUTION.md) | Exact manual Coolify staging deployment steps and smoke verification order |
+| **Coolify Copy/Paste Checklist** | [`docs/engineering/COOLIFY_COPY_PASTE_CHECKLIST.md`](docs/engineering/COOLIFY_COPY_PASTE_CHECKLIST.md) | Short dashboard checklist for backend, frontend, smoke, provider, and verification keys |
+| **Coolify Automation Report** | [`docs/engineering/COOLIFY_STAGING_AUTOMATION_REPORT.md`](docs/engineering/COOLIFY_STAGING_AUTOMATION_REPORT.md) | Latest local Coolify automation result, blockers, and next action |
+| **Minimal Staging Coolify Env** | [`docs/engineering/MINIMAL_STAGING_COOLIFY_ENV.md`](docs/engineering/MINIMAL_STAGING_COOLIFY_ENV.md) | Minimal frontend/backend/local env mapping for core staging smoke without external providers |
+
+### Staging Smoke Repair
+
+Use after minimal staging env verification passes but smoke users are missing or unverified:
+
+```bash
+npm run staging:repair-smoke-data
+npm run staging:final
+```
+
+The repair command reads ignored local staging env files, requires `STAGING_PROFILE=minimal` and `NODE_ENV=staging`, does not print secrets, and only targets `KAFFEPOS_STAGING_API_URL`.
+| **CI/CD Guide** | [`docs/engineering/CI_CD_GUIDE.md`](docs/engineering/CI_CD_GUIDE.md) | GitHub Actions quality gate and release controls |
+| **Container Guide** | [`docs/engineering/CONTAINER_GUIDE.md`](docs/engineering/CONTAINER_GUIDE.md) | Docker image/runtime security and healthcheck guidance |
+| **Monitoring & Logging** | [`docs/engineering/MONITORING_LOGGING_GUIDE.md`](docs/engineering/MONITORING_LOGGING_GUIDE.md) | Safe logs, metrics, alerts, request ID usage |
+| **Backup & Recovery** | [`docs/engineering/BACKUP_RECOVERY_GUIDE.md`](docs/engineering/BACKUP_RECOVERY_GUIDE.md) | PostgreSQL and asset backup/restore procedures |
+| **Disaster Recovery** | [`docs/engineering/DISASTER_RECOVERY_CHECKLIST.md`](docs/engineering/DISASTER_RECOVERY_CHECKLIST.md) | RTO/RPO, incident steps, rollback controls |
+| **Engineering Audit** | [`docs/engineering/SILICON_VALLEY_ENGINEERING_AUDIT.md`](docs/engineering/SILICON_VALLEY_ENGINEERING_AUDIT.md) | 2026-05-24 production engineering audit summary |
 | **App Update Safety** | [`docs/engineering/APP_UPDATE_SAFETY.md`](docs/engineering/APP_UPDATE_SAFETY.md) | Safe app update procedures |
 | **Audit Report (2026-05-14)** | [`docs/engineering/AUDIT_REPORT_2026_05_14.md`](docs/engineering/AUDIT_REPORT_2026_05_14.md) | Security, performance, scalability audit |
 | **Audit Summary (2026-05-14)** | [`docs/engineering/AUDIT_SUMMARY_2026_05_14.md`](docs/engineering/AUDIT_SUMMARY_2026_05_14.md) | Executive summary of audit findings |
@@ -437,4 +477,3 @@ KaffePOS uses PostgreSQL with a custom migration system.
 
 **Database Documentation:** [`docs/architecture/DATABASE.md`](docs/architecture/DATABASE.md)
 **QA Checklist:** [`docs/engineering/DATABASE_QA_CHECKLIST.md`](docs/engineering/DATABASE_QA_CHECKLIST.md)
-

@@ -17,6 +17,75 @@
 - TypeScript (`npm run typecheck`), ESLint (`npm run lint`), and Vitest test suite (`npm run test`) compile and pass with 100% green status.
 - React Doctor latest/diff scans remain at a flawless 100/100 score.
 
+## 2026-05-25 Real Staging Secret Source Check
+
+### Added
+- Added `npm run staging:env:init` to create ignored local staging env files from templates without printing or collecting secret values.
+- Added canonical environment variable contract for frontend, backend, Coolify, and smoke runner env names.
+- Added staging secret setup guide and staging value collection checklist so real staging values can be provisioned from secure sources without exposing secrets.
+- Added staging secret fill checklist with sanitized remaining key names, provider/source guidance, target files, and public/private classification.
+- Added staging infrastructure provisioning guide and checklist covering staging frontend, API, PostgreSQL, DNS, Midtrans sandbox, Resend, Cloudflare/R2, GA4/Clarity, smoke users, and disposable restore DB.
+- Added Coolify/VPS staging deployment guide, Coolify env mapping, and Coolify staging deployment checklist.
+- Added exact Coolify staging manual execution guide and dashboard copy/paste checklist for manual staging setup.
+
+### Changed
+- Updated `.gitignore` so local staging secret files remain ignored while staging example files are committable.
+- Improved staging env verifier placeholder detection for generic placeholders and localhost staging URL mistakes.
+- Generated local-only `JWT_SECRET`, `SESSION_SECRET`, and `ENCRYPTION_KEY` in ignored staging env file without printing values; remaining placeholder blocker count is now 26.
+- Allowed backend runtime env validation to accept `NODE_ENV=staging` so the documented staging env can boot the backend service.
+- Aligned staging verifier, examples, and deployment docs to backend runtime env names: `WEB_BASE_URL`, `RESEND_FROM_EMAIL`, and `CLOUDFLARE_R2_PUBLIC_URL`.
+
+### Fixed
+- No code or UI changes; real staging verification stopped safely because local staging files still contain placeholder values.
+
+### Docs
+- Updated README, staging smoke report, production readiness checklist, and environment security checklist with the secure staging secret provisioning workflow and zero-missing / placeholder blocker status.
+- Updated staging smoke, production readiness, deployment, environment security, backup/recovery, and disaster recovery docs after fresh smoke attempt remained blocked by 26 placeholder values.
+- Updated README, staging smoke report, production readiness checklist, deployment checklist, and environment security checklist with staging infrastructure provisioning docs.
+- Updated README, deployment checklist, production readiness checklist, staging infrastructure docs, and product changelog with Coolify/VPS staging deployment prep.
+- Updated README, Coolify staging guide, staging infrastructure checklist, and production readiness checklist with manual Coolify execution links.
+
+## 2026-05-25 Staging Env Verifier
+
+### Added
+- Added frontend/smoke `.env.staging.example` and backend `backend/.env.staging.example` templates with placeholders only.
+- Added `npm run verify:staging-env` to verify required staging keys, mask sensitive values, fail on missing or placeholder values, and detect forbidden secret-like frontend env keys.
+
+### Fixed
+- No UI, product, or API behavior changes; this was release verification tooling only.
+
+### Docs
+- Updated README, staging smoke checklist/report, production readiness checklist, deployment checklist, and environment security checklist with staging env verification instructions.
+
+## 2026-05-25 Staging Smoke Validation Attempt
+
+### Added
+- Added staging smoke QA checklist documenting required staging runner variables, smoke command order, Midtrans sandbox checks, Resend checks, Cloudflare/R2 checks, analytics checks, and backup/restore checks.
+- Added staging smoke report with local quality gate results and honest blockers for missing staging URL/credentials and unavailable local Docker CLI.
+
+### Fixed
+- No product or UI changes; this was a release validation/documentation pass only.
+
+### Docs
+- Updated production readiness, deployment, environment security, backup/recovery, and disaster recovery docs with staging smoke follow-up requirements.
+
+## 2026-05-24 Silicon Valley Engineering Audit
+
+### Added
+- Added non-deploying GitHub Actions CI quality gate for install, typecheck, lint, tests, frontend build, backend build, and release config verification.
+- Added production operations docs for deployment, environment security, CI/CD, containers, CDN/static assets, monitoring/logging, backup/recovery, disaster recovery, production readiness, and engineering audit summary.
+- Added root `.dockerignore` for safer frontend container builds.
+
+### Changed
+- Hardened frontend container build to use `npm ci`, production runtime env, non-root user, and healthcheck.
+- Updated README and engineering docs to link new operational runbooks and release rules.
+
+### Fixed
+- No UI/UX or product behavior changes; improvements are release engineering, documentation, and container/CI safety only.
+
+### Docs
+- Updated Database, Security, Performance, Scalability, AI Agent Guide, Feature Registry, and Product Changelog with production-readiness audit notes.
+
 ## 2026-05-24 Final Engineering Quality Gate
 
 ### Fixed
@@ -642,3 +711,57 @@ Format per release/date:
 - **High-growth tables**: Monitor sizes, implement retention policies
 - **No soft delete**: Consider adding for financial records
 - **No audit trail**: Consider general audit log for admin actions
+
+<!-- FINAL_STAGING_RUNNER:START -->
+## 2026-05-25 Final Staging Runner
+
+### Added
+- Added `npm run staging:final` release runner for env safety, staging env verification, quality gate, health checks, smoke commands, external-check discovery, and docs reporting.
+
+### Docs
+- Updated final staging execution report, staging smoke report, and production readiness checklist with latest runner status.
+
+### Status
+- BLOCKED_BY_STAGING_SMOKE: npm run smoke:staging:cashier.
+<!-- FINAL_STAGING_RUNNER:END -->
+
+<!-- COOLIFY_STAGING_AUTOMATION:START -->
+## 2026-05-25 Coolify Staging Automation
+
+### Added
+- Added `npm run coolify:staging:deploy` local automation for Coolify config checks, staging env guard, optional env sync, deploy trigger, health checks, smoke tests, and safe reporting.
+- Added `.env.coolify.example` template with placeholders only; `.env.coolify.local` remains ignored.
+
+### Status
+- READY_FOR_MINIMAL_STAGING: no blocker.
+
+### Docs
+- Updated Coolify staging automation report, final staging execution report, staging smoke report, production readiness checklist, and README command docs.
+<!-- COOLIFY_STAGING_AUTOMATION:END -->
+
+## 2026-05-25 Minimal Staging Mode
+
+### Added
+- Added minimal staging profile env contract for core app verification without Midtrans, Resend, Cloudflare/R2, GA4, or Clarity.
+- Added minimal-aware staging env verification, final staging runner handling, and Coolify automation behavior.
+
+### Changed
+- Staging examples now default to `STAGING_PROFILE=minimal` and `VITE_STAGING_PROFILE=minimal` with external provider keys documented as full-staging requirements.
+- Minimal staging can only report `READY_FOR_MINIMAL_STAGING`; full staging remains required for production-candidate approval.
+- Added `MINIMAL_STAGING_COOLIFY_ENV.md` for actual Coolify frontend key alignment and changed staging verifier output to key status only.
+
+### Status
+- Current minimal verifier blocker: 11 core staging placeholders remain.
+
+## 2026-05-25 Minimal Staging Smoke Repair
+
+### Added
+- Added `npm run staging:repair-smoke-data` for minimal staging smoke user/outlet setup without printing secrets.
+- Added staging-only minimal repair API guarded by staging profile and backend repair token.
+
+### Changed
+- Staging smoke scripts now load ignored local staging env files directly and target `KAFFEPOS_STAGING_API_URL`.
+- Cashier smoke now uses configured staging cashier env keys instead of only deriving a temporary cashier address.
+
+### Status
+- NOT_READY: remote staging backend must be redeployed with the repair endpoint before smoke data can be repaired and cashier smoke can pass.

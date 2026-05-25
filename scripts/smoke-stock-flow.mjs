@@ -1,6 +1,10 @@
 #!/usr/bin/env node
+import { assertMinimalStagingTarget, loadStagingEnvFiles, resolveStagingApiBase } from './lib/staging-env.mjs';
 
-const apiBaseUrl = normalizeBaseUrl(process.env.KAFFEPOS_API_BASE_URL || 'https://api.kaffepos.my.id');
+loadStagingEnvFiles();
+assertMinimalStagingTarget();
+
+const apiBaseUrl = resolveStagingApiBase();
 const confirmed = process.env.KAFFEPOS_STOCK_SMOKE_CONFIRM === '1';
 const runId = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
 const summary = [];

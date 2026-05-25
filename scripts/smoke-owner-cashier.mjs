@@ -1,11 +1,15 @@
 #!/usr/bin/env node
+import { assertMinimalStagingTarget, loadStagingEnvFiles, resolveStagingApiBase } from './lib/staging-env.mjs';
 
-const apiBaseUrl = normalizeBaseUrl(process.env.KAFFEPOS_API_BASE_URL || 'https://api.kaffepos.my.id');
+loadStagingEnvFiles();
+assertMinimalStagingTarget();
+
+const apiBaseUrl = resolveStagingApiBase();
 const ownerEmail = requireEnv('KAFFEPOS_OWNER_EMAIL');
 const ownerPassword = requireEnv('KAFFEPOS_OWNER_PASSWORD');
 const runId = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
-const cashierEmail = process.env.KAFFEPOS_CASHIER_EMAIL || deriveSmokeEmail(ownerEmail, runId);
-const cashierPassword = process.env.KAFFEPOS_CASHIER_PASSWORD || `SmokeKasir-${runId}`;
+const cashierEmail = process.env.KAFFEPOS_TEST_CASHIER_EMAIL || process.env.KAFFEPOS_CASHIER_EMAIL || deriveSmokeEmail(ownerEmail, runId);
+const cashierPassword = process.env.KAFFEPOS_TEST_CASHIER_PASSWORD || process.env.KAFFEPOS_CASHIER_PASSWORD || `SmokeKasir-${runId}`;
 const secondOutletName = process.env.KAFFEPOS_SECOND_OUTLET_NAME || `Smoke Outlet ${runId}`;
 
 const summary = [];

@@ -33,7 +33,12 @@
     "cap:run": "npx cap run android",
     "build-apk": "npm run build:mobile && npx cap sync android && npx cap open android",
     "build-apk-debug": "npm run build:mobile && npx cap sync android && cd android && ./gradlew assembleDebug && echo '✅ APK: android/app/build/outputs/apk/debug/app-debug.apk'",
-    "build-apk-release": "npm run build:mobile && npx cap sync android && cd android && ./gradlew assembleRelease && echo '✅ APK: android/app/build/outputs/apk/release/app-release.apk'"
+    "build-apk-release": "npm run build:mobile && npx cap sync android && cd android && ./gradlew assembleRelease && echo '✅ APK: android/app/build/outputs/apk/release/app-release.apk'",
+    "verify:staging-env": "node scripts/verify-staging-env.mjs",
+    "staging:env:init": "node scripts/create-staging-env-local.mjs",
+    "staging:repair-smoke-data": "node scripts/repair-staging-smoke-data.mjs",
+    "staging:final": "node scripts/staging-final-runner.mjs",
+    "coolify:staging:deploy": "node scripts/coolify-staging-deploy.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.1",

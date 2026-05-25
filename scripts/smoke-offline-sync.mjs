@@ -1,4 +1,18 @@
 #!/usr/bin/env node
+import { assertMinimalStagingTarget, loadStagingEnvFiles } from './lib/staging-env.mjs';
+
+loadStagingEnvFiles();
+assertMinimalStagingTarget();
+
+if (!process.env.KAFFEPOS_SMOKE_EMAIL && process.env.KAFFEPOS_OWNER_EMAIL) {
+  process.env.KAFFEPOS_SMOKE_EMAIL = process.env.KAFFEPOS_OWNER_EMAIL;
+}
+if (!process.env.KAFFEPOS_SMOKE_PASSWORD && process.env.KAFFEPOS_OWNER_PASSWORD) {
+  process.env.KAFFEPOS_SMOKE_PASSWORD = process.env.KAFFEPOS_OWNER_PASSWORD;
+}
+if (!process.env.KAFFEPOS_SMOKE_CONFIRM && process.env.KAFFEPOS_STOCK_SMOKE_CONFIRM === '1') {
+  process.env.KAFFEPOS_SMOKE_CONFIRM = 'YES';
+}
 
 const required = [
   'KAFFEPOS_STAGING_API_URL',
