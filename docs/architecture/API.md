@@ -660,3 +660,43 @@ Retry-After: 300
 - Backend: `backend/src/lib/validation.ts`
 - Backend: `backend/src/core/paginationEnhanced.ts`
 - Frontend: `src/lib/apiClient.ts`
+
+## Duitku Payment Migration
+
+- Payment gateway can run as `duitku`, `midtrans`, or `disabled` via `PAYMENT_GATEWAY_PROVIDER`.
+- Duitku callback URL: `https://api.kaffepos.my.id/api/webhooks/duitku`.
+- Duitku return URL: `https://kaffepos.my.id/settings?billing=duitku-return`.
+- Frontend return URL never marks payment paid; payment success requires verified server callback or verified status check.
+- Duitku merchant key stays backend-only and must not be added to `VITE_*` env.
+
+## Generic Payment Start
+
+`POST /api/payments/start` starts a subscription payment with the active provider from `PAYMENT_GATEWAY_PROVIDER`.
+
+Request body matches subscription checkout:
+
+```json
+{
+  "plan": "kopi_susu",
+  "billingCycle": "monthly",
+  "paymentMethod": "qris",
+  "voucherCode": null
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "paymentId": "uuid",
+    "provider": "duitku",
+    "merchantOrderId": "DUITKU-SUB-...",
+    "paymentUrl": "https://sandbox.duitku.com/...",
+    "status": "pending"
+  }
+}
+```
+
+`/api/subscriptions/payments/create` remains available for backward compatibility.

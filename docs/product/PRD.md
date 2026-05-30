@@ -321,3 +321,11 @@ Needs:
 - Whether `founder` remains internal/legacy or becomes public plan.
 - Long-term multi-store strategy and package entitlement.
 - Data retention policy for analytics, logs, referral clicks, and affiliate payout records.
+
+## Duitku Payment Migration
+
+- Payment gateway can run as `duitku`, `midtrans`, or `disabled` via `PAYMENT_GATEWAY_PROVIDER`.
+- Duitku callback URL: `https://api.kaffepos.my.id/api/webhooks/duitku`.
+- Duitku return URL: `https://kaffepos.my.id/settings?billing=duitku-return`.
+- Frontend return URL never marks payment paid; payment success requires verified server callback or verified status check.
+- Duitku merchant key stays backend-only and must not be added to `VITE_*` env.

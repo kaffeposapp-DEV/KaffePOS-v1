@@ -409,3 +409,12 @@ When creating new API endpoints:
 - Migration runner: `backend/scripts/run-migrations.mjs`
 - Migrations: `backend/migrations/`
 
+
+## 2026-05-24 CI, Container, and Production Readiness Rules
+
+- Keep `.github/workflows/ci.yml` non-deploying unless explicitly requested.
+- Do not print secrets in CI or release scripts.
+- Use `npm ci` in CI and containers for reproducible installs.
+- Do not copy `.env` files into Docker images.
+- Preserve non-root container runtime users and healthchecks when editing Dockerfiles.
+- Keep React Doctor diff pinned to `0.2.3` in release notes until latest diff CLI is stable in this repo.

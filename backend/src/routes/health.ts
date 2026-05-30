@@ -21,7 +21,7 @@ function isMidtransConfigured() {
   return Boolean(env.MIDTRANS_SERVER_KEY && env.MIDTRANS_SNAP_ENABLED === 'true');
 }
 
-type SubscriptionPaymentMode = 'manual' | 'disabled' | 'midtrans_sandbox' | 'midtrans_production';
+type SubscriptionPaymentMode = 'manual' | 'disabled' | 'midtrans_sandbox' | 'midtrans_production' | 'duitku_sandbox' | 'duitku_production';
 
 function resolveSubscriptionPaymentConfig() {
   const midtransConfigured = isMidtransConfigured();

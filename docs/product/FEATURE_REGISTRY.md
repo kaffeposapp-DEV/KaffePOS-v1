@@ -53,3 +53,23 @@ Status values:
 | DB-001 | Database Schema & Integrity | Implemented | Database | All tables | ~40+ tables | SRS, DATABASE.md, DATABASE_QA_CHECKLIST.md, CHANGELOG_PRODUCT | PostgreSQL schema with data integrity constraints, idempotency protections, performance indexes, and migration system. Custom Node.js migration runner with checksum validation and transaction safety. |
 | OBS-001 | Backend Observability & Reliability | Implemented | Backend observability | Rate limiting, request ID, logging, error handling, webhook reliability | N/A (infrastructure) | PERFORMANCE_GUIDE.md, SECURITY_HARDENING.md, BACKEND_OBSERVABILITY_QA_CHECKLIST.md, CHANGELOG_PRODUCT.md | Comprehensive backend observability with rate limiting (auth, payment, admin, affiliate), request ID middleware for distributed tracing, enhanced structured logging with secrets safety, centralized error handler with safe messages, webhook reliability patterns, and QA checklist for production validation. |
 | AUTH-001 | Authentication & RBAC System | Implemented | Backend auth, Frontend auth, RBAC | All auth endpoints, permission checks, role guards | `profiles`, `app_auth_sessions`, `app_auth_credentials`, `app_password_reset_tokens`, `cashier_outlet_assignments` | RBAC_PERMISSION_MATRIX.md, AUTH_RBAC_QA_CHECKLIST.md, SECURITY_HARDENING.md, CHANGELOG_PRODUCT.md | Comprehensive auth system with Bearer token authentication, session management, bcrypt password hashing, SHA-256 token hashing, rate limiting, 2-role model (owner_admin, cashier), 16 permissions, email-based admin whitelist, permission-based access control, store ownership verification, cashier assignment validation, IDOR prevention through query scoping, and complete documentation. Production ready at 85% (frontend role guards and 403 page recommended). |
+
+## 2026-05-24 Engineering Operations Registry
+
+| Area | Status | Source of Truth |
+|------|--------|-----------------|
+| CI quality gate | Active | `.github/workflows/ci.yml`, `docs/engineering/CI_CD_GUIDE.md` |
+| Deployment readiness | Documented | `docs/engineering/DEPLOYMENT_CHECKLIST.md` |
+| Environment security | Documented | `docs/engineering/ENVIRONMENT_SECURITY_CHECKLIST.md` |
+| Containers | Documented | `frontend.Dockerfile`, `backend/Dockerfile`, `docs/engineering/CONTAINER_GUIDE.md` |
+| CDN/static assets | Documented | `docs/engineering/CDN_ASSET_GUIDE.md` |
+| Monitoring/logging | Documented | `docs/engineering/MONITORING_LOGGING_GUIDE.md` |
+| Backup/recovery | Documented | `docs/engineering/BACKUP_RECOVERY_GUIDE.md`, `docs/engineering/DISASTER_RECOVERY_CHECKLIST.md` |
+
+## Duitku Payment Migration
+
+- Payment gateway can run as `duitku`, `midtrans`, or `disabled` via `PAYMENT_GATEWAY_PROVIDER`.
+- Duitku callback URL: `https://api.kaffepos.my.id/api/webhooks/duitku`.
+- Duitku return URL: `https://kaffepos.my.id/settings?billing=duitku-return`.
+- Frontend return URL never marks payment paid; payment success requires verified server callback or verified status check.
+- Duitku merchant key stays backend-only and must not be added to `VITE_*` env.

@@ -636,3 +636,20 @@ See `backend/scripts/backup-critical-data.mjs`
 **Last Updated**: 2026-05-14
 **Maintained By**: Engineering Team
 **Review Frequency**: Quarterly or after major schema changes
+
+## 2026-05-24 Production Audit Notes
+
+The migration set was reviewed for production readiness. Existing migrations include primary keys, foreign keys, check constraints, payment order uniqueness, webhook logs, referral/affiliate/commission tables, and practical indexes for transaction date reporting, payment order lookup, referral registration lookup, affiliate/commission status lookup, and subscription status filtering.
+
+Operational rules:
+- Do not hard-delete financial records, payment sessions, commission transactions, or payout records.
+- Add indexes only for observed query patterns: foreign keys, status filters, created-at reporting, payment order IDs, referral/affiliate codes, commission status, and transaction store/date reports.
+- Run a fresh backup before migrations and validate restore on non-production for major releases.
+
+## Duitku Payment Migration
+
+- Payment gateway can run as `duitku`, `midtrans`, or `disabled` via `PAYMENT_GATEWAY_PROVIDER`.
+- Duitku callback URL: `https://api.kaffepos.my.id/api/webhooks/duitku`.
+- Duitku return URL: `https://kaffepos.my.id/settings?billing=duitku-return`.
+- Frontend return URL never marks payment paid; payment success requires verified server callback or verified status check.
+- Duitku merchant key stays backend-only and must not be added to `VITE_*` env.

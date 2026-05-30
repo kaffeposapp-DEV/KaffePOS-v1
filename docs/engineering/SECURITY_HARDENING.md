@@ -1211,3 +1211,20 @@ log('info', 'admin.subscription_activated', {
 **Last Updated**: 2026-05-14
 **Review Frequency**: Quarterly or after auth/RBAC changes
 
+
+## 2026-05-24 Production Security Audit Addendum
+
+- Frontend `VITE_*` variables are treated as public; backend secrets must remain backend-only.
+- Midtrans server keys, Resend API keys, Cloudflare/R2 secrets, database URLs, session secrets, and GA4 API secrets must not be exposed to browser bundles.
+- CI must not echo secrets and must not deploy automatically from pull requests.
+- Containers must receive secrets at runtime and must not copy `.env` files into image layers.
+- Payment webhooks remain public but must be signature-verified and idempotent.
+- Logs must avoid passwords, tokens, secrets, raw payout accounts, full webhook payloads, and unnecessary PII.
+
+## Duitku Payment Migration
+
+- Payment gateway can run as `duitku`, `midtrans`, or `disabled` via `PAYMENT_GATEWAY_PROVIDER`.
+- Duitku callback URL: `https://api.kaffepos.my.id/api/webhooks/duitku`.
+- Duitku return URL: `https://kaffepos.my.id/settings?billing=duitku-return`.
+- Frontend return URL never marks payment paid; payment success requires verified server callback or verified status check.
+- Duitku merchant key stays backend-only and must not be added to `VITE_*` env.

@@ -80,7 +80,7 @@ Minimal staging mode (`STAGING_PROFILE=minimal`, `VITE_STAGING_PROFILE=minimal`)
 <!-- FINAL_STAGING_EXECUTION:START -->
 ## Final Staging Execution Update
 
-Generated: 2026-05-30T09:49:03.134Z
+Generated: 2026-05-30T09:57:14.779Z
 
 Status: BLOCKED_BY_STAGING_SMOKE.
 
@@ -94,7 +94,7 @@ See `docs/engineering/FINAL_STAGING_EXECUTION_REPORT.md` for latest command resu
 <!-- COOLIFY_STAGING_AUTOMATION:START -->
 ## Coolify Staging Automation Update
 
-Generated: 2026-05-30T09:45:19.941Z
+Generated: 2026-05-30T11:52:04.005Z
 
 Status: BLOCKED_BY_STAGING_SMOKE.
 
@@ -124,3 +124,11 @@ See `docs/engineering/COOLIFY_STAGING_AUTOMATION_REPORT.md` for full automation 
 - Duitku return URL: `https://kaffepos.my.id/settings?billing=duitku-return`.
 - Frontend return URL never marks payment paid; payment success requires verified server callback or verified status check.
 - Duitku merchant key stays backend-only and must not be added to `VITE_*` env.
+
+## Duitku Payment Staging Gate
+
+- [ ] `STAGING_PROFILE=minimal` remains core-only with payments disabled.
+- [ ] `STAGING_PROFILE=payment` passes `npm run verify:payment-staging`.
+- [ ] `npm run smoke:staging:duitku` creates sandbox transaction and returns `paymentUrl=present`.
+- [ ] Duitku callback URL verified live: `https://api.kaffepos.my.id/api/webhooks/duitku`.
+- [ ] Return URL verified live: `https://kaffepos.my.id/settings?billing=duitku-return`.

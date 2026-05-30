@@ -37,6 +37,7 @@ import {
   buildMidtransCreateTransactionPayload,
   appendMidtransRedirectOptions,
 } from '../lib/midtrans';
+import { createPaymentProvider, getActivePaymentProviderName } from '../payments/payment-provider.factory';
 
 const router = Router();
 
@@ -434,7 +435,51 @@ router.post('/api/subscriptions/payments/create', requirePermission('can_manage_
       [req.authUser!.id],
     );
     const store = storeResult.rows[0];
-    const orderId = createMidtransOrderId(req.authUser!.id, payload.plan, payload.billingCycle);
+    const activeProvider = getActivePaymentProviderName();
+    const orderId = createMidtransOrderId(req.authUser!.id, payload.plan, payload.billingCycle).replace('SUB-', `${activeProvider.toUpperCase()}-SUB-`);
+
+    if (activeProvider === 'duitku') {
+      const provider = createPaymentProvider('duitku');
+      const payment = await provider.createPayment({
+        merchantOrderId: orderId,
+        amount,
+        productDetails: `Langganan ${quote.planName} (${payload.billingCycle})`,
+        customerName: (profile.display_name as string | null) ?? (profile.username as string | null) ?? 'KaffePOS User',
+        customerEmail: (profile.email as string | null) ?? req.authUser!.email ?? null,
+        paymentMethod: env.DUITKU_DEFAULT_PAYMENT_METHOD,
+        itemDetails: [{ name: `Langganan ${quote.planName}`, price: amount, quantity: 1 }],
+        metadata: { plan: payload.plan, billingCycle: payload.billingCycle },
+      });
+
+      const sessionId = randomUUID();
+      const inserted = await pool.query(
+        `
+          insert into public.subscription_payment_sessions (
+            id, user_id, store_id, plan, billing_cycle, amount, currency_code,
+            midtrans_order_id, redirect_url, transaction_status, expires_at, metadata, updated_at,
+            provider, provider_reference, merchant_order_id, payment_url, va_number, qr_string,
+            payment_method, provider_status, internal_status
+          ) values (
+            $1, $2, $3, $4, $5, $6, 'IDR', $7, $8, 'pending', now() + ($9::int || ' minutes')::interval, $10::jsonb, now(),
+            'duitku', $11, $7, $8, $12, $13, $14, $15, 'pending'
+          )
+          returning id, plan, billing_cycle, amount, currency_code, midtrans_order_id, redirect_url,
+            payment_type, transaction_status, expires_at, paid_at, settled_at, created_at, updated_at,
+            provider, provider_reference, merchant_order_id, payment_url, va_number, qr_string,
+            payment_method, provider_status, internal_status
+        `,
+        [
+          sessionId, req.authUser!.id, store?.id ?? null, payload.plan, payload.billingCycle, amount,
+          orderId, payment.paymentUrl, env.DUITKU_EXPIRY_PERIOD_MINUTES,
+          JSON.stringify({ env: env.DUITKU_ENVIRONMENT, paymentMode: paymentConfig.mode, callbackUrl: env.DUITKU_CALLBACK_URL, returnUrl: env.DUITKU_RETURN_URL, selectedPaymentMethod: payload.paymentMethod, voucherCode, quote, storeName: store?.store_name ?? null, providerRaw: payment.raw }),
+          payment.providerReference, payment.vaNumber, payment.qrString, payment.paymentMethod, payment.providerStatus,
+        ],
+      );
+
+      res.status(201).json({ reused: false, payment: normalizeSubscriptionPaymentSession(inserted.rows[0]), quote });
+      return;
+    }
+
     const callbackUrls = getMidtransCallbackUrls();
 
     const response = await fetch(`${getMidtransBaseUrl()}/snap/v1/transactions`, {

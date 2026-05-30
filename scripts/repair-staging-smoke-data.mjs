@@ -100,7 +100,7 @@ async function repairViaStagingApi() {
       cashierPassword: process.env.KAFFEPOS_TEST_CASHIER_PASSWORD,
     },
   });
-  if (response.status === 404) return null;
+  if ([401, 403, 404].includes(response.status)) return null;
   if (!response.ok) throw new Error(`Staging repair API gagal HTTP ${response.status}.`);
   return data;
 }

@@ -496,3 +496,13 @@ This checklist validates backend observability, rate limiting, logging, error ha
 **Last Updated**: 2026-05-14
 **Maintained By**: Engineering Team
 **Review Frequency**: Before each production deployment
+
+## 2026-05-24 Production Observability Gate
+
+Before production release:
+- [ ] `/health` returns healthy status from deployed backend.
+- [ ] `/metrics` is reachable by trusted monitoring only, where platform controls allow it.
+- [ ] Request IDs appear in request logs, error logs, webhook logs, and admin action logs.
+- [ ] Startup/shutdown logs contain no secrets.
+- [ ] Webhook signature failures and duplicate webhook events produce safe, non-PII logs.
+- [ ] Payment, commission, and email failure alerts are configured according to `MONITORING_LOGGING_GUIDE.md`.

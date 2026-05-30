@@ -38,7 +38,9 @@
     "staging:env:init": "node scripts/create-staging-env-local.mjs",
     "staging:repair-smoke-data": "node scripts/repair-staging-smoke-data.mjs",
     "staging:final": "node scripts/staging-final-runner.mjs",
-    "coolify:staging:deploy": "node scripts/coolify-staging-deploy.mjs"
+    "coolify:staging:deploy": "node scripts/coolify-staging-deploy.mjs",
+    "verify:payment-staging": "node scripts/verify-staging-env.mjs --profile=payment",
+    "smoke:staging:duitku": "node scripts/smoke-duitku-staging.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.1",

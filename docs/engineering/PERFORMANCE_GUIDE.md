@@ -893,3 +893,12 @@ See `docs/engineering/BACKEND_OBSERVABILITY_QA_CHECKLIST.md` for comprehensive t
 - Performance testing
 - Security validation
 
+
+## 2026-05-24 Performance Audit Addendum
+
+Current local production build passes. Observed large chunks include dashboard/report/pdf-related assets; keep heavy reporting and PDF flows lazily loaded and avoid moving them into the initial shell. Large operational lists should remain paginated/debounced, and new reporting queries should use store/date/status indexes documented in the database guide.
+
+Operational recommendations:
+- Keep hashed static assets on long CDN cache and `index.html` on short/no-cache.
+- Monitor `/metrics` for latency and error-rate trends.
+- Add e2e smoke coverage before expanding expensive admin/report workflows.

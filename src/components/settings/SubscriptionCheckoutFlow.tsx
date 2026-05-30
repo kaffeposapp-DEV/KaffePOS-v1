@@ -4,7 +4,7 @@ import {
   Loader2, Percent, ShieldCheck, WalletCards, X,
   Lock, ArrowRight, Wallet
 } from 'lucide-react';
-import { createSubscriptionPayment, getSubscriptionPaymentQuote } from '@/lib/backendApi';
+import { startPayment, getSubscriptionPaymentQuote } from '@/lib/backendApi';
 import { normalizeUserFacingError } from '@/lib/errorMessages';
 import {
   type SubscriptionBillingQuote,
@@ -157,14 +157,14 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
         billing_cycle: selectedCycle,
         payment_method: selectedMethod,
       });
-      const result = await createSubscriptionPayment({
+      const result = await startPayment({
         plan: selectedPlan,
         billingCycle: selectedCycle,
         paymentMethod: selectedMethod,
         voucherCode: appliedVoucher,
       });
 
-      if (!result.payment?.redirect_url) {
+      if (!result.data?.paymentUrl) {
         throw new Error('Link pembayaran tidak tersedia.');
       }
 
@@ -172,7 +172,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
         plan: selectedPlan,
         billing_cycle: selectedCycle,
         payment_method: selectedMethod,
-        payment_provider: 'midtrans',
+        payment_provider: import.meta.env.VITE_PAYMENT_GATEWAY_PROVIDER || 'midtrans',
       });
       void trackOpsEvent({
         event_name: 'payment_started',
@@ -182,11 +182,11 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
           plan: selectedPlan,
           billingCycle: selectedCycle,
           paymentMethod: selectedMethod,
-          reused: result.reused,
+          reused: false,
         },
       });
-      toast.showToast(result.reused ? 'Melanjutkan pembayaran Anda...' : 'Membuka gerbang pembayaran aman...', 'success');
-      window.location.assign(result.payment.redirect_url);
+      toast.showToast('Lanjutkan Pembayaran di gerbang pembayaran aman...', 'success');
+      window.location.assign(result.data.paymentUrl);
     } catch (error) {
       const message = normalizeUserFacingError(error, 'Pembayaran belum bisa dimulai. Coba lagi.');
       toast.showToast(message, 'error');

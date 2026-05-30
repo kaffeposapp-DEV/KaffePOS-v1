@@ -411,10 +411,24 @@ export type CashierAccount = {
 } & ApiRecord;
 export type SubscriptionPaymentSession = {
   redirect_url?: string;
+  payment_url?: string | null;
+  provider?: string;
+  merchant_order_id?: string;
   token?: string;
   order_id?: string;
   status?: string;
 } & ApiRecord;
+
+export type GenericPaymentStartResponse = {
+  success: true;
+  data: {
+    paymentId: string;
+    provider: 'duitku' | 'midtrans' | 'disabled' | string;
+    merchantOrderId: string;
+    paymentUrl: string | null;
+    status: string;
+  };
+};
 
 export type SubscriptionUsageLimits = {
   storeId: string;
@@ -637,6 +651,22 @@ export const createSubscriptionPayment = (payload: {
   method: 'POST',
   json: payload,
 });
+
+export const startPayment = (payload: {
+  plan: 'kopi_susu' | 'signature';
+  billingCycle: 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
+  paymentMethod: SubscriptionPaymentMethodId;
+  voucherCode?: string | null;
+}) => apiFetch<GenericPaymentStartResponse>('/api/payments/start', {
+  method: 'POST',
+  json: payload,
+});
+
+export const getPaymentStatus = (paymentId: string) =>
+  apiFetch<GenericPaymentStartResponse['data']>(`/api/payments/${encodeURIComponent(paymentId)}/status`);
+
+export const checkPaymentStatus = (paymentId: string) =>
+  apiFetch<GenericPaymentStartResponse['data']>(`/api/payments/${encodeURIComponent(paymentId)}/check`, { method: 'POST', json: {} });
 
 export const getSubscriptionPaymentQuote = (payload: {
   plan: 'kopi_susu' | 'signature';

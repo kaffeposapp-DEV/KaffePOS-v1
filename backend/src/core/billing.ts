@@ -8,7 +8,7 @@ import { createMidtransWebhookSignature } from '../lib/midtrans';
 import type { PoolClient } from './db';
 import { syncProfileSubscriptionState, insertNotification } from './helpers';
 
-export type SubscriptionPaymentMode = 'manual' | 'disabled' | 'midtrans_sandbox' | 'midtrans_production';
+export type SubscriptionPaymentMode = 'manual' | 'disabled' | 'midtrans_sandbox' | 'midtrans_production' | 'duitku_sandbox' | 'duitku_production';
 
 export function getMidtransBaseUrl() {
   return env.MIDTRANS_ENVIRONMENT === 'production'
@@ -20,20 +20,35 @@ export function isMidtransConfigured() {
   return Boolean(env.MIDTRANS_SERVER_KEY && env.MIDTRANS_SNAP_ENABLED === 'true');
 }
 
+export function isDuitkuConfigured() {
+  return Boolean(env.DUITKU_MERCHANT_CODE && env.DUITKU_MERCHANT_KEY && env.DUITKU_CALLBACK_URL && env.DUITKU_RETURN_URL);
+}
+
 export function resolveSubscriptionPaymentConfig() {
-  const midtransConfigured = isMidtransConfigured();
+  const provider = env.PAYMENT_INTEGRATION_ENABLED === 'false' ? 'disabled' : env.PAYMENT_GATEWAY_PROVIDER;
+  const midtransConfigured = provider === 'midtrans' && isMidtransConfigured();
+  const duitkuConfigured = provider === 'duitku' && isDuitkuConfigured();
   const requestedMode = env.SUBSCRIPTION_PAYMENT_MODE;
   const productionMidtrans = env.MIDTRANS_ENVIRONMENT === 'production';
+  const productionDuitku = env.DUITKU_ENVIRONMENT === 'production';
   let mode: SubscriptionPaymentMode;
 
-  if (requestedMode === 'auto') {
-    if (!midtransConfigured) {
+  if (provider === 'disabled' || requestedMode === 'disabled') {
+    mode = 'disabled';
+  } else if (requestedMode === 'auto') {
+    if (provider === 'duitku' && duitkuConfigured) {
+      mode = productionDuitku ? 'duitku_production' : 'duitku_sandbox';
+    } else if (!midtransConfigured) {
       mode = 'manual';
     } else if (env.NODE_ENV === 'production' && !productionMidtrans) {
       mode = 'manual';
     } else {
       mode = productionMidtrans ? 'midtrans_production' : 'midtrans_sandbox';
     }
+  } else if (requestedMode === 'duitku_production' && !productionDuitku) {
+    mode = 'manual';
+  } else if (requestedMode === 'duitku_sandbox' && productionDuitku) {
+    mode = 'manual';
   } else if (requestedMode === 'midtrans_production' && !productionMidtrans) {
     mode = 'manual';
   } else if (requestedMode === 'midtrans_sandbox' && productionMidtrans) {
@@ -43,24 +58,24 @@ export function resolveSubscriptionPaymentConfig() {
   }
 
   const onlinePaymentAvailable =
-    midtransConfigured &&
-    ((mode === 'midtrans_production' && productionMidtrans) ||
-      (mode === 'midtrans_sandbox' && !productionMidtrans));
-  const commerciallyReady = onlinePaymentAvailable && mode === 'midtrans_production' && productionMidtrans;
+    (midtransConfigured && ((mode === 'midtrans_production' && productionMidtrans) || (mode === 'midtrans_sandbox' && !productionMidtrans))) ||
+    (duitkuConfigured && ((mode === 'duitku_production' && productionDuitku) || (mode === 'duitku_sandbox' && !productionDuitku)));
+  const commerciallyReady = onlinePaymentAvailable && ((mode === 'midtrans_production' && productionMidtrans) || (mode === 'duitku_production' && productionDuitku));
   const manualActivationAvailable = mode === 'manual' || !onlinePaymentAvailable;
 
   return {
     mode,
-    provider: 'midtrans',
+    provider,
     midtransEnvironment: env.MIDTRANS_ENVIRONMENT,
+    duitkuEnvironment: env.DUITKU_ENVIRONMENT,
     onlinePaymentAvailable,
     manualActivationAvailable,
     commerciallyReady,
     message: onlinePaymentAvailable
-      ? mode === 'midtrans_production'
-        ? 'Pembayaran online Midtrans production aktif.'
-        : 'Pembayaran online Midtrans sandbox aktif untuk QA internal.'
-      : 'Pembayaran online belum dibuka. Aktivasi langganan dilakukan manual oleh admin sampai Midtrans production aktif.',
+      ? provider === 'duitku'
+        ? mode === 'duitku_production' ? 'Pembayaran online Duitku production aktif.' : 'Pembayaran online Duitku sandbox aktif untuk QA internal.'
+        : mode === 'midtrans_production' ? 'Pembayaran online Midtrans production aktif.' : 'Pembayaran online Midtrans sandbox aktif untuk QA internal.'
+      : 'Pembayaran online belum dibuka. Aktivasi langganan dilakukan manual oleh admin sampai payment gateway aktif.',
     recommendedAction: onlinePaymentAvailable
       ? 'Selesaikan pembayaran via checkout online.'
       : 'Hubungi admin untuk aktivasi manual setelah pembayaran transfer/QR manual.',

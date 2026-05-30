@@ -781,3 +781,9 @@ Format per release/date:
 - Duitku return URL: `https://kaffepos.my.id/settings?billing=duitku-return`.
 - Frontend return URL never marks payment paid; payment success requires verified server callback or verified status check.
 - Duitku merchant key stays backend-only and must not be added to `VITE_*` env.
+
+## Staging Profiles for Duitku QA
+
+- Added `payment` staging profile for Duitku sandbox validation separate from minimal core smoke.
+- Minimal staging keeps payments disabled.
+- Payment staging validates Duitku backend credentials without exposing secrets to frontend.

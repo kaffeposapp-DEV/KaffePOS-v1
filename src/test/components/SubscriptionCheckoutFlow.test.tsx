@@ -1,11 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SubscriptionCheckoutFlow from '@/components/settings/SubscriptionCheckoutFlow';
-import { createSubscriptionPayment, getSubscriptionPaymentQuote } from '@/lib/backendApi';
+import { startPayment, getSubscriptionPaymentQuote } from '@/lib/backendApi';
 import type { SubscriptionBillingQuote } from '@/lib/subscriptionBilling';
 
 vi.mock('@/lib/backendApi', () => ({
-  createSubscriptionPayment: vi.fn(),
+  startPayment: vi.fn(),
   getSubscriptionPaymentQuote: vi.fn(),
 }));
 
@@ -51,10 +51,15 @@ describe('SubscriptionCheckoutFlow interaction', () => {
         recommendedAction: 'Test checkout.',
       },
     });
-    vi.mocked(createSubscriptionPayment).mockResolvedValue({
-      reused: false,
-      payment: { redirect_url: 'https://app.sandbox.midtrans.com/snap/v2/vtweb/test' },
-      quote,
+    vi.mocked(startPayment).mockResolvedValue({
+      success: true,
+      data: {
+        paymentId: 'payment-1',
+        provider: 'duitku',
+        merchantOrderId: 'DUITKU-SUB-1',
+        paymentUrl: 'https://sandbox.duitku.com/payment/test',
+        status: 'pending',
+      },
     });
   });
 
@@ -257,14 +262,14 @@ describe('SubscriptionCheckoutFlow interaction', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Bayar Sekarang/i }));
 
     await waitFor(() => {
-      expect(createSubscriptionPayment).toHaveBeenCalledWith({
+      expect(startPayment).toHaveBeenCalledWith({
         plan: 'signature',
         billingCycle: 'quarterly',
         paymentMethod: 'bca_va',
         voucherCode: 'SIGNATURE10',
       });
     });
-    expect(assign).toHaveBeenCalledWith('https://app.sandbox.midtrans.com/snap/v2/vtweb/test');
+    expect(assign).toHaveBeenCalledWith('https://sandbox.duitku.com/payment/test');
   });
 
   it('blocks subscription checkout while offline instead of creating a false Midtrans success', async () => {
@@ -288,6 +293,6 @@ describe('SubscriptionCheckoutFlow interaction', () => {
     fireEvent.click(screen.getByRole('button', { name: /Lanjut Pilih Pembayaran/i }));
     expect(screen.getByRole('button', { name: /Lanjut Review/i })).toBeDisabled();
     expect(getSubscriptionPaymentQuote).not.toHaveBeenCalled();
-    expect(createSubscriptionPayment).not.toHaveBeenCalled();
+    expect(startPayment).not.toHaveBeenCalled();
   });
 });

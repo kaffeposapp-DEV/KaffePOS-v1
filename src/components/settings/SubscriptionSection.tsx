@@ -124,17 +124,16 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
     if (!billing) return;
 
     billingNoticeShown.current = true;
-    if (billing === 'success') {
-      toast.showToast('Pembayaran berhasil. Status lisensi sedang diperbarui.', 'success');
-      trackAnalyticsEvent('upgrade_completed', { source: 'subscription_return' });
-      trackAnalyticsEvent('payment_success', { source: 'subscription_return', payment_provider: 'midtrans' });
+    if (billing === 'success' || billing === 'duitku-return') {
+      toast.showToast('Menunggu konfirmasi pembayaran. Lisensi aktif setelah callback terverifikasi.', 'info');
+      trackAnalyticsEvent('payment_returned', { source: 'subscription_return', payment_provider: params.get('provider') || 'duitku' });
       void trackOpsEvent({
-        event_name: 'payment_completed',
+        event_name: 'payment_started',
         status: 'success',
-        metadata: { source: 'subscription_return', paymentProvider: 'midtrans' },
+        metadata: { source: 'subscription_return', paymentProvider: params.get('provider') || 'duitku' },
       });
     }
-    if (billing === 'pending') toast.showToast('Pembayaran masih menunggu konfirmasi.', 'info');
+    if (billing === 'pending') toast.showToast('Menunggu konfirmasi pembayaran.', 'info');
     if (billing === 'failed') toast.showToast('Pembayaran gagal atau dibatalkan.', 'warning');
 
     onRefreshStatus().catch(() => {});
@@ -172,11 +171,11 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
   const expiringSoon = (isActivePaid || isTrial) && daysRemaining !== null && daysRemaining <= 7;
   const paidHistory = useMemo(() => paymentHistory.filter((entry) => entry.amount > 0), [paymentHistory]);
   const activePendingPayment = useMemo(
-    () => pendingPayments.find((entry) => ['pending', 'capture'].includes(entry.transaction_status)) || null,
+    () => pendingPayments.find((entry) => ['pending', 'capture', 'unknown'].includes(entry.transaction_status)) || null,
     [pendingPayments],
   );
   const failedPayment = useMemo(
-    () => pendingPayments.find((entry) => ['deny', 'cancel', 'expire', 'failure'].includes(entry.transaction_status)) || null,
+    () => pendingPayments.find((entry) => ['deny', 'cancel', 'cancelled', 'expire', 'expired', 'failure', 'failed'].includes(entry.transaction_status)) || null,
     [pendingPayments],
   );
   const onlinePaymentAvailable = paymentConfig?.onlinePaymentAvailable === true;

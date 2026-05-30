@@ -19,4 +19,16 @@ describe('database migration runner readiness', () => {
     const migrationSource = readFileSync(migration, 'utf8');
     expect(migrationSource).toContain('create table if not exists public.schema_migrations');
   });
+
+  it('ships non-destructive Duitku payment provider migration', () => {
+    const migration = resolve(process.cwd(), 'backend/migrations/20260530_0001_duitku_payment_provider.sql');
+    expect(existsSync(migration)).toBe(true);
+
+    const migrationSource = readFileSync(migration, 'utf8').toLowerCase();
+    expect(migrationSource).toContain('add column if not exists provider');
+    expect(migrationSource).toContain('create table if not exists public.payment_events');
+    expect(migrationSource).toContain('payment_orders_merchant_order_id_key');
+    expect(migrationSource).not.toContain('drop table');
+    expect(migrationSource).not.toContain('drop column');
+  });
 });

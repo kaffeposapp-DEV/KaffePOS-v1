@@ -10,7 +10,7 @@ export const envSchema = z.object({
   MIN_SUPPORTED_WEB_VERSION: z.string().trim().default('0.0.0'),
   MIN_SUPPORTED_APK_VERSION: z.string().trim().default('0.0.0'),
   APP_RELEASE_CHANNEL: z.enum(['development', 'beta', 'stable']).default('beta'),
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  NODE_ENV: z.enum(['development', 'test', 'staging', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(8787),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   DATABASE_URL: z.string().trim().optional(),
@@ -40,6 +40,20 @@ export const envSchema = z.object({
   CLOUDFLARE_IMAGES_DELIVERY_URL: z.string().trim().url().optional(),
   RESEND_API_KEY: z.string().trim().optional(),
   RESEND_FROM_EMAIL: z.string().trim().optional(),
+  PAYMENT_GATEWAY_PROVIDER: z.enum(['duitku', 'midtrans', 'disabled']).default('midtrans'),
+  PAYMENT_INTEGRATION_ENABLED: z.union([z.literal('true'), z.literal('false')]).optional().default('true'),
+  DUITKU_ENVIRONMENT: z.enum(['sandbox', 'production']).default('sandbox'),
+  DUITKU_MERCHANT_CODE: z.string().trim().optional(),
+  DUITKU_MERCHANT_KEY: z.string().trim().optional(),
+  DUITKU_SANDBOX_BASE_URL: z.string().trim().url().default('https://sandbox.duitku.com'),
+  DUITKU_PRODUCTION_BASE_URL: z.string().trim().url().default('https://passport.duitku.com'),
+  DUITKU_CALLBACK_URL: z.string().trim().url().optional(),
+  DUITKU_RETURN_URL: z.string().trim().url().optional(),
+  DUITKU_SUCCESS_URL: z.string().trim().url().optional(),
+  DUITKU_PENDING_URL: z.string().trim().url().optional(),
+  DUITKU_FAILED_URL: z.string().trim().url().optional(),
+  DUITKU_EXPIRY_PERIOD_MINUTES: z.coerce.number().int().positive().default(60),
+  DUITKU_DEFAULT_PAYMENT_METHOD: z.string().trim().default('VC'),
   MIDTRANS_ENVIRONMENT: z.enum(['sandbox', 'production']).default('sandbox'),
   MIDTRANS_IS_PRODUCTION: z
     .union([z.literal('true'), z.literal('false')])
@@ -56,7 +70,7 @@ export const envSchema = z.object({
   MIDTRANS_UNFINISH_URL: z.string().trim().url().optional(),
   MIDTRANS_ERROR_URL: z.string().trim().url().optional(),
   SUBSCRIPTION_PAYMENT_MODE: z
-    .enum(['auto', 'manual', 'disabled', 'midtrans_sandbox', 'midtrans_production'])
+    .enum(['auto', 'manual', 'disabled', 'midtrans_sandbox', 'midtrans_production', 'duitku_sandbox', 'duitku_production'])
     .default('auto'),
   AUTH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
   AUTH_LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
