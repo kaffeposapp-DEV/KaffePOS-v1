@@ -133,7 +133,7 @@ See `docs/engineering/FINAL_STAGING_EXECUTION_REPORT.md` for latest command resu
 <!-- COOLIFY_STAGING_AUTOMATION:START -->
 ## Coolify Staging Automation Update
 
-Generated: 2026-05-30T18:48:15.166Z
+Generated: 2026-05-30T18:59:51.409Z
 
 Status: READY_FOR_PAYMENT_STAGING.
 

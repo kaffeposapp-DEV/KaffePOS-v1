@@ -6,9 +6,15 @@
 - Added `/welcome` checkout/payment flow summary and CTA toward login/register/subscription checkout.
 - Added Duitku verification response documentation without storing reviewer password in public docs.
 
+### Changed
+- Mapped KaffePOS subscription payment method IDs to Duitku Sandbox payment method codes before sending create-payment requests.
+
 ### Fixed
 - No redesign; retained clean white and warm orange KaffePOS styling.
 - No frontend exposure of Duitku merchant key and no fake payment success behavior.
+
+### Verification
+- Reviewer account login works and account is active, but Duitku `paymentUrl` generation remains blocked on live payment staging.
 
 ## 2026-05-31 UI/UX Wired Sync & Visual Bug Audit
 

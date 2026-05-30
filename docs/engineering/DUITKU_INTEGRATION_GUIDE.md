@@ -78,3 +78,11 @@ npm run smoke:staging:duitku
 ```
 
 If credentials are missing, smoke exits with `DUITKU_SANDBOX_CREDENTIALS_REQUIRED` and does not fake success.
+
+## 2026-05-31 Reviewer Checkout Verification
+
+- `/welcome` content and support contact are live.
+- Reviewer account `duitku-tester@kaffepos.my.id` is confirmed active and can login as `owner_admin`.
+- Staging repair endpoint is live and rejects missing/invalid token with HTTP 403.
+- `/system-status` shows provider `duitku`, environment `sandbox`, mode `duitku_sandbox`, and online payment available.
+- `POST /api/payments/start` and `POST /api/subscriptions/payments/create` still do not generate `paymentUrl` on live payment staging; do not submit Duitku verification until this is fixed and rechecked.
