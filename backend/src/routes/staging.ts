@@ -1,5 +1,5 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto';
-import { Router } from 'express';
+import { type NextFunction, type Request, type Response, Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { pool, withTransaction, ApiError, normalizeEmail, resolveUniqueUsername } from '../core';
@@ -18,7 +18,7 @@ function isMinimalStagingEnabled() {
 }
 
 function getRepairToken() {
-  return process.env.STAGING_REPAIR_TOKEN || process.env.ENCRYPTION_KEY || process.env.JWT_SECRET || '';
+  return process.env.STAGING_REPAIR_TOKEN || '';
 }
 
 function safeTokenEquals(received: string, expected: string) {
@@ -149,15 +149,18 @@ async function ensureCashier(input: { ownerId: string; storeId: string; email: s
   });
 }
 
-router.post('/api/staging/smoke-data/repair', async (req, res, next) => {
+async function handleSmokeDataRepair(req: Request, res: Response, next: NextFunction) {
   try {
     if (!isMinimalStagingEnabled()) {
       throw new ApiError(404, 'Not found.');
     }
     const expectedToken = getRepairToken();
     const receivedToken = String(req.header('x-kaffepos-staging-repair-token') || '');
-    if (!expectedToken || !receivedToken || !safeTokenEquals(receivedToken, expectedToken)) {
-      throw new ApiError(403, 'Forbidden.');
+    if (!expectedToken) {
+      throw new ApiError(503, 'Staging repair token is not configured.');
+    }
+    if (!receivedToken || !safeTokenEquals(receivedToken, expectedToken)) {
+      throw new ApiError(403, 'Invalid staging repair token.');
     }
 
     const payload = stagingSmokeRepairSchema.parse(req.body);
@@ -180,6 +183,9 @@ router.post('/api/staging/smoke-data/repair', async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-});
+}
+
+router.post('/staging/smoke-data/repair', handleSmokeDataRepair);
+router.post('/api/staging/smoke-data/repair', handleSmokeDataRepair);
 
 export default router;

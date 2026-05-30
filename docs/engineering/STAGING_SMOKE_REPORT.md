@@ -133,7 +133,7 @@ See `docs/engineering/FINAL_STAGING_EXECUTION_REPORT.md` for latest command resu
 <!-- COOLIFY_STAGING_AUTOMATION:START -->
 ## Coolify Staging Automation Update
 
-Generated: 2026-05-30T11:52:04.005Z
+Generated: 2026-05-30T11:54:36.252Z
 
 Status: BLOCKED_BY_STAGING_SMOKE.
 

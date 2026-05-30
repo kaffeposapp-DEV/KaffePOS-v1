@@ -88,21 +88,31 @@ async function request(path, options = {}) {
 }
 
 async function repairViaStagingApi() {
-  const repairToken = process.env.STAGING_REPAIR_TOKEN || process.env.ENCRYPTION_KEY || process.env.JWT_SECRET;
+  const repairToken = process.env.STAGING_REPAIR_TOKEN;
   if (!repairToken) return null;
-  const { response, data } = await request('/api/staging/smoke-data/repair', {
-    method: 'POST',
-    repairToken,
-    json: {
-      ownerEmail: normalizeEmail(process.env.KAFFEPOS_OWNER_EMAIL),
-      ownerPassword: process.env.KAFFEPOS_OWNER_PASSWORD,
-      cashierEmail: normalizeEmail(process.env.KAFFEPOS_TEST_CASHIER_EMAIL),
-      cashierPassword: process.env.KAFFEPOS_TEST_CASHIER_PASSWORD,
-    },
-  });
-  if ([401, 403, 404].includes(response.status)) return null;
-  if (!response.ok) throw new Error(`Staging repair API gagal HTTP ${response.status}.`);
-  return data;
+  const payload = {
+    ownerEmail: normalizeEmail(process.env.KAFFEPOS_OWNER_EMAIL),
+    ownerPassword: process.env.KAFFEPOS_OWNER_PASSWORD,
+    cashierEmail: normalizeEmail(process.env.KAFFEPOS_TEST_CASHIER_EMAIL),
+    cashierPassword: process.env.KAFFEPOS_TEST_CASHIER_PASSWORD,
+  };
+  const paths = ['/staging/smoke-data/repair', '/api/staging/smoke-data/repair'];
+  for (const path of paths) {
+    const { response, data } = await request(path, {
+      method: 'POST',
+      repairToken,
+      json: payload,
+    });
+    if (response.status === 404) continue;
+    if (response.status === 401 || response.status === 403) {
+      const message = typeof data?.message === 'string' ? data.message : `HTTP ${response.status}`;
+      if (/Sesi login tidak ditemukan|Missing bearer token/i.test(message)) continue;
+      throw new Error(`Staging repair token rejected at ${path}. Check STAGING_REPAIR_TOKEN; value not printed.`);
+    }
+    if (!response.ok) throw new Error(`Staging repair API ${path} gagal HTTP ${response.status}.`);
+    return data;
+  }
+  return null;
 }
 
 async function assertRemoteStagingHealth() {
