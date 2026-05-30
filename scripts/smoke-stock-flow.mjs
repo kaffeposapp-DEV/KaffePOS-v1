@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { randomUUID } from 'node:crypto';
 import { assertMinimalStagingTarget, loadStagingEnvFiles, resolveStagingApiBase } from './lib/staging-env.mjs';
 
 loadStagingEnvFiles();
@@ -114,7 +115,7 @@ async function main() {
 
   const ingredientName = `Smoke Bahan ${runId}`;
   const productName = `Smoke Produk ${runId}`;
-  const transactionId = `stock-smoke-${runId}`;
+  const transactionId = randomUUID();
   const importRows = [
     { rowNumber: 2, kind: 'ingredient', name: ingredientName, stock: 1000, base_unit: 'gram', purchase_unit: 'kg', total_cost: 20000, min_stock: 50, sku: `SMK-${runId}` },
     { rowNumber: 3, kind: 'product', name: productName, price: 15000, category: 'Smoke' },

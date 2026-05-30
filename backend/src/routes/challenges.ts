@@ -61,6 +61,16 @@ function parseTargetValue(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function formatPgDate(value: unknown): string {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const raw = String(value ?? '').trim();
+  const isoDate = raw.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+  if (isoDate) return isoDate;
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  return raw;
+}
+
 function serializeChallenge(row: Record<string, unknown>): ChallengeRow {
   return {
     id: String(row.id),
@@ -71,8 +81,8 @@ function serializeChallenge(row: Record<string, unknown>): ChallengeRow {
     target_value: parseTargetValue(row.target_value),
     points_reward: Math.max(0, Math.round(toNumber(row.points_reward))),
     is_active: row.is_active !== false,
-    valid_from: String(row.valid_from),
-    valid_to: String(row.valid_to),
+    valid_from: formatPgDate(row.valid_from),
+    valid_to: formatPgDate(row.valid_to),
     created_at: row.created_at == null ? undefined : String(row.created_at),
     updated_at: row.updated_at == null ? undefined : String(row.updated_at),
   };
