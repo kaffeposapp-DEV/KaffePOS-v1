@@ -733,7 +733,7 @@ Format per release/date:
 - Added `.env.coolify.example` template with placeholders only; `.env.coolify.local` remains ignored.
 
 ### Status
-- READY_FOR_MINIMAL_STAGING: no blocker.
+- BLOCKED_BY_STAGING_SMOKE: npm run smoke:staging:cashier failed.
 
 ### Docs
 - Updated Coolify staging automation report, final staging execution report, staging smoke report, production readiness checklist, and README command docs.
@@ -765,3 +765,19 @@ Format per release/date:
 
 ### Status
 - NOT_READY: remote staging backend must be redeployed with the repair endpoint before smoke data can be repaired and cashier smoke can pass.
+
+## 2026-05-25 Smoke Env Loader Fix Verification
+
+### Fixed
+- Staging smoke scripts load ignored local staging env files before reading required variables.
+
+### Status
+- Missing-env cashier smoke error resolved; current blocker is `email_not_confirmed` for staging owner smoke login.
+
+## Duitku Payment Migration
+
+- Payment gateway can run as `duitku`, `midtrans`, or `disabled` via `PAYMENT_GATEWAY_PROVIDER`.
+- Duitku callback URL: `https://api.kaffepos.my.id/api/webhooks/duitku`.
+- Duitku return URL: `https://kaffepos.my.id/settings?billing=duitku-return`.
+- Frontend return URL never marks payment paid; payment success requires verified server callback or verified status check.
+- Duitku merchant key stays backend-only and must not be added to `VITE_*` env.

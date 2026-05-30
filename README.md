@@ -477,3 +477,15 @@ KaffePOS uses PostgreSQL with a custom migration system.
 
 **Database Documentation:** [`docs/architecture/DATABASE.md`](docs/architecture/DATABASE.md)
 **QA Checklist:** [`docs/engineering/DATABASE_QA_CHECKLIST.md`](docs/engineering/DATABASE_QA_CHECKLIST.md)
+
+## Duitku Payment Migration
+
+- Payment gateway can run as `duitku`, `midtrans`, or `disabled` via `PAYMENT_GATEWAY_PROVIDER`.
+- Duitku callback URL: `https://api.kaffepos.my.id/api/webhooks/duitku`.
+- Duitku return URL: `https://kaffepos.my.id/settings?billing=duitku-return`.
+- Frontend return URL never marks payment paid; payment success requires verified server callback or verified status check.
+- Duitku merchant key stays backend-only and must not be added to `VITE_*` env.
+
+## Duitku Payment Start
+
+Frontend subscription checkout calls `POST /api/payments/start`. Backend selects `duitku`, `midtrans`, or `disabled` through `PAYMENT_GATEWAY_PROVIDER`. Run database migrations with `npm --prefix backend run migrate` before staging Duitku.

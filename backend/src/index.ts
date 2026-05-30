@@ -129,6 +129,7 @@ startApmMonitoring();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.use(compression);
 app.use(requestContextMiddleware());
 app.use(requestLoggingMiddleware());
@@ -411,7 +412,7 @@ function isMidtransConfigured() {
   return Boolean(env.MIDTRANS_SERVER_KEY && env.MIDTRANS_SNAP_ENABLED === 'true');
 }
 
-type SubscriptionPaymentMode = 'manual' | 'disabled' | 'midtrans_sandbox' | 'midtrans_production';
+type SubscriptionPaymentMode = 'manual' | 'disabled' | 'midtrans_sandbox' | 'midtrans_production' | 'duitku_sandbox' | 'duitku_production';
 
 function resolveSubscriptionPaymentConfig() {
   const midtransConfigured = isMidtransConfigured();

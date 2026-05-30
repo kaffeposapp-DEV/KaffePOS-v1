@@ -119,7 +119,7 @@ Minimal staging mode is available for core smoke only. It skips Midtrans, Resend
 <!-- FINAL_STAGING_EXECUTION:START -->
 ## Final Staging Execution Update
 
-Generated: 2026-05-25T00:11:24.995Z
+Generated: 2026-05-30T09:49:03.134Z
 
 Status: BLOCKED_BY_STAGING_SMOKE.
 
@@ -133,13 +133,13 @@ See `docs/engineering/FINAL_STAGING_EXECUTION_REPORT.md` for latest command resu
 <!-- COOLIFY_STAGING_AUTOMATION:START -->
 ## Coolify Staging Automation Update
 
-Generated: 2026-05-25T00:08:13.000Z
+Generated: 2026-05-30T09:45:19.941Z
 
-Status: READY_FOR_MINIMAL_STAGING.
+Status: BLOCKED_BY_STAGING_SMOKE.
 
 Verifier summary: profile minimal, missing 0, placeholders 0, forbidden frontend secrets 0, invalid 0.
 
-Coolify connection: not checked.
+Coolify connection: checked /version: HTTP 200.
 
 See `docs/engineering/COOLIFY_STAGING_AUTOMATION_REPORT.md` for full automation details.
 <!-- COOLIFY_STAGING_AUTOMATION:END -->
@@ -159,3 +159,7 @@ See `docs/engineering/COOLIFY_STAGING_AUTOMATION_REPORT.md` for full automation 
 - Agent D / backend/API audit: minimal staging flags do not disable auth/store/cashier APIs; owner must be `owner_admin`, cashier must be `cashier` with active outlet assignment.
 - Safe repair path added: `npm run staging:repair-smoke-data` calls a staging-only minimal repair API when deployed, then falls back to direct DB only if reachable.
 - Current blocker: staging backend running remotely does not yet include the new repair endpoint; cashier smoke fails at owner login with `email_not_confirmed`.
+
+## 2026-05-25 Smoke Env Loader Verification
+
+Direct cashier smoke now loads `.env.staging.local` and `backend/.env.staging.local` before reading env. Missing-env failure is resolved. Current cashier smoke blocker is owner login `email_not_confirmed`, so staging smoke remains NOT READY until owner smoke account is verified or repaired through the staging-only repair path.

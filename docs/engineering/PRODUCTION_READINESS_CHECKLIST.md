@@ -80,7 +80,7 @@ Minimal staging mode (`STAGING_PROFILE=minimal`, `VITE_STAGING_PROFILE=minimal`)
 <!-- FINAL_STAGING_EXECUTION:START -->
 ## Final Staging Execution Update
 
-Generated: 2026-05-25T00:11:24.995Z
+Generated: 2026-05-30T09:49:03.134Z
 
 Status: BLOCKED_BY_STAGING_SMOKE.
 
@@ -94,13 +94,13 @@ See `docs/engineering/FINAL_STAGING_EXECUTION_REPORT.md` for latest command resu
 <!-- COOLIFY_STAGING_AUTOMATION:START -->
 ## Coolify Staging Automation Update
 
-Generated: 2026-05-25T00:08:13.000Z
+Generated: 2026-05-30T09:45:19.941Z
 
-Status: READY_FOR_MINIMAL_STAGING.
+Status: BLOCKED_BY_STAGING_SMOKE.
 
 Verifier summary: profile minimal, missing 0, placeholders 0, forbidden frontend secrets 0, invalid 0.
 
-Coolify connection: not checked.
+Coolify connection: checked /version: HTTP 200.
 
 See `docs/engineering/COOLIFY_STAGING_AUTOMATION_REPORT.md` for full automation details.
 <!-- COOLIFY_STAGING_AUTOMATION:END -->
@@ -116,3 +116,11 @@ See `docs/engineering/COOLIFY_STAGING_AUTOMATION_REPORT.md` for full automation 
 - [ ] Run `npm run staging:repair-smoke-data` after deployed endpoint is live.
 - [ ] Run `npm run smoke:staging:cashier` until pass.
 - [ ] Run `npm run staging:final` until `READY_FOR_MINIMAL_STAGING`.
+
+## Duitku Payment Migration
+
+- Payment gateway can run as `duitku`, `midtrans`, or `disabled` via `PAYMENT_GATEWAY_PROVIDER`.
+- Duitku callback URL: `https://api.kaffepos.my.id/api/webhooks/duitku`.
+- Duitku return URL: `https://kaffepos.my.id/settings?billing=duitku-return`.
+- Frontend return URL never marks payment paid; payment success requires verified server callback or verified status check.
+- Duitku merchant key stays backend-only and must not be added to `VITE_*` env.

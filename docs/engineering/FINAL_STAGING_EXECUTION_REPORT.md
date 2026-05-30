@@ -1,6 +1,6 @@
 # KaffePOS Final Staging Execution Report
 
-Generated: 2026-05-25T00:11:24.995Z
+Generated: 2026-05-30T09:49:03.134Z
 
 ## Status
 BLOCKED_BY_STAGING_SMOKE
@@ -60,13 +60,3 @@ npm run smoke:staging:cashier
 
 ## Final Recommendation
 Fix staging smoke failure before production candidate.
-
-## 2026-05-25 Parallel Smoke Fix Attempt
-- Env verifier: PASS, profile minimal, missing 0, placeholders 0, forbidden frontend secrets 0, invalid 0.
-- Health: frontend PASS, API health PASS, API DB health PASS.
-- Cashier smoke initial root cause: smoke script did not load ignored local staging env when run directly.
-- Cashier smoke after env-load fix: owner login reached staging API but failed with `email_not_confirmed`.
-- Repair attempt: local direct DB repair blocked because database host is internal to Coolify network from Mac.
-- Repair endpoint added: staging-only, minimal-only, token-protected `/api/staging/smoke-data/repair`.
-- Deployment limitation: endpoint is not live on remote staging until code is committed/pushed and Coolify deploys that revision.
-- Current status: NOT_READY, `BLOCKED_BY_STAGING_SMOKE`.
