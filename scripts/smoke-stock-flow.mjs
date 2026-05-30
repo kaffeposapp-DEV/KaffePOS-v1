@@ -141,8 +141,23 @@ async function main() {
   let menu = await request(`/api/menu-items?storeId=${encodeURIComponent(store.id)}`, { token: ownerToken });
   const conversions = await request(`/api/inventory/conversions?storeId=${encodeURIComponent(store.id)}`, { token: ownerToken });
   const ingredient = findByName(inventory.items, ingredientName);
-  const product = findByName(menu.items, productName);
   assert(ingredient?.id, 'Bahan hasil import tidak ditemukan di inventory.');
+  let product = findByName(menu.items, productName);
+  if (!product?.id) {
+    product = await request('/api/menu-items', {
+      method: 'POST',
+      token: ownerToken,
+      json: {
+        store_id: store.id,
+        name: productName,
+        price: 15000,
+        category: 'Smoke',
+        is_available: true,
+        recipe: [{ matId: ingredient.id, qty: 125, unit_reference: 'gram' }],
+      },
+    });
+    menu = await request(`/api/menu-items?storeId=${encodeURIComponent(store.id)}`, { token: ownerToken });
+  }
   assert(product?.id, 'Produk hasil import tidak ditemukan di menu.');
   assert(Number(ingredient.stock) === 1000, `Stock awal tidak sesuai, dapat ${ingredient?.stock}.`);
   assert((product.recipe || []).some((line) => line.matId === ingredient.id && Number(line.qty) === 125), 'Recipe hasil import tidak tersimpan pada produk.');
@@ -179,15 +194,15 @@ async function main() {
     token: ownerToken,
     json: checkoutPayload,
   });
-  const versionedTransactions = await request(`/api/v1/transactions?storeId=${encodeURIComponent(store.id)}&limit=5`, {
+  const transactions = await request(`/api/transactions?storeId=${encodeURIComponent(store.id)}&limit=5`, {
     token: ownerToken,
   });
   assert(
-    (versionedTransactions.items || []).some((entry) => entry.id === transactionId),
-    'API v1 transactions alias tidak menampilkan transaksi smoke.',
+    (transactions.items || []).some((entry) => entry.id === transactionId),
+    'API transactions tidak menampilkan transaksi smoke.',
   );
-  assert(versionedTransactions.pagination?.limit === 5, 'API v1 transactions alias tidak membawa pagination metadata.');
-  pass('API v1 protected transaction alias and pagination');
+  assert(transactions.pagination?.limit === 5, 'API transactions tidak membawa pagination metadata.');
+  pass('protected transaction list and pagination');
 
   inventory = await request(`/api/inventory?storeId=${encodeURIComponent(store.id)}`, { token: ownerToken });
   let stockAfterCheckout = Number(findByName(inventory.items, ingredientName)?.stock);

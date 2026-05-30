@@ -2350,6 +2350,13 @@ async function bootstrapStockSchema() {
       created_at timestamptz not null default now()
     );
 
+    alter table public.transaction_inventory_audit
+      drop constraint if exists transaction_inventory_audit_action_check;
+
+    alter table public.transaction_inventory_audit
+      add constraint transaction_inventory_audit_action_check
+      check (action in ('sale', 'void', 'opname'));
+
     create index if not exists transaction_inventory_audit_transaction_idx
       on public.transaction_inventory_audit (transaction_id, created_at asc);
 
