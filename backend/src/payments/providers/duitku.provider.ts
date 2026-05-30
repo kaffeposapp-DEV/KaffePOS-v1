@@ -24,6 +24,18 @@ function numberField(payload: Record<string, unknown>, key: string) {
   return Number.isFinite(numeric) ? numeric : null;
 }
 
+function toDuitkuPaymentMethod(method: string | null | undefined) {
+  const normalized = String(method || '').trim().toLowerCase();
+  const mapping: Record<string, string> = {
+    qris: 'QR',
+    bca_va: 'BC',
+    mandiri_bill: 'M2',
+    bni_va: 'I1',
+    bri_va: 'BR',
+  };
+  return mapping[normalized] ?? method ?? env.DUITKU_DEFAULT_PAYMENT_METHOD;
+}
+
 export class DuitkuPaymentProvider implements PaymentProvider {
   providerName = 'duitku' as const;
 
@@ -58,7 +70,7 @@ export class DuitkuPaymentProvider implements PaymentProvider {
     const payload = {
       merchantCode: this.merchantCode,
       paymentAmount,
-      paymentMethod: input.paymentMethod || env.DUITKU_DEFAULT_PAYMENT_METHOD,
+      paymentMethod: toDuitkuPaymentMethod(input.paymentMethod),
       merchantOrderId: input.merchantOrderId,
       productDetails: input.productDetails,
       customerVaName: input.customerName || 'KaffePOS Customer',
