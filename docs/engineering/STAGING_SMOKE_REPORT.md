@@ -119,7 +119,7 @@ Minimal staging mode is available for core smoke only. It skips Midtrans, Resend
 <!-- FINAL_STAGING_EXECUTION:START -->
 ## Final Staging Execution Update
 
-Generated: 2026-05-30T17:26:30.106Z
+Generated: 2026-05-30T17:37:37.384Z
 
 Status: READY_FOR_MINIMAL_STAGING.
 
