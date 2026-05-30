@@ -194,7 +194,7 @@ async function main() {
     token: ownerToken,
     json: checkoutPayload,
   });
-  const transactions = await request(`/api/transactions?storeId=${encodeURIComponent(store.id)}&limit=5`, {
+  const transactions = await request(`/api/v1/transactions?storeId=${encodeURIComponent(store.id)}&limit=5`, {
     token: ownerToken,
   });
   assert(
