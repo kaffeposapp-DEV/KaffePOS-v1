@@ -2162,7 +2162,7 @@ async function bootstrapAuthSchema() {
 
     alter table public.notifications
       add constraint notifications_type_check
-      check (type in ('system', 'info', 'success', 'warning', 'error', 'challenge'));
+      check (type in ('system', 'info', 'success', 'warning', 'error', 'challenge', 'stock', 'business_alert', 'gamification'));
 
     create index if not exists notifications_user_created_idx
       on public.notifications (user_id, created_at desc);

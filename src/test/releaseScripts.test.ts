@@ -20,7 +20,7 @@ describe('release operation scripts', () => {
 
     const source = readFileSync(script, 'utf8');
     expect(source).toContain("login(ownerEmail, ownerPassword, '/api/v1/auth/login')");
-    expect(source).toContain('/api/v1/transactions?storeId=');
+    expect(source).toContain('/api/transactions?storeId=');
     expect(source).toContain("request('/api/inventory/adjustments'");
     expect(source).toContain('counted_stock');
     expect(source).toContain('stock opname adjustment persists through API');

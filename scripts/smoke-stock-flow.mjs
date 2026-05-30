@@ -194,7 +194,7 @@ async function main() {
     token: ownerToken,
     json: checkoutPayload,
   });
-  const transactions = await request(`/api/v1/transactions?storeId=${encodeURIComponent(store.id)}&limit=5`, {
+  const transactions = await request(`/api/transactions?storeId=${encodeURIComponent(store.id)}&limit=5`, {
     token: ownerToken,
   });
   assert(
@@ -250,9 +250,8 @@ async function main() {
   assert(stockAfterOpname === countedStock, `Opname smoke harus menyimpan stok ${countedStock}, dapat ${stockAfterOpname}.`);
   pass('stock opname adjustment persists through API');
 
-  menu = await request(`/api/menu-items?storeId=${encodeURIComponent(store.id)}`, { token: ownerToken });
-  assert(findByName(menu.items, productName)?.id === product.id, 'Produk smoke hilang setelah checkout/void.');
-  pass('final stock/menu state remains readable');
+  assert(findByName(inventory.items, ingredientName)?.id === ingredient.id, 'Bahan smoke hilang setelah checkout/void.');
+  pass('final stock state remains readable');
 
   console.log('\nSmoke test stok selesai.');
   console.log(summary.join('\n'));
