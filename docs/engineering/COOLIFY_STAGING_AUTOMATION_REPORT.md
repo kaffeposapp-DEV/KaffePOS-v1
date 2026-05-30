@@ -1,12 +1,12 @@
 # KaffePOS Coolify Staging Automation Report
 
-Generated: 2026-05-30T11:54:36.252Z
+Generated: 2026-05-30T17:22:57.971Z
 
 ## Status
 BLOCKED_BY_STAGING_SMOKE
 
 ## Command Flags Used
---all
+--all, --debug-api
 
 ## Coolify Connection
 checked /version: HTTP 200
@@ -53,7 +53,8 @@ checked /version: HTTP 200
 - `npx -y react-doctor@latest --verbose --full`: PASS
 - `npx -y react-doctor@0.2.3 --verbose --diff`: PASS
 - `npm run verify:staging-env -- --env-file=.env.staging.local --env-file=backend/.env.staging.local`: PASS
-- `npm run smoke:staging:cashier`: FAIL
+- `npm run smoke:staging:cashier`: PASS
+- `npm run smoke:staging:offline-sync`: FAIL
 
 ## Env Sync Result
 - smoke-only skipped: KAFFEPOS_STAGING_API_URL
@@ -89,6 +90,7 @@ checked /version: HTTP 200
 - backend: JWT_SECRET updated
 - backend: SESSION_SECRET updated
 - backend: ENCRYPTION_KEY updated
+- backend: STAGING_REPAIR_TOKEN updated
 - backend: PAYMENT_INTEGRATION_ENABLED updated
 - backend: EMAIL_INTEGRATION_ENABLED updated
 - backend: R2_STORAGE_ENABLED updated
@@ -111,13 +113,14 @@ checked /version: HTTP 200
 - api /health/db: PASS
 
 ## Smoke Result
-- npm run smoke:staging:cashier: FAIL
+- npm run smoke:staging:cashier: PASS
+- npm run smoke:staging:offline-sync: FAIL
 
 ## Manual Checks
 - none
 
 ## Blockers
-- npm run smoke:staging:cashier failed
+- npm run smoke:staging:offline-sync failed
 
 ## Next Action
 Fix staging smoke failure before production candidate.

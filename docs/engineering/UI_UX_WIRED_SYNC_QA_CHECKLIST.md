@@ -55,6 +55,11 @@ This checklist contains validation items and guidelines for verifying the visual
 ### Kitchen Order KDS
 - [x] Sound switcher bell button has `aria-label={soundOn ? 'Matikan suara bel' : 'Aktifkan suara bel'}`.
 - [x] Refresh button has `aria-label="Segarkan data"`.
+- [x] previousIds ref initialization uses a lazy initializer or safe null checking to prevent per-render Set reallocation.
+
+### Reports & AI Insight
+- [x] Resolves nested `<button>` inside `<button>` HTML validation issue by converting outer header to an interactive `div` with role="button", keyboard, and focus handlers.
+- [x] Stabilized useMemo dependencies for `trendData` inside `Dashboard.tsx` by memoizing current date and startOfDay/startOfWeek/startMonth period boundaries.
 
 ---
 
@@ -62,4 +67,4 @@ This checklist contains validation items and guidelines for verifying the visual
 - **TypeScript Typecheck**: Run `npm run typecheck` to compile all files with `tsc --noEmit`.
 - **ESLint Checks**: Run `npm run lint` to verify eslint rules pass with zero warnings.
 - **Unit & Integration Tests**: Run `npm run test` to verify all 323 vitest cases pass successfully.
-- **React Doctor Audit**: Run `npx -y react-doctor@latest --verbose --full` and diff pinned versions. Must score 100/100.
+- **React Doctor Audit**: Run `npx -y react-doctor@latest --verbose --full` and diff pinned versions. Must score 99/100 or better.

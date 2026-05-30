@@ -90,7 +90,7 @@ export default function KitchenTab({ toast, profile }: Props) {
   const [station, setStation] = useState<KitchenStation | 'all'>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [soundOn, setSoundOn] = useState(true);
-  const previousIds = useRef(new Set<string>());
+  const previousIds = useRef<Set<string> | null>(null);
   const operatorName = profile?.display_name || profile?.username || 'Kitchen';
 
   useEffect(() => {
@@ -101,8 +101,9 @@ export default function KitchenTab({ toast, profile }: Props) {
 
   useEffect(() => {
     const currentIds = new Set(kitchenOrders.map((order) => order.id));
+    const prev = previousIds.current || new Set<string>();
     const hasNewPending = kitchenOrders.some(
-      (order) => order.overall_status === 'pending' && !previousIds.current.has(order.id)
+      (order) => order.overall_status === 'pending' && !prev.has(order.id)
     );
     if (soundOn && hasNewPending) playChime();
     previousIds.current = currentIds;

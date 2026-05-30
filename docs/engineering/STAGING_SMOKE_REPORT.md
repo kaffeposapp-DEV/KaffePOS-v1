@@ -119,13 +119,13 @@ Minimal staging mode is available for core smoke only. It skips Midtrans, Resend
 <!-- FINAL_STAGING_EXECUTION:START -->
 ## Final Staging Execution Update
 
-Generated: 2026-05-30T09:57:14.779Z
+Generated: 2026-05-30T17:26:30.106Z
 
-Status: BLOCKED_BY_STAGING_SMOKE.
+Status: READY_FOR_MINIMAL_STAGING.
 
 Verifier summary: profile minimal, missing 0, placeholders 0, forbidden frontend secrets 0, invalid 0.
 
-Current blocker: npm run smoke:staging:cashier.
+Current blocker: FULL_STAGING_REQUIRED_FOR_PRODUCTION_CANDIDATE.
 
 See `docs/engineering/FINAL_STAGING_EXECUTION_REPORT.md` for latest command results.
 <!-- FINAL_STAGING_EXECUTION:END -->
@@ -133,7 +133,7 @@ See `docs/engineering/FINAL_STAGING_EXECUTION_REPORT.md` for latest command resu
 <!-- COOLIFY_STAGING_AUTOMATION:START -->
 ## Coolify Staging Automation Update
 
-Generated: 2026-05-30T11:54:36.252Z
+Generated: 2026-05-30T17:22:57.971Z
 
 Status: BLOCKED_BY_STAGING_SMOKE.
 

@@ -127,10 +127,15 @@ export default function Dashboard() {
     }
   });
 
-  const now = new Date();
-  const startToday = startOfDay(now);
-  const startWeek = startOfWeek(now);
-  const startMonth = startOfMonth(now);
+  const { now, startToday, startWeek, startMonth } = useMemo(() => {
+    const d = new Date();
+    return {
+      now: d,
+      startToday: startOfDay(d),
+      startWeek: startOfWeek(d),
+      startMonth: startOfMonth(d),
+    };
+  }, []);
 
   const nonVoidTransactions = useMemo(
     () => transactions.filter((t: any) => !t.is_void),
@@ -142,7 +147,7 @@ export default function Dashboard() {
       nonVoidTransactions
         .filter((t: any) => isSameDay(new Date(t.date), now))
         .reduce((sum: number, t: any) => sum + (t.total || 0), 0),
-    [nonVoidTransactions]
+    [nonVoidTransactions, now]
   );
 
   const salesWeek = useMemo(
@@ -150,7 +155,7 @@ export default function Dashboard() {
       nonVoidTransactions
         .filter((t: any) => new Date(t.date) >= startWeek)
         .reduce((sum: number, t: any) => sum + (t.total || 0), 0),
-    [nonVoidTransactions]
+    [nonVoidTransactions, startWeek]
   );
 
   const salesMonth = useMemo(
@@ -158,7 +163,7 @@ export default function Dashboard() {
       nonVoidTransactions
         .filter((t: any) => new Date(t.date) >= startMonth)
         .reduce((sum: number, t: any) => sum + (t.total || 0), 0),
-    [nonVoidTransactions]
+    [nonVoidTransactions, startMonth]
   );
 
   const rangeStart = range === 'today' ? startToday : range === 'week' ? startWeek : startMonth;

@@ -592,15 +592,30 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
         {/* ── AI Insight Card ── */}
         <div className="col-span-2 md:col-span-4 lg:col-span-2 border border-orange-100 bg-orange-50/60 rounded-2xl overflow-hidden">
           {/* Header tombol */}
-          <button
-            onClick={() => aiData ? setAiOpen(o => !o) : fetchAI()}
-            disabled={aiLoading}
-            className="w-full flex items-center justify-between px-4 py-3 active:bg-orange-100 transition-colors"
+          <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={aiOpen}
+            aria-label="Toggle AI Insight"
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                if (aiLoading) return;
+                if (aiData) setAiOpen(o => !o);
+                else fetchAI();
+              }
+            }}
+            onClick={() => {
+              if (aiLoading) return;
+              if (aiData) setAiOpen(o => !o);
+              else fetchAI();
+            }}
+            className="w-full flex items-center justify-between px-4 py-3 active:bg-orange-100 transition-colors cursor-pointer select-none"
           >
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 bg-orange-500 rounded-lg flex items-center justify-center">
                 <Sparkles size={13} className="text-white" />
-              </div>
+               </div>
               <div className="text-left">
                 <p className="text-sm font-black text-orange-950">AI Insight</p>
                 <p className="text-[10px] text-orange-700">
@@ -632,7 +647,7 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
                 : <span className="text-[11px] font-black text-orange-700 bg-white px-2.5 py-1 rounded-lg ring-1 ring-orange-100">{canUseAiInsight ? 'Analisis' : 'Locked'}</span>
               }
             </div>
-          </button>
+          </div>
 
           {!canUseAiInsight && (
             <div className="px-4 pb-4">

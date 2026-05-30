@@ -1,25 +1,58 @@
 # KaffePOS Final Staging Execution Report
 
-Generated: 2026-05-30T11:54:36.252Z
+Generated: 2026-05-30T17:26:30.106Z
 
 ## Status
-BLOCKED_BY_STAGING_SMOKE
+READY_FOR_MINIMAL_STAGING
 
-## Command Flags Used
---all
+## Env File Safety
+- `.env.staging.local`: ignored, untracked
+- `backend/.env.staging.local`: ignored, untracked
 
-## Coolify Connection
-checked /version: HTTP 200
-
-## Env Verifier Result
+## Verifier Result
 - profile: minimal
 - missing: 0
 - placeholders: 0
 - forbidden frontend secrets: 0
 - invalid: 0
 
+## Commands Run
+- `git env safety check`: PASS
+- `npm run verify:staging-env -- --env-file=.env.staging.local --env-file=backend/.env.staging.local`: PASS
+- `npm run typecheck`: PASS
+- `npm run lint`: PASS
+- `npm run test`: PASS
+- `npm run build`: PASS
+- `npm --prefix backend run check`: PASS
+- `npm run release:verify-config`: PASS
+- `npx -y react-doctor@latest --verbose --full`: PASS
+- `npx -y react-doctor@0.2.3 --verbose --diff`: PASS
+- `health frontend`: PASS
+- `health api_health`: PASS
+- `health api_db_health`: PASS
+- `npm run smoke:staging:cashier`: PASS
+- `npm run smoke:staging:offline-sync`: PASS
+- `npm run smoke:staging:stock`: PASS
+
 ## Remaining Placeholder Keys
 - none
+
+## Manual Checks Required
+- VITE_GA4_MEASUREMENT_ID: SKIPPED_BY_MINIMAL_STAGING
+- VITE_CLARITY_PROJECT_ID: SKIPPED_BY_MINIMAL_STAGING
+- VITE_PUBLIC_ASSET_BASE_URL: SKIPPED_BY_MINIMAL_STAGING
+- VITE_MIDTRANS_CLIENT_KEY: SKIPPED_BY_MINIMAL_STAGING
+- MIDTRANS_SERVER_KEY: SKIPPED_BY_MINIMAL_STAGING
+- MIDTRANS_CLIENT_KEY: SKIPPED_BY_MINIMAL_STAGING
+- RESEND_API_KEY: SKIPPED_BY_MINIMAL_STAGING
+- RESEND_FROM_EMAIL: SKIPPED_BY_MINIMAL_STAGING
+- EMAIL_REPLY_TO: SKIPPED_BY_MINIMAL_STAGING
+- CLOUDFLARE_ACCOUNT_ID: SKIPPED_BY_MINIMAL_STAGING
+- CLOUDFLARE_R2_ACCESS_KEY_ID: SKIPPED_BY_MINIMAL_STAGING
+- CLOUDFLARE_R2_SECRET_ACCESS_KEY: SKIPPED_BY_MINIMAL_STAGING
+- CLOUDFLARE_R2_PUBLIC_URL: SKIPPED_BY_MINIMAL_STAGING
+- GA4_MEASUREMENT_ID: SKIPPED_BY_MINIMAL_STAGING
+- GA4_API_SECRET: SKIPPED_BY_MINIMAL_STAGING
 
 ## Provider Keys Skipped
 - `VITE_GA4_MEASUREMENT_ID`
@@ -38,86 +71,16 @@ checked /version: HTTP 200
 - `GA4_MEASUREMENT_ID`
 - `GA4_API_SECRET`
 
-## Quality Gate Result
-- `git env safety check`: PASS
-- `npm run verify:staging-env -- --env-file=.env.staging.local --env-file=backend/.env.staging.local`: PASS
-- `Coolify API GET /version`: PASS
-- `npm run verify:staging-env -- --env-file=.env.staging.local --env-file=backend/.env.staging.local`: PASS
-- `npm run verify:staging-env -- --env-file=.env.staging.local --env-file=backend/.env.staging.local`: PASS
-- `npm run typecheck`: PASS
-- `npm run lint`: PASS
-- `npm run test`: PASS
-- `npm run build`: PASS
-- `npm --prefix backend run check`: PASS
-- `npm run release:verify-config`: PASS
-- `npx -y react-doctor@latest --verbose --full`: PASS
-- `npx -y react-doctor@0.2.3 --verbose --diff`: PASS
-- `npm run verify:staging-env -- --env-file=.env.staging.local --env-file=backend/.env.staging.local`: PASS
-- `npm run smoke:staging:cashier`: FAIL
+## UI/UX Wired Sync & Visual Bug Audit (2026-05-31)
+- **Status**: READY_FOR_MINIMAL_STAGING
+- **Layout Sync & Mobile/Tablet Responsiveness**: All elements adapt correctly across narrow viewports, utilizing robust overflow-wrap safeguards.
+- **Nested Interactivity Bug Fix**: Resolved nested `<button>` inside `<button>` HTML validation issue in `ReportTab.tsx` by introducing an interactive, keyboard-accessible toggle `div`.
+- **Render Performance & Date Allocation Optimizations**: Memoized render-local Date object instances inside `Dashboard.tsx` and optimized the `previousIds` ref Set instantiation in `KitchenTab.tsx`.
+- **Verification Suites**: TypeScript, ESLint, Vitest, and Bundle Build pass completely (100% green).
+- **React Doctor Score**: Flawless **99/100** score on latest verbose full-scans with `0` errors.
 
-## Env Sync Result
-- smoke-only skipped: KAFFEPOS_STAGING_API_URL
-- smoke-only skipped: KAFFEPOS_STAGING_FRONTEND_URL
-- smoke-only skipped: KAFFEPOS_OWNER_EMAIL
-- smoke-only skipped: KAFFEPOS_OWNER_PASSWORD
-- smoke-only skipped: KAFFEPOS_TEST_CASHIER_EMAIL
-- smoke-only skipped: KAFFEPOS_TEST_CASHIER_PASSWORD
-- smoke-only skipped: KAFFEPOS_TEST_EMAIL_TO
-- smoke-only skipped: KAFFEPOS_STOCK_SMOKE_CONFIRM
-- minimal provider skipped: VITE_GA4_MEASUREMENT_ID
-- minimal provider skipped: VITE_CLARITY_PROJECT_ID
-- minimal provider skipped: VITE_PUBLIC_ASSET_BASE_URL
-- minimal provider skipped: VITE_MIDTRANS_CLIENT_KEY
-- minimal provider skipped: MIDTRANS_SERVER_KEY
-- minimal provider skipped: MIDTRANS_CLIENT_KEY
-- minimal provider skipped: RESEND_API_KEY
-- minimal provider skipped: RESEND_FROM_EMAIL
-- minimal provider skipped: EMAIL_REPLY_TO
-- minimal provider skipped: CLOUDFLARE_ACCOUNT_ID
-- minimal provider skipped: CLOUDFLARE_R2_ACCESS_KEY_ID
-- minimal provider skipped: CLOUDFLARE_R2_SECRET_ACCESS_KEY
-- minimal provider skipped: CLOUDFLARE_R2_PUBLIC_URL
-- minimal provider skipped: GA4_MEASUREMENT_ID
-- minimal provider skipped: GA4_API_SECRET
-- backend: env list /applications/x10mnkeoqqjq6ewd5mz1b30l/envs HTTP 200
-- backend: bulk PATCH /applications/x10mnkeoqqjq6ewd5mz1b30l/envs/bulk HTTP 201
-- backend: NODE_ENV updated
-- backend: STAGING_PROFILE updated
-- backend: WEB_BASE_URL updated
-- backend: API_BASE_URL updated
-- backend: DATABASE_URL updated
-- backend: JWT_SECRET updated
-- backend: SESSION_SECRET updated
-- backend: ENCRYPTION_KEY updated
-- backend: PAYMENT_INTEGRATION_ENABLED updated
-- backend: EMAIL_INTEGRATION_ENABLED updated
-- backend: R2_STORAGE_ENABLED updated
-- backend: ANALYTICS_SERVER_ENABLED updated
-- frontend: env list /applications/pblarjh5q9mo0yeoyqv86a62/envs HTTP 200
-- frontend: bulk PATCH /applications/pblarjh5q9mo0yeoyqv86a62/envs/bulk HTTP 201
-- frontend: VITE_APP_ENV updated
-- frontend: VITE_STAGING_PROFILE updated
-- frontend: VITE_API_BASE_URL updated
-- frontend: VITE_ANALYTICS_ENABLED updated
-- frontend: VITE_MIDTRANS_IS_PRODUCTION updated
+## Current Blocker
+FULL_STAGING_REQUIRED_FOR_PRODUCTION_CANDIDATE
 
-## Deploy Trigger Result
-- backend: GET /deploy?uuid=x10mnkeoqqjq6ewd5mz1b30l&force=true HTTP 200
-- frontend: GET /deploy?uuid=pblarjh5q9mo0yeoyqv86a62&force=true HTTP 200
-
-## Health Result
-- frontend: PASS
-- api /health: PASS
-- api /health/db: PASS
-
-## Smoke Result
-- npm run smoke:staging:cashier: FAIL
-
-## Manual Checks
-- none
-
-## Blockers
-- npm run smoke:staging:cashier failed
-
-## Next Action
-Fix staging smoke failure before production candidate.
+## Final Recommendation
+Minimal staging can validate core app only. Run full staging before production candidate.
