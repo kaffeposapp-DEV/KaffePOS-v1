@@ -2350,6 +2350,28 @@ async function bootstrapStockSchema() {
       created_at timestamptz not null default now()
     );
 
+    do $$
+    declare
+      audit_transaction_fk text;
+    begin
+      for audit_transaction_fk in
+        select con.conname
+        from pg_constraint con
+        join pg_class rel on rel.oid = con.conrelid
+        join pg_namespace nsp on nsp.oid = rel.relnamespace
+        join pg_attribute att on att.attrelid = rel.oid and att.attnum = any(con.conkey)
+        where con.contype = 'f'
+          and nsp.nspname = 'public'
+          and rel.relname = 'transaction_inventory_audit'
+          and att.attname = 'transaction_id'
+      loop
+        execute format('alter table public.transaction_inventory_audit drop constraint %I', audit_transaction_fk);
+      end loop;
+    end $$;
+
+    alter table public.transaction_inventory_audit
+      alter column transaction_id type text using transaction_id::text;
+
     alter table public.transaction_inventory_audit
       drop constraint if exists transaction_inventory_audit_action_check;
 
