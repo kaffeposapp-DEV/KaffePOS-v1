@@ -2141,6 +2141,29 @@ async function bootstrapAuthSchema() {
   `);
 
   await pool.query(`
+    create table if not exists public.notifications (
+      id uuid primary key default gen_random_uuid(),
+      user_id uuid not null references public.profiles(id) on delete cascade,
+      title text not null,
+      message text not null,
+      type text not null default 'system',
+      read boolean not null default false,
+      created_at timestamptz not null default now()
+    );
+
+    alter table public.notifications
+      add column if not exists store_id uuid references public.stores(id) on delete cascade;
+
+    alter table public.notifications
+      add column if not exists metadata jsonb not null default '{}'::jsonb;
+
+    create index if not exists notifications_user_created_idx
+      on public.notifications (user_id, created_at desc);
+
+    create index if not exists notifications_store_created_idx
+      on public.notifications (store_id, created_at desc)
+      where store_id is not null;
+
     create table if not exists public.cashier_outlet_assignments (
       id uuid primary key default gen_random_uuid(),
       owner_id uuid not null references public.profiles(id) on delete cascade,
