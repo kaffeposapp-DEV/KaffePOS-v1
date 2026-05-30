@@ -12,66 +12,25 @@ import {
   requireAdmin,
 } from '../core';
 import { validateBackendDeploymentConfig } from '../lib/deploymentReadiness';
+import {
+  isCommercialPaymentReady,
+  isDuitkuConfigured,
+  isMidtransConfigured,
+  resolveSubscriptionPaymentConfig,
+} from '../core/billing';
 
 const router = Router();
 
-// ── Payment config helpers (local to this module) ──────────────
-
-function isMidtransConfigured() {
-  return Boolean(env.MIDTRANS_SERVER_KEY && env.MIDTRANS_SNAP_ENABLED === 'true');
+function isPaymentConfigured() {
+  const paymentConfig = resolveSubscriptionPaymentConfig();
+  if (paymentConfig.provider === 'duitku') return isDuitkuConfigured();
+  if (paymentConfig.provider === 'midtrans') return isMidtransConfigured();
+  return false;
 }
 
-type SubscriptionPaymentMode = 'manual' | 'disabled' | 'midtrans_sandbox' | 'midtrans_production' | 'duitku_sandbox' | 'duitku_production';
-
-function resolveSubscriptionPaymentConfig() {
-  const midtransConfigured = isMidtransConfigured();
-  const requestedMode = env.SUBSCRIPTION_PAYMENT_MODE;
-  const productionMidtrans = env.MIDTRANS_ENVIRONMENT === 'production';
-  let mode: SubscriptionPaymentMode;
-
-  if (requestedMode === 'auto') {
-    if (!midtransConfigured) {
-      mode = 'manual';
-    } else if (env.NODE_ENV === 'production' && !productionMidtrans) {
-      mode = 'manual';
-    } else {
-      mode = productionMidtrans ? 'midtrans_production' : 'midtrans_sandbox';
-    }
-  } else if (requestedMode === 'midtrans_production' && !productionMidtrans) {
-    mode = 'manual';
-  } else if (requestedMode === 'midtrans_sandbox' && productionMidtrans) {
-    mode = 'manual';
-  } else {
-    mode = requestedMode;
-  }
-
-  const onlinePaymentAvailable =
-    midtransConfigured &&
-    ((mode === 'midtrans_production' && productionMidtrans) ||
-      (mode === 'midtrans_sandbox' && !productionMidtrans));
-  const commerciallyReady = onlinePaymentAvailable && mode === 'midtrans_production' && productionMidtrans;
-  const manualActivationAvailable = mode === 'manual' || !onlinePaymentAvailable;
-
-  return {
-    mode,
-    provider: 'midtrans',
-    midtransEnvironment: env.MIDTRANS_ENVIRONMENT,
-    onlinePaymentAvailable,
-    manualActivationAvailable,
-    commerciallyReady,
-    message: onlinePaymentAvailable
-      ? mode === 'midtrans_production'
-        ? 'Pembayaran online Midtrans production aktif.'
-        : 'Pembayaran online Midtrans sandbox aktif untuk QA internal.'
-      : 'Pembayaran online belum dibuka. Aktivasi langganan dilakukan manual oleh admin sampai Midtrans production aktif.',
-    recommendedAction: onlinePaymentAvailable
-      ? 'Selesaikan pembayaran via checkout online.'
-      : 'Hubungi admin untuk aktivasi manual setelah pembayaran transfer/QR manual.',
-  };
-}
-
-function isCommercialPaymentReady() {
-  return resolveSubscriptionPaymentConfig().commerciallyReady;
+function getPaymentEnvironment() {
+  const paymentConfig = resolveSubscriptionPaymentConfig();
+  return paymentConfig.provider === 'duitku' ? paymentConfig.duitkuEnvironment : paymentConfig.midtransEnvironment;
 }
 
 function buildReadinessScore(params: {
@@ -119,10 +78,10 @@ function getOperationalWarnings() {
     warnings.push('Email delivery belum dikonfigurasi penuh.');
   }
 
-  if (!isMidtransConfigured()) {
-    warnings.push('Midtrans belum dikonfigurasi penuh di backend.');
+  if (!isPaymentConfigured()) {
+    warnings.push('Payment gateway belum dikonfigurasi penuh di backend.');
   } else if (!paymentConfig.onlinePaymentAvailable) {
-    warnings.push('Pembayaran online subscription dinonaktifkan. Gunakan aktivasi manual sampai Midtrans production siap.');
+    warnings.push('Pembayaran online subscription dinonaktifkan. Gunakan aktivasi manual sampai payment gateway production siap.');
   } else if (!paymentConfig.commerciallyReady) {
     warnings.push('Pembayaran online belum commercial-ready karena masih memakai mode sandbox/QA.');
   }
@@ -206,8 +165,8 @@ function buildSystemStatusPayload(params: {
   error?: unknown;
 }): SystemStatusPayload {
   const emailReady = Boolean(env.RESEND_API_KEY && env.RESEND_FROM_EMAIL);
-  const paymentReady = isMidtransConfigured();
   const paymentConfig = resolveSubscriptionPaymentConfig();
+  const paymentReady = isPaymentConfigured();
   const paymentCommercialReady = isCommercialPaymentReady();
 
   return {
@@ -230,9 +189,9 @@ function buildSystemStatusPayload(params: {
         mode: paymentConfig.mode,
         onlinePaymentAvailable: paymentConfig.onlinePaymentAvailable,
         manualActivationAvailable: paymentConfig.manualActivationAvailable,
-        provider: 'midtrans',
-        environment: env.MIDTRANS_ENVIRONMENT,
-        merchantId: env.MIDTRANS_MERCHANT_ID ?? null,
+        provider: paymentConfig.provider,
+        environment: getPaymentEnvironment(),
+        merchantId: env.PAYMENT_GATEWAY_PROVIDER === 'duitku' ? env.DUITKU_MERCHANT_CODE ?? null : env.MIDTRANS_MERCHANT_ID ?? null,
       },
       monitoring: {
         backendErrorTracking: Boolean(env.SENTRY_DSN),

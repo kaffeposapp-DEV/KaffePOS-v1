@@ -94,13 +94,13 @@ See `docs/engineering/FINAL_STAGING_EXECUTION_REPORT.md` for latest command resu
 <!-- COOLIFY_STAGING_AUTOMATION:START -->
 ## Coolify Staging Automation Update
 
-Generated: 2026-05-30T17:22:57.971Z
+Generated: 2026-05-30T17:57:53.566Z
 
-Status: BLOCKED_BY_STAGING_SMOKE.
+Status: READY_FOR_PAYMENT_STAGING.
 
-Verifier summary: profile minimal, missing 0, placeholders 0, forbidden frontend secrets 0, invalid 0.
+Verifier summary: profile payment, missing 0, placeholders 0, forbidden frontend secrets 0, invalid 0.
 
-Coolify connection: checked /version: HTTP 200.
+Coolify connection: not checked.
 
 See `docs/engineering/COOLIFY_STAGING_AUTOMATION_REPORT.md` for full automation details.
 <!-- COOLIFY_STAGING_AUTOMATION:END -->

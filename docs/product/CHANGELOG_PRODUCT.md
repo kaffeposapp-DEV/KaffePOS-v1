@@ -748,7 +748,7 @@ Format per release/date:
 - Added `.env.coolify.example` template with placeholders only; `.env.coolify.local` remains ignored.
 
 ### Status
-- BLOCKED_BY_STAGING_SMOKE: npm run smoke:staging:offline-sync failed.
+- READY_FOR_PAYMENT_STAGING: no blocker.
 
 ### Docs
 - Updated Coolify staging automation report, final staging execution report, staging smoke report, production readiness checklist, and README command docs.
