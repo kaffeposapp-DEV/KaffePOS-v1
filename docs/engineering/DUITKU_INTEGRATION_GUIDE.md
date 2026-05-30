@@ -50,6 +50,19 @@ Payment starts through `POST /api/payments/start`. Existing `POST /api/subscript
 
 Duitku return URL query parameters are treated as informational only. KaffePOS confirms payment through verified callback or authenticated server-side status check.
 
+## Registered Website Review Page
+
+Registered website: https://kaffepos.my.id/welcome
+
+The `/welcome` page must show:
+
+- Duitku payment gateway explanation for KaffePOS POS client subscription payments.
+- Checkout flow from account creation/login through package selection, checkout, Duitku Sandbox redirect, and backend callback/check transaction confirmation.
+- Support contact: help@kaffepos.my.id, 0851-8607-6224, and business address in Medan.
+- CTA to register/login and continue to subscription checkout.
+
+Reviewer account credentials must be shared only through private verification response/manual email, not public docs.
+
 ## Payment Staging Profile
 
 Run verifier:

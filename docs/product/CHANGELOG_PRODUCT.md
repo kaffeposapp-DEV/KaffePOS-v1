@@ -1,3 +1,15 @@
+## 2026-05-31 Duitku Verification Website Update
+
+### Added
+- Added `/welcome` Duitku Sandbox payment gateway explanation for KaffePOS POS client subscription/package payments.
+- Added `/welcome` support contact details: email, phone, and business address.
+- Added `/welcome` checkout/payment flow summary and CTA toward login/register/subscription checkout.
+- Added Duitku verification response documentation without storing reviewer password in public docs.
+
+### Fixed
+- No redesign; retained clean white and warm orange KaffePOS styling.
+- No frontend exposure of Duitku merchant key and no fake payment success behavior.
+
 ## 2026-05-31 UI/UX Wired Sync & Visual Bug Audit
 
 ### Fixed

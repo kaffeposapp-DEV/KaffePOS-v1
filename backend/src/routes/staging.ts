@@ -13,8 +13,8 @@ const stagingSmokeRepairSchema = z.object({
   cashierPassword: z.string().min(8),
 });
 
-function isMinimalStagingEnabled() {
-  return process.env.NODE_ENV === 'staging' && process.env.STAGING_PROFILE === 'minimal';
+function isStagingRepairEnabled() {
+  return process.env.NODE_ENV === 'staging' && ['minimal', 'payment'].includes(process.env.STAGING_PROFILE || '');
 }
 
 function getRepairToken() {
@@ -151,7 +151,7 @@ async function ensureCashier(input: { ownerId: string; storeId: string; email: s
 
 async function handleSmokeDataRepair(req: Request, res: Response, next: NextFunction) {
   try {
-    if (!isMinimalStagingEnabled()) {
+    if (!isStagingRepairEnabled()) {
       throw new ApiError(404, 'Not found.');
     }
     const expectedToken = getRepairToken();

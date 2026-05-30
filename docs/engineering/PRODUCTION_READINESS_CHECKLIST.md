@@ -94,7 +94,7 @@ See `docs/engineering/FINAL_STAGING_EXECUTION_REPORT.md` for latest command resu
 <!-- COOLIFY_STAGING_AUTOMATION:START -->
 ## Coolify Staging Automation Update
 
-Generated: 2026-05-30T17:57:53.566Z
+Generated: 2026-05-30T18:48:15.166Z
 
 Status: READY_FOR_PAYMENT_STAGING.
 
@@ -132,3 +132,13 @@ See `docs/engineering/COOLIFY_STAGING_AUTOMATION_REPORT.md` for full automation 
 - [ ] `npm run smoke:staging:duitku` creates sandbox transaction and returns `paymentUrl=present`.
 - [ ] Duitku callback URL verified live: `https://api.kaffepos.my.id/api/webhooks/duitku`.
 - [ ] Return URL verified live: `https://kaffepos.my.id/settings?billing=duitku-return`.
+
+## Duitku Website Verification Gate
+
+- [ ] `/welcome` explains Duitku use for KaffePOS POS client subscription/package payments.
+- [ ] `/welcome` shows support contact: help@kaffepos.my.id, 0851-8607-6224, and business address.
+- [ ] `/welcome` shows checkout/payment flow and CTA to login/register/subscription checkout.
+- [ ] Reviewer account `duitku-tester@kaffepos.my.id` exists, email confirmed, active, and can access checkout.
+- [ ] `POST /api/payments/start` returns Duitku Sandbox `paymentUrl` for reviewer account.
+- [ ] `POST /api/subscriptions/payments/create` remains compatible.
+- [ ] Production readiness must stay NOT_READY unless real Duitku production credentials and `SENTRY_DSN` are configured.

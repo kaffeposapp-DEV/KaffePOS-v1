@@ -26,6 +26,7 @@ import {
   Star,
   Gift,
   BadgePercent,
+  CreditCard,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -120,6 +121,23 @@ const BENEFITS = [
     title: 'Tim makin semangat jualan',
     desc: 'Misi, poin, level, dan leaderboard bikin operasional terasa lebih hidup tanpa ribet.',
     icon: Trophy,
+  },
+];
+
+const PAYMENT_FLOW_STEPS = [
+  'Buat akun atau login ke KaffePOS.',
+  'Pilih paket Kopi Susu atau Signature di halaman harga.',
+  'Lanjut ke checkout langganan dan pilih metode pembayaran.',
+  'Sistem membuat transaksi server-side lalu mengarahkan ke Duitku Sandbox.',
+  'Status pembayaran dikonfirmasi melalui callback/check transaction di sisi server.',
+];
+
+const SUPPORT_CONTACT = [
+  { label: 'Email', value: 'help@kaffepos.my.id', href: 'mailto:help@kaffepos.my.id' },
+  { label: 'Phone', value: '0851-8607-6224', href: 'tel:+6285186076224' },
+  {
+    label: 'Business Address',
+    value: 'Jl. Bhayangkara, Indra Kasih, Kec. Medan Tembung, Kota Medan, Sumatera Utara 20221',
   },
 ];
 
@@ -931,6 +949,75 @@ export default function LandingPage() {
           </div>
         </section>
 
+        <section className="px-5 pb-16 sm:px-6 md:pb-20">
+          <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[1.05fr_0.95fr]">
+            <div className="rounded-[24px] border border-orange-100 bg-white p-6 shadow-sm md:p-8">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-[#FF6A00]">
+                  <CreditCard size={22} />
+                </div>
+                <div>
+                  <p className="text-xs font-extrabold uppercase tracking-widest text-[#FF6A00]">Pembayaran Langganan</p>
+                  <h2 className="mt-1 font-display text-2xl font-extrabold text-slate-900 md:text-3xl">Duitku Sandbox untuk Checkout KaffePOS</h2>
+                </div>
+              </div>
+              <p className="mt-5 text-sm font-semibold leading-7 text-slate-600 md:text-base">
+                Payment gateway Duitku digunakan untuk pembayaran paket/langganan KaffePOS oleh client atau pemilik usaha yang menggunakan sistem POS KaffePOS. Pengguna dapat membuat akun, login, memilih paket, melakukan checkout, dan diarahkan ke halaman pembayaran Duitku Sandbox. Status pembayaran dikonfirmasi melalui callback/check transaction di sisi server.
+              </p>
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => navigate('/register')}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#FF6A00] px-6 text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(255,106,0,0.2)] hover:bg-[#ef6200]"
+                >
+                  Buat Akun & Checkout <ArrowRight size={16} />
+                </button>
+                <a
+                  href="#pricing"
+                  onClick={(e) => scrollToSection(e, '#pricing')}
+                  className="inline-flex h-12 items-center justify-center rounded-lg border border-[#FF6A00]/40 bg-white px-6 text-sm font-extrabold text-[#FF6A00] hover:bg-orange-50"
+                >
+                  Lihat Paket KaffePOS
+                </a>
+              </div>
+            </div>
+
+            <div className="rounded-[24px] border border-slate-100 bg-slate-50/70 p-6 md:p-8">
+              <h3 className="font-display text-xl font-extrabold text-slate-900">Alur Checkout</h3>
+              <ol className="mt-5 space-y-3">
+                {PAYMENT_FLOW_STEPS.map((step, index) => (
+                  <li key={step} className="flex gap-3 text-sm font-semibold leading-6 text-slate-600">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-50 text-xs font-extrabold text-[#FF6A00] ring-1 ring-orange-100">{index + 1}</span>
+                    {step}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        </section>
+
+        <section id="contact" className="bg-white px-5 py-14 sm:px-6 md:py-18">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-8 max-w-3xl">
+              <p className="text-xs font-extrabold uppercase tracking-widest text-[#FF6A00]">Kontak Dukungan</p>
+              <h2 className="mt-3 font-display text-3xl font-extrabold text-slate-900 md:text-4xl">Bantuan untuk Registrasi, Login, dan Pembayaran</h2>
+              <p className="mt-4 text-sm font-semibold leading-7 text-slate-500">Tim KaffePOS siap membantu pertanyaan akun, paket, checkout, dan verifikasi pembayaran.</p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {SUPPORT_CONTACT.map((item) => (
+                <div key={item.label} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-5">
+                  <p className="text-xs font-extrabold uppercase tracking-widest text-[#FF6A00]">{item.label}</p>
+                  {item.href ? (
+                    <a href={item.href} className="mt-3 block break-words text-sm font-extrabold text-slate-900 hover:text-[#FF6A00]">{item.value}</a>
+                  ) : (
+                    <p className="mt-3 text-sm font-extrabold leading-7 text-slate-900">{item.value}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section className="bg-white px-5 py-14 sm:px-6 md:py-18">
           <div className="mx-auto max-w-7xl">
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -1235,7 +1322,7 @@ export default function LandingPage() {
               </ul>
             </div>
 
-            <div id="contact">
+            <div>
               <h4 className="mb-4 text-sm font-extrabold text-slate-900">Ikuti Kami</h4>
               <div className="flex gap-3">
                 <a href="https://wa.me/6285186076224" target="_blank" rel="noopener noreferrer" className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-50 text-[#FF6A00] ring-1 ring-orange-100 hover:bg-orange-100" aria-label="WhatsApp KaffePOS">
