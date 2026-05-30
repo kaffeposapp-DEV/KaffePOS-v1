@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { randomUUID } from 'node:crypto';
 import { assertMinimalStagingTarget, loadStagingEnvFiles } from './lib/staging-env.mjs';
 
 loadStagingEnvFiles();
@@ -66,7 +67,7 @@ const stores = await request('/api/stores', { headers: authHeaders });
 const storeId = process.env.KAFFEPOS_SMOKE_STORE_ID || stores.body?.items?.[0]?.id;
 if (!storeId) throw new Error('Tidak ada store/outlet untuk smoke test.');
 
-const transactionId = `smoke_offline_${Date.now()}`;
+const transactionId = randomUUID();
 const payload = {
   id: transactionId,
   store_id: storeId,
@@ -83,6 +84,7 @@ const payload = {
   subtotal: 1000,
   discount: 0,
   tax: 0,
+  total: 1000,
   cogs: 0,
   paid: 1000,
   change: 0,

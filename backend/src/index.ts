@@ -2157,6 +2157,13 @@ async function bootstrapAuthSchema() {
     alter table public.notifications
       add column if not exists metadata jsonb not null default '{}'::jsonb;
 
+    alter table public.notifications
+      drop constraint if exists notifications_type_check;
+
+    alter table public.notifications
+      add constraint notifications_type_check
+      check (type in ('system', 'info', 'success', 'warning', 'error', 'challenge'));
+
     create index if not exists notifications_user_created_idx
       on public.notifications (user_id, created_at desc);
 

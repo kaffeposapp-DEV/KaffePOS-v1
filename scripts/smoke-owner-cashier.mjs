@@ -8,7 +8,10 @@ const apiBaseUrl = resolveStagingApiBase();
 const ownerEmail = requireEnv('KAFFEPOS_OWNER_EMAIL');
 const ownerPassword = requireEnv('KAFFEPOS_OWNER_PASSWORD');
 const runId = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
-const cashierEmail = process.env.KAFFEPOS_TEST_CASHIER_EMAIL || process.env.KAFFEPOS_CASHIER_EMAIL || deriveSmokeEmail(ownerEmail, runId);
+const configuredCashierEmail = process.env.KAFFEPOS_TEST_CASHIER_EMAIL || process.env.KAFFEPOS_CASHIER_EMAIL;
+const cashierEmail = process.env.KAFFEPOS_REUSE_FIXED_CASHIER_EMAIL === '1' && configuredCashierEmail
+  ? configuredCashierEmail
+  : deriveSmokeEmail(configuredCashierEmail || ownerEmail, runId);
 const cashierPassword = process.env.KAFFEPOS_TEST_CASHIER_PASSWORD || process.env.KAFFEPOS_CASHIER_PASSWORD || `SmokeKasir-${runId}`;
 const secondOutletName = process.env.KAFFEPOS_SECOND_OUTLET_NAME || `Smoke Outlet ${runId}`;
 
