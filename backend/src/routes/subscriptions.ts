@@ -446,7 +446,7 @@ router.post('/api/subscriptions/payments/create', requirePermission('can_manage_
         productDetails: `Langganan ${quote.planName} (${payload.billingCycle})`,
         customerName: (profile.display_name as string | null) ?? (profile.username as string | null) ?? 'KaffePOS User',
         customerEmail: (profile.email as string | null) ?? req.authUser!.email ?? null,
-        paymentMethod: env.DUITKU_DEFAULT_PAYMENT_METHOD,
+        paymentMethod: payload.paymentMethod,
         itemDetails: [{ name: `Langganan ${quote.planName}`, price: amount, quantity: 1 }],
         metadata: { plan: payload.plan, billingCycle: payload.billingCycle },
       });

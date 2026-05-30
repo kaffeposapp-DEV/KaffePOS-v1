@@ -36,6 +36,19 @@ function toDuitkuPaymentMethod(method: string | null | undefined) {
   return mapping[normalized] ?? method ?? env.DUITKU_DEFAULT_PAYMENT_METHOD;
 }
 
+function maskMerchantCode(value: string) {
+  if (value.length <= 4) return `${value.slice(0, 1)}***`;
+  return `${value.slice(0, 2)}***${value.slice(-2)}`;
+}
+
+function safeDuitkuMessage(payload: Record<string, unknown>) {
+  return stringField(payload, 'message')
+    ?? stringField(payload, 'Message')
+    ?? stringField(payload, 'statusMessage')
+    ?? stringField(payload, 'resultMessage')
+    ?? null;
+}
+
 export class DuitkuPaymentProvider implements PaymentProvider {
   providerName = 'duitku' as const;
 
@@ -67,10 +80,13 @@ export class DuitkuPaymentProvider implements PaymentProvider {
 
   async createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult> {
     const paymentAmount = Math.round(input.amount);
+    const merchantCode = this.merchantCode;
+    const paymentMethod = toDuitkuPaymentMethod(input.paymentMethod);
+    const endpointPath = '/webapi/api/merchant/v2/inquiry';
     const payload = {
-      merchantCode: this.merchantCode,
+      merchantCode,
       paymentAmount,
-      paymentMethod: toDuitkuPaymentMethod(input.paymentMethod),
+      paymentMethod,
       merchantOrderId: input.merchantOrderId,
       productDetails: input.productDetails,
       customerVaName: input.customerName || 'KaffePOS Customer',
@@ -85,20 +101,42 @@ export class DuitkuPaymentProvider implements PaymentProvider {
     };
 
     try {
-      const response = await fetch(`${this.baseUrl}/webapi/api/merchant/v2/inquiry`, {
+      log('info', 'duitku.create_payment_request', {
+        merchantCode: maskMerchantCode(merchantCode),
+        environment: env.DUITKU_ENVIRONMENT,
+        endpointPath,
+        paymentAmount,
+        paymentMethod,
+        merchantOrderId: input.merchantOrderId,
+        callbackUrlConfigured: Boolean(env.DUITKU_CALLBACK_URL),
+        returnUrlConfigured: Boolean(env.DUITKU_RETURN_URL),
+      });
+      const response = await fetch(`${this.baseUrl}${endpointPath}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(15000),
       });
       const raw = await response.json().catch(async () => ({ message: await response.text().catch(() => '') })) as Record<string, unknown>;
-      if (!response.ok) throw new ApiError(502, `Duitku create transaction gagal (${response.status}).`);
+      const paymentUrl = stringField(raw, 'paymentUrl') ?? stringField(raw, 'payment_url');
+      log(response.ok ? 'info' : 'warn', 'duitku.create_payment_response', {
+        environment: env.DUITKU_ENVIRONMENT,
+        endpointPath,
+        httpStatus: response.status,
+        paymentMethod,
+        merchantOrderId: input.merchantOrderId,
+        resultCode: stringField(raw, 'resultCode') ?? stringField(raw, 'statusCode'),
+        message: safeDuitkuMessage(raw),
+        paymentUrlPresent: Boolean(paymentUrl),
+      });
+      if (!response.ok) throw new ApiError(502, `Duitku create transaction gagal (${response.status}). ${safeDuitkuMessage(raw) ?? 'Silakan coba lagi.'}`);
+      if (!paymentUrl) throw new ApiError(502, `Duitku create transaction tidak mengembalikan paymentUrl. ${safeDuitkuMessage(raw) ?? 'Silakan coba lagi.'}`);
       const providerStatus = stringField(raw, 'statusCode') ?? stringField(raw, 'resultCode') ?? stringField(raw, 'statusMessage');
       return {
         provider: 'duitku',
         merchantOrderId: input.merchantOrderId,
         providerReference: stringField(raw, 'reference'),
-        paymentUrl: stringField(raw, 'paymentUrl') ?? stringField(raw, 'payment_url'),
+        paymentUrl,
         vaNumber: stringField(raw, 'vaNumber') ?? stringField(raw, 'accountNumber'),
         qrString: stringField(raw, 'qrString') ?? stringField(raw, 'qrCode'),
         paymentMethod: stringField(raw, 'paymentMethod') ?? String(payload.paymentMethod),

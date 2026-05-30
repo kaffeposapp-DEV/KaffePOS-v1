@@ -50,4 +50,25 @@ describe('DuitkuPaymentProvider', () => {
     const provider = new DuitkuPaymentProvider();
     expect(provider.checkTransactionSignature('ORDER-1')).toBe(hmac('D1234ORDER-1'));
   });
+
+  it('creates sandbox transaction and maps paymentUrl', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      expect(body.paymentMethod).toBe('BC');
+      expect(body.signature).toBe(hmac('D1234ORDER-149000'));
+      expect(body.merchantKey).toBeUndefined();
+      return new Response(JSON.stringify({ reference: 'REF-1', paymentUrl: 'https://sandbox.duitku.com/topup/topupdirectv2.aspx?x=1', statusCode: '00', statusMessage: 'SUCCESS' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }));
+    const provider = new DuitkuPaymentProvider();
+    const result = await provider.createPayment({ merchantOrderId: 'ORDER-1', amount: 49000, productDetails: 'Langganan', customerName: 'Tester', customerEmail: 'tester@example.com', paymentMethod: 'bca_va' });
+    expect(result.provider).toBe('duitku');
+    expect(result.paymentUrl).toContain('sandbox.duitku.com');
+    expect(result.internalStatus).toBe('pending');
+  });
+
+  it('fails clearly when Duitku omits paymentUrl', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ statusCode: '00', statusMessage: 'SUCCESS' }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    const provider = new DuitkuPaymentProvider();
+    await expect(provider.createPayment({ merchantOrderId: 'ORDER-2', amount: 49000, productDetails: 'Langganan' })).rejects.toThrow('paymentUrl');
+  });
 });
