@@ -108,7 +108,7 @@ async function createGenericSubscriptionPayment(req: Parameters<Parameters<typeo
     const voucherCode = quote.voucher?.code ?? '';
     const activeProvider = getActivePaymentProviderName();
     if (activeProvider === 'disabled') throw new ApiError(503, 'PAYMENT_DISABLED');
-    if (activeProvider === 'duitku') await ensureDuitkuSubscriptionPaymentSchema();
+    await ensureDuitkuSubscriptionPaymentSchema();
 
     const existingPending = await pool.query(
       `

@@ -383,8 +383,7 @@ router.post('/api/subscriptions/payments/create', requirePermission('can_manage_
     }
     const voucherCode = quote.voucher?.code ?? '';
     const activeProvider = getActivePaymentProviderName();
-    if (activeProvider === 'duitku') {
-      await pool.query(`
+    await pool.query(`
         alter table public.subscription_payment_sessions
           add column if not exists provider text,
           add column if not exists provider_reference text,
@@ -412,7 +411,6 @@ router.post('/api/subscriptions/payments/create', requirePermission('can_manage_
           created_at timestamptz not null default now()
         );
       `);
-    }
 
     const existingPending = await pool.query(
       `
