@@ -386,21 +386,57 @@ END $$;
 -- CHALLENGE CONSTRAINTS
 -- ============================================================================
 
--- Ensure challenge target values are positive
-ALTER TABLE public.challenges
-  DROP CONSTRAINT IF EXISTS challenges_target_positive_check;
+-- Ensure challenge numeric fields are valid.
+-- Current schema stores challenge target_value as jsonb; numeric progress is current_progress.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'challenges'
+  ) THEN
+    ALTER TABLE public.challenges
+      DROP CONSTRAINT IF EXISTS challenges_target_positive_check;
 
-ALTER TABLE public.challenges
-  ADD CONSTRAINT challenges_target_positive_check
-  CHECK (target_value > 0);
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'challenges'
+        AND column_name = 'points_reward'
+    ) THEN
+      ALTER TABLE public.challenges
+        ADD CONSTRAINT challenges_target_positive_check
+        CHECK (points_reward >= 0);
+    END IF;
+  END IF;
 
--- Ensure challenge progress is non-negative
-ALTER TABLE public.user_challenge_progress
-  DROP CONSTRAINT IF EXISTS user_challenge_progress_nonnegative_check;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'user_challenge_progress'
+  ) THEN
+    ALTER TABLE public.user_challenge_progress
+      DROP CONSTRAINT IF EXISTS user_challenge_progress_nonnegative_check;
 
-ALTER TABLE public.user_challenge_progress
-  ADD CONSTRAINT user_challenge_progress_nonnegative_check
-  CHECK (current_value >= 0);
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'user_challenge_progress'
+        AND column_name = 'current_progress'
+    ) THEN
+      ALTER TABLE public.user_challenge_progress
+        ADD CONSTRAINT user_challenge_progress_nonnegative_check
+        CHECK (current_progress >= 0);
+    ELSIF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'user_challenge_progress'
+        AND column_name = 'current_value'
+    ) THEN
+      ALTER TABLE public.user_challenge_progress
+        ADD CONSTRAINT user_challenge_progress_nonnegative_check
+        CHECK (current_value >= 0);
+    END IF;
+  END IF;
+END $$;
 
 -- ============================================================================
 -- NOTES
