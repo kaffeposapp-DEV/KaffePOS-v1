@@ -1,9 +1,9 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { ApiError, env, log, serializeError } from '../../core';
 import type { CreatePaymentInput, CreatePaymentResult, InternalPaymentStatus, PaymentProvider, PaymentStatusResult, VerifiedPaymentCallback } from '../payment-provider.types';
 
-function hmacSha256(value: string, key: string) {
-  return createHmac('sha256', key).update(value).digest('hex');
+function md5(value: string) {
+  return createHash('md5').update(value).digest('hex');
 }
 
 function safeEqual(a: string, b: string) {
@@ -27,13 +27,15 @@ function numberField(payload: Record<string, unknown>, key: string) {
 function toDuitkuPaymentMethod(method: string | null | undefined) {
   const normalized = String(method || '').trim().toLowerCase();
   const mapping: Record<string, string> = {
-    qris: 'QR',
+    qris: 'SP',
     bca_va: 'BC',
     mandiri_bill: 'M2',
     bni_va: 'I1',
     bri_va: 'BR',
   };
-  return mapping[normalized] ?? method ?? env.DUITKU_DEFAULT_PAYMENT_METHOD;
+  if (mapping[normalized]) return mapping[normalized];
+  if (normalized === 'credit_card') return 'VC';
+  return env.DUITKU_DEFAULT_PAYMENT_METHOD || 'VC';
 }
 
 function maskMerchantCode(value: string) {
@@ -67,15 +69,15 @@ export class DuitkuPaymentProvider implements PaymentProvider {
   }
 
   createTransactionSignature(merchantOrderId: string, amount: number) {
-    return hmacSha256(`${this.merchantCode}${merchantOrderId}${Math.round(amount)}`, this.merchantKey);
+    return md5(`${this.merchantCode}${merchantOrderId}${Math.round(amount)}${this.merchantKey}`);
   }
 
   checkTransactionSignature(merchantOrderId: string) {
-    return hmacSha256(`${this.merchantCode}${merchantOrderId}`, this.merchantKey);
+    return md5(`${this.merchantCode}${merchantOrderId}${this.merchantKey}`);
   }
 
   callbackSignature(amount: string | number, merchantOrderId: string) {
-    return hmacSha256(`${this.merchantCode}${amount}${merchantOrderId}`, this.merchantKey);
+    return md5(`${this.merchantCode}${amount}${merchantOrderId}${this.merchantKey}`);
   }
 
   async createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult> {
@@ -125,13 +127,14 @@ export class DuitkuPaymentProvider implements PaymentProvider {
         httpStatus: response.status,
         paymentMethod,
         merchantOrderId: input.merchantOrderId,
+        responseCode: stringField(raw, 'responseCode'),
         resultCode: stringField(raw, 'resultCode') ?? stringField(raw, 'statusCode'),
         message: safeDuitkuMessage(raw),
         paymentUrlPresent: Boolean(paymentUrl),
       });
       if (!response.ok) throw new ApiError(502, `Duitku create transaction gagal (${response.status}). ${safeDuitkuMessage(raw) ?? 'Silakan coba lagi.'}`);
       if (!paymentUrl) throw new ApiError(502, `Duitku create transaction tidak mengembalikan paymentUrl. ${safeDuitkuMessage(raw) ?? 'Silakan coba lagi.'}`);
-      const providerStatus = stringField(raw, 'statusCode') ?? stringField(raw, 'resultCode') ?? stringField(raw, 'statusMessage');
+      const providerStatus = stringField(raw, 'responseCode') ?? stringField(raw, 'statusCode') ?? stringField(raw, 'resultCode') ?? stringField(raw, 'statusMessage');
       return {
         provider: 'duitku',
         merchantOrderId: input.merchantOrderId,

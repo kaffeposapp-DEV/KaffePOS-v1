@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { createHmac } from 'node:crypto';
+import { createHash } from 'node:crypto';
 
 vi.mock('../../core', () => ({
   ApiError: class ApiError extends Error { constructor(public status: number, message: string) { super(message); } },
@@ -20,21 +20,21 @@ vi.mock('../../core', () => ({
 
 import { DuitkuPaymentProvider } from './duitku.provider';
 
-const hmac = (value: string) => createHmac('sha256', 'test-key').update(value).digest('hex');
+const md5 = (value: string) => createHash('md5').update(value).digest('hex');
 
 describe('DuitkuPaymentProvider', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('generates create transaction HMAC SHA256 signature', () => {
+  it('generates create transaction MD5 signature', () => {
     const provider = new DuitkuPaymentProvider();
-    expect(provider.createTransactionSignature('ORDER-1', 49000)).toBe(hmac('D1234ORDER-149000'));
+    expect(provider.createTransactionSignature('ORDER-1', 49000)).toBe(md5('D1234ORDER-149000test-key'));
   });
 
   it('accepts valid callback signature and maps paid status', async () => {
     const provider = new DuitkuPaymentProvider();
-    const signature = hmac('D123449000ORDER-1');
+    const signature = md5('D123449000ORDER-1test-key');
     const result = await provider.verifyCallback({ body: { merchantCode: 'D1234', amount: '49000', merchantOrderId: 'ORDER-1', resultCode: '00', reference: 'REF-1', signature } });
     expect(result.signatureValid).toBe(true);
     expect(result.internalStatus).toBe('paid');
@@ -48,14 +48,14 @@ describe('DuitkuPaymentProvider', () => {
 
   it('generates check transaction signature', () => {
     const provider = new DuitkuPaymentProvider();
-    expect(provider.checkTransactionSignature('ORDER-1')).toBe(hmac('D1234ORDER-1'));
+    expect(provider.checkTransactionSignature('ORDER-1')).toBe(md5('D1234ORDER-1test-key'));
   });
 
   it('creates sandbox transaction and maps paymentUrl', async () => {
     vi.stubGlobal('fetch', vi.fn(async (_url, init) => {
       const body = JSON.parse(String(init?.body));
       expect(body.paymentMethod).toBe('BC');
-      expect(body.signature).toBe(hmac('D1234ORDER-149000'));
+      expect(body.signature).toBe(md5('D1234ORDER-149000test-key'));
       expect(body.merchantKey).toBeUndefined();
       return new Response(JSON.stringify({ reference: 'REF-1', paymentUrl: 'https://sandbox.duitku.com/topup/topupdirectv2.aspx?x=1', statusCode: '00', statusMessage: 'SUCCESS' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }));
