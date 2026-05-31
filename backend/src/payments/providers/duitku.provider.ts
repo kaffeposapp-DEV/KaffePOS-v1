@@ -46,9 +46,14 @@ function maskMerchantCode(value: string) {
 function safeDuitkuMessage(payload: Record<string, unknown>) {
   return stringField(payload, 'message')
     ?? stringField(payload, 'Message')
+    ?? stringField(payload, 'responseMessage')
     ?? stringField(payload, 'statusMessage')
     ?? stringField(payload, 'resultMessage')
     ?? null;
+}
+
+function omitEmpty<T extends Record<string, unknown>>(payload: T) {
+  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined && value !== null && value !== '')) as Partial<T>;
 }
 
 export class DuitkuPaymentProvider implements PaymentProvider {
@@ -85,7 +90,8 @@ export class DuitkuPaymentProvider implements PaymentProvider {
     const merchantCode = this.merchantCode;
     const paymentMethod = toDuitkuPaymentMethod(input.paymentMethod);
     const endpointPath = '/webapi/api/merchant/v2/inquiry';
-    const payload = {
+    const expiryPeriod = Number(env.DUITKU_EXPIRY_PERIOD_MINUTES);
+    const payload = omitEmpty({
       merchantCode,
       paymentAmount,
       paymentMethod,
@@ -94,13 +100,11 @@ export class DuitkuPaymentProvider implements PaymentProvider {
       customerVaName: input.customerName || 'KaffePOS Customer',
       email: input.customerEmail || undefined,
       phoneNumber: input.customerPhone || undefined,
-      itemDetails: input.itemDetails,
-      customerDetail: input.customerDetail,
       callbackUrl: env.DUITKU_CALLBACK_URL,
       returnUrl: env.DUITKU_RETURN_URL,
-      expiryPeriod: env.DUITKU_EXPIRY_PERIOD_MINUTES,
+      expiryPeriod: Number.isFinite(expiryPeriod) && expiryPeriod > 0 ? expiryPeriod : undefined,
       signature: this.createTransactionSignature(input.merchantOrderId, paymentAmount),
-    };
+    });
 
     try {
       log('info', 'duitku.create_payment_request', {
@@ -128,6 +132,7 @@ export class DuitkuPaymentProvider implements PaymentProvider {
         paymentMethod,
         merchantOrderId: input.merchantOrderId,
         responseCode: stringField(raw, 'responseCode'),
+        responseMessage: stringField(raw, 'responseMessage'),
         resultCode: stringField(raw, 'resultCode') ?? stringField(raw, 'statusCode'),
         message: safeDuitkuMessage(raw),
         paymentUrlPresent: Boolean(paymentUrl),

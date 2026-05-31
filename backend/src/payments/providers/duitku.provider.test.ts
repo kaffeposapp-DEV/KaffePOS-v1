@@ -57,6 +57,22 @@ describe('DuitkuPaymentProvider', () => {
       expect(body.paymentMethod).toBe('BC');
       expect(body.signature).toBe(md5('D1234ORDER-149000test-key'));
       expect(body.merchantKey).toBeUndefined();
+      expect(body.expiryPeriod).toBe(60);
+      expect(body.itemDetails).toBeUndefined();
+      expect(body.customerDetail).toBeUndefined();
+      expect(Object.keys(body).sort()).toEqual([
+        'callbackUrl',
+        'customerVaName',
+        'email',
+        'expiryPeriod',
+        'merchantCode',
+        'merchantOrderId',
+        'paymentAmount',
+        'paymentMethod',
+        'productDetails',
+        'returnUrl',
+        'signature',
+      ].sort());
       return new Response(JSON.stringify({ reference: 'REF-1', paymentUrl: 'https://sandbox.duitku.com/topup/topupdirectv2.aspx?x=1', statusCode: '00', statusMessage: 'SUCCESS' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }));
     const provider = new DuitkuPaymentProvider();
