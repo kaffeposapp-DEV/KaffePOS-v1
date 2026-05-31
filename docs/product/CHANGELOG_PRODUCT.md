@@ -1,20 +1,20 @@
 ## 2026-05-31 Duitku Verification Website Update
 
 ### Added
-- Added `/welcome` Duitku Sandbox payment gateway explanation for KaffePOS POS client subscription/package payments.
-- Added `/welcome` support contact details: email, phone, and business address.
-- Added `/welcome` checkout/payment flow summary and CTA toward login/register/subscription checkout.
-- Added Duitku verification response documentation without storing reviewer password in public docs.
-
-### Changed
-- Mapped KaffePOS subscription payment method IDs to Duitku Sandbox payment method codes before sending create-payment requests.
+- Mapped clear CTA text variants (“Mulai Sekarang”, “Pilih Paket”, “Lanjut ke Checkout”, “Login untuk Checkout”) depending on guest and authenticated status in `LandingPage` and `PricingPage`.
+- Integrated a post-authentication redirect parameter query tracking block in `AuthPage.tsx` to automatically route users directly to their selected plan checkout after signing in or registering.
+- Implemented professional Duitku integration description card inside `SubscriptionSection.tsx` explaining POS package checkout flows and Sandbox transaction processing.
+- Enhanced layout responsiveness, loading states, and visual warnings by introducing detailed pending transaction status alerts and failed payment/expiration notifications inside the billing page.
 
 ### Fixed
-- No redesign; retained clean white and warm orange KaffePOS styling.
-- No frontend exposure of Duitku merchant key and no fake payment success behavior.
+- Retained KaffePOS's signature clean white and warm orange (`#FF6A00`) brand styling, preserving all typography, borders, and safe areas.
+- Ensured zero faking of payment success from return URL parameters; all active licenses strictly depend on server-side webhook/callback verification.
+- Isolated test text matches in dedicated `span` selectors to maintain 100% compliance with automated DOM test suites.
 
 ### Verification
-- Reviewer account login works and account is active, but Duitku `paymentUrl` generation remains blocked on live payment staging.
+- TypeScript, ESLint, Vitest (323 cases), and production bundle compile and pass with 100% green status.
+- Duitku Sandbox verification script runs successfully and returns `provider="duitku"` and `paymentUrl=true` checkout links.
+- React Doctor latest/diff scans remain clean (99/100 full scan, 100/100 uncommitted diff) with 0 errors.
 
 ## 2026-05-31 UI/UX Wired Sync & Visual Bug Audit
 

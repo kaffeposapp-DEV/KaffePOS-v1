@@ -229,6 +229,12 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
         <h2 className="mt-1 text-xl font-black text-slate-900">Paket Aktif</h2>
       </div>
 
+      <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
+        <p className="text-[11px] font-bold leading-relaxed text-slate-500">
+          <strong>Sistem Pembayaran KaffePOS:</strong> Payment gateway Duitku digunakan untuk pembayaran paket/langganan oleh pemilik usaha yang menggunakan sistem POS KaffePOS. Setelah checkout, Anda akan diarahkan ke halaman gerbang pembayaran Duitku Sandbox yang aman. Status lisensi diperbarui secara otomatis setelah pembayaran sukses dikonfirmasi oleh server.
+        </p>
+      </div>
+
       {/* ── HERO STATUS CARD ── */}
       <div className="kaffe-subscription-card relative overflow-hidden rounded-[32px] p-6 md:p-8">
         <div className="relative flex min-w-0 flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
@@ -314,25 +320,47 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
       {(expiringSoon || activePendingPayment || failedPayment || !onlinePaymentAvailable) && (
         <div className="space-y-3">
           {activePendingPayment && (
-            <div className="flex items-start gap-4 rounded-3xl border border-amber-100 bg-amber-50 p-5">
+            <div className="flex items-start gap-4 rounded-3xl border border-amber-100 bg-amber-50 p-5 animate-in fade-in duration-300">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-200/50 text-amber-600">
-                <Clock3 size={20} />
+                <Clock3 size={20} className="animate-pulse" />
               </div>
-          <div className="min-w-0 flex-1">
-                <p className="text-sm font-black text-amber-900">Pembayaran sedang diproses</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-black text-amber-900">Transaksi Duitku Sedang Diverifikasi</p>
                 <p className="mt-1 break-words text-xs font-medium text-amber-700 leading-relaxed">
-                  Paket {getPlanDefinition(activePendingPayment.plan).name} ({BILLING_CYCLE_LABELS[(activePendingPayment.billing_cycle as BillingCycle) || 'monthly']}) sebesar {formatRupiah(activePendingPayment.amount)} belum terverifikasi.
+                  Kami sedang menunggu konfirmasi pembayaran untuk paket {getPlanDefinition(activePendingPayment.plan).name} ({BILLING_CYCLE_LABELS[(activePendingPayment.billing_cycle as BillingCycle) || 'monthly']}) sebesar {formatRupiah(activePendingPayment.amount)}.
                 </p>
-                <p className="mt-1 text-xs font-bold text-amber-800">Lisensi belum aktif sampai pembayaran sukses.</p>
+                <p className="mt-2 text-xs font-bold text-amber-800">
+                  <span>Lisensi belum aktif sampai pembayaran sukses.</span>
+                  <span className="block mt-1">Status pembayaran sedang diverifikasi otomatis oleh callback aman Duitku. Anda dapat merefresh halaman jika pembayaran sudah diselesaikan.</span>
+                </p>
                 {activePendingPayment.redirect_url && (
-                  <a
-                    href={activePendingPayment.redirect_url}
-                    className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl bg-amber-700 px-4 text-xs font-black text-white shadow-sm transition-all active:scale-95"
-                  >
-                    Lanjutkan Pembayaran
-                    <ExternalLink size={14} />
-                  </a>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <a
+                      href={activePendingPayment.redirect_url}
+                      className="inline-flex h-10 items-center gap-2 rounded-xl bg-amber-700 px-4 text-xs font-black text-white shadow-sm transition-all active:scale-95 hover:bg-amber-800"
+                    >
+                      Lanjutkan Pembayaran
+                      <ExternalLink size={14} />
+                    </a>
+                  </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {failedPayment && (
+            <div className="flex items-start gap-4 rounded-3xl border border-red-100 bg-red-50 p-5 animate-in fade-in duration-300">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-red-200/50 text-red-600">
+                <AlertCircle size={20} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-black text-red-950">Transaksi Terakhir Belum Berhasil</p>
+                <p className="mt-1 break-words text-xs font-medium text-red-900 leading-relaxed">
+                  Pembayaran untuk paket {getPlanDefinition(failedPayment.plan).name} sebesar {formatRupiah(failedPayment.amount)} dibatalkan, ditolak, atau telah kedaluwarsa.
+                </p>
+                <p className="mt-2 text-xs font-bold text-red-800">
+                  Silakan buat transaksi baru jika Anda ingin mengaktifkan langganan KaffePOS. Hubungi tim dukungan KaffePOS jika Anda mengalami kendala pembayaran.
+                </p>
               </div>
             </div>
           )}

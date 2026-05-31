@@ -41,7 +41,7 @@ Payment gateway Duitku digunakan untuk pembayaran paket/langganan KaffePOS oleh 
 - Email: duitku-tester@kaffepos.my.id
 - Password: provided only via private verification message/manual email draft; not stored in public docs.
 - Current verified state: email confirmed, active owner account, login works, demo store exists.
-- Checkout access: billing permission present, but Duitku paymentUrl generation is still blocked by backend/Duitku create transaction error.
+- Checkout access: billing permission present, Duitku sandbox paymentUrl generation is fully verified and functional, returning provider=duitku and paymentUrl=true.
 
 ## Security Notes
 

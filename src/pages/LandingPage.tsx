@@ -581,6 +581,10 @@ export default function LandingPage() {
       navigate('/register');
       return;
     }
+    if (!isAuthenticated) {
+      navigate(`/login?redirect=${encodeURIComponent(`/plan-confirmation?plan=${plan}&billingCycle=${cycle}`)}`);
+      return;
+    }
     navigate(`/plan-confirmation?plan=${plan}&billingCycle=${cycle}`);
   };
 
@@ -922,7 +926,12 @@ export default function LandingPage() {
               selectedCycle={pricingCycle}
               onCycleChange={setPricingCycle}
               onSelectPlan={handlePricingSelect}
-              ctaLabel={(plan) => (plan === 'secangkir' ? 'Mulai Gratis' : 'Pilih Paket')}
+              ctaLabel={(plan) => {
+                if (plan === 'secangkir') {
+                  return 'Mulai Sekarang';
+                }
+                return isAuthenticated ? 'Lanjut ke Checkout' : 'Login untuk Checkout';
+              }}
             />
             <div className="kaffe-cta-band mt-6 flex flex-col gap-4 rounded-[24px] p-6 md:flex-row md:items-center md:justify-between md:p-8">
               <div className="flex min-w-0 items-start gap-5">

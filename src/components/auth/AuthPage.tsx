@@ -95,6 +95,11 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const isNative = Capacitor.isNativePlatform();
 
+  const redirectUrl = useMemo(() => {
+    const params = new URLSearchParams(search);
+    return params.get('redirect') || '/';
+  }, [search]);
+
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
@@ -160,10 +165,10 @@ export default function AuthPage() {
       localStorage.removeItem('kaffepos_registered_email');
       sessionStorage.removeItem('kaffepos_registered_email');
       if (mode !== 'reset') {
-        navigate('/', { replace: true });
+        navigate(redirectUrl, { replace: true });
       }
     }
-  }, [isAuthenticated, mode, navigate]);
+  }, [isAuthenticated, mode, navigate, redirectUrl]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | undefined;
@@ -256,13 +261,13 @@ export default function AuthPage() {
         setOk('Akun berhasil diverifikasi. Silakan login untuk melanjutkan.');
         return;
       }
-      navigate('/', { replace: true });
+      navigate(redirectUrl, { replace: true });
     } catch (e: any) {
       setErr(normalizeUserFacingError(e, 'Verifikasi belum bisa diproses. Coba lagi.'));
     } finally {
       setConfirming(false);
     }
-  }, [email, navigate, pass, signIn, verificationCode, verifyEmailCode, switchMode]);
+  }, [email, navigate, pass, signIn, verificationCode, verifyEmailCode, switchMode, redirectUrl]);
 
   const handleCancelVerification = useCallback(() => {
     setRegistered(false);
@@ -310,7 +315,7 @@ export default function AuthPage() {
             setErr(result.error);
           }
         } else {
-          navigate('/', { replace: true });
+          navigate(redirectUrl, { replace: true });
         }
       } else if (mode === 'register') {
         if (!uname) {
