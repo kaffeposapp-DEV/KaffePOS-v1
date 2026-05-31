@@ -15,6 +15,25 @@ interface ToastItemProps {
   onDismiss: (id: string) => void;
 }
 
+const TOAST_STYLES = {
+  success: {
+    bg: 'bg-slate-900 border-green-500/40',
+    icon: <CheckCircle2 size={18} className="text-green-400 shrink-0" />,
+  },
+  warning: {
+    bg: 'bg-slate-900 border-yellow-500/40',
+    icon: <AlertTriangle size={18} className="text-yellow-400 shrink-0" />,
+  },
+  error: {
+    bg: 'bg-slate-900 border-red-500/40',
+    icon: <XCircle size={18} className="text-red-400 shrink-0" />,
+  },
+  info: {
+    bg: 'bg-slate-900 border-blue-500/40',
+    icon: <Info size={18} className="text-blue-400 shrink-0" />,
+  },
+};
+
 function ToastItem({ toast, onDismiss }: ToastItemProps) {
   const duration = toast.duration ?? 4000;
 
@@ -24,26 +43,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
     return () => clearTimeout(t);
   }, [toast.id, duration, onDismiss]);
 
-  const styles = {
-    success: {
-      bg: 'bg-slate-900 border-green-500/40',
-      icon: <CheckCircle2 size={18} className="text-green-400 shrink-0" />,
-    },
-    warning: {
-      bg: 'bg-slate-900 border-yellow-500/40',
-      icon: <AlertTriangle size={18} className="text-yellow-400 shrink-0" />,
-    },
-    error: {
-      bg: 'bg-slate-900 border-red-500/40',
-      icon: <XCircle size={18} className="text-red-400 shrink-0" />,
-    },
-    info: {
-      bg: 'bg-slate-900 border-blue-500/40',
-      icon: <Info size={18} className="text-blue-400 shrink-0" />,
-    },
-  };
-
-  const s = styles[toast.type];
+  const s = TOAST_STYLES[toast.type];
 
   return (
     <div className={`flex items-start gap-3 ${s.bg} border rounded-xl px-4 py-3 shadow-2xl min-w-[280px] max-w-[360px] animate-in slide-in-from-bottom-4`}>

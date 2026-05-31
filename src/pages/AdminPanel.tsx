@@ -52,6 +52,16 @@ type ProfileRow = {
 const TABS = ['activate', 'subscriptions', 'history'] as const;
 const ADMIN_PLAN_IDS = ACTIVE_SUBSCRIPTION_PLAN_IDS;
 
+async function activateSubscriptionForAdmin(userId: string, plan: string, billingCycle: string, amount: number, note: string) {
+  await activateAdminSubscription({
+    userId,
+    plan,
+    billingCycle,
+    paymentAmount: amount,
+    paymentNote: note,
+  });
+}
+
 export default function AdminPanel() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<typeof TABS[number]>('activate');
@@ -139,15 +149,6 @@ export default function AdminPanel() {
     );
   }
 
-  const activateSubscription = async (userId: string, plan: string, billingCycle: string, amount: number, note: string) => {
-    await activateAdminSubscription({
-      userId,
-      plan,
-      billingCycle,
-      paymentAmount: amount,
-      paymentNote: note,
-    });
-  };
 
   const handleActivate = async () => {
     setSaving(true);
@@ -157,7 +158,7 @@ export default function AdminPanel() {
       const targetProfile = profiles.find((entry) => entry.email?.toLowerCase() === targetEmail);
       if (!targetProfile?.id) throw new Error('Email user tidak ditemukan.');
 
-      await activateSubscription(
+      await activateSubscriptionForAdmin(
         targetProfile.id,
         form.plan,
         form.billingCycle,
@@ -178,7 +179,7 @@ export default function AdminPanel() {
     setSaving(true);
     setFeedback(null);
     try {
-      await activateSubscription(
+      await activateSubscriptionForAdmin(
         row.user_id,
         row.plan,
         row.billing_cycle,

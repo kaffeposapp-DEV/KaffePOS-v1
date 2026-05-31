@@ -24,6 +24,21 @@ import { trackOpsEvent } from '@/lib/opsMetrics';
 const fRp  = (n: number) => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',minimumFractionDigits:0}).format(n||0);
 const fNum = (n: number) => new Intl.NumberFormat('id-ID').format(n||0);
 type Period = 'harian'|'mingguan'|'bulanan'|'custom'|'semua';
+const STAT_CARD_CLASSES: Record<string, string> = {
+  orange: 'bg-orange-50 text-[#FF6A00] border-orange-100',
+  green: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+  blue: 'bg-blue-50 text-blue-600 border-blue-100',
+  red: 'bg-rose-50 text-rose-600 border-rose-100',
+};
+
+const REPORT_PERIODS = [
+  { id: 'harian', l: 'Hari Ini', requiresAdvanced: false },
+  { id: 'mingguan', l: '7 Hari', requiresAdvanced: true },
+  { id: 'bulanan', l: 'Bulan Ini', requiresAdvanced: true },
+  { id: 'custom', l: 'Custom', requiresAdvanced: true },
+  { id: 'semua', l: 'Semua', requiresAdvanced: false },
+] as const;
+
 const COLORS = ['#FF6A00','#3b82f6','#10b981','#8b5cf6','#ef4444','#ec4899','#f59e0b','#06b6d4'];
 const getExpenseSource = (expense: { source?: string; category?: string }) =>
   expense.source || (expense.category === 'Bahan Baku' ? 'inventory' : 'cashier');
@@ -104,15 +119,9 @@ function HBar({ items, max }: { items:{label:string;value:number;sub?:string}[];
 }
 
 function StatCard({ label, value, sub, icon, color='orange' }: { label:string; value:string; sub?:string; icon:React.ReactNode; color?:string }) {
-  const cls: Record<string, string> = {
-    orange:'bg-orange-50 text-[#FF6A00] border-orange-100',
-    green:'bg-emerald-50 text-emerald-600 border-emerald-100',
-    blue:'bg-blue-50 text-blue-600 border-blue-100',
-    red:'bg-rose-50 text-rose-600 border-rose-100'
-  };
   return (
     <div className="kaffe-action-card min-w-0 bg-white rounded-[28px] border border-slate-100 p-5 shadow-soft hover:shadow-premium transition-all group">
-      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center mb-4 border transition-transform group-hover:scale-110 ${cls[color] || cls.orange}`}>{icon}</div>
+      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center mb-4 border transition-transform group-hover:scale-110 ${STAT_CARD_CLASSES[color] || STAT_CARD_CLASSES.orange}`}>{icon}</div>
       <p className="font-black text-[18px] text-slate-800 leading-tight italic tracking-tighter">{value}</p>
       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">{label}</p>
       {sub&&<p className="text-[10px] text-slate-500 font-bold mt-1.5 opacity-80">{sub}</p>}
@@ -480,7 +489,6 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
     }
   };
 
-  const PERIODS=[{id:'harian',l:'Hari Ini', requiresAdvanced:false},{id:'mingguan',l:'7 Hari', requiresAdvanced:true},{id:'bulanan',l:'Bulan Ini', requiresAdvanced:true},{id:'custom',l:'Custom', requiresAdvanced:true},{id:'semua',l:'Semua', requiresAdvanced:false}] as const;
   const hasAnyReportData = filtered.length > 0 || filteredExp.length > 0 || filteredCR.length > 0;
 
   return (
@@ -514,7 +522,7 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
           </div>
         </div>
         <div className="kaffe-scroll-tabs kaffe-command-bar flex gap-6 overflow-x-auto no-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6 border-b border-slate-50">
-          {PERIODS.map((p) => {
+          {REPORT_PERIODS.map((p) => {
             const locked = p.requiresAdvanced && !canUseAdvancedPeriods;
             const active = period === p.id;
             return (

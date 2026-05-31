@@ -13,6 +13,8 @@ import { useModalBehavior } from '@/hooks/useModalBehavior';
 
 const fRp = (n: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
 
+const QUICK_AMOUNTS = [50000, 100000, 200000, 500000];
+
 interface Props {
   onClose: () => void;
   cashierName: string;
@@ -53,7 +55,6 @@ export default function CashRegisterModal({ onClose, cashierName, toast, existin
       .catch((e:any) => toast.showToast('⚠ Gagal simpan: ' + (e?.message || ''), 'warning'));
   };
 
-  const quickAmounts = [50000, 100000, 200000, 500000];
   const { panelRef, onBackdropClick, dialogProps } = useModalBehavior<HTMLDivElement>({
     open: true,
     onClose,
@@ -102,7 +103,7 @@ export default function CashRegisterModal({ onClose, cashierName, toast, existin
         </div>
 
         <div className="flex gap-2 mb-4 flex-wrap">
-          {quickAmounts.map(amt => (
+          {QUICK_AMOUNTS.map(amt => (
             <button key={amt} onClick={() => setAmount(String(amt))}
               className="px-3 py-1.5 bg-slate-100 rounded-xl text-xs font-bold text-slate-600 active:scale-95">
               {fRp(amt)}

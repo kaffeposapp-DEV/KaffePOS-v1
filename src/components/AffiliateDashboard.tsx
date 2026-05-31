@@ -5,6 +5,32 @@ import { formatCurrency } from '@/utils/formatCurrency';
 import { formatDate } from '@/utils/formatDate';
 import type { AffiliateDashboardData as AffiliateDashboardType } from '@/types/affiliate';
 
+const AFFILIATE_STATUS_STYLES = {
+  pending: 'bg-yellow-100 text-yellow-800',
+  eligible: 'bg-blue-100 text-blue-800',
+  approved: 'bg-green-100 text-green-800',
+  paid: 'bg-gray-100 text-gray-800',
+  rejected: 'bg-red-100 text-red-800',
+  cancelled: 'bg-gray-100 text-gray-600',
+};
+
+const AFFILIATE_STATUS_LABELS = {
+  pending: 'Menunggu',
+  eligible: 'Memenuhi Syarat',
+  approved: 'Disetujui',
+  paid: 'Dibayar',
+  rejected: 'Ditolak',
+  cancelled: 'Dibatalkan',
+};
+
+function getAffiliateStatusBadge(status: string) {
+  return AFFILIATE_STATUS_STYLES[status as keyof typeof AFFILIATE_STATUS_STYLES] || 'bg-gray-100 text-gray-800';
+}
+
+function getAffiliateStatusLabel(status: string) {
+  return AFFILIATE_STATUS_LABELS[status as keyof typeof AFFILIATE_STATUS_LABELS] || status;
+}
+
 export function AffiliateDashboard() {
   const [dashboard, setDashboard] = useState<AffiliateDashboardType | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,29 +84,6 @@ export function AffiliateDashboard() {
   const paid_commission_idr = dashboard.paid_commission;
   const recent_commissions = dashboard.commission_history;
 
-  const getStatusBadge = (status: string) => {
-    const styles = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      eligible: 'bg-blue-100 text-blue-800',
-      approved: 'bg-green-100 text-green-800',
-      paid: 'bg-gray-100 text-gray-800',
-      rejected: 'bg-red-100 text-red-800',
-      cancelled: 'bg-gray-100 text-gray-600',
-    };
-    return styles[status as keyof typeof styles] || 'bg-gray-100 text-gray-800';
-  };
-
-  const getStatusLabel = (status: string) => {
-    const labels = {
-      pending: 'Menunggu',
-      eligible: 'Memenuhi Syarat',
-      approved: 'Disetujui',
-      paid: 'Dibayar',
-      rejected: 'Ditolak',
-      cancelled: 'Dibatalkan',
-    };
-    return labels[status as keyof typeof labels] || status;
-  };
 
   return (
     <div className="space-y-6">
@@ -202,8 +205,8 @@ export function AffiliateDashboard() {
                       {formatCurrency(commission.commission_amount_idr ?? commission.amount ?? 0)}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(commission.status)}`}>
-                        {getStatusLabel(commission.status)}
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getAffiliateStatusBadge(commission.status)}`}>
+                        {getAffiliateStatusLabel(commission.status)}
                       </span>
                     </td>
                   </tr>

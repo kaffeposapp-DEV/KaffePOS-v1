@@ -101,6 +101,10 @@ function DashboardCard({
   );
 }
 
+function openDashboardTab(targetTab: Tab) {
+  window.dispatchEvent(new CustomEvent('kaffepos-open-tab', { detail: { tab: targetTab } }));
+}
+
 export default function Dashboard() {
   const { subscriptionAccess } = useAuth();
   const {
@@ -285,10 +289,6 @@ export default function Dashboard() {
     }
   };
 
-  const openTab = (targetTab: Tab) => {
-    window.dispatchEvent(new CustomEvent('kaffepos-open-tab', { detail: { tab: targetTab } }));
-  };
-
   if (loading && transactions.length === 0 && inventory.length === 0) {
     return (
       <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 text-slate-400">
@@ -400,7 +400,7 @@ export default function Dashboard() {
               </div>
               <button
                 type="button"
-                onClick={() => openTab('settings')}
+                onClick={() => openDashboardTab('settings')}
                 className="inline-flex h-11 shrink-0 items-center justify-center rounded-2xl bg-white px-4 text-xs font-black uppercase tracking-widest text-orange-700 ring-1 ring-orange-100 transition-all active:scale-95 hover:bg-orange-100"
               >
                 Lihat Paket
@@ -430,7 +430,7 @@ export default function Dashboard() {
                 <button
                   key={step.id}
                   type="button"
-                  onClick={() => openTab(step.targetTab)}
+                  onClick={() => openDashboardTab(step.targetTab)}
                   className={`rounded-xl border p-4 text-left transition-all active:scale-[0.98] ${
                     step.done
                       ? 'border-emerald-100 bg-emerald-50'
@@ -466,7 +466,7 @@ export default function Dashboard() {
             </div>
             <button
               type="button"
-              onClick={() => openTab('warehouse')}
+              onClick={() => openDashboardTab('warehouse')}
               className="mt-4 w-full rounded-xl bg-rose-600 px-4 py-3 text-xs font-black uppercase tracking-wider text-white active:scale-95 md:mt-0 md:w-auto"
             >
               Buka Stok

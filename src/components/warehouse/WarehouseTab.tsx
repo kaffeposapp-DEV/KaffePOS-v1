@@ -36,6 +36,15 @@ interface WarehouseForm {
   type: 'new' | 'edit' | 'restock';
 }
 
+const WAREHOUSE_SECTION_ITEMS = [
+  { id: 'summary', label: 'Ringkasan Stok', icon: Archive },
+  { id: 'ingredients', label: 'Bahan Baku', icon: Plus },
+  { id: 'conversions', label: 'Konversi Satuan', icon: RefreshCw },
+  { id: 'recipes', label: 'Resep / Porsi', icon: ChefHat },
+  { id: 'hpp', label: 'HPP & Margin', icon: Calculator },
+  { id: 'import', label: 'Impor Bulk', icon: Upload },
+] as const;
+
 export default function WarehouseTab({ toast }: { toast:any }) {
   const {
     inventory,
@@ -106,14 +115,6 @@ export default function WarehouseTab({ toast }: { toast:any }) {
     setOpnameForm({ countedStock: String(item.stock), reason: 'Opname stok fisik', note: '' });
   };
 
-  const sectionItems = [
-    { id: 'summary', label: 'Ringkasan Stok', icon: Archive },
-    { id: 'ingredients', label: 'Bahan Baku', icon: Plus },
-    { id: 'conversions', label: 'Konversi Satuan', icon: RefreshCw },
-    { id: 'recipes', label: 'Resep / Porsi', icon: ChefHat },
-    { id: 'hpp', label: 'HPP & Margin', icon: Calculator },
-    { id: 'import', label: 'Impor Bulk', icon: Upload },
-  ] as const;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -285,7 +286,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
         </p>
 
         <div className="kaffe-scroll-tabs flex gap-2 overflow-x-auto pb-2 mb-3">
-          {sectionItems.map(({ id, label, icon: Icon }) => (
+          {WAREHOUSE_SECTION_ITEMS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setSection(id)}

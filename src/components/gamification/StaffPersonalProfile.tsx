@@ -264,11 +264,11 @@ function PerformanceLoadingState() {
   );
 }
 
-function EmptyPerformanceState({ isOwner }: { isOwner: boolean }) {
-  const openPos = () => {
-    window.dispatchEvent(new CustomEvent('kaffepos-open-tab', { detail: { tab: 'pos' } }));
-  };
+function openPosTab() {
+  window.dispatchEvent(new CustomEvent('kaffepos-open-tab', { detail: { tab: 'pos' } }));
+}
 
+function EmptyPerformanceState({ isOwner }: { isOwner: boolean }) {
   return (
     <section className="kaffe-panel rounded-2xl border-dashed p-5 md:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -289,7 +289,7 @@ function EmptyPerformanceState({ isOwner }: { isOwner: boolean }) {
         </div>
         <button
           type="button"
-          onClick={openPos}
+          onClick={openPosTab}
           className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#FF6A00] px-4 text-xs font-black uppercase tracking-wider text-white shadow-[0_12px_26px_rgba(255,106,0,0.18)] transition-all active:scale-95 hover:-translate-y-0.5"
         >
           Buka Kasir

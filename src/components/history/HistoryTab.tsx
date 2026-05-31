@@ -24,7 +24,14 @@ const HistorySkeleton = memo(function HistorySkeleton() {
   return <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-24 rounded-[24px] bg-slate-100 animate-pulse" />)}</div>;
 });
 
-type Period = 'today' | '7d' | '30d' | 'all';
+type Period = 'today'|'7d'|'30d'|'all';
+
+const HISTORY_PERIODS: { id: Period; label: string }[] = [
+  { id: 'today', label: 'Hari Ini' },
+  { id: '7d', label: '7 Hari' },
+  { id: '30d', label: '30 Hari' },
+  { id: 'all', label: 'Semua' },
+];
 
 export default function HistoryTab({
   toast,
@@ -109,12 +116,6 @@ export default function HistoryTab({
     disabled: voiding,
   });
 
-  const PERIODS: { id: Period; label: string }[] = [
-    { id: 'today', label: 'Hari Ini' },
-    { id: '7d',    label: '7 Hari' },
-    { id: '30d',   label: '30 Hari' },
-    { id: 'all',   label: 'Semua' },
-  ];
 
   return (
     <div className="kaffe-responsive-surface flex-1 flex flex-col overflow-hidden bg-white lg:bg-slate-50/50">
@@ -146,7 +147,7 @@ export default function HistoryTab({
 
         {/* Period filter */}
         <div className="kaffe-scroll-tabs kaffe-command-bar flex gap-4 overflow-x-auto no-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6 border-b border-slate-50">
-          {PERIODS.map(p => (
+          {HISTORY_PERIODS.map(p => (
             <button
               key={p.id}
               onClick={() => setPeriod(p.id)}

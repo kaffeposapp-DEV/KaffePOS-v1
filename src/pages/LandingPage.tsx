@@ -340,11 +340,16 @@ const FAQS = [
 
 void PRICING;
 
+const DASHBOARD_PREVIEW_CHART_BARS = [32, 44, 38, 52, 68, 48, 59, 76, 62, 84, 95, 118];
+const DASHBOARD_PREVIEW_TOP_PRODUCTS = ['Americano', 'Latte', 'Cappuccino', 'Caramel Macchiato'];
+const MOBILE_CHECKOUT_ROWS = [
+  ['Americano', 'Rp 18.000'],
+  ['Latte', 'Rp 22.000'],
+  ['Cappuccino', 'Rp 22.000'],
+  ['Caramel Macchiato', 'Rp 24.000'],
+];
 
 function DashboardPreview() {
-  const chartBars = [32, 44, 38, 52, 68, 48, 59, 76, 62, 84, 95, 118];
-  const topProducts = ['Americano', 'Latte', 'Cappuccino', 'Caramel Macchiato'];
-
   return (
     <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_26px_80px_rgba(15,23,42,0.12)]">
       <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
@@ -394,7 +399,7 @@ function DashboardPreview() {
             <div className="rounded-lg border border-slate-100 bg-white p-4 shadow-sm">
               <p className="text-xs font-extrabold text-slate-900">Grafik Penjualan</p>
               <div className="mt-5 flex h-36 items-end gap-2 border-b border-l border-slate-100 pl-2">
-                {chartBars.map((height, index) => (
+                {DASHBOARD_PREVIEW_CHART_BARS.map((height, index) => (
                   <div
                     key={`${height}-${index}`}
                     className="flex-1 rounded-t bg-[#FF6A00]"
@@ -406,7 +411,7 @@ function DashboardPreview() {
             <div className="rounded-lg border border-slate-100 bg-white p-4 shadow-sm">
               <p className="mb-3 text-xs font-extrabold text-slate-900">Penjualan Terlaris</p>
               <div className="space-y-3">
-                {topProducts.map((item, index) => (
+                {DASHBOARD_PREVIEW_TOP_PRODUCTS.map((item, index) => (
                   <div key={item} className="flex items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-2">
                       <div className="h-8 w-8 rounded-lg bg-orange-100" />
@@ -427,13 +432,6 @@ function DashboardPreview() {
 }
 
 function MobileCheckoutPreview() {
-  const rows = [
-    ['Americano', 'Rp 18.000'],
-    ['Latte', 'Rp 22.000'],
-    ['Cappuccino', 'Rp 22.000'],
-    ['Caramel Macchiato', 'Rp 24.000'],
-  ];
-
   return (
     <div className="w-[210px] overflow-hidden rounded-[30px] border-[8px] border-slate-900 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.22)]">
       <div className="flex items-center justify-between px-4 py-3 text-[10px] font-bold text-slate-900">
@@ -449,7 +447,7 @@ function MobileCheckoutPreview() {
           Cari produk
         </div>
         <div className="space-y-3">
-          {rows.map(([name, price]) => (
+          {MOBILE_CHECKOUT_ROWS.map(([name, price]) => (
             <div key={name} className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <div className="h-8 w-8 rounded-lg bg-orange-100" />

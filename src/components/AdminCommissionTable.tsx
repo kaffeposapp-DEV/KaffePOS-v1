@@ -5,6 +5,19 @@ import { formatCurrency } from '@/utils/formatCurrency';
 import { formatDate } from '@/utils/formatDate';
 import type { AdminCommissionListItem, CommissionStatus } from '@/types/affiliate';
 
+const ADMIN_COMMISSION_STATUS_STYLES = {
+  pending: 'bg-yellow-100 text-yellow-800',
+  eligible: 'bg-blue-100 text-blue-800',
+  approved: 'bg-green-100 text-green-800',
+  paid: 'bg-gray-100 text-gray-800',
+  rejected: 'bg-red-100 text-red-800',
+  cancelled: 'bg-gray-100 text-gray-600',
+};
+
+function getAdminCommissionStatusBadge(status: string) {
+  return ADMIN_COMMISSION_STATUS_STYLES[status as keyof typeof ADMIN_COMMISSION_STATUS_STYLES] || 'bg-gray-100 text-gray-800';
+}
+
 export function AdminCommissionTable() {
   const [commissions, setCommissions] = useState<AdminCommissionListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,17 +86,6 @@ export function AdminCommissionTable() {
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    const styles = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      eligible: 'bg-blue-100 text-blue-800',
-      approved: 'bg-green-100 text-green-800',
-      paid: 'bg-gray-100 text-gray-800',
-      rejected: 'bg-red-100 text-red-800',
-      cancelled: 'bg-gray-100 text-gray-600',
-    };
-    return styles[status as keyof typeof styles] || 'bg-gray-100 text-gray-800';
-  };
 
   if (loading) {
     return (
@@ -150,7 +152,7 @@ export function AdminCommissionTable() {
                     {formatCurrency(commission.commission_amount_idr ?? commission.amount ?? 0)}
                   </td>
                   <td className="py-3 px-4 text-center">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(commission.status)}`}>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getAdminCommissionStatusBadge(commission.status)}`}>
                       {commission.status}
                     </span>
                   </td>

@@ -24,15 +24,16 @@ interface Props {
   toast: { showToast: (m: string, t?:any) => void };
 }
 
+function getExpenseSource(expense: { source?: string; category?: string }) {
+  return expense.source || (expense.category === 'Bahan Baku' ? 'inventory' : 'cashier');
+}
+
 export default function ExpenseModal({ onClose, cashierName, toast }: Props) {
   const { saveExpense, expenses, cashRegister } = useStore();
   const [amount, setAmount]       = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory]   = useState('Operasional');
   const [saving, setSaving]       = useState(false);
-
-  const getExpenseSource = (expense: { source?: string; category?: string }) =>
-    expense.source || (expense.category === 'Bahan Baku' ? 'inventory' : 'cashier');
 
   const numVal = parseInt(amount.replace(/\D/g, '')) || 0;
 

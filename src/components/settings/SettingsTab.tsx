@@ -146,7 +146,6 @@ function ReceiptPreview({ s }: { s:any }) {
   const dc = getReceiptDividerChar(settings.receipt_divider);
   const W  = getReceiptPreviewWidth(settings.paper_width);
   const fs = getReceiptFontPx(settings.receipt_font_size);
-  const fRp = (n: number) => formatReceiptCurrency(n);
   const div = dc.repeat(Math.floor(W/7));
   const tax = Math.round(68000*(settings.tax_percent||0)/100);
   return (
@@ -164,14 +163,14 @@ function ReceiptPreview({ s }: { s:any }) {
         {settings.receipt_show_cashier&&<div style={{fontSize:fs-1,color:'#64748b'}}>Kasir: kasir1</div>}
         <div style={{color:'#94a3b8',margin:'4px 0'}}>{div}</div>
         {[{n:'Kopi Susu',q:2,p:25000},{n:'Teh Tarik',q:1,p:18000}].map((i,idx)=>(
-          <div key={idx}><div style={{fontWeight:'bold'}}>{i.n}</div><div style={{display:'flex',justifyContent:'space-between',paddingLeft:8}}><span>{i.q}x {fRp(i.p)}</span><span>{fRp(i.q*i.p)}</span></div></div>
+          <div key={idx}><div style={{fontWeight:'bold'}}>{i.n}</div><div style={{display:'flex',justifyContent:'space-between',paddingLeft:8}}><span>{i.q}x {formatPreviewCurrency(i.p)}</span><span>{formatPreviewCurrency(i.q*i.p)}</span></div></div>
         ))}
         <div style={{color:'#94a3b8',margin:'4px 0'}}>{div}</div>
-        {settings.receipt_show_tax&&tax>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:fs-0.5}}><span>Pajak {settings.tax_percent}%</span><span>{fRp(tax)}</span></div>}
-        <div style={{display:'flex',justifyContent:'space-between',fontWeight:'bold',fontSize:fs+1}}><span>TOTAL</span><span>{fRp(68000+tax)}</span></div>
+        {settings.receipt_show_tax&&tax>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:fs-0.5}}><span>Pajak {settings.tax_percent}%</span><span>{formatPreviewCurrency(tax)}</span></div>}
+        <div style={{display:'flex',justifyContent:'space-between',fontWeight:'bold',fontSize:fs+1}}><span>TOTAL</span><span>{formatPreviewCurrency(68000+tax)}</span></div>
         <div style={{color:'#94a3b8',margin:'4px 0'}}>{div}</div>
-        <div style={{display:'flex',justifyContent:'space-between'}}><span>Bayar (Tunai)</span><span>{fRp(70000)}</span></div>
-        <div style={{display:'flex',justifyContent:'space-between',fontWeight:'bold'}}><span>Kembali</span><span>{fRp(70000-68000-tax)}</span></div>
+        <div style={{display:'flex',justifyContent:'space-between'}}><span>Bayar (Tunai)</span><span>{formatPreviewCurrency(70000)}</span></div>
+        <div style={{display:'flex',justifyContent:'space-between',fontWeight:'bold'}}><span>Kembali</span><span>{formatPreviewCurrency(70000-68000-tax)}</span></div>
         <div style={{color:'#94a3b8',margin:'4px 0'}}>{div}</div>
         <div style={{textAlign:'center',fontWeight:'bold'}}>{settings.receipt_footer||'Terima kasih!'}</div>
         {settings.receipt_custom_line1&&<div style={{textAlign:'center',fontSize:fs-0.5,color:'#64748b'}}>{settings.receipt_custom_line1}</div>}
@@ -184,6 +183,17 @@ function ReceiptPreview({ s }: { s:any }) {
 const DEFAULTS:any = getReceiptSettings();
 
 type Section = 'brand'|'receipt'|'printer'|'theme'|'cashiers'|'license';
+
+const SETTINGS_NAV: Array<{ id: Section; l: string; icon: LucideIcon }> = [
+  { id: 'brand', l: 'Brand', icon: Store },
+  { id: 'receipt', l: 'Struk', icon: FileText },
+  { id: 'printer', l: 'Printer', icon: Printer },
+  { id: 'theme', l: 'Tema', icon: Palette },
+  { id: 'cashiers', l: 'Kasir', icon: Users },
+  { id: 'license', l: 'Lisensi', icon: ShieldCheck },
+];
+
+const formatPreviewCurrency = (n: number) => formatReceiptCurrency(n);
 
 export default function SettingsTab({ toast, isPro, profile, subscriptionAccess }: { toast:any; isPro: boolean; profile:any; subscriptionAccess: SubscriptionAccess }) {
   const { signOut, refreshProfile } = useAuth();
@@ -380,14 +390,6 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
     }
   };
 
-  const NAV: Array<{ id: Section; l: string; icon: LucideIcon }> = [
-    { id: 'brand', l: 'Brand', icon: Store },
-    { id: 'receipt', l: 'Struk', icon: FileText },
-    { id: 'printer', l: 'Printer', icon: Printer },
-    { id: 'theme', l: 'Tema', icon: Palette },
-    { id: 'cashiers', l: 'Kasir', icon: Users },
-    { id: 'license', l: 'Lisensi', icon: ShieldCheck },
-  ];
 
   return (
     <div className="kaffe-responsive-surface flex-1 flex flex-col overflow-hidden bg-white lg:bg-slate-50/50">
@@ -409,7 +411,7 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
         </div>
         {saveErr&&<div className="flex items-center gap-2 bg-rose-50 border border-rose-100 rounded-2xl px-4 py-2.5 mb-3"><AlertCircle size={14} className="text-rose-500 shrink-0"/><p className="text-xs text-rose-700 font-bold">{saveErr}</p></div>}
         <div className="kaffe-scroll-tabs kaffe-command-bar flex gap-4 overflow-x-auto pb-1 no-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6 border-b border-slate-50">
-          {NAV.map((n) => {
+          {SETTINGS_NAV.map((n) => {
             const NavIcon = n.icon;
             return (
               <button
