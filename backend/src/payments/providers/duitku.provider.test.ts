@@ -69,6 +69,7 @@ describe('DuitkuPaymentProvider', () => {
         'merchantOrderId',
         'paymentAmount',
         'paymentMethod',
+        'phoneNumber',
         'productDetails',
         'returnUrl',
         'signature',

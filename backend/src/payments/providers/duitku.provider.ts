@@ -56,6 +56,16 @@ function omitEmpty<T extends Record<string, unknown>>(payload: T) {
   return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined && value !== null && value !== '')) as Partial<T>;
 }
 
+function duitkuEmail(value: string | null | undefined) {
+  const normalized = String(value ?? '').trim();
+  return normalized || 'billing@kaffepos.my.id';
+}
+
+function duitkuPhone(value: string | null | undefined) {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  return digits || '08123456789';
+}
+
 export class DuitkuPaymentProvider implements PaymentProvider {
   providerName = 'duitku' as const;
 
@@ -98,8 +108,8 @@ export class DuitkuPaymentProvider implements PaymentProvider {
       merchantOrderId: input.merchantOrderId,
       productDetails: input.productDetails,
       customerVaName: input.customerName || 'KaffePOS Customer',
-      email: input.customerEmail || undefined,
-      phoneNumber: input.customerPhone || undefined,
+      email: duitkuEmail(input.customerEmail),
+      phoneNumber: duitkuPhone(input.customerPhone),
       callbackUrl: env.DUITKU_CALLBACK_URL,
       returnUrl: env.DUITKU_RETURN_URL,
       expiryPeriod: Number.isFinite(expiryPeriod) && expiryPeriod > 0 ? expiryPeriod : undefined,
