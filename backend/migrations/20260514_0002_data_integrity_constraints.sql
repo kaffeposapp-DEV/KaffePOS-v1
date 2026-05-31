@@ -317,29 +317,68 @@ END $$;
 -- LOYALTY CONSTRAINTS
 -- ============================================================================
 
--- Ensure loyalty points/stamps are non-negative
+-- Ensure loyalty points/stamps are non-negative.
+-- Current schema tracks total_* and available_*; legacy drafts used points/stamps.
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'loyalty_passports') THEN
-    
-    IF NOT EXISTS (
-      SELECT 1 FROM pg_constraint 
-      WHERE conname = 'loyalty_passports_points_nonnegative_check'
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'loyalty_passports'
+  ) THEN
+    ALTER TABLE public.loyalty_passports
+      DROP CONSTRAINT IF EXISTS loyalty_passports_points_nonnegative_check;
+    ALTER TABLE public.loyalty_passports
+      DROP CONSTRAINT IF EXISTS loyalty_passports_stamps_nonnegative_check;
+
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'loyalty_passports'
+        AND column_name = 'total_points'
+    ) AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'loyalty_passports'
+        AND column_name = 'available_points'
+    ) THEN
+      ALTER TABLE public.loyalty_passports
+        ADD CONSTRAINT loyalty_passports_points_nonnegative_check
+        CHECK (total_points >= 0 AND available_points >= 0);
+    ELSIF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'loyalty_passports'
+        AND column_name = 'points'
     ) THEN
       ALTER TABLE public.loyalty_passports
         ADD CONSTRAINT loyalty_passports_points_nonnegative_check
         CHECK (points >= 0);
     END IF;
-    
-    IF NOT EXISTS (
-      SELECT 1 FROM pg_constraint 
-      WHERE conname = 'loyalty_passports_stamps_nonnegative_check'
+
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'loyalty_passports'
+        AND column_name = 'total_stamps'
+    ) AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'loyalty_passports'
+        AND column_name = 'available_stamps'
+    ) THEN
+      ALTER TABLE public.loyalty_passports
+        ADD CONSTRAINT loyalty_passports_stamps_nonnegative_check
+        CHECK (total_stamps >= 0 AND available_stamps >= 0);
+    ELSIF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'loyalty_passports'
+        AND column_name = 'stamps'
     ) THEN
       ALTER TABLE public.loyalty_passports
         ADD CONSTRAINT loyalty_passports_stamps_nonnegative_check
         CHECK (stamps >= 0);
     END IF;
-    
   END IF;
 END $$;
 
