@@ -7,6 +7,7 @@ import {
   paymentCreateRateLimiter,
   requirePermission,
   serializeError,
+  log,
   withTransaction,
   activatePaidSubscription,
   env,
@@ -224,6 +225,11 @@ async function createGenericSubscriptionPayment(req: Parameters<Parameters<typeo
     const row = inserted.rows[0];
     res.status(201).json({ success: true, data: { paymentId: row.id, provider: row.provider, merchantOrderId: row.merchant_order_id ?? row.midtrans_order_id, paymentUrl: row.payment_url ?? row.redirect_url, status: row.internal_status ?? row.transaction_status } });
   } catch (error) {
+    if (error instanceof ApiError && error.status === 502 && error.message.startsWith('Duitku ')) {
+      log('warn', 'subscription_payment.duitku_failed', { error: serializeError(error) });
+      res.status(502).json({ success: false, message: error.message });
+      return;
+    }
     next(error);
   }
 }
