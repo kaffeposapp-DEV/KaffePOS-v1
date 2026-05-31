@@ -127,7 +127,7 @@ async function createGenericSubscriptionPayment(req: Parameters<Parameters<typeo
         productDetails: `Langganan ${quote.planName} (${payload.billingCycle})`,
         customerName: (profile.display_name as string | null) ?? (profile.username as string | null) ?? 'KaffePOS User',
         customerEmail: (profile.email as string | null) ?? req.authUser!.email ?? null,
-        paymentMethod: env.DUITKU_DEFAULT_PAYMENT_METHOD,
+        paymentMethod: payload.paymentMethod,
         itemDetails: [{ name: `Langganan ${quote.planName}`, price: amount, quantity: 1 }],
       });
       const sessionId = randomUUID();
