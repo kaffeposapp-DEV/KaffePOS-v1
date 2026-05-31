@@ -766,7 +766,7 @@ Format per release/date:
 - Added `.env.coolify.example` template with placeholders only; `.env.coolify.local` remains ignored.
 
 ### Status
-- READY_FOR_PAYMENT_STAGING: no blocker.
+- BLOCKED_BY_COOLIFY_API: Coolify env API did not accept all keys; confirm API version/endpoints..
 
 ### Docs
 - Updated Coolify staging automation report, final staging execution report, staging smoke report, production readiness checklist, and README command docs.

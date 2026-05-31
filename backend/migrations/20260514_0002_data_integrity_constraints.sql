@@ -280,13 +280,38 @@ ALTER TABLE public.commission_transactions
 -- INVENTORY UNIT CONVERSION CONSTRAINTS
 -- ============================================================================
 
--- Ensure conversion ratio is positive
-ALTER TABLE public.inventory_unit_conversions
-  DROP CONSTRAINT IF EXISTS inventory_unit_conversions_ratio_positive_check;
+-- Ensure unit conversion ratio is positive.
+-- Legacy drafts used conversion_ratio; current schema uses ratio.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'inventory_unit_conversions'
+  ) THEN
+    ALTER TABLE public.inventory_unit_conversions
+      DROP CONSTRAINT IF EXISTS inventory_unit_conversions_ratio_positive_check;
 
-ALTER TABLE public.inventory_unit_conversions
-  ADD CONSTRAINT inventory_unit_conversions_ratio_positive_check
-  CHECK (conversion_ratio > 0);
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'inventory_unit_conversions'
+        AND column_name = 'ratio'
+    ) THEN
+      ALTER TABLE public.inventory_unit_conversions
+        ADD CONSTRAINT inventory_unit_conversions_ratio_positive_check
+        CHECK (ratio > 0);
+    ELSIF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'inventory_unit_conversions'
+        AND column_name = 'conversion_ratio'
+    ) THEN
+      ALTER TABLE public.inventory_unit_conversions
+        ADD CONSTRAINT inventory_unit_conversions_ratio_positive_check
+        CHECK (conversion_ratio > 0);
+    END IF;
+  END IF;
+END $$;
 
 -- ============================================================================
 -- LOYALTY CONSTRAINTS
