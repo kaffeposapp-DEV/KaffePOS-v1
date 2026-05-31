@@ -25,6 +25,40 @@ import { buildMidtransCreateTransactionPayload, appendMidtransRedirectOptions } 
 
 const router = Router();
 
+let duitkuSchemaReady: Promise<void> | null = null;
+
+function ensureDuitkuSubscriptionPaymentSchema() {
+  duitkuSchemaReady ??= pool.query(`
+    alter table public.subscription_payment_sessions
+      add column if not exists provider text,
+      add column if not exists provider_reference text,
+      add column if not exists merchant_order_id text,
+      add column if not exists payment_url text,
+      add column if not exists va_number text,
+      add column if not exists qr_string text,
+      add column if not exists payment_method text,
+      add column if not exists provider_status text,
+      add column if not exists internal_status text,
+      add column if not exists callback_received_at timestamptz,
+      add column if not exists expired_at timestamptz;
+
+    create table if not exists public.payment_events (
+      id uuid primary key default gen_random_uuid(),
+      payment_id uuid,
+      provider text not null,
+      event_type text not null,
+      provider_reference text,
+      merchant_order_id text,
+      raw_status text,
+      internal_status text,
+      payload jsonb not null default '{}'::jsonb,
+      received_at timestamptz not null default now(),
+      created_at timestamptz not null default now()
+    );
+  `).then(() => undefined);
+  return duitkuSchemaReady;
+}
+
 function getRequestIp(req: Parameters<Parameters<typeof router.post>[1]>[0]) {
   const forwarded = req.headers['x-forwarded-for'];
   if (typeof forwarded === 'string' && forwarded.trim()) return forwarded.split(',')[0].trim();
@@ -74,6 +108,7 @@ async function createGenericSubscriptionPayment(req: Parameters<Parameters<typeo
     const voucherCode = quote.voucher?.code ?? '';
     const activeProvider = getActivePaymentProviderName();
     if (activeProvider === 'disabled') throw new ApiError(503, 'PAYMENT_DISABLED');
+    if (activeProvider === 'duitku') await ensureDuitkuSubscriptionPaymentSchema();
 
     const existingPending = await pool.query(
       `
