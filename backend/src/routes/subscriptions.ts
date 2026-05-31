@@ -43,6 +43,12 @@ const router = Router();
 
 const PAID_PLANS = new Set(['kopi_susu', 'signature', 'founder']);
 
+function createDuitkuOrderId(userId: string, plan: string, billingCycle: string) {
+  const planCode = plan.replace(/[^a-z0-9]/gi, '').slice(0, 3).toUpperCase() || 'SUB';
+  const cycleCode = billingCycle.replace(/[^a-z0-9]/gi, '').slice(0, 1).toUpperCase() || 'M';
+  return `DKT-${planCode}${cycleCode}-${userId.slice(0, 8)}-${Date.now().toString(36)}`;
+}
+
 function resolveProfilePlan(profile: Record<string, unknown> | null | undefined) {
   if (!profile) return 'secangkir';
   const rawExpiry = profile.pro_expires_at ?? profile.tier_expires_at ?? null;
@@ -464,7 +470,9 @@ router.post('/api/subscriptions/payments/create', requirePermission('can_manage_
       [req.authUser!.id],
     );
     const store = storeResult.rows[0];
-    const orderId = createMidtransOrderId(req.authUser!.id, payload.plan, payload.billingCycle).replace('SUB-', `${activeProvider.toUpperCase()}-SUB-`);
+    const orderId = activeProvider === 'duitku'
+      ? createDuitkuOrderId(req.authUser!.id, payload.plan, payload.billingCycle)
+      : createMidtransOrderId(req.authUser!.id, payload.plan, payload.billingCycle).replace('SUB-', `${activeProvider.toUpperCase()}-SUB-`);
 
     if (activeProvider === 'duitku') {
       const provider = createPaymentProvider('duitku');

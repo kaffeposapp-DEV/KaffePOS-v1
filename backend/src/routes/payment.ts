@@ -66,6 +66,12 @@ function getRequestIp(req: Parameters<Parameters<typeof router.post>[1]>[0]) {
   return req.ip || req.socket.remoteAddress || null;
 }
 
+function createDuitkuOrderId(userId: string, plan: string, billingCycle: string) {
+  const planCode = plan.replace(/[^a-z0-9]/gi, '').slice(0, 3).toUpperCase() || 'SUB';
+  const cycleCode = billingCycle.replace(/[^a-z0-9]/gi, '').slice(0, 1).toUpperCase() || 'M';
+  return `DKT-${planCode}${cycleCode}-${userId.slice(0, 8)}-${Date.now().toString(36)}`;
+}
+
 async function createTransaction(req: Parameters<Parameters<typeof router.post>[1]>[0], res: Parameters<Parameters<typeof router.post>[1]>[1], next: Parameters<Parameters<typeof router.post>[1]>[2]) {
   const ip = getRequestIp(req);
   const userAgent = req.headers['user-agent'] ?? null;
@@ -153,7 +159,9 @@ async function createGenericSubscriptionPayment(req: Parameters<Parameters<typeo
       [req.authUser!.id],
     );
     const store = storeResult.rows[0];
-    const orderId = createMidtransOrderId(req.authUser!.id, payload.plan, payload.billingCycle).replace('SUB-', `${activeProvider.toUpperCase()}-SUB-`);
+    const orderId = activeProvider === 'duitku'
+      ? createDuitkuOrderId(req.authUser!.id, payload.plan, payload.billingCycle)
+      : createMidtransOrderId(req.authUser!.id, payload.plan, payload.billingCycle).replace('SUB-', `${activeProvider.toUpperCase()}-SUB-`);
 
     if (activeProvider === 'duitku') {
       const provider = createPaymentProvider('duitku');
