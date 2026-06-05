@@ -231,7 +231,7 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
 
       <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
         <p className="text-[11px] font-bold leading-relaxed text-slate-500">
-          <strong>Sistem Pembayaran KaffePOS:</strong> Payment gateway Duitku digunakan untuk pembayaran paket/langganan oleh pemilik usaha yang menggunakan sistem POS KaffePOS. Setelah checkout, Anda akan diarahkan ke halaman gerbang pembayaran Duitku Sandbox yang aman. Status lisensi diperbarui secara otomatis setelah pembayaran sukses dikonfirmasi oleh server.
+          <strong>Sistem Pembayaran KaffePOS:</strong> Pembayaran paket/langganan diproses melalui gerbang pembayaran resmi. Setelah checkout, Anda akan diarahkan ke halaman pembayaran yang aman. Status lisensi diperbarui otomatis setelah pembayaran sukses dikonfirmasi oleh server.
         </p>
       </div>
 
