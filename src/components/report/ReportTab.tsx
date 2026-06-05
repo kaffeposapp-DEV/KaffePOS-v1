@@ -500,21 +500,21 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
             <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">Performa Bisnis Realtime</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <button
+            <button type="button"
               onClick={() => setShowCashRegisterModal(true)}
               title="Edit saldo kasir"
               className="flex items-center justify-center w-10 h-10 bg-white border border-slate-100 text-slate-400 rounded-2xl active:scale-95 transition-all hover:bg-orange-50 hover:text-[#FF6A00] shadow-sm"
             >
               <Wallet size={18} />
             </button>
-            <button
+            <button type="button"
               onClick={() => setShowExpenseModal(true)}
               title="Catat pengeluaran"
               className="flex items-center justify-center w-10 h-10 bg-white border border-slate-100 text-slate-400 rounded-2xl active:scale-95 transition-all hover:bg-orange-50 hover:text-[#FF6A00] shadow-sm"
             >
               <Receipt size={18} />
             </button>
-            <button onClick={handleDownload} disabled={downloading}
+            <button type="button" onClick={handleDownload} disabled={downloading}
               className={`flex items-center gap-2 h-10 px-5 rounded-2xl text-[12px] font-black uppercase italic tracking-widest active:scale-95 disabled:opacity-50 transition-all shadow-premium ${canExportReports ? 'bg-[#FF6A00] text-white' : 'bg-slate-100 text-slate-400'}`}>
               {downloading?<div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>:<Download size={16}/>}
               {downloading?'Proses...':canExportReports?'Ekspor PDF':'Premium'}
@@ -526,7 +526,7 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
             const locked = p.requiresAdvanced && !canUseAdvancedPeriods;
             const active = period === p.id;
             return (
-              <button
+              <button type="button"
                 key={p.id}
                 onClick={() => {
                   if (locked) {
@@ -639,7 +639,7 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
             </div>
             <div className="flex items-center gap-2">
               {aiData && (
-                <button
+                <button type="button"
                   onClick={e => { e.stopPropagation(); fetchAI(true); }}
                   className="p-1 text-orange-500 active:scale-90"
                   disabled={aiLoading}
@@ -730,7 +730,7 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
               )}
 
               <div className="pt-3 border-t border-orange-100 mt-2 flex flex-col gap-2">
-                <button
+                <button type="button"
                   onClick={() => {
                     const to = user?.email || (profile as any)?.email || '';
                     const subject = encodeURIComponent(`Insight Bisnis KaffePOS - ${period}`);
@@ -771,7 +771,7 @@ export default function ReportTab({ toast, subscriptionAccess }: { toast:any; su
           <div className="px-6 pt-6 pb-2">
             <div className="grid grid-cols-4 gap-2">
               {[{id:'trend',l:'Tren',e:'📈'},{id:'menu',l:'Produk',e:'🥧'},{id:'payment',l:'Bayar',e:'💳'},{id:'stock',l:'Stok',e:'📦'}].map(c=>(
-                <button key={c.id} onClick={()=>setChart(c.id as any)} className={`flex flex-col items-center py-3 rounded-[20px] text-[11px] font-bold transition-all gap-1.5 border ${activeChart===c.id?'bg-slate-900 text-white border-slate-900 shadow-premium':'bg-slate-50 text-slate-500 border-slate-100 hover:border-slate-200'}`}>
+                <button type="button" key={c.id} onClick={()=>setChart(c.id as any)} className={`flex flex-col items-center py-3 rounded-[20px] text-[11px] font-bold transition-all gap-1.5 border ${activeChart===c.id?'bg-slate-900 text-white border-slate-900 shadow-premium':'bg-slate-50 text-slate-500 border-slate-100 hover:border-slate-200'}`}>
                   <span>{c.e}</span><span>{c.l}</span>
                 </button>
               ))}

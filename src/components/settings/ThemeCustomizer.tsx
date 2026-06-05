@@ -63,7 +63,7 @@ export default function ThemeCustomizer({ toast }: { toast: { showToast: (messag
           {THEME_PRESETS.map((preset) => {
             const isActive = appTheme === preset.id;
             return (
-              <button
+              <button type="button"
                 key={preset.id}
                 onClick={() => applyPreset(preset.id)}
                 className={`w-full rounded-2xl border-2 p-4 text-left transition ${isActive ? 'border-slate-900 bg-slate-50' : 'border-slate-100 hover:border-slate-300'}`}
@@ -159,19 +159,19 @@ export default function ThemeCustomizer({ toast }: { toast: { showToast: (messag
         )}
 
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-          <button
+          <button type="button"
             onClick={handlePreview}
             className="flex-1 h-12 rounded-2xl border border-slate-200 px-4 text-[15px] font-bold text-slate-700"
           >
             Preview di App
           </button>
-          <button
+          <button type="button"
             onClick={handleSave}
             className="flex-1 h-12 rounded-2xl bg-slate-900 px-4 text-[15px] font-black text-white"
           >
             Simpan Custom Theme
           </button>
-          <button
+          <button type="button"
             onClick={resetDraft}
             className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 text-[15px] font-bold text-slate-600"
           >

@@ -50,11 +50,11 @@ export default function DeleteConfirmSheet({ visible, title, message, onConfirm,
 
         {/* Buttons */}
         <div className="flex gap-3">
-          <button onClick={onCancel}
+          <button type="button" onClick={onCancel}
             className="flex-1 py-3.5 border-2 border-slate-200 text-slate-600 font-bold rounded-2xl active:scale-95 flex items-center justify-center gap-2">
             <X size={16} /> Batal
           </button>
-          <button onClick={() => { onConfirm(); onCancel(); }}
+          <button type="button" onClick={() => { onConfirm(); onCancel(); }}
             className="flex-1 py-3.5 bg-red-500 text-white font-black rounded-2xl active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-red-200">
             <Trash2 size={16} /> Hapus
           </button>

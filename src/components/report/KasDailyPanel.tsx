@@ -99,7 +99,7 @@ function DayRow({ day, defaultOpen = false }: DayRowProps) {
   return (
     <div className="border border-slate-100 rounded-2xl overflow-hidden">
       {/* Header baris hari */}
-      <button className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 active:bg-slate-100 transition-colors"
+      <button type="button" className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 active:bg-slate-100 transition-colors"
         onClick={() => setOpen(o => !o)}>
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full flex-shrink-0 ${status === 'aman' ? 'bg-green-400' : 'bg-orange-400'}`} />

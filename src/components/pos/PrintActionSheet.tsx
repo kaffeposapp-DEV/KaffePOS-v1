@@ -302,7 +302,7 @@ export default function PrintActionSheet({
                 {tx.id} &nbsp;·&nbsp; <span className="font-bold text-orange-500">{fRp(tx.total)}</span>
               </p>
             </div>
-            <button onClick={doClose} className="p-2 rounded-full bg-slate-100 active:scale-90" aria-label="Tutup">
+            <button type="button" onClick={doClose} className="p-2 rounded-full bg-slate-100 active:scale-90" aria-label="Tutup">
               <X size={16} className="text-slate-500" />
             </button>
           </div>
@@ -352,7 +352,7 @@ export default function PrintActionSheet({
         <div className="px-4 py-3 space-y-2.5 pb-safe">
 
           {/* 1. Bluetooth */}
-          <button
+          <button type="button"
             onClick={handleBluetooth}
             disabled={loading !== null}
             aria-label="Cetak via Bluetooth"
@@ -376,7 +376,7 @@ export default function PrintActionSheet({
           </button>
 
           {/* 2. USB OTG */}
-          <button
+          <button type="button"
             onClick={handleUsb}
             disabled={loading !== null}
             aria-label="Cetak via USB OTG"
@@ -397,7 +397,7 @@ export default function PrintActionSheet({
           </button>
 
           {/* 3. WhatsApp — kirim PDF */}
-          <button
+          <button type="button"
             onClick={handleWhatsApp}
             disabled={loading !== null}
             aria-label="Kirim Struk via WhatsApp"
@@ -424,7 +424,7 @@ export default function PrintActionSheet({
           </button>
 
           {/* Tutup */}
-          <button
+          <button type="button"
             onClick={doClose}
             className="w-full py-3.5 text-slate-400 font-bold text-sm active:scale-95 rounded-2xl"
           >

@@ -183,7 +183,7 @@ export default function PrinterSettings({ toast }: Props) {
           </div>
 
           {connStatus !== 'connected' && getSavedPrinter() && (
-            <button onClick={handleAutoConnect} disabled={connStatus === 'connecting'}
+            <button type="button" onClick={handleAutoConnect} disabled={connStatus === 'connecting'}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 text-white text-xs font-bold rounded-xl active:scale-95 disabled:opacity-50">
               {connStatus === 'connecting'
                 ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"/>
@@ -194,7 +194,7 @@ export default function PrinterSettings({ toast }: Props) {
 
           {connStatus === 'connected' && (
             <div className="flex gap-2">
-              <button onClick={handleTestPrint} disabled={testing}
+              <button type="button" onClick={handleTestPrint} disabled={testing}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500 text-white text-xs font-bold rounded-xl active:scale-95 disabled:opacity-50">
                 {testing
                   ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"/>
@@ -202,7 +202,7 @@ export default function PrinterSettings({ toast }: Props) {
                 }
                 {testing ? '...' : 'Test'}
               </button>
-              <button onClick={handleDisconnect}
+              <button type="button" onClick={handleDisconnect}
                 className="p-1.5 bg-red-100 text-red-500 rounded-xl active:scale-95">
                 <Trash2 size={14}/>
               </button>
@@ -224,7 +224,7 @@ export default function PrinterSettings({ toast }: Props) {
         <p className="text-xs font-black text-slate-400 mb-3">UKURAN KERTAS</p>
         <div className="flex gap-3">
           {([58, 80] as const).map(size => (
-            <button key={size} onClick={() => handlePaperSize(size)}
+            <button type="button" key={size} onClick={() => handlePaperSize(size)}
               className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all active:scale-95 ${
                 paperSize === size
                   ? 'bg-blue-500 text-white border-blue-500 shadow-md shadow-blue-200'
@@ -243,7 +243,7 @@ export default function PrinterSettings({ toast }: Props) {
       <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b border-slate-50">
           <p className="text-xs font-black text-slate-400">PILIH PRINTER</p>
-          <button onClick={handleScan} disabled={scanning}
+          <button type="button" onClick={handleScan} disabled={scanning}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 text-white text-xs font-bold rounded-xl active:scale-95 disabled:opacity-50">
             <RefreshCw size={12} className={scanning ? 'animate-spin' : ''}/>
             {scanning ? 'Scanning...' : 'Scan'}
@@ -271,7 +271,7 @@ export default function PrinterSettings({ toast }: Props) {
               const isConnected = connectedPrinter?.address === device.address && connStatus === 'connected';
               const isConnecting = connStatus === 'connecting';
               return (
-                <button key={device.address}
+                <button type="button" key={device.address}
                   onClick={() => !isConnected && handleConnect(device)}
                   disabled={isConnecting}
                   className={`w-full flex items-center gap-3 px-4 py-3.5 border-b border-slate-50 last:border-0 active:bg-slate-50 transition-colors text-left ${
@@ -304,7 +304,7 @@ export default function PrinterSettings({ toast }: Props) {
 
         {/* Toggle tampilkan semua */}
         {(allDevices.length > devices.length || showAll) && (
-          <button onClick={() => setShowAll(!showAll)}
+          <button type="button" onClick={() => setShowAll(!showAll)}
             className="w-full py-3 text-xs text-slate-400 font-bold border-t border-slate-50 hover:bg-slate-50 active:bg-slate-100">
             {showAll
               ? `Tampilkan printer saja (${devices.length})`

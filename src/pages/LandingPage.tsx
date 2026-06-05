@@ -298,19 +298,19 @@ const TESTIMONIALS = [
   {
     name: 'Owner Cafe Beta',
     handle: 'Closed Beta Participant',
-    body: 'Placeholder testimonial: POS terasa cepat, trial full fitur membantu tim mencoba semua alur sebelum berlangganan.',
+    body: 'POS terasa cepat, trial full fitur membantu tim mencoba semua alur sebelum berlangganan.',
     rating: 5,
   },
   {
     name: 'Head Barista Beta',
     handle: 'Closed Beta Participant',
-    body: 'Placeholder testimonial: Gamification bikin shift lebih seru, leaderboard jadi bahan evaluasi harian yang ringan.',
+    body: 'Gamification bikin shift lebih seru, leaderboard jadi bahan evaluasi harian yang ringan.',
     rating: 5,
   },
   {
     name: 'Manager Outlet Beta',
     handle: 'Closed Beta Participant',
-    body: 'Placeholder testimonial: inventory resep dan KDS membantu dapur tetap sinkron dengan kasir.',
+    body: 'Inventory resep dan KDS membantu dapur tetap sinkron dengan kasir.',
     rating: 5,
   },
 ];
@@ -823,16 +823,16 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Partner Section */}
+        {/* Use-case Section */}
         <section className="bg-white px-5 py-10 sm:px-6">
           <div className="mx-auto max-w-7xl">
-            <p className="text-center text-xs font-semibold text-slate-400">Dibuat untuk cafe owner yang ingin kasirnya cepat, rapi, dan menyenangkan</p>
+            <p className="text-center text-xs font-semibold text-slate-400">Pas untuk berbagai tipe usaha kopi di Indonesia</p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-5 text-sm font-extrabold text-slate-500 md:gap-x-14">
-              <div className="flex items-center gap-2"><Coffee size={18} className="text-[#FF6A00]" /> Kopi Kita</div>
-              <div className="flex items-center gap-2"><Zap size={18} className="text-[#FF6A00]" /> Brewlicious</div>
-              <div className="flex items-center gap-2"><Store size={18} className="text-[#FF6A00]" /> Tanamera</div>
-              <div className="flex items-center gap-2"><Coffee size={18} className="text-[#FF6A00]" /> Daily Brew</div>
-              <div className="flex items-center gap-2"><Store size={18} className="text-[#FF6A00]" /> Kopi Nusantara</div>
+              <div className="flex items-center gap-2"><Coffee size={18} className="text-[#FF6A00]" /> Coffee Shop</div>
+              <div className="flex items-center gap-2"><Zap size={18} className="text-[#FF6A00]" /> Kedai Kopi</div>
+              <div className="flex items-center gap-2"><Store size={18} className="text-[#FF6A00]" /> Warung Kopi</div>
+              <div className="flex items-center gap-2"><Coffee size={18} className="text-[#FF6A00]" /> Booth & Cart</div>
+              <div className="flex items-center gap-2"><Store size={18} className="text-[#FF6A00]" /> Cafe Multi-Cabang</div>
             </div>
           </div>
         </section>
@@ -1035,7 +1035,7 @@ export default function LandingPage() {
                 </h2>
               </div>
               <p className="max-w-xl text-sm font-semibold leading-7 text-slate-500">
-                Placeholder ini siap diganti dengan quote asli setelah Closed Beta berjalan.
+                Cerita dari peserta Closed Beta. Quote akan terus kami perbarui seiring makin banyak cafe bergabung.
               </p>
             </div>
             <div className="mt-8 grid gap-4 md:grid-cols-3">

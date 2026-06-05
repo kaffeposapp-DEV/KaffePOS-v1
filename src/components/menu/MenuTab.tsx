@@ -111,7 +111,7 @@ export default function MenuTab({ toast }:any) {
             <h2 className="font-display text-xl font-extrabold text-slate-900 tracking-tight">Produk</h2>
             <p className="text-slate-500 font-semibold text-[12px] mt-1">Manajemen produk, kategori, harga, dan resep.</p>
           </div>
-          <button onClick={openNew}
+          <button type="button" onClick={openNew}
             className="kaffe-gradient-button flex items-center justify-center gap-2 h-11 px-5 rounded-lg text-[13px] font-bold active:scale-95 transition-all shrink-0">
             <Plus size={16}/>Tambah Produk
           </button>
@@ -131,7 +131,7 @@ export default function MenuTab({ toast }:any) {
         {/* Category Tabs */}
         <div className="kaffe-scroll-tabs kaffe-command-bar flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6">
           {cats.map(c=>(
-            <button
+            <button type="button"
               key={c}
               onClick={()=>setCat(c)}
               data-active={cat===c}
@@ -244,7 +244,7 @@ export default function MenuTab({ toast }:any) {
             <div className="sticky top-0 bg-white/95 backdrop-blur-md px-6 pt-6 pb-4 border-b border-slate-100 z-10">
               <div className="flex items-center justify-between">
                 <h3 className="font-black text-xl text-slate-900 tracking-tight">{form.id?'Edit Menu':'Menu Baru'}</h3>
-                <button
+                <button type="button"
                   onClick={()=>setShowModal(false)}
                   className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 active:bg-slate-100"
                 >

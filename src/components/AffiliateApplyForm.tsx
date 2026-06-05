@@ -71,7 +71,7 @@ export function AffiliateApplyForm({ onSuccess }: AffiliateApplyFormProps) {
           <p className="text-gray-600 mb-6">
             Tim kami akan meninjau aplikasi kamu dalam 1-2 hari kerja. Kamu akan menerima notifikasi setelah aplikasi disetujui.
           </p>
-          <button
+          <button type="button"
             onClick={() => onSuccess?.()}
             className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
           >
@@ -150,7 +150,7 @@ export function AffiliateApplyForm({ onSuccess }: AffiliateApplyFormProps) {
           </div>
 
           <div className="flex gap-4">
-            <button
+            <button type="button"
               onClick={() => setStep('form')}
               className="flex-1 px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors font-medium"
             >
@@ -182,7 +182,7 @@ export function AffiliateApplyForm({ onSuccess }: AffiliateApplyFormProps) {
               required
             >
               <option value="bank_transfer">Transfer Bank</option>
-              <option value="e_wallet">E-Wallet (Coming Soon)</option>
+              <option value="e_wallet" disabled>E-Wallet (segera hadir)</option>
             </select>
           </div>
 

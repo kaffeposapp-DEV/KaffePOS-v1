@@ -241,7 +241,7 @@ export default function AdminPanel() {
               </>
             )}
             {TABS.map((tab) => (
-              <button
+              <button type="button"
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={`rounded-full px-4 py-2 text-sm font-black ${activeTab === tab ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}
@@ -250,7 +250,7 @@ export default function AdminPanel() {
               </button>
             ))}
 
-            <button
+            <button type="button"
               onClick={refreshData}
               className="ml-auto inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-bold text-slate-600"
             >
@@ -259,7 +259,7 @@ export default function AdminPanel() {
             </button>
 
             {import.meta.env.DEV && (
-              <button
+              <button type="button"
                 onClick={() => {
                   setFeedback({
                     type: 'success',
@@ -356,7 +356,7 @@ export default function AdminPanel() {
               />
             </div>
 
-            <button
+            <button type="button"
               onClick={handleActivate}
               disabled={saving}
               className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black text-white disabled:opacity-60"
@@ -411,8 +411,8 @@ export default function AdminPanel() {
                       <td className="px-3 py-3 text-slate-600">{row.status}</td>
                       <td className="px-3 py-3">
                         <div className="flex gap-2">
-                          <button onClick={() => handleRenew(row)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600">Perpanjang</button>
-                          <button onClick={() => handleCancel(row)} className="rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-600">Batalkan</button>
+                          <button type="button" onClick={() => handleRenew(row)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600">Perpanjang</button>
+                          <button type="button" onClick={() => handleCancel(row)} className="rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-600">Batalkan</button>
                         </div>
                       </td>
                     </tr>

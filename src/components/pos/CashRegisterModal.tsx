@@ -78,7 +78,7 @@ export default function CashRegisterModal({ onClose, cashierName, toast, existin
               <p className="text-xs text-slate-400">{existingEntry ? 'Ubah uang tunai saat buka kasir' : 'Uang tunai saat buka kasir'}</p>
             </div>
           </div>
-          <button onClick={onClose}><X size={20} className="text-slate-400" /></button>
+          <button type="button" onClick={onClose}><X size={20} className="text-slate-400" /></button>
         </div>
 
         {todayTotal > 0 && (
@@ -104,7 +104,7 @@ export default function CashRegisterModal({ onClose, cashierName, toast, existin
 
         <div className="flex gap-2 mb-4 flex-wrap">
           {QUICK_AMOUNTS.map(amt => (
-            <button key={amt} onClick={() => setAmount(String(amt))}
+            <button type="button" key={amt} onClick={() => setAmount(String(amt))}
               className="px-3 py-1.5 bg-slate-100 rounded-xl text-xs font-bold text-slate-600 active:scale-95">
               {fRp(amt)}
             </button>
@@ -122,7 +122,7 @@ export default function CashRegisterModal({ onClose, cashierName, toast, existin
           />
         </div>
 
-        <button onClick={handleSave}
+        <button type="button" onClick={handleSave}
           className="w-full py-4 bg-orange-500 text-white font-black text-base rounded-2xl active:scale-95 flex items-center justify-center gap-2">
           {existingEntry ? 'Update Saldo Kasir' : 'Simpan Saldo Kasir'}
         </button>

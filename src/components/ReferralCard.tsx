@@ -118,7 +118,7 @@ export function ReferralCard() {
           <p className="text-gray-600 mb-6 max-w-md mx-auto">
             Dapatkan bonus Rp150.000 untuk setiap teman yang berlangganan paket berbayar dan aktif 30 hari.
           </p>
-          <button
+          <button type="button"
             onClick={handleGenerateCode}
             disabled={generating}
             className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -144,14 +144,14 @@ export function ReferralCard() {
           <code className="flex-1 text-2xl font-bold text-orange-600 tracking-wider">
             {stats.referral_code.code}
           </code>
-          <button
+          <button type="button"
             onClick={handleCopyLink}
             className="p-2 hover:bg-orange-100 rounded-lg transition-colors"
             title="Salin Link"
           >
             <Copy className={`w-5 h-5 ${copying ? 'text-green-600' : 'text-orange-600'}`} />
           </button>
-          <button
+          <button type="button"
             onClick={handleShare}
             className="p-2 hover:bg-orange-100 rounded-lg transition-colors"
             title="Bagikan"

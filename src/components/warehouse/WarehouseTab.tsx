@@ -272,10 +272,10 @@ export default function WarehouseTab({ toast }: { toast:any }) {
             <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">Bahan, Konversi, Resep, HPP</p>
           </div>
           <div className={`shrink-0 gap-2 ${section === 'ingredients' || section === 'summary' ? 'flex' : 'hidden md:flex'}`}>
-            <button onClick={openNew} className="flex items-center gap-2 h-10 px-4 bg-white text-slate-600 rounded-xl border border-slate-200 text-[12px] font-black uppercase tracking-widest active:scale-95 transition-all hover:border-orange-200 hover:text-[#FF6A00]">
+            <button type="button" onClick={openNew} className="flex items-center gap-2 h-10 px-4 bg-white text-slate-600 rounded-xl border border-slate-200 text-[12px] font-black uppercase tracking-widest active:scale-95 transition-all hover:border-orange-200 hover:text-[#FF6A00]">
               <Plus size={16}/>Baru
             </button>
-            <button onClick={()=>{setForm({id:'',name:'',qty:'',cost:'',unit:'gr',minStock:'5',type:'restock'});setShowModal(true);}}
+            <button type="button" onClick={()=>{setForm({id:'',name:'',qty:'',cost:'',unit:'gr',minStock:'5',type:'restock'});setShowModal(true);}}
               className="kaffe-gradient-button flex items-center gap-2 h-10 px-4 rounded-xl text-[12px] font-black uppercase tracking-widest active:scale-95 transition-all">
               <Archive size={16}/>Restock
             </button>
@@ -287,7 +287,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
 
         <div className="kaffe-scroll-tabs flex gap-2 overflow-x-auto pb-2 mb-3">
           {WAREHOUSE_SECTION_ITEMS.map(({ id, label, icon: Icon }) => (
-            <button
+            <button type="button"
               key={id}
               onClick={() => setSection(id)}
               className={`h-10 px-3 rounded-2xl border text-[11px] font-black whitespace-nowrap flex items-center gap-2 transition-all ${
@@ -413,7 +413,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
                 <input aria-label="Satuan tujuan" value={conversionForm.to_unit} onChange={e=>setConversionForm(f=>({...f,to_unit:e.target.value}))} placeholder="pcs / gram" className="h-11 border border-slate-200 rounded-2xl px-3 text-sm font-bold"/>
               </div>
               <input aria-label="Rasio konversi" type="number" step="0.0001" value={conversionForm.ratio} onChange={e=>setConversionForm(f=>({...f,ratio:e.target.value}))} placeholder="15" className="h-11 w-full border border-slate-200 rounded-2xl px-3 text-sm font-bold"/>
-              <button className="w-full h-11 rounded-2xl bg-slate-900 text-white font-black text-[12px] uppercase tracking-widest">Simpan Konversi</button>
+              <button type="submit" className="w-full h-11 rounded-2xl bg-slate-900 text-white font-black text-[12px] uppercase tracking-widest">Simpan Konversi</button>
             </form>
             <div className="bg-white border border-slate-100 rounded-2xl shadow-soft overflow-hidden">
               {unitConversions.length === 0 ? (
@@ -426,7 +426,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
                       <p className="text-sm font-black text-slate-800">1 {conversion.from_unit} = {conversion.ratio.toLocaleString('id-ID')} {conversion.to_unit}</p>
                       <p className="text-[11px] font-bold text-slate-400">{ingredient?.name || 'Global'}</p>
                     </div>
-                    <button onClick={()=>deleteStockUnitConversion(conversion.id)} className="h-9 px-3 rounded-xl bg-rose-50 text-rose-500 text-[11px] font-black">Hapus</button>
+                    <button type="button" onClick={()=>deleteStockUnitConversion(conversion.id)} className="h-9 px-3 rounded-xl bg-rose-50 text-rose-500 text-[11px] font-black">Hapus</button>
                   </div>
                 );
               })}
@@ -453,7 +453,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
               {recipeError && (
                 <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600">{recipeError}</p>
               )}
-              <button className="w-full h-11 rounded-2xl bg-slate-900 text-white font-black text-[12px] uppercase tracking-widest">Simpan Resep</button>
+              <button type="submit" className="w-full h-11 rounded-2xl bg-slate-900 text-white font-black text-[12px] uppercase tracking-widest">Simpan Resep</button>
             </form>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {hppRows.map(({ product, hpp }) => (
@@ -543,7 +543,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
                   ))}
                 </div>
               )}
-              <button onClick={handleCommitImport} disabled={importing || importPreview.errors.length > 0 || importPreview.validRows.length === 0} className="w-full h-12 rounded-2xl bg-[#FF6A00] text-white font-black text-[12px] uppercase tracking-widest disabled:opacity-40">
+              <button type="button" onClick={handleCommitImport} disabled={importing || importPreview.errors.length > 0 || importPreview.validRows.length === 0} className="w-full h-12 rounded-2xl bg-[#FF6A00] text-white font-black text-[12px] uppercase tracking-widest disabled:opacity-40">
                 {importing ? 'Mengimpor...' : 'Commit Import'}
               </button>
             </div>
@@ -561,7 +561,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
               <h3 className="font-black text-xl text-slate-900 tracking-tight">
                 {form.type==='new'?'Bahan Baru':form.type==='edit'?'Edit Bahan':'Restock Bahan'}
               </h3>
-              <button 
+              <button type="button" 
                 onClick={()=>setShowModal(false)} 
                 aria-label="Tutup modal"
                 className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 active:bg-slate-100"
@@ -644,7 +644,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
                 <h3 className="font-black text-xl text-slate-900 tracking-tight">Opname Stok</h3>
                 <p className="text-xs font-bold text-slate-400 mt-1">{opnameTarget.name}</p>
               </div>
-              <button
+              <button type="button"
                 onClick={()=>setOpnameTarget(null)}
                 aria-label="Tutup opname"
                 className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 active:bg-slate-100"

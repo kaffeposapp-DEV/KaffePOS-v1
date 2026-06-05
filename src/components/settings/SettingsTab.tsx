@@ -403,7 +403,7 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
           <div className="flex shrink-0 items-center gap-3">
             {saving&&<div className="w-5 h-5 border-2 border-[#FF6A00] border-t-transparent rounded-full animate-spin"/>}
             {saved&&!saving&&<div className="flex items-center gap-1.5 text-emerald-500 text-[10px] font-black uppercase tracking-widest"><CheckCircle2 size={14}/>Tersimpan</div>}
-            <button onClick={handleSaveNow} disabled={saving}
+            <button type="button" onClick={handleSaveNow} disabled={saving}
               className="flex items-center gap-2 px-5 py-2.5 bg-[#FF6A00] text-white rounded-2xl text-[12px] font-black uppercase italic tracking-widest active:scale-95 disabled:opacity-50 shadow-premium transition-all">
               <Save size={14}/>{saving?'Memproses...':'Simpan'}
             </button>
@@ -414,7 +414,7 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
           {SETTINGS_NAV.map((n) => {
             const NavIcon = n.icon;
             return (
-              <button
+              <button type="button"
                 key={n.id}
                 onClick={() => {
                   if (n.id === 'cashiers' && !canManageCashiers) {
@@ -447,7 +447,7 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
 
       {/* NOTIFIKASI SECTION (SAAS STYLE) */}
       <div className="px-3 pt-3 lg:max-w-3xl lg:mx-auto lg:w-full">
-        <button onClick={() => setNotifsOpen(true)}
+        <button type="button" onClick={() => setNotifsOpen(true)}
           className="w-full bg-white rounded-2xl border border-slate-100 p-4 flex items-center justify-between active:scale-[0.98] transition-all overflow-hidden relative group">
 
           {/* Decorative background circle */}
@@ -484,11 +484,11 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
                 {form.logo_url?<img src={form.logo_url} alt="logo" className="w-full h-full object-contain"/>:<div className="text-center"><div className="text-3xl">☕</div><p className="text-[10px] text-slate-400 mt-1">Belum ada</p></div>}
               </div>
               <div className="flex-1 space-y-2">
-                <button onClick={()=>logoRef.current?.click()}
+                <button type="button" onClick={()=>logoRef.current?.click()}
                   className="w-full py-2.5 border-2 border-orange-200 text-orange-600 font-bold rounded-xl text-sm flex items-center justify-center gap-2 active:scale-95">
                   <Image size={15}/>Upload Logo
                 </button>
-                {form.logo_url&&<button onClick={()=>{const nf={...form,logo_url:'',logo_base64:''};setForm(nf);triggerSave(nf);}}
+                {form.logo_url&&<button type="button" onClick={()=>{const nf={...form,logo_url:'',logo_base64:''};setForm(nf);triggerSave(nf);}}
                   className="w-full py-2 border border-slate-200 text-slate-500 rounded-xl text-xs flex items-center justify-center gap-1 active:scale-95">
                   <RotateCcw size={11}/>Hapus Logo
                 </button>}
@@ -523,14 +523,14 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
 
         {/* ── STRUK ── */}
         {section==='receipt'&&<>
-          <button onClick={()=>setPrev(!previewOpen)}
+          <button type="button" onClick={()=>setPrev(!previewOpen)}
             className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl border-2 font-bold text-sm ${previewOpen?'border-orange-400 bg-orange-50 text-orange-600':'border-slate-200 text-slate-600'}`}>
             {previewOpen?<EyeOff size={15}/>:<Eye size={15}/>}
             {previewOpen?'Tutup Preview':'Preview Struk (Realtime)'}
           </button>
           {previewOpen&&<div className="bg-white rounded-2xl border border-slate-100 p-4">
             <ReceiptPreview s={form}/>
-            <button onClick={handleTestPrint} className="mt-3 w-full py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl text-sm flex items-center justify-center gap-2 active:scale-95">🖨️ Test Cetak</button>
+            <button type="button" onClick={handleTestPrint} className="mt-3 w-full py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl text-sm flex items-center justify-center gap-2 active:scale-95">🖨️ Test Cetak</button>
           </div>}
 
           <div className="bg-white rounded-2xl border border-slate-100 p-4 space-y-4">
@@ -539,7 +539,7 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
               <p className="text-xs font-bold text-slate-600 mb-2">Ukuran Kertas</p>
               <div className="flex gap-2">
                 {[{v:'58mm',l:'58mm (Standar)'},{v:'80mm',l:'80mm (Lebar)'}].map(o=>(
-                  <button key={o.v} onClick={()=>update('paper_width',o.v)}
+                  <button type="button" key={o.v} onClick={()=>update('paper_width',o.v)}
                     className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-bold ${form.paper_width===o.v?'border-orange-500 bg-orange-50 text-orange-600':'border-slate-200 text-slate-500'}`}>{o.l}</button>
                 ))}
               </div>
@@ -548,7 +548,7 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
               <p className="text-xs font-bold text-slate-600 mb-2">Ukuran Font</p>
               <div className="flex gap-2">
                 {[{v:'small',l:'Kecil'},{v:'medium',l:'Sedang'},{v:'large',l:'Besar'}].map(o=>(
-                  <button key={o.v} onClick={()=>update('receipt_font_size',o.v)}
+                  <button type="button" key={o.v} onClick={()=>update('receipt_font_size',o.v)}
                     className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-bold ${form.receipt_font_size===o.v?'border-orange-500 bg-orange-50 text-orange-600':'border-slate-200 text-slate-500'}`}>{o.l}</button>
                 ))}
               </div>
@@ -565,7 +565,7 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
                 <p className="text-xs font-bold text-slate-600 mb-2">Posisi Logo</p>
                 <div className="flex gap-2">
                   {[{v:'left',l:'⬅ Kiri'},{v:'center',l:'Tengah'},{v:'right',l:'Kanan ➡'}].map(o=>(
-                    <button key={o.v} onClick={()=>update('logo_position',o.v)}
+                    <button type="button" key={o.v} onClick={()=>update('logo_position',o.v)}
                       className={`flex-1 py-2 rounded-xl border-2 text-xs font-bold ${form.logo_position===o.v?'border-orange-500 bg-orange-50 text-orange-600':'border-slate-200 text-slate-500'}`}>{o.l}</button>
                   ))}
                 </div>
@@ -648,12 +648,12 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
             {/* Tombol aksi */}
             <div className="mt-3 flex gap-2">
               {printer.btConnected ? (
-                <button onClick={() => { printer.disconnectBt(); toast.showToast('Printer diputus', 'info'); }}
+                <button type="button" onClick={() => { printer.disconnectBt(); toast.showToast('Printer diputus', 'info'); }}
                   className="flex-1 py-2.5 border-2 border-red-200 text-red-500 font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95 text-sm">
                   <BluetoothOff size={14}/>Putuskan
                 </button>
               ) : (
-                <button
+                <button type="button"
                 onClick={async () => {
                   if (!canThermalPrint) {
                       dispatchUpgradePrompt({
@@ -681,7 +681,7 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
                 </button>
               )}
               {printer.btConnected && (
-                <button onClick={handleTestPrint}
+                <button type="button" onClick={handleTestPrint}
                   className="px-4 py-2.5 border-2 border-orange-200 text-orange-600 font-bold rounded-xl flex items-center justify-center gap-1.5 active:scale-95 text-sm">
                   <Printer size={14}/>Test
                 </button>
@@ -710,7 +710,7 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
               <div><p className="font-black text-slate-800 text-[14px] italic uppercase tracking-tighter">Cetak via Browser</p><p className={`text-[10px] font-black uppercase tracking-widest ${canBrowserPrint ? 'text-emerald-500' : 'text-slate-300'}`}>{canBrowserPrint ? 'Tersedia' : 'Butuh Kopi Susu'}</p></div>
             </div>
             <p className="text-xs font-bold text-slate-400 mb-6 leading-relaxed">Printer WiFi atau browser print cocok untuk operasional ringan dan review struk dari desktop.</p>
-            <button onClick={handleTestPrint}
+            <button type="button" onClick={handleTestPrint}
               className={`w-full py-4 border-2 font-black uppercase italic tracking-widest rounded-2xl flex items-center justify-center gap-3 active:scale-95 text-[12px] transition-all ${canBrowserPrint ? 'border-orange-100 text-[#FF6A00] hover:bg-orange-50' : 'border-slate-100 text-slate-300'}`}>
               <Printer size={18}/> {canBrowserPrint ? 'Test Cetak Browser' : 'Upgrade Browser Print'}
             </button>
@@ -763,7 +763,7 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
                   <input value={kasirName} onChange={e => setKasirName(e.target.value)} placeholder="Nama Kasir"
                     className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-400" style={{fontSize:16}}/>
                 </div>
-                <button onClick={handleSaveKasir} disabled={savingKasir||!kasirName.trim()}
+                <button type="button" onClick={handleSaveKasir} disabled={savingKasir||!kasirName.trim()}
                   className="px-4 py-3 bg-orange-500 text-white font-bold rounded-xl active:scale-95 disabled:opacity-50 flex items-center gap-1.5 text-sm shrink-0">
                   {savingKasir?<div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>:kasirSaved?<CheckCircle2 size={16}/>:<Save size={15}/>}
                   {kasirSaved?'Tersimpan':'Simpan'}
@@ -795,7 +795,7 @@ export default function SettingsTab({ toast, isPro, profile, subscriptionAccess 
                   </div>
                 )}
               </div>
-              <button onClick={()=>{if(confirm('Keluar dari akun?'))signOut();}}
+              <button type="button" onClick={()=>{if(confirm('Keluar dari akun?'))signOut();}}
                 className="w-full py-3 border-2 border-red-200 text-red-500 font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95">
                 <LogOut size={16}/>Keluar dari Akun
               </button>

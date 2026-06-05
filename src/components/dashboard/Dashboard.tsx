@@ -334,7 +334,7 @@ export default function Dashboard() {
                   </button>
                 </span>
               ) : null}
-              <button
+              <button type="button"
                 onClick={handleRefresh}
                 disabled={!storeId || refreshing || syncing}
                 className="w-10 h-10 shrink-0 rounded-lg bg-white border border-slate-200/80 shadow-sm text-slate-500 flex items-center justify-center disabled:opacity-50 active:scale-95 transition-all hover:bg-orange-50 hover:text-[#FF6A00]"
@@ -350,7 +350,7 @@ export default function Dashboard() {
               { id: 'week', label: '7 Hari' },
               { id: 'month', label: '30 Hari' },
             ].map((item) => (
-              <button
+              <button type="button"
                 key={item.id}
                 onClick={() => setRange(item.id as RangeKey)}
                 className={`shrink-0 px-5 py-2.5 rounded-lg text-[13px] font-bold transition-all border ${

@@ -23,7 +23,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <p className="text-xs text-slate-500 bg-white rounded-xl px-3 py-2 mb-4 text-center">
           Coba muat ulang bagian ini. Jika masih berulang, hubungi admin KaffePOS.
         </p>
-        <button onClick={this.handleReset} className="px-6 py-3 bg-orange-500 text-white font-bold rounded-2xl active:scale-95">Coba Lagi</button>
+        <button type="button" onClick={this.handleReset} className="px-6 py-3 bg-orange-500 text-white font-bold rounded-2xl active:scale-95">Coba Lagi</button>
       </div>
     );
     return this.props.children;

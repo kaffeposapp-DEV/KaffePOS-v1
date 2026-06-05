@@ -160,7 +160,7 @@ export default function UpgradeModal({
                 <h3 id="upgrade-modal-title" className="break-words text-xl font-black text-slate-900 sm:text-2xl">{title}</h3>
                 <p className="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-slate-500">{description}</p>
               </div>
-              <button
+              <button type="button"
                 onClick={close}
                 className="shrink-0 rounded-full p-2 text-slate-300 transition-colors hover:bg-slate-50 hover:text-slate-900"
                 aria-label="Tutup upgrade"
@@ -192,7 +192,7 @@ export default function UpgradeModal({
 
                 <div className="mt-5 grid grid-cols-2 gap-2 rounded-2xl bg-white p-1.5 ring-1 ring-orange-100 sm:grid-cols-4">
                   {PAID_BILLING_CYCLES.map((cycle) => (
-                    <button
+                    <button type="button"
                       key={cycle}
                       onClick={() => setBillingCycle(cycle)}
                       className={`h-10 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
@@ -242,13 +242,13 @@ export default function UpgradeModal({
 
           <div className="shrink-0 border-t border-slate-100 bg-white px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 md:px-8">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <button
+              <button type="button"
                 onClick={close}
                 className="h-12 rounded-2xl border-2 border-slate-100 bg-white px-5 text-sm font-bold text-slate-500 transition-all active:scale-[0.98] hover:bg-slate-50"
               >
                 Nanti Saja
               </button>
-              <button
+              <button type="button"
                 onClick={handlePrimaryAction}
                 className="kaffe-gradient-cta group flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl px-6 text-sm font-black transition-all active:scale-[0.98]"
               >

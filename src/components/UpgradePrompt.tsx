@@ -54,7 +54,7 @@ export default function UpgradePrompt({
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <button
+          <button type="button"
             onClick={openSubscription}
             className="group inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 text-sm font-black text-white shadow-lg transition-all active:scale-95 hover:bg-slate-800"
           >

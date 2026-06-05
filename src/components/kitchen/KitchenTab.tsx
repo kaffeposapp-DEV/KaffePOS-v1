@@ -158,7 +158,7 @@ export default function KitchenTab({ toast, profile }: Props) {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
+            <button type="button"
               onClick={() => { setSoundOn(!soundOn); if (!soundOn) playChime(); }}
               className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-all active:scale-95 ${
                 soundOn ? 'border-orange-500 bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'border-slate-200 bg-white text-slate-400 hover:bg-slate-50'
@@ -168,7 +168,7 @@ export default function KitchenTab({ toast, profile }: Props) {
             >
               <Bell size={18} />
             </button>
-            <button
+            <button type="button"
               onClick={() => storeId && loadKitchenOrders(storeId)}
               className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-400 transition-all active:scale-95 hover:bg-slate-50"
               title="Refresh"
@@ -183,7 +183,7 @@ export default function KitchenTab({ toast, profile }: Props) {
         <div className="mt-6 flex flex-col gap-4">
           <div className="kaffe-scroll-tabs kaffe-command-bar flex gap-2 overflow-x-auto no-scrollbar -mx-5 px-5">
             {STATUS_TABS.map((tab) => (
-              <button
+              <button type="button"
                 key={tab.id}
                 onClick={() => setStatus(tab.id)}
                 className={`shrink-0 h-10 px-6 rounded-2xl text-[13px] font-bold transition-all border flex items-center gap-3 ${
@@ -205,7 +205,7 @@ export default function KitchenTab({ toast, profile }: Props) {
           <div className="kaffe-scroll-tabs kaffe-command-bar flex items-center gap-2 overflow-x-auto no-scrollbar -mx-5 px-5 pb-1">
             <SlidersHorizontal size={14} className="shrink-0 text-slate-300 mr-1" />
             {STATIONS.map((st) => (
-              <button
+              <button type="button"
                 key={st.id}
                 onClick={() => setStation(st.id)}
                 className={`shrink-0 h-8 rounded-xl px-4 text-[10px] font-black uppercase tracking-widest transition-all ${

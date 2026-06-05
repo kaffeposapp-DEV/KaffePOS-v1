@@ -160,7 +160,7 @@ export function AdminCommissionTable() {
                     <div className="flex items-center justify-center gap-2">
                       {commission.status === 'eligible' && (
                         <>
-                          <button
+                          <button type="button"
                             onClick={() => handleApprove(commission.id)}
                             disabled={actionLoading === commission.id}
                             className="p-1 text-green-600 hover:bg-green-50 rounded disabled:opacity-50"
@@ -168,7 +168,7 @@ export function AdminCommissionTable() {
                           >
                             <CheckCircle className="w-5 h-5" />
                           </button>
-                          <button
+                          <button type="button"
                             onClick={() => handleReject(commission.id)}
                             disabled={actionLoading === commission.id}
                             className="p-1 text-red-600 hover:bg-red-50 rounded disabled:opacity-50"
@@ -179,7 +179,7 @@ export function AdminCommissionTable() {
                         </>
                       )}
                       {commission.status === 'approved' && (
-                        <button
+                        <button type="button"
                           onClick={() => handleMarkPaid(commission.id)}
                           disabled={actionLoading === commission.id}
                           className="p-1 text-orange-600 hover:bg-orange-50 rounded disabled:opacity-50"

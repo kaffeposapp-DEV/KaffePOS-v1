@@ -51,7 +51,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
       <div className="flex-1 min-w-0">
         <p className="text-white text-sm font-medium leading-tight">{toast.message}</p>
         {toast.action && (
-          <button
+          <button type="button"
             onClick={() => { toast.action!.onClick(); onDismiss(toast.id); }}
             className="flex items-center gap-1 mt-2 text-orange-400 text-xs font-bold hover:text-orange-300 transition-colors">
             <FolderOpen size={13} />
@@ -59,7 +59,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
           </button>
         )}
       </div>
-      <button onClick={() => onDismiss(toast.id)}
+      <button type="button" onClick={() => onDismiss(toast.id)}
         className="text-slate-500 hover:text-white transition-colors shrink-0 -mt-0.5">
         <X size={14} />
       </button>

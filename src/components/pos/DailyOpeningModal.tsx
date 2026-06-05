@@ -232,7 +232,7 @@ export default function DailyOpeningModal({ cashierName, toast, onDone }: Props)
             {/* Quick amounts */}
             <div className="grid grid-cols-3 gap-2">
               {QUICK.map(q => (
-                <button key={q} onClick={() => setAmount(String(q))}
+                <button type="button" key={q} onClick={() => setAmount(String(q))}
                   className={`py-3 rounded-xl text-[12px] font-bold border-2 transition-all active:scale-95
                     ${numVal === q ? 'border-[#FF6A00]/50 bg-[#FF6A00]/5 text-[#FF6A00]' : 'border-slate-50 bg-slate-50/50 text-slate-600 hover:border-slate-100 hover:bg-slate-50'}`}>
                   {fRp(q).replace('Rp', '').trim()}
@@ -249,7 +249,7 @@ export default function DailyOpeningModal({ cashierName, toast, onDone }: Props)
           </div>
 
           {/* Tombol Simpan */}
-          <button onClick={handleSave} disabled={saving || numVal <= 0}
+          <button type="button" onClick={handleSave} disabled={saving || numVal <= 0}
             className="w-full py-5 bg-[#FF6A00] text-white font-bold text-[16px] rounded-2xl flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 transition-all shadow-premium hover:-translate-y-0.5">
             {saving
               ? <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -257,7 +257,7 @@ export default function DailyOpeningModal({ cashierName, toast, onDone }: Props)
             }
           </button>
 
-          <button onClick={handleSkip}
+          <button type="button" onClick={handleSkip}
             className="w-full py-2 text-slate-400 text-[13px] font-bold hover:text-slate-600 transition-colors uppercase tracking-widest">
             Lewati Saldo Awal
           </button>

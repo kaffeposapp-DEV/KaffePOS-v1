@@ -64,7 +64,7 @@ export class GlobalErrorBoundary extends Component<Props, State> {
                 </code>
             </div>
 
-            <button
+            <button type="button"
               onClick={this.handleReload}
               className="w-full py-6 bg-orange-500 text-slate-950 rounded-[24px] font-black text-xl flex items-center justify-center gap-4 hover:scale-[1.02] active:scale-95 transition-all shadow-[0_20px_40px_rgba(216,130,59,0.3)] uppercase italic"
             >

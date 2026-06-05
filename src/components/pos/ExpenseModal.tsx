@@ -99,7 +99,7 @@ export default function ExpenseModal({ onClose, cashierName, toast }: Props) {
                 <h3 id="expense-modal-title" className="text-white font-black text-base leading-tight">Catat Pengeluaran Kasir</h3>
               </div>
             </div>
-            <button onClick={onClose}
+            <button type="button" onClick={onClose}
               className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center active:scale-90">
               <X size={18} className="text-white" />
             </button>
@@ -186,7 +186,7 @@ export default function ExpenseModal({ onClose, cashierName, toast }: Props) {
               <label className="text-xs font-black text-slate-500 mb-1.5 block">KATEGORI</label>
               <div className="flex gap-1.5 flex-wrap">
                 {CATEGORIES.map(cat => (
-                  <button key={cat} onClick={() => setCategory(cat)}
+                  <button type="button" key={cat} onClick={() => setCategory(cat)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
                       category === cat
                         ? 'bg-red-500 text-white shadow-sm'
@@ -224,7 +224,7 @@ export default function ExpenseModal({ onClose, cashierName, toast }: Props) {
               {/* Quick amounts */}
               <div className="grid grid-cols-3 gap-1.5 mt-2.5">
                 {QUICK_AMOUNTS.map(q => (
-                  <button key={q} onClick={() => setAmount(String(q))}
+                  <button type="button" key={q} onClick={() => setAmount(String(q))}
                     className={`py-2 rounded-xl text-xs font-black border-2 transition-all active:scale-95 ${
                       numVal === q
                         ? 'border-red-400 bg-red-50 text-red-600'
@@ -248,7 +248,7 @@ export default function ExpenseModal({ onClose, cashierName, toast }: Props) {
           )}
 
           {/* Tombol simpan */}
-          <button onClick={handleSave} disabled={saving || numVal <= 0 || !description.trim()}
+          <button type="button" onClick={handleSave} disabled={saving || numVal <= 0 || !description.trim()}
             className="w-full py-4 bg-orange-500 text-white font-black rounded-2xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm text-base">
             {saving
               ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />

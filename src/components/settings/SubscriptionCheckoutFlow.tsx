@@ -232,7 +232,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                 Langkah {stepNumber(step)} dari 3
               </p>
             </div>
-            <button
+            <button type="button"
               onClick={closeFlow}
               className="shrink-0 rounded-full p-2 text-slate-300 transition-colors hover:bg-slate-50 hover:text-slate-900"
               aria-label="Tutup checkout langganan"
@@ -269,7 +269,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                   const planDef = getPlanDefinition(item);
                   const active = selectedPlan === item;
                   return (
-                    <button
+                    <button type="button"
                       key={item}
                       onClick={() => {
                         setSelectedPlan(item);
@@ -309,7 +309,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                     const active = selectedCycle === cycle;
                     const savings = getPlanSavingsPercent(selectedPlan, cycle);
                     return (
-                      <button
+                      <button type="button"
                         key={cycle}
                         onClick={() => {
                           setSelectedCycle(cycle);
@@ -355,7 +355,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {methods.qris.map((method) => (
-                    <button
+                    <button type="button"
                       key={method.id}
                       onClick={() => setSelectedMethod(method.id)}
                       className={`flex items-center justify-between rounded-[24px] border-2 p-5 transition-all ${
@@ -388,7 +388,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {methods.virtualAccount.map((method) => (
-                    <button
+                    <button type="button"
                       key={method.id}
                       onClick={() => setSelectedMethod(method.id)}
                       className={`flex items-center justify-between rounded-[24px] border-2 p-5 transition-all ${
@@ -457,7 +457,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
 
                 <div className="mt-8">
                   {!showVoucherInput && !quote.voucher ? (
-                    <button
+                    <button type="button"
                       onClick={() => setShowVoucherInput(true)}
                       className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-orange-700 transition-colors hover:text-orange-800"
                     >
@@ -473,7 +473,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                           placeholder="KODE VOUCHER"
                           className="h-10 flex-1 rounded-xl border border-orange-100 bg-white px-4 text-xs font-black outline-none focus:ring-2 focus:ring-orange-200"
                         />
-                        <button
+                        <button type="button"
                           onClick={() => void applyVoucher()}
                           disabled={loadingQuote}
                           className="h-10 rounded-xl bg-orange-700 px-5 text-xs font-black text-white hover:bg-orange-800 disabled:opacity-50"
@@ -484,7 +484,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                       {quote.voucher && (
                         <div className="flex flex-col gap-2 px-1 sm:flex-row sm:items-center sm:justify-between">
                           <p className="break-words text-[10px] font-black uppercase tracking-widest text-orange-800">✓ Voucher Aktif: {quote.voucher.code}</p>
-                          <button
+                          <button type="button"
                             onClick={() => {
                               setVoucherInput('');
                               setAppliedVoucher(null);
@@ -520,7 +520,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
         {/* FOOTER ACTIONS */}
         <div className="subscription-checkout-footer shrink-0 border-t border-slate-100 bg-white px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 md:px-10 md:py-5">
           {step === 'plan' && (
-            <button
+            <button type="button"
               onClick={() => setStep('method')}
               className="kaffe-gradient-cta group flex h-14 w-full items-center justify-center gap-3 rounded-2xl px-6 text-sm font-black transition-all active:scale-[0.98]"
             >
@@ -531,14 +531,14 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
 
           {step === 'method' && (
             <div className="flex flex-col gap-3 sm:flex-row">
-              <button
+              <button type="button"
                 onClick={() => setStep('plan')}
                 className="flex h-14 flex-1 items-center justify-center gap-3 rounded-2xl border-2 border-slate-100 bg-white px-6 text-sm font-bold text-slate-500 transition-all active:scale-[0.98] hover:bg-slate-50"
               >
                 <ChevronLeft size={18} />
                 Kembali
               </button>
-              <button
+              <button type="button"
                 onClick={() => void goToReview()}
                 disabled={loadingQuote || !isOnline}
                 className="kaffe-gradient-cta group flex h-14 flex-[1.5] items-center justify-center gap-3 rounded-2xl px-6 text-sm font-black transition-all active:scale-[0.98] disabled:opacity-50"
@@ -557,7 +557,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
 
           {step === 'review' && quote && (
             <div className="flex flex-col gap-3 sm:flex-row">
-              <button
+              <button type="button"
                 onClick={() => setStep('method')}
                 disabled={submitting}
                 className="flex h-14 flex-1 items-center justify-center gap-3 rounded-2xl border-2 border-slate-100 bg-white px-6 text-sm font-bold text-slate-500 transition-all active:scale-[0.98] disabled:opacity-50"
@@ -565,7 +565,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                 <ChevronLeft size={18} />
                 Ganti Metode
               </button>
-              <button
+              <button type="button"
                 onClick={() => void handlePay()}
                 disabled={submitting || !isOnline}
                 className="kaffe-gradient-cta group flex h-14 flex-[2] items-center justify-center gap-3 rounded-2xl px-6 text-sm font-black transition-all active:scale-[0.98] disabled:opacity-50"

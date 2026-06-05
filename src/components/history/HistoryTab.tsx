@@ -148,7 +148,7 @@ export default function HistoryTab({
         {/* Period filter */}
         <div className="kaffe-scroll-tabs kaffe-command-bar flex gap-4 overflow-x-auto no-scrollbar -mx-4 px-4 sm:-mx-6 sm:px-6 border-b border-slate-50">
           {HISTORY_PERIODS.map(p => (
-            <button
+            <button type="button"
               key={p.id}
               onClick={() => setPeriod(p.id)}
               className={`shrink-0 pb-3 text-[13px] font-black uppercase tracking-widest transition-all relative ${
@@ -188,7 +188,7 @@ export default function HistoryTab({
 
             {/* Load more */}
             {hasMore && (
-              <button onClick={loadMore}
+              <button type="button" onClick={loadMore}
                 className="w-full py-3 border-2 border-slate-200 rounded-2xl text-sm font-bold text-slate-500 flex items-center justify-center gap-2 active:scale-95">
                 <ChevronDown size={16}/> Muat Lebih Banyak ({remaining} lagi)
               </button>
@@ -211,7 +211,7 @@ export default function HistoryTab({
                 <h3 id="history-detail-title" className="font-black text-2xl text-slate-800 italic uppercase tracking-tighter">Detail Pesanan 🧾</h3>
                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">ID: {detail.id}</p>
               </div>
-              <button onClick={closeDetailModal} className="p-3 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 transition-colors"><X size={24}/></button>
+              <button type="button" onClick={closeDetailModal} className="p-3 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 transition-colors"><X size={24}/></button>
             </div>
 
             <div className="bg-slate-50 rounded-[32px] p-6 mb-8 border border-slate-100">
@@ -250,14 +250,14 @@ export default function HistoryTab({
             </div>
 
             <div className="space-y-3">
-              <button
+              <button type="button"
                 onClick={() => handlePrint(detail)}
                 className="w-full py-5 bg-white border-2 border-slate-100 text-slate-700 font-black text-[15px] uppercase italic tracking-wider rounded-[24px] flex items-center justify-center gap-3 active:scale-95 transition-all hover:border-[#FF6A00]/30 hover:bg-orange-50/30">
                 <Printer size={20}/> Cetak Struk
               </button>
 
               {!detail.is_void ? (
-                <button onClick={() => setShowVoid(detail)}
+                <button type="button" onClick={() => setShowVoid(detail)}
                   className="w-full py-5 text-rose-400 font-black text-[15px] uppercase italic tracking-wider rounded-[24px] flex items-center justify-center gap-3 active:scale-95 transition-all hover:bg-rose-50">
                   <Ban size={20}/> Void Transaksi
                 </button>
@@ -290,12 +290,12 @@ export default function HistoryTab({
               style={{fontSize:16}} autoFocus
               onKeyDown={e=>e.key==='Enter'&&handleVoid()}/>
             <div className="flex gap-2">
-              <button onClick={closeVoidModal}
+              <button type="button" onClick={closeVoidModal}
                 disabled={voiding}
                 className="flex-1 py-3 border border-slate-200 rounded-2xl font-bold text-slate-600 active:scale-95 disabled:opacity-50">
                 Batal
               </button>
-              <button onClick={handleVoid} disabled={voiding}
+              <button type="button" onClick={handleVoid} disabled={voiding}
                 className="flex-1 py-3 bg-red-500 text-white rounded-2xl font-black disabled:opacity-50 flex items-center justify-center gap-1.5 active:scale-95">
                 {voiding && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>}
                 {voiding ? 'Voiding...' : 'Void'}

@@ -101,7 +101,7 @@ class TabError extends React.Component<{ name: string; children: React.ReactNode
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
         <p className="text-3xl mb-3">😵</p>
         <p className="font-bold text-slate-700">{this.props.name} mengalami error</p>
-        <button onClick={() => this.setState({ err: false })}
+        <button type="button" onClick={() => this.setState({ err: false })}
           className="mt-4 px-5 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold active:scale-95">
           Coba Lagi
         </button>
@@ -643,7 +643,7 @@ export default function AppShell() {
           {NAV.filter((entry) => getVisibleTabs(role).includes(entry.id)).map(({ id, label, icon: Icon }) => {
             const active = tab === id;
             return (
-              <button
+              <button type="button"
                 key={id}
                 onClick={() => changeTab(id)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 relative group ${
@@ -669,7 +669,7 @@ export default function AppShell() {
         </nav>
 
         <div className="p-4 border-t border-slate-100">
-           <button
+           <button type="button"
              onClick={() => {
                 localStorage.setItem(EXPLICIT_SIGNOUT_KEY, '1');
                 import('@/contexts/AuthContext').then(m => (m as any).useAuth.getState().signOut());
@@ -824,7 +824,7 @@ export default function AppShell() {
           {NAV.filter((entry) => getVisibleTabs(role).includes(entry.id)).map(({ id, label, icon: Icon }) => {
             const active = tab === id;
             return (
-              <button
+              <button type="button"
                 key={id}
                 onClick={() => changeTab(id)}
                 className={`flex h-full w-[74px] flex-none flex-col items-center justify-center transition-all relative min-w-0 ${

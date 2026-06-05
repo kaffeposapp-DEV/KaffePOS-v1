@@ -299,14 +299,14 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
         </div>
 
         <div className="relative mt-8 flex flex-col gap-3 sm:flex-row">
-          <button
+          <button type="button"
             onClick={() => openCheckout()}
             className="kaffe-gradient-cta group inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl px-6 text-sm font-black transition-all active:scale-95"
           >
             <Sparkles size={18} className="transition-transform group-hover:rotate-12" />
             {primaryCta}
           </button>
-          <button
+          <button type="button"
             onClick={handleRefresh}
             className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-orange-100 bg-white px-6 text-sm font-black text-slate-800 shadow-sm transition-all active:scale-95 hover:border-orange-200 hover:text-orange-700"
           >
@@ -406,7 +406,7 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
 
       {/* ── FOOTER ACTIONS ── */}
       <div className="flex flex-col gap-3 sm:flex-row">
-        <button
+        <button type="button"
           onClick={() => setShowHistory((v) => !v)}
           className="flex h-14 flex-1 items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-6 text-sm font-black text-slate-700 shadow-sm transition-all active:scale-95"
         >
@@ -414,7 +414,7 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
           {showHistory ? 'Tutup Riwayat' : 'Lihat Riwayat Pembayaran'}
         </button>
         {isAdminEmail(profile?.email) && (
-          <button
+          <button type="button"
             onClick={() => navigate('/admin')}
             className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-slate-100 px-6 text-xs font-bold text-slate-500 transition-all active:scale-95"
           >

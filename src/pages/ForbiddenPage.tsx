@@ -53,7 +53,7 @@ export default function ForbiddenPage() {
 
           {/* Actions */}
           <div className="space-y-3">
-            <button
+            <button type="button"
               onClick={handleGoHome}
               className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
             >
@@ -61,7 +61,7 @@ export default function ForbiddenPage() {
               Kembali ke Beranda
             </button>
 
-            <button
+            <button type="button"
               onClick={handleGoBack}
               className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
             >
