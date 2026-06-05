@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { createHmac, randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 const DEFAULT_ENV_FILES = ['.env.staging.local', 'backend/.env.staging.local'];
 const REQUIRED = [
@@ -30,8 +30,8 @@ function loadEnv() {
   return Object.assign({}, ...files.map((file) => parseEnvFile(path.resolve(process.cwd(), file))), process.env);
 }
 
-function hmacSha256(value, key) {
-  return createHmac('sha256', key).update(value).digest('hex');
+function md5(value) {
+  return createHash('md5').update(value).digest('hex');
 }
 
 async function main() {
@@ -60,7 +60,7 @@ async function main() {
     callbackUrl: env.DUITKU_CALLBACK_URL,
     returnUrl: env.DUITKU_RETURN_URL,
     expiryPeriod: Number(env.DUITKU_EXPIRY_PERIOD_MINUTES || 60),
-    signature: hmacSha256(`${env.DUITKU_MERCHANT_CODE}${merchantOrderId}${paymentAmount}`, env.DUITKU_MERCHANT_KEY),
+    signature: md5(`${env.DUITKU_MERCHANT_CODE}${merchantOrderId}${paymentAmount}${env.DUITKU_MERCHANT_KEY}`),
   };
 
   const response = await fetch(`${baseUrl}/webapi/api/merchant/v2/inquiry`, {
