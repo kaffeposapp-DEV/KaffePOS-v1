@@ -50,7 +50,7 @@ describe('App route integration', () => {
   it('renders the welcome route through the real AuthProvider boundary', async () => {
     renderAppAt('/welcome');
 
-    expect(await screen.findByRole('heading', { name: /Kasir Cafe Paling Seru di Indonesia/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /Sistem Kasir Cafe yang Rapi, Cepat, dan Siap Tumbuh/i })).toBeInTheDocument();
     expect(screen.getByTestId('reference-device-showcase')).toBeInTheDocument();
     expect(consoleError.mock.calls.flat().join(' ')).not.toContain('useAuth must be used inside AuthProvider');
   });

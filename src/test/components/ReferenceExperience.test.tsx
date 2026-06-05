@@ -42,11 +42,11 @@ describe('KaffePOS reference experience', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole('heading', { name: /Kasir Cafe Paling Seru di Indonesia/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Sistem Kasir Cafe yang Rapi, Cepat, dan Siap Tumbuh/i })).toBeInTheDocument();
     expect(screen.getByTestId('reference-device-showcase')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Satu POS, Banyak Cara Bikin Cafe Makin Hidup/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Dari Transaksi Harian Jadi Keputusan Bisnis/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Mulai Murah, Upgrade Saat Cafe Makin Ramai/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Satu POS untuk Mengelola Operasional Cafe Lebih Rapi/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Ubah Transaksi Harian Jadi Keputusan Bisnis/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Mulai dari Outlet Kecil, Siap untuk Berkembang/i })).toBeInTheDocument();
   });
 
   it('renders a mobile-first auth surface for web mobile and APK login', () => {
