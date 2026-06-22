@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { jsPDF } from 'jspdf';
+import type { jsPDF } from 'jspdf';
 import { downloadPDFReport, sharePDFReport, type DownloadResult } from './downloadFile';
 
 const C = {
@@ -388,6 +388,7 @@ async function buildProfessionalPDF(
   shareText?: string,
 ): Promise<any> {
   const autoTable = (await import('jspdf-autotable')).default;
+  const { jsPDF } = await import('jspdf');
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
