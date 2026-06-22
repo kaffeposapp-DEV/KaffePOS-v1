@@ -88,6 +88,29 @@ import {
   startApmMonitoring,
 } from './middleware/apm';
 
+import {
+  addDays,
+  addMinutes,
+  buildUpdateClause,
+  createOpaqueToken,
+  generateOtpCode,
+  getBearerToken,
+  hashToken,
+  normalizeEmail,
+  pickDefined,
+  toNumber,
+} from './lib/util';
+import {
+  normalizeInventory,
+  normalizePaymentHistory,
+  normalizeStockUnitConversion,
+  normalizeStore,
+  normalizeSubscription,
+  normalizeSubscriptionPaymentSession,
+  normalizeTransaction,
+  serializeCashier,
+} from './lib/serializers';
+
 type AuthenticatedUser = {
   id: string;
   email: string | null;
@@ -242,88 +265,6 @@ setInterval(() => {
   }
 }, Math.min(env.AUTH_RATE_LIMIT_WINDOW_MS, 60_000)).unref();
 
-function toNumber(value: unknown): number {
-  if (typeof value === 'number') return value;
-  if (typeof value === 'string' && value.trim() !== '') return Number(value);
-  return 0;
-}
-
-function normalizeStore(row: Record<string, unknown>) {
-  return {
-    ...row,
-    tax_percent: toNumber(row.tax_percent),
-    logo_size: row.logo_size == null ? null : Number(row.logo_size),
-  };
-}
-
-function serializeCashier(row: Record<string, unknown>) {
-  return {
-    id: row.id,
-    display_name: row.display_name,
-    email: row.email,
-    username: row.username,
-    role: 'cashier',
-    status: normalizeCashierStatus(row.account_status ?? row.status),
-    store_id: row.store_id,
-    store_name: row.store_name,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-  };
-}
-
-function normalizeInventory(row: Record<string, unknown>) {
-  return {
-    ...row,
-    stock: toNumber(row.stock),
-    conversion_ratio: row.conversion_ratio == null ? null : toNumber(row.conversion_ratio),
-    min_stock: toNumber(row.min_stock),
-    cost_per_unit: toNumber(row.cost_per_unit),
-    is_active: row.is_active !== false,
-  };
-}
-
-function normalizeStockUnitConversion(row: Record<string, unknown>) {
-  return {
-    ...row,
-    ratio: toNumber(row.ratio),
-    is_active: row.is_active !== false,
-  };
-}
-
-function normalizeTransaction(row: Record<string, unknown>) {
-  return {
-    ...row,
-    subtotal: Number(row.subtotal ?? 0),
-    discount: Number(row.discount ?? 0),
-    tax: Number(row.tax ?? 0),
-    total: Number(row.total ?? 0),
-    cogs: Number(row.cogs ?? 0),
-    paid: Number(row.paid ?? 0),
-    change: Number(row.change ?? 0),
-  };
-}
-
-function normalizeSubscription(row: Record<string, unknown>) {
-  return {
-    ...row,
-    payment_amount: row.payment_amount == null ? null : Number(row.payment_amount),
-  };
-}
-
-function normalizePaymentHistory(row: Record<string, unknown>) {
-  return {
-    ...row,
-    amount: Number(row.amount ?? 0),
-  };
-}
-
-function normalizeSubscriptionPaymentSession(row: Record<string, unknown>) {
-  return {
-    ...row,
-    amount: Number(row.amount ?? 0),
-  };
-}
-
 async function withTransaction<T>(runner: (client: PoolClient) => Promise<T>) {
   const client = await pool.connect();
 
@@ -340,66 +281,10 @@ async function withTransaction<T>(runner: (client: PoolClient) => Promise<T>) {
   }
 }
 
-function pickDefined<T extends Record<string, unknown>>(payload: T, allowedKeys: string[]) {
-  const result: Record<string, unknown> = {};
-
-  for (const key of allowedKeys) {
-    if (payload[key] !== undefined) {
-      result[key] = payload[key];
-    }
-  }
-
-  return result;
-}
-
-function buildUpdateClause(payload: Record<string, unknown>, startIndex = 1) {
-  const entries = Object.entries(payload);
-  if (entries.length === 0) {
-    throw new ApiError(400, 'Tidak ada field yang bisa diubah.');
-  }
-
-  const values = entries.map(([, value]) => value);
-  const clause = entries
-    .map(([column], index) => `${column} = $${index + startIndex}`)
-    .join(', ');
-
-  return { clause, values };
-}
-
-function getBearerToken(req: Request) {
-  const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) return null;
-  return header.slice('Bearer '.length).trim();
-}
-
 function isAdminUser(user: AuthenticatedUser | undefined) {
   const email = user?.email?.trim().toLowerCase();
   if (!email) return false;
   return adminEmails.has(email);
-}
-
-function normalizeEmail(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function hashToken(token: string) {
-  return createHash('sha256').update(token).digest('hex');
-}
-
-function createOpaqueToken() {
-  return randomBytes(32).toString('base64url');
-}
-
-function addMinutes(date: Date, minutes: number) {
-  return new Date(date.getTime() + minutes * 60 * 1000);
-}
-
-function addDays(date: Date, days: number) {
-  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
-}
-
-function generateOtpCode() {
-  return `${Math.floor(100000 + Math.random() * 900000)}`;
 }
 
 function getMidtransBaseUrl() {
