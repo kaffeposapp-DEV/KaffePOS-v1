@@ -4,7 +4,7 @@
  
  
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { memo, useState, useMemo } from 'react';
+import { memo, useState, useMemo, useRef } from 'react';
 import { Plus, Archive, X, AlertTriangle, Search, RefreshCw, ChefHat, Calculator, Upload, CheckCircle2, FileSpreadsheet } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import DeleteConfirmSheet from '@/components/ui/DeleteConfirmSheet';
@@ -74,6 +74,8 @@ export default function WarehouseTab({ toast }: { toast:any }) {
   const [opnameTarget, setOpnameTarget] = useState<InventoryItem | null>(null);
   const [opnameForm, setOpnameForm] = useState({ countedStock: '', reason: 'Opname stok fisik', note: '' });
   const [opnameSaving, setOpnameSaving] = useState(false);
+  const saveInFlight = useRef(false);
+  const conversionInFlight = useRef(false);
   const dSearch = useDebouncedValue(search, 300);
 
   const filtered = useMemo(() =>
@@ -118,6 +120,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saveInFlight.current) return;
     if (!form.name || !form.qty) { toast.showToast('Nama dan jumlah wajib diisi', 'warning'); return; }
     const qty = Number(form.qty);
     const cost = Number(form.cost || 0);
@@ -126,6 +129,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
       toast.showToast('Qty, biaya, dan stok minimum tidak boleh negatif', 'warning');
       return;
     }
+    saveInFlight.current = true;
     setSaving(true);
     try {
       await saveInventoryItem(form as unknown as InventoryItemUpdate);
@@ -136,6 +140,7 @@ export default function WarehouseTab({ toast }: { toast:any }) {
       toast.showToast(normalizeUserFacingError(e, 'Bahan baku belum bisa disimpan. Periksa kembali isian stok.'), 'error');
     } finally {
       setSaving(false);
+      saveInFlight.current = false;
     }
   };
 
@@ -171,11 +176,13 @@ export default function WarehouseTab({ toast }: { toast:any }) {
 
   const handleSaveConversion = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (conversionInFlight.current) return;
     const ratio = Number(conversionForm.ratio || 0);
     if (!conversionForm.from_unit || !conversionForm.to_unit || ratio <= 0) {
       toast.showToast('Satuan asal, tujuan, dan rasio wajib valid', 'warning');
       return;
     }
+    conversionInFlight.current = true;
     try {
       await saveStockUnitConversion({
         ingredient_id: conversionForm.ingredient_id || null,
@@ -188,6 +195,8 @@ export default function WarehouseTab({ toast }: { toast:any }) {
       toast.showToast('Konversi satuan disimpan', 'success');
     } catch (error: any) {
       toast.showToast(normalizeUserFacingError(error, 'Konversi satuan belum bisa disimpan. Periksa satuan dan rasio.'), 'error');
+    } finally {
+      conversionInFlight.current = false;
     }
   };
 
