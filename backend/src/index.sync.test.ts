@@ -64,7 +64,7 @@ describe('backend modular bootstrap sync', () => {
   });
 
   it('uses the shared core env parser instead of keeping a second bootstrap schema', () => {
-    expect(indexSource).toContain("import { adminEmails, env } from './core/env';");
+    expect(indexSource).toContain("import { env } from './core/env';");
     expect(indexSource).not.toMatch(/const\s+envSchema\s*=\s*z\.object/);
     expect(indexSource).not.toMatch(/const\s+env\s*=\s*envSchema\.parse/);
   });

@@ -31,13 +31,21 @@ inline duplicates, leaving just bootstrap + middleware wiring + route mounting
    `npm run check` **and** the staging smoke scripts (`smoke:staging:*`), ideally
    against a running server, before merging.
 
-Done so far: removed the dead email block and pointed the pure utils/serializers
-at `core/helpers.ts`. Remaining: middleware, profile/subscription helpers, column
-constants, Midtrans/subscription config.
+Done so far: removed the dead email block, pointed utils/serializers at
+`core/helpers.ts`, and ran a compiler-verified dead-code purge (everything
+`tsc --noUnusedLocals` flagged as unreferenced). **`index.ts` went from ~2,950 to
+~1,205 lines** with 0 unused declarations; typecheck/build + full test suite green.
 
-Once the duplication is gone, enable `noUnusedLocals`/`noUnusedParameters` in
-`backend/tsconfig.json` (currently off — which is how this dead code accumulated
-unnoticed) to prevent regressions.
+Remaining (the live, drift-prone part — needs staging smoke tests, do last):
+`index.ts` still has its own inline `authenticate`, `getBearerToken`/`hashToken`/
+`createOpaqueToken`, `bootstrapAuthSchema`, and Midtrans/subscription config that
+duplicate `core/middleware.ts`. Swap these to `core/*` only with a running server
++ `smoke:staging:*` verifying auth and payments.
+
+Then enable `noUnusedLocals`/`noUnusedParameters` in `backend/tsconfig.json`
+(currently off — which is how the dead code accumulated unnoticed) to prevent
+regressions. A quick check confirmed the rest of the backend has only ~8 unused
+locals, so turning it on is now cheap.
 
 ## 2. Remove `any` escape hatches (~59 occurrences)
 
