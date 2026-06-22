@@ -6,7 +6,6 @@ import {
   normalizeStockUnitConversion,
   pickDefined,
   buildUpdateClause,
-  toNumber,
   inventoryColumns,
   stockUnitConversionColumns,
 } from '../core';

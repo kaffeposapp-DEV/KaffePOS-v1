@@ -13,7 +13,6 @@ const MIN_COMPRESS_LENGTH = 1024; // 1KB
 export function compressionMiddleware() {
   return async (req: Request, res: Response, next: NextFunction) => {
     const originalSend = res.send;
-    const originalJson = res.json;
 
     res.send = function (body: any): Response {
       void compressAndSend(this, body, originalSend);

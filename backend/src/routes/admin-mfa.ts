@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { pool, withTransaction, ApiError, authenticate, requireAdmin, log, serializeError } from '../core';
+import { pool, withTransaction, ApiError, authenticate, requireAdmin, log } from '../core';
 import {
   createTotpSecret,
   getTotpUri,

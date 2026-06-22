@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import {
   withTransaction,
   ApiError,
@@ -8,7 +7,6 @@ import {
   transactionColumns,
   inventoryColumns,
   kitchenOrderColumns,
-  broadcastKitchenEvent,
   fetchKitchenOrder,
   insertKitchenEvent,
   createKitchenOrderFromTransaction,

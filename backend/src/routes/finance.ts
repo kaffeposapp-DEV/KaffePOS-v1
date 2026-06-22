@@ -5,7 +5,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import {
-  pool,
   withTransaction,
   ApiError,
   requirePermission,

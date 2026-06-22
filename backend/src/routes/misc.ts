@@ -12,7 +12,6 @@ import {
   env,
   opsEventSchema,
   aiInsightRequestSchema,
-  aiInsightResponseSchema,
   localStorageImportSchema,
   mapGeminiError,
   getAiLimitWindow,
@@ -175,7 +174,6 @@ function buildEnhancedAiInsights(input: {
   const recentRevenue = recent.reduce((sum, row) => sum + row.total, 0);
   const previousRevenue = previous.reduce((sum, row) => sum + row.total, 0);
   const revenueTrendPct = pctChange(recentRevenue, previousRevenue);
-  const avgTicket = recent.length > 0 ? Math.round(recentRevenue / recent.length) : 0;
 
   const trendMap = new Map<string, number>();
   for (let i = 6; i >= 0; i -= 1) {
