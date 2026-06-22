@@ -3,7 +3,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/pos/POSTab.tsx — KaffePOS v5
-import { memo, useState, useMemo, useCallback, useEffect } from 'react';
+import { memo, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   ShoppingBag, Plus, Minus, X, ChevronRight,
   Search, Printer, RefreshCw, CheckCircle2, ChefHat,
@@ -114,6 +114,9 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
   const [custName,   setCustName]   = useState('');   // ← Nama pelanggan
   const [showPrintSheet, setShowPrintSheet] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
+  // Synchronous re-entry guard: state/disabled lags a render, so a fast double-tap
+  // could run checkout twice (duplicate transaction / double stock deduction).
+  const checkoutInFlight = useRef(false);
   const [paymentPhase, setPaymentPhase] = useState<PaymentPhase>('idle');
   const [paymentOrder, setPaymentOrder] = useState<SecurePaymentCreateResponse | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<SecurePaymentOrderStatus | null>(null);
@@ -357,6 +360,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
   }, [finishPaidPayment, toast]);
 
   const handleCheckout = useCallback(async () => {
+    if (checkoutInFlight.current) return;
     if (!cart.length) return;
     if (!storeId) {
       toast.showToast('Toko belum siap. Sinkronkan ulang data toko dulu.', 'warning');
@@ -437,6 +441,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
     };
 
     try {
+      checkoutInFlight.current = true;
       setCheckingOut(true);
       setPaymentPhase('idle');
       setPaymentStatus(null);
@@ -566,6 +571,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
       toast.showToast(normalizeUserFacingError(e, 'Checkout belum bisa diproses. Coba lagi.'), 'warning');
     } finally {
       setCheckingOut(false);
+      checkoutInFlight.current = false;
     }
   }, [cart, change, clearCart, currentMonthTransactionCount, custName, discAmt, discount, inventory, isOnline, loyaltyPassport, loyaltyPhone, loyaltyReward, menu, method, paid, pollPaymentOrder, profile, saveTransaction, storeId, subscriptionAccess.transactionLimit, subtotal, taxAmt, toast, total, transactions, unitConversions]);
 
