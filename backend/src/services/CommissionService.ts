@@ -147,7 +147,7 @@ export class CommissionService {
         amount,
         rate,
         eligibleAt,
-        `Created from verified Midtrans payment ${input.orderId}`,
+        `Created from verified gateway payment ${input.orderId}`,
       ],
     );
 
@@ -183,7 +183,7 @@ export class CommissionService {
           and status in ('pending', 'eligible', 'approved')
         returning *
       `,
-      [input.userId, input.paymentId, `Cancelled from Midtrans status ${input.status} for ${input.orderId}`],
+      [input.userId, input.paymentId, `Cancelled from gateway status ${input.status} for ${input.orderId}`],
     );
 
     const manualReview = await this.db.query(
@@ -196,7 +196,7 @@ export class CommissionService {
           and status = 'paid'
         returning *
       `,
-      [input.userId, input.paymentId, `Manual review required: paid commission received Midtrans status ${input.status} for ${input.orderId}`],
+      [input.userId, input.paymentId, `Manual review required: paid commission received gateway status ${input.status} for ${input.orderId}`],
     );
 
     if (result.rows.length > 0) {

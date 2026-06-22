@@ -94,7 +94,7 @@ export function requestLoggingMiddleware(): RequestHandler {
         requestWindow.errors = 0;
         requestWindow.startedAt = Date.now();
       }
-      if (/webhook|midtrans|payment/i.test(req.originalUrl) && res.statusCode >= 400) {
+      if (/webhook|payment|doku/i.test(req.originalUrl) && res.statusCode >= 400) {
         alertOnPaymentWebhookFailure('Payment webhook request failed', {
           requestId: req.requestId ?? null,
           path: req.originalUrl,

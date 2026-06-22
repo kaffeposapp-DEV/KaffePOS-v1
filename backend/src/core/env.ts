@@ -45,20 +45,8 @@ export const envSchema = z.object({
   CLOUDFLARE_IMAGES_DELIVERY_URL: z.string().trim().url().optional(),
   RESEND_API_KEY: z.string().trim().optional(),
   RESEND_FROM_EMAIL: z.string().trim().optional(),
-  PAYMENT_GATEWAY_PROVIDER: z.enum(['duitku', 'midtrans', 'doku', 'disabled']).default('midtrans'),
+  PAYMENT_GATEWAY_PROVIDER: z.enum(['doku', 'disabled']).default('doku'),
   PAYMENT_INTEGRATION_ENABLED: z.union([z.literal('true'), z.literal('false')]).optional().default('true'),
-  DUITKU_ENVIRONMENT: z.enum(['sandbox', 'production']).default('sandbox'),
-  DUITKU_MERCHANT_CODE: z.string().trim().optional(),
-  DUITKU_MERCHANT_KEY: z.string().trim().optional(),
-  DUITKU_SANDBOX_BASE_URL: z.string().trim().url().default('https://sandbox.duitku.com'),
-  DUITKU_PRODUCTION_BASE_URL: z.string().trim().url().default('https://passport.duitku.com'),
-  DUITKU_CALLBACK_URL: z.string().trim().url().optional(),
-  DUITKU_RETURN_URL: z.string().trim().url().optional(),
-  DUITKU_SUCCESS_URL: z.string().trim().url().optional(),
-  DUITKU_PENDING_URL: z.string().trim().url().optional(),
-  DUITKU_FAILED_URL: z.string().trim().url().optional(),
-  DUITKU_EXPIRY_PERIOD_MINUTES: z.coerce.number().int().positive().default(60),
-  DUITKU_DEFAULT_PAYMENT_METHOD: z.string().trim().default('VC'),
   // DOKU Checkout (hosted payment page). Base URLs are configurable because DOKU
   // exposes both api-sandbox.doku.com and legacy sandbox hosts per account.
   DOKU_ENVIRONMENT: z.enum(['sandbox', 'production']).default('sandbox'),
@@ -71,23 +59,8 @@ export const envSchema = z.object({
   DOKU_NOTIFICATION_PATH: z.string().trim().default('/api/webhooks/doku'),
   DOKU_CALLBACK_URL: z.string().trim().url().optional(),
   DOKU_PAYMENT_DUE_MINUTES: z.coerce.number().int().positive().default(60),
-  MIDTRANS_ENVIRONMENT: z.enum(['sandbox', 'production']).default('sandbox'),
-  MIDTRANS_IS_PRODUCTION: z
-    .union([z.literal('true'), z.literal('false')])
-    .optional(),
-  MIDTRANS_SERVER_KEY: z.string().trim().optional(),
-  MIDTRANS_CLIENT_KEY: z.string().trim().optional(),
-  MIDTRANS_MERCHANT_ID: z.string().trim().optional(),
-  MIDTRANS_SNAP_ENABLED: z
-    .union([z.literal('true'), z.literal('false')])
-    .optional()
-    .default('true'),
-  MIDTRANS_WEBHOOK_BASE_URL: z.string().trim().url().optional(),
-  MIDTRANS_FINISH_URL: z.string().trim().url().optional(),
-  MIDTRANS_UNFINISH_URL: z.string().trim().url().optional(),
-  MIDTRANS_ERROR_URL: z.string().trim().url().optional(),
   SUBSCRIPTION_PAYMENT_MODE: z
-    .enum(['auto', 'manual', 'disabled', 'midtrans_sandbox', 'midtrans_production', 'duitku_sandbox', 'duitku_production', 'doku_sandbox', 'doku_production'])
+    .enum(['auto', 'manual', 'disabled', 'doku_sandbox', 'doku_production'])
     .default('auto'),
   AUTH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
   AUTH_LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),

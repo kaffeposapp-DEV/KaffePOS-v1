@@ -1,12 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import midtransClient from 'midtrans-client';
 import { z } from 'zod';
 import {
   ApiError,
   assertStoreOwned,
   broadcastKitchenEvent,
   createKitchenOrderFromTransaction,
-  env,
   fetchKitchenOrder,
   insertKitchenEvent,
   inventoryColumns,
@@ -22,7 +20,7 @@ import {
   type KitchenRealtimeEvent,
   type PoolClient,
 } from '../core';
-import { appendMidtransRedirectOptions, getMidtransEnvironmentMeta } from '../lib/midtrans';
+import { createPaymentProvider, getActivePaymentProviderName } from '../payments/payment-provider.factory';
 import { normalizeKitchenStatus, terminalKitchenStatuses } from '../lib/kitchenStatus';
 import {
   convertRecipeQuantityToBase,
@@ -66,7 +64,7 @@ type PaymentAttemptInput = {
 
 type PreparedPayment = {
   paymentOrderId: string;
-  midtransOrderId: string;
+  orderId: string;
   subtotal: number;
   discountAmount: number;
   taxAmount: number;
@@ -130,11 +128,6 @@ function createPaymentOrderId() {
   return `KAF-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`;
 }
 
-function isProductionMidtrans() {
-  if (env.MIDTRANS_IS_PRODUCTION != null) return env.MIDTRANS_IS_PRODUCTION === 'true';
-  return env.MIDTRANS_ENVIRONMENT === 'production';
-}
-
 async function insertPaymentAttempt(input: PaymentAttemptInput) {
   try {
     await pool.query(
@@ -169,8 +162,9 @@ export class PaymentService {
     ip?: string | null;
     userAgent?: string | null;
   }) {
-    if (env.MIDTRANS_SNAP_ENABLED !== 'true' || !env.MIDTRANS_SERVER_KEY || !env.MIDTRANS_CLIENT_KEY) {
-      throw new ApiError(503, 'Pembayaran Midtrans belum aktif.');
+    const providerName = getActivePaymentProviderName();
+    if (providerName === 'disabled') {
+      throw new ApiError(503, 'Pembayaran online belum aktif.');
     }
 
     await insertPaymentAttempt({
@@ -183,30 +177,34 @@ export class PaymentService {
     });
 
     const prepared = await this.prepareOrder(input.payload, input.user);
-    const snap = new midtransClient.Snap({
-      isProduction: isProductionMidtrans(),
-      serverKey: env.MIDTRANS_SERVER_KEY,
-      clientKey: env.MIDTRANS_CLIENT_KEY,
-    });
+    const provider = createPaymentProvider(providerName);
 
     try {
-      const midtransResponse = await snap.createTransaction(this.buildSnapPayload(prepared, input.payload, input.user));
-      const snapToken = typeof midtransResponse.token === 'string' ? midtransResponse.token : null;
-      const redirectUrl = typeof midtransResponse.redirect_url === 'string' ? midtransResponse.redirect_url : null;
-      if (!snapToken && !redirectUrl) {
-        throw new ApiError(502, 'Respons Midtrans tidak berisi token pembayaran.');
+      const payment = await provider.createPayment({
+        merchantOrderId: prepared.orderId,
+        amount: prepared.grossAmount,
+        productDetails: `KaffePOS checkout ${prepared.orderId}`,
+        customerName: input.payload.customer?.name ?? null,
+        customerEmail: input.payload.customer?.email ?? input.user.email ?? null,
+        customerPhone: input.payload.customer?.phone ?? null,
+        itemDetails: prepared.itemDetails.map((item) => ({ name: item.name, price: item.price, quantity: item.quantity })),
+      });
+      if (!payment.paymentUrl) {
+        throw new ApiError(502, 'Respons gateway pembayaran tidak berisi link pembayaran.');
       }
 
-      const paymentUrl = redirectUrl ? appendMidtransRedirectOptions(redirectUrl, 'qris') : null;
       await pool.query(
         `
           update public.payment_orders
-          set snap_token = $2,
-              payment_url = $3,
+          set provider = $2,
+              provider_reference = $3,
+              merchant_order_id = coalesce(merchant_order_id, $4),
+              payment_url = $5,
+              payment_method = $6,
               updated_at = now()
           where id = $1
         `,
-        [prepared.paymentOrderId, snapToken, paymentUrl],
+        [prepared.paymentOrderId, providerName, payment.providerReference, prepared.orderId, payment.paymentUrl, payment.paymentMethod],
       );
 
       await insertPaymentAttempt({
@@ -216,19 +214,18 @@ export class PaymentService {
         eventType: 'created',
         ip: input.ip,
         userAgent: input.userAgent,
-        metadata: { orderId: prepared.midtransOrderId, grossAmount: prepared.grossAmount },
+        metadata: { orderId: prepared.orderId, grossAmount: prepared.grossAmount, provider: providerName },
       });
 
       return {
-        order_id: prepared.midtransOrderId,
+        order_id: prepared.orderId,
         status: 'pending' as const,
+        provider: providerName,
         subtotal: prepared.subtotal,
         discount_amount: prepared.discountAmount,
         tax_amount: prepared.taxAmount,
         gross_amount: prepared.grossAmount,
-        snap_token: snapToken,
-        snap_script_url: getMidtransEnvironmentMeta(isProductionMidtrans() ? 'production' : 'sandbox').snapJsUrl,
-        payment_url: paymentUrl,
+        payment_url: payment.paymentUrl,
         expires_at: prepared.expiresAt,
       };
     } catch (error) {
@@ -236,12 +233,12 @@ export class PaymentService {
         userId: input.user.id,
         storeId: input.payload.store_id,
         paymentOrderId: prepared.paymentOrderId,
-        eventType: 'midtrans_create_failed',
+        eventType: 'gateway_create_failed',
         ip: input.ip,
         userAgent: input.userAgent,
         metadata: { error: serializeError(error) },
       });
-      throw error instanceof ApiError ? error : new ApiError(502, 'Midtrans belum bisa membuat pembayaran.');
+      throw error instanceof ApiError ? error : new ApiError(502, 'Gateway pembayaran belum bisa membuat pembayaran.');
     }
   }
 
@@ -355,8 +352,8 @@ export class PaymentService {
       change: 0,
       method: 'QRIS',
       customer_name: paymentOrder.customer_name ?? null,
-      cashier: authUser.email ?? 'Midtrans',
-      note: `Midtrans ${input.paymentType ?? 'payment'}: ${paymentOrder.midtrans_order_id}`,
+      cashier: authUser.email ?? 'Online',
+      note: `Online ${input.paymentType ?? 'payment'}: ${paymentOrder.midtrans_order_id}`,
       source: 'cashier' as const,
     };
 
@@ -547,7 +544,7 @@ export class PaymentService {
         set is_void = true,
             void_reason = $1,
             void_at = now(),
-            void_by = 'Midtrans'
+            void_by = 'Online'
         where id = $2 and store_id = $3
       `,
       [reason, transactionId, paymentOrder.store_id],
@@ -592,7 +589,7 @@ export class PaymentService {
         oldStatus,
         newStatus: 'cancelled',
         changedBy: paymentOrder.user_id,
-        changedByName: 'Midtrans',
+        changedByName: 'Online',
         data: { reason, transactionId },
       });
       kitchenEvent = {
@@ -659,7 +656,7 @@ export class PaymentService {
       const grossAmount = taxableAmount + taxAmount;
       if (grossAmount <= 0) throw new ApiError(400, 'Total pembayaran tidak valid.');
 
-      const midtransOrderId = createPaymentOrderId();
+      const orderId = createPaymentOrderId();
       const expiresAt = new Date(Date.now() + 30 * 60_000).toISOString();
       const inserted = await client.query(
         `
@@ -686,7 +683,7 @@ export class PaymentService {
         [
           user.id,
           payload.store_id,
-          midtransOrderId,
+          orderId,
           subtotal,
           discountAmount,
           taxAmount,
@@ -701,7 +698,7 @@ export class PaymentService {
 
       return {
         paymentOrderId: inserted.rows[0].id as string,
-        midtransOrderId,
+        orderId,
         subtotal,
         discountAmount,
         taxAmount,
@@ -710,43 +707,5 @@ export class PaymentService {
         expiresAt,
       };
     });
-  }
-
-  private static buildSnapPayload(prepared: PreparedPayment, payload: PaymentCreatePayload, user: AuthenticatedUser) {
-    return {
-      enabled_payments: ['gopay', 'bca_va', 'echannel', 'bni_va', 'bri_va'],
-      transaction_details: {
-        order_id: prepared.midtransOrderId,
-        gross_amount: prepared.grossAmount,
-      },
-      item_details: [
-        ...prepared.itemDetails.map((item) => ({
-          id: item.id,
-          price: item.price,
-          quantity: item.quantity,
-          name: item.name,
-        })),
-        ...(prepared.discountAmount > 0
-          ? [{ id: 'DISCOUNT', price: -prepared.discountAmount, quantity: 1, name: 'Diskon' }]
-          : []),
-        ...(prepared.taxAmount > 0
-          ? [{ id: 'TAX', price: prepared.taxAmount, quantity: 1, name: 'Pajak' }]
-          : []),
-      ],
-      customer_details: {
-        first_name: payload.customer?.name || 'KaffePOS Customer',
-        email: payload.customer?.email || user.email || undefined,
-        phone: payload.customer?.phone || undefined,
-      },
-      callbacks: {
-        finish: `${env.WEB_BASE_URL.replace(/\/$/, '')}/?payment=success`,
-        unfinish: `${env.WEB_BASE_URL.replace(/\/$/, '')}/?payment=pending`,
-        error: `${env.WEB_BASE_URL.replace(/\/$/, '')}/?payment=failed`,
-      },
-      expiry: { unit: 'minutes', duration: 30 },
-      custom_field1: payload.store_id,
-      custom_field2: user.id,
-      custom_field3: 'pos_checkout',
-    };
   }
 }

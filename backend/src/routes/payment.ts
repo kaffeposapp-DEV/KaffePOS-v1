@@ -16,13 +16,9 @@ import {
   buildSubscriptionQuoteOrThrow,
   ensureProfile,
   syncProfileSubscriptionState,
-  createMidtransOrderId,
-  getMidtransCallbackUrls,
-  getMidtransBaseUrl,
 } from '../core';
 import { PaymentService, paymentCreateSchema } from '../services/PaymentService';
 import { createPaymentProvider, getActivePaymentProviderName } from '../payments/payment-provider.factory';
-import { buildMidtransCreateTransactionPayload, appendMidtransRedirectOptions } from '../lib/midtrans';
 
 const router = Router();
 
@@ -64,12 +60,6 @@ function getRequestIp(req: Parameters<Parameters<typeof router.post>[1]>[0]) {
   const forwarded = req.headers['x-forwarded-for'];
   if (typeof forwarded === 'string' && forwarded.trim()) return forwarded.split(',')[0].trim();
   return req.ip || req.socket.remoteAddress || null;
-}
-
-function createDuitkuOrderId(userId: string, plan: string, billingCycle: string) {
-  const planCode = plan.replace(/[^a-z0-9]/gi, '').slice(0, 3).toUpperCase() || 'SUB';
-  const cycleCode = billingCycle.replace(/[^a-z0-9]/gi, '').slice(0, 1).toUpperCase() || 'M';
-  return `DKT-${planCode}${cycleCode}-${userId.slice(0, 8)}-${Date.now().toString(36)}`;
 }
 
 function createDokuOrderId(userId: string, plan: string, billingCycle: string) {
@@ -165,89 +155,37 @@ async function createGenericSubscriptionPayment(req: Parameters<Parameters<typeo
       [req.authUser!.id],
     );
     const store = storeResult.rows[0];
-    const isRedirectProvider = activeProvider === 'duitku' || activeProvider === 'doku';
-    const orderId = activeProvider === 'duitku'
-      ? createDuitkuOrderId(req.authUser!.id, payload.plan, payload.billingCycle)
-      : activeProvider === 'doku'
-        ? createDokuOrderId(req.authUser!.id, payload.plan, payload.billingCycle)
-        : createMidtransOrderId(req.authUser!.id, payload.plan, payload.billingCycle).replace('SUB-', `${activeProvider.toUpperCase()}-SUB-`);
-
-    if (isRedirectProvider) {
-      const isDoku = activeProvider === 'doku';
-      const provider = createPaymentProvider(activeProvider);
-      const payment = await provider.createPayment({
-        merchantOrderId: orderId,
-        amount,
-        productDetails: `Langganan ${quote.planName} (${payload.billingCycle})`,
-        customerName: (profile.display_name as string | null) ?? (profile.username as string | null) ?? 'KaffePOS User',
-        customerEmail: (profile.email as string | null) ?? req.authUser!.email ?? null,
-        paymentMethod: payload.paymentMethod,
-        itemDetails: [{ name: `Langganan ${quote.planName}`, price: amount, quantity: 1 }],
-      });
-      const expiryMinutes = isDoku ? env.DOKU_PAYMENT_DUE_MINUTES : env.DUITKU_EXPIRY_PERIOD_MINUTES;
-      const providerEnv = isDoku ? env.DOKU_ENVIRONMENT : env.DUITKU_ENVIRONMENT;
-      const callbackUrl = isDoku ? env.DOKU_CALLBACK_URL : env.DUITKU_CALLBACK_URL;
-      const returnUrl = isDoku ? env.DOKU_CALLBACK_URL : env.DUITKU_RETURN_URL;
-      const sessionId = randomUUID();
-      const inserted = await pool.query(
-        `
-          insert into public.subscription_payment_sessions (
-            id, user_id, store_id, plan, billing_cycle, amount, currency_code,
-            midtrans_order_id, redirect_url, transaction_status, expires_at, metadata, updated_at,
-            provider, provider_reference, merchant_order_id, payment_url, va_number, qr_string,
-            payment_method, provider_status, internal_status
-          ) values (
-            $1, $2, $3, $4, $5, $6, 'IDR', $7, $8, 'pending', now() + ($9::int || ' minutes')::interval, $10::jsonb, now(),
-            $16, $11, $7, $8, $12, $13, $14, $15, 'pending'
-          )
-          returning id, provider, merchant_order_id, midtrans_order_id, payment_url, redirect_url, internal_status, transaction_status
-        `,
-        [sessionId, req.authUser!.id, store?.id ?? null, payload.plan, payload.billingCycle, amount, orderId, payment.paymentUrl, expiryMinutes, JSON.stringify({ env: providerEnv, paymentMode: paymentConfig.mode, callbackUrl, returnUrl, selectedPaymentMethod: payload.paymentMethod, voucherCode, quote, storeName: store?.store_name ?? null, providerRaw: payment.raw }), payment.providerReference, payment.vaNumber, payment.qrString, payment.paymentMethod, payment.providerStatus, activeProvider],
-      );
-      const row = inserted.rows[0];
-      res.status(201).json({ success: true, data: { paymentId: row.id, provider: row.provider, merchantOrderId: row.merchant_order_id, paymentUrl: row.payment_url ?? row.redirect_url ?? null, status: row.internal_status ?? 'pending' } });
-      return;
-    }
-
-    const callbackUrls = getMidtransCallbackUrls();
-    const response = await fetch(`${getMidtransBaseUrl()}/snap/v1/transactions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${env.MIDTRANS_SERVER_KEY}:`).toString('base64')}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify(buildMidtransCreateTransactionPayload({
-        orderId,
-        amount,
-        itemId: `${payload.plan}-${payload.billingCycle}`,
-        itemName: `Langganan ${quote.planName} (${payload.billingCycle})`,
-        enabledPayments: quote.selectedPaymentMethod.midtransPayments,
-        customerName: (profile.display_name as string | null) ?? (profile.username as string | null) ?? 'KaffePOS User',
-        customerEmail: (profile.email as string | null) ?? req.authUser!.email ?? undefined,
-        plan: payload.plan,
-        billingCycle: payload.billingCycle,
-        storeId: store?.id ?? null,
-        callbackUrls,
-      })),
+    const orderId = createDokuOrderId(req.authUser!.id, payload.plan, payload.billingCycle);
+    const provider = createPaymentProvider(activeProvider);
+    const payment = await provider.createPayment({
+      merchantOrderId: orderId,
+      amount,
+      productDetails: `Langganan ${quote.planName} (${payload.billingCycle})`,
+      customerName: (profile.display_name as string | null) ?? (profile.username as string | null) ?? 'KaffePOS User',
+      customerEmail: (profile.email as string | null) ?? req.authUser!.email ?? null,
+      paymentMethod: payload.paymentMethod,
+      itemDetails: [{ name: `Langganan ${quote.planName}`, price: amount, quantity: 1 }],
     });
-    if (!response.ok) throw new ApiError(502, `Midtrans create transaction gagal (${response.status}).`);
-    const paymentPayload = await response.json() as { token?: string; redirect_url?: string };
-    if (!paymentPayload.token || !paymentPayload.redirect_url) throw new ApiError(502, 'Respons Midtrans tidak lengkap.');
-    const redirectUrl = appendMidtransRedirectOptions(paymentPayload.redirect_url, quote.selectedPaymentMethod.redirectMode);
     const sessionId = randomUUID();
     const inserted = await pool.query(
       `
-        insert into public.subscription_payment_sessions (id, user_id, store_id, plan, billing_cycle, amount, currency_code, midtrans_order_id, snap_token, redirect_url, transaction_status, expires_at, metadata, updated_at, provider, merchant_order_id, payment_url, internal_status)
-        values ($1, $2, $3, $4, $5, $6, 'IDR', $7, $8, $9, 'pending', now() + interval '30 minutes', $10::jsonb, now(), 'midtrans', $7, $9, 'pending')
-        returning id, provider, merchant_order_id, midtrans_order_id, redirect_url, payment_url, internal_status, transaction_status
+        insert into public.subscription_payment_sessions (
+          id, user_id, store_id, plan, billing_cycle, amount, currency_code,
+          midtrans_order_id, redirect_url, transaction_status, expires_at, metadata, updated_at,
+          provider, provider_reference, merchant_order_id, payment_url, va_number, qr_string,
+          payment_method, provider_status, internal_status
+        ) values (
+          $1, $2, $3, $4, $5, $6, 'IDR', $7, $8, 'pending', now() + ($9::int || ' minutes')::interval, $10::jsonb, now(),
+          $16, $11, $7, $8, $12, $13, $14, $15, 'pending'
+        )
+        returning id, provider, merchant_order_id, midtrans_order_id, payment_url, redirect_url, internal_status, transaction_status
       `,
-      [sessionId, req.authUser!.id, store?.id ?? null, payload.plan, payload.billingCycle, amount, orderId, paymentPayload.token, redirectUrl, JSON.stringify({ env: env.MIDTRANS_ENVIRONMENT, paymentMode: paymentConfig.mode, callbackUrls, selectedPaymentMethod: payload.paymentMethod, voucherCode, quote, storeName: store?.store_name ?? null })],
+      [sessionId, req.authUser!.id, store?.id ?? null, payload.plan, payload.billingCycle, amount, orderId, payment.paymentUrl, env.DOKU_PAYMENT_DUE_MINUTES, JSON.stringify({ env: env.DOKU_ENVIRONMENT, paymentMode: paymentConfig.mode, callbackUrl: env.DOKU_CALLBACK_URL, selectedPaymentMethod: payload.paymentMethod, voucherCode, quote, storeName: store?.store_name ?? null, providerRaw: payment.raw }), payment.providerReference, payment.vaNumber, payment.qrString, payment.paymentMethod, payment.providerStatus, activeProvider],
     );
     const row = inserted.rows[0];
-    res.status(201).json({ success: true, data: { paymentId: row.id, provider: row.provider, merchantOrderId: row.merchant_order_id ?? row.midtrans_order_id, paymentUrl: row.payment_url ?? row.redirect_url, status: row.internal_status ?? row.transaction_status } });
+    res.status(201).json({ success: true, data: { paymentId: row.id, provider: row.provider, merchantOrderId: row.merchant_order_id, paymentUrl: row.payment_url ?? row.redirect_url ?? null, status: row.internal_status ?? 'pending' } });
   } catch (error) {
-    if (error instanceof ApiError && error.status === 502 && (error.message.startsWith('Duitku ') || error.message.startsWith('DOKU '))) {
+    if (error instanceof ApiError && error.status === 502 && error.message.startsWith('DOKU ')) {
       log('warn', 'subscription_payment.provider_failed', { error: serializeError(error) });
       res.status(502).json({ success: false, message: error.message });
       return;
@@ -302,7 +240,7 @@ router.get('/api/payments/:paymentId/status', requirePermission('can_manage_bill
 router.post('/api/payments/:paymentId/check', requirePermission('can_manage_billing'), async (req, res, next) => {
   try {
     const checkProvider = getActivePaymentProviderName();
-    if (checkProvider !== 'duitku' && checkProvider !== 'doku') throw new ApiError(409, 'Status check manual hanya aktif untuk DOKU/Duitku.');
+    if (checkProvider !== 'doku') throw new ApiError(409, 'Status check manual hanya aktif untuk DOKU.');
     const paymentId = z.string().uuid().parse(req.params.paymentId);
     const sessionResult = await pool.query(
       `select * from public.subscription_payment_sessions where id = $1 and user_id = $2 limit 1`,

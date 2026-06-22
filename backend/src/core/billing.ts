@@ -4,25 +4,10 @@
  */
 import { env } from './env';
 import { ApiError } from './errors';
-import { createMidtransWebhookSignature } from '../lib/midtrans';
 import type { PoolClient } from './db';
 import { syncProfileSubscriptionState, insertNotification } from './helpers';
 
-export type SubscriptionPaymentMode = 'manual' | 'disabled' | 'midtrans_sandbox' | 'midtrans_production' | 'duitku_sandbox' | 'duitku_production' | 'doku_sandbox' | 'doku_production';
-
-export function getMidtransBaseUrl() {
-  return env.MIDTRANS_ENVIRONMENT === 'production'
-    ? 'https://app.midtrans.com'
-    : 'https://app.sandbox.midtrans.com';
-}
-
-export function isMidtransConfigured() {
-  return Boolean(env.MIDTRANS_SERVER_KEY && env.MIDTRANS_SNAP_ENABLED === 'true');
-}
-
-export function isDuitkuConfigured() {
-  return Boolean(env.DUITKU_MERCHANT_CODE && env.DUITKU_MERCHANT_KEY && env.DUITKU_CALLBACK_URL && env.DUITKU_RETURN_URL);
-}
+export type SubscriptionPaymentMode = 'manual' | 'disabled' | 'doku_sandbox' | 'doku_production';
 
 export function isDokuConfigured() {
   return Boolean(env.DOKU_CLIENT_ID && env.DOKU_SECRET_KEY && env.DOKU_CALLBACK_URL);
@@ -30,67 +15,36 @@ export function isDokuConfigured() {
 
 export function resolveSubscriptionPaymentConfig() {
   const provider = env.PAYMENT_INTEGRATION_ENABLED === 'false' ? 'disabled' : env.PAYMENT_GATEWAY_PROVIDER;
-  const midtransConfigured = provider === 'midtrans' && isMidtransConfigured();
-  const duitkuConfigured = provider === 'duitku' && isDuitkuConfigured();
   const dokuConfigured = provider === 'doku' && isDokuConfigured();
   const requestedMode = env.SUBSCRIPTION_PAYMENT_MODE;
-  const productionMidtrans = env.MIDTRANS_ENVIRONMENT === 'production';
-  const productionDuitku = env.DUITKU_ENVIRONMENT === 'production';
   const productionDoku = env.DOKU_ENVIRONMENT === 'production';
   let mode: SubscriptionPaymentMode;
 
   if (provider === 'disabled' || requestedMode === 'disabled') {
     mode = 'disabled';
   } else if (requestedMode === 'auto') {
-    if (provider === 'duitku' && duitkuConfigured) {
-      mode = productionDuitku ? 'duitku_production' : 'duitku_sandbox';
-    } else if (provider === 'doku' && dokuConfigured) {
-      mode = productionDoku ? 'doku_production' : 'doku_sandbox';
-    } else if (!midtransConfigured) {
-      mode = 'manual';
-    } else if (env.NODE_ENV === 'production' && !productionMidtrans) {
-      mode = 'manual';
-    } else {
-      mode = productionMidtrans ? 'midtrans_production' : 'midtrans_sandbox';
-    }
-  } else if (requestedMode === 'duitku_production' && !productionDuitku) {
-    mode = 'manual';
-  } else if (requestedMode === 'duitku_sandbox' && productionDuitku) {
-    mode = 'manual';
+    mode = dokuConfigured ? (productionDoku ? 'doku_production' : 'doku_sandbox') : 'manual';
   } else if (requestedMode === 'doku_production' && !productionDoku) {
     mode = 'manual';
   } else if (requestedMode === 'doku_sandbox' && productionDoku) {
-    mode = 'manual';
-  } else if (requestedMode === 'midtrans_production' && !productionMidtrans) {
-    mode = 'manual';
-  } else if (requestedMode === 'midtrans_sandbox' && productionMidtrans) {
     mode = 'manual';
   } else {
     mode = requestedMode as SubscriptionPaymentMode;
   }
 
-  const onlinePaymentAvailable =
-    (midtransConfigured && ((mode === 'midtrans_production' && productionMidtrans) || (mode === 'midtrans_sandbox' && !productionMidtrans))) ||
-    (duitkuConfigured && ((mode === 'duitku_production' && productionDuitku) || (mode === 'duitku_sandbox' && !productionDuitku))) ||
-    (dokuConfigured && ((mode === 'doku_production' && productionDoku) || (mode === 'doku_sandbox' && !productionDoku)));
-  const commerciallyReady = onlinePaymentAvailable && ((mode === 'midtrans_production' && productionMidtrans) || (mode === 'duitku_production' && productionDuitku) || (mode === 'doku_production' && productionDoku));
+  const onlinePaymentAvailable = dokuConfigured && ((mode === 'doku_production' && productionDoku) || (mode === 'doku_sandbox' && !productionDoku));
+  const commerciallyReady = onlinePaymentAvailable && mode === 'doku_production' && productionDoku;
   const manualActivationAvailable = mode === 'manual' || !onlinePaymentAvailable;
 
   return {
     mode,
     provider,
-    midtransEnvironment: env.MIDTRANS_ENVIRONMENT,
-    duitkuEnvironment: env.DUITKU_ENVIRONMENT,
     dokuEnvironment: env.DOKU_ENVIRONMENT,
     onlinePaymentAvailable,
     manualActivationAvailable,
     commerciallyReady,
     message: onlinePaymentAvailable
-      ? provider === 'duitku'
-        ? mode === 'duitku_production' ? 'Pembayaran online Duitku production aktif.' : 'Pembayaran online Duitku sandbox aktif untuk QA internal.'
-        : provider === 'doku'
-          ? mode === 'doku_production' ? 'Pembayaran online DOKU production aktif.' : 'Pembayaran online DOKU sandbox aktif untuk QA internal.'
-          : mode === 'midtrans_production' ? 'Pembayaran online Midtrans production aktif.' : 'Pembayaran online Midtrans sandbox aktif untuk QA internal.'
+      ? mode === 'doku_production' ? 'Pembayaran online DOKU production aktif.' : 'Pembayaran online DOKU sandbox aktif untuk QA internal.'
       : 'Pembayaran online belum dibuka. Aktivasi langganan dilakukan manual oleh admin sampai payment gateway aktif.',
     recommendedAction: onlinePaymentAvailable
       ? 'Selesaikan pembayaran via checkout online.'
@@ -109,28 +63,6 @@ export function requireOnlineSubscriptionPayment() {
 
 export function isCommercialPaymentReady() {
   return resolveSubscriptionPaymentConfig().commerciallyReady;
-}
-
-export function createMidtransOrderId(userId: string, plan: string, billingCycle: string) {
-  return `SUB-${plan.toUpperCase()}-${billingCycle.toUpperCase()}-${userId.slice(0, 8)}-${Date.now()}`;
-}
-
-export function getMidtransCallbackUrls() {
-  const base = env.WEB_BASE_URL.replace(/\/$/, '');
-  return {
-    finish: env.MIDTRANS_FINISH_URL ?? `${base}/settings?billing=success`,
-    unfinish: env.MIDTRANS_UNFINISH_URL ?? `${base}/settings?billing=pending`,
-    error: env.MIDTRANS_ERROR_URL ?? `${base}/settings?billing=failed`,
-  };
-}
-
-export function createMidtransSignature(orderId: string, statusCode: string, grossAmount: string) {
-  return createMidtransWebhookSignature({
-    orderId,
-    statusCode,
-    grossAmount,
-    serverKey: env.MIDTRANS_SERVER_KEY,
-  });
 }
 
 import { z } from 'zod';

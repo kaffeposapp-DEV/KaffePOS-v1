@@ -16,15 +16,12 @@ import {
   normalizeSubscriptionPaymentSession,
   resolveSubscriptionPaymentConfig,
   requireOnlineSubscriptionPayment,
-  createMidtransOrderId,
-  getMidtransCallbackUrls,
   subscriptionPaymentRequestSchema,
   buildSubscriptionQuoteOrThrow,
   paymentCreateRateLimiter,
   ensureProfile,
   syncProfileSubscriptionState,
   env,
-  getMidtransBaseUrl,
   insertNotification,
   sendTrialReminderEmail,
   log,
@@ -33,20 +30,16 @@ import {
 import {
   listSubscriptionPaymentMethods,
 } from '../lib/subscriptionBilling';
-import {
-  buildMidtransCreateTransactionPayload,
-  appendMidtransRedirectOptions,
-} from '../lib/midtrans';
 import { createPaymentProvider, getActivePaymentProviderName } from '../payments/payment-provider.factory';
 
 const router = Router();
 
 const PAID_PLANS = new Set(['kopi_susu', 'signature', 'founder']);
 
-function createDuitkuOrderId(userId: string, plan: string, billingCycle: string) {
+function createDokuOrderId(userId: string, plan: string, billingCycle: string) {
   const planCode = plan.replace(/[^a-z0-9]/gi, '').slice(0, 3).toUpperCase() || 'SUB';
   const cycleCode = billingCycle.replace(/[^a-z0-9]/gi, '').slice(0, 1).toUpperCase() || 'M';
-  return `DKT-${planCode}${cycleCode}-${userId.slice(0, 8)}-${Date.now().toString(36)}`;
+  return `DOKU-${planCode}${cycleCode}-${userId.slice(0, 8)}-${Date.now().toString(36)}`;
 }
 
 function resolveProfilePlan(profile: Record<string, unknown> | null | undefined) {
@@ -470,152 +463,45 @@ router.post('/api/subscriptions/payments/create', requirePermission('can_manage_
       [req.authUser!.id],
     );
     const store = storeResult.rows[0];
-    const orderId = activeProvider === 'duitku'
-      ? createDuitkuOrderId(req.authUser!.id, payload.plan, payload.billingCycle)
-      : createMidtransOrderId(req.authUser!.id, payload.plan, payload.billingCycle).replace('SUB-', `${activeProvider.toUpperCase()}-SUB-`);
-
-    if (activeProvider === 'duitku') {
-      const provider = createPaymentProvider('duitku');
-      const payment = await provider.createPayment({
-        merchantOrderId: orderId,
-        amount,
-        productDetails: `Langganan ${quote.planName} (${payload.billingCycle})`,
-        customerName: (profile.display_name as string | null) ?? (profile.username as string | null) ?? 'KaffePOS User',
-        customerEmail: (profile.email as string | null) ?? req.authUser!.email ?? null,
-        paymentMethod: payload.paymentMethod,
-        itemDetails: [{ name: `Langganan ${quote.planName}`, price: amount, quantity: 1 }],
-        metadata: { plan: payload.plan, billingCycle: payload.billingCycle },
-      });
-
-      const sessionId = randomUUID();
-      const inserted = await pool.query(
-        `
-          insert into public.subscription_payment_sessions (
-            id, user_id, store_id, plan, billing_cycle, amount, currency_code,
-            midtrans_order_id, redirect_url, transaction_status, expires_at, metadata, updated_at,
-            provider, provider_reference, merchant_order_id, payment_url, va_number, qr_string,
-            payment_method, provider_status, internal_status
-          ) values (
-            $1, $2, $3, $4, $5, $6, 'IDR', $7, $8, 'pending', now() + ($9::int || ' minutes')::interval, $10::jsonb, now(),
-            'duitku', $11, $7, $8, $12, $13, $14, $15, 'pending'
-          )
-          returning id, plan, billing_cycle, amount, currency_code, midtrans_order_id, redirect_url,
-            payment_type, transaction_status, expires_at, paid_at, settled_at, created_at, updated_at,
-            provider, provider_reference, merchant_order_id, payment_url, va_number, qr_string,
-            payment_method, provider_status, internal_status
-        `,
-        [
-          sessionId, req.authUser!.id, store?.id ?? null, payload.plan, payload.billingCycle, amount,
-          orderId, payment.paymentUrl, env.DUITKU_EXPIRY_PERIOD_MINUTES,
-          JSON.stringify({ env: env.DUITKU_ENVIRONMENT, paymentMode: paymentConfig.mode, callbackUrl: env.DUITKU_CALLBACK_URL, returnUrl: env.DUITKU_RETURN_URL, selectedPaymentMethod: payload.paymentMethod, voucherCode, quote, storeName: store?.store_name ?? null, providerRaw: payment.raw }),
-          payment.providerReference, payment.vaNumber, payment.qrString, payment.paymentMethod, payment.providerStatus,
-        ],
-      );
-
-      res.status(201).json({ reused: false, payment: normalizeSubscriptionPaymentSession(inserted.rows[0]), quote });
-      return;
-    }
-
-    const callbackUrls = getMidtransCallbackUrls();
-
-    const response = await fetch(`${getMidtransBaseUrl()}/snap/v1/transactions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${env.MIDTRANS_SERVER_KEY}:`).toString('base64')}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify(buildMidtransCreateTransactionPayload({
-        orderId,
-        amount,
-        itemId: `${payload.plan}-${payload.billingCycle}`,
-        itemName: `Langganan ${quote.planName} (${payload.billingCycle})`,
-        enabledPayments: quote.selectedPaymentMethod.midtransPayments,
-        customerName: (profile.display_name as string | null) ?? (profile.username as string | null) ?? 'KaffePOS User',
-        customerEmail: (profile.email as string | null) ?? req.authUser!.email ?? undefined,
-        plan: payload.plan,
-        billingCycle: payload.billingCycle,
-        storeId: store?.id ?? null,
-        callbackUrls,
-      })),
+    const orderId = createDokuOrderId(req.authUser!.id, payload.plan, payload.billingCycle);
+    const provider = createPaymentProvider(activeProvider);
+    const payment = await provider.createPayment({
+      merchantOrderId: orderId,
+      amount,
+      productDetails: `Langganan ${quote.planName} (${payload.billingCycle})`,
+      customerName: (profile.display_name as string | null) ?? (profile.username as string | null) ?? 'KaffePOS User',
+      customerEmail: (profile.email as string | null) ?? req.authUser!.email ?? null,
+      paymentMethod: payload.paymentMethod,
+      itemDetails: [{ name: `Langganan ${quote.planName}`, price: amount, quantity: 1 }],
+      metadata: { plan: payload.plan, billingCycle: payload.billingCycle },
     });
-
-    if (!response.ok) {
-      const errorPayload = await response.text().catch(() => '');
-      throw new ApiError(502, `Midtrans create transaction gagal (${response.status}). ${errorPayload || 'Silakan coba lagi.'}`);
-    }
-
-    const paymentPayload = await response.json() as { token?: string; redirect_url?: string };
-    if (!paymentPayload.token || !paymentPayload.redirect_url) {
-      throw new ApiError(502, 'Respons Midtrans tidak lengkap.');
-    }
-    const redirectUrl = appendMidtransRedirectOptions(paymentPayload.redirect_url, quote.selectedPaymentMethod.redirectMode);
 
     const sessionId = randomUUID();
     const inserted = await pool.query(
       `
         insert into public.subscription_payment_sessions (
-          id,
-          user_id,
-          store_id,
-          plan,
-          billing_cycle,
-          amount,
-          currency_code,
-          midtrans_order_id,
-          snap_token,
-          redirect_url,
-          transaction_status,
-          expires_at,
-          metadata,
-          updated_at
+          id, user_id, store_id, plan, billing_cycle, amount, currency_code,
+          midtrans_order_id, redirect_url, transaction_status, expires_at, metadata, updated_at,
+          provider, provider_reference, merchant_order_id, payment_url, va_number, qr_string,
+          payment_method, provider_status, internal_status
         ) values (
-          $1, $2, $3, $4, $5, $6, 'IDR', $7, $8, $9, 'pending', now() + interval '30 minutes', $10::jsonb, now()
+          $1, $2, $3, $4, $5, $6, 'IDR', $7, $8, 'pending', now() + ($9::int || ' minutes')::interval, $10::jsonb, now(),
+          $16, $11, $7, $8, $12, $13, $14, $15, 'pending'
         )
-        returning
-          id,
-          plan,
-          billing_cycle,
-          amount,
-          currency_code,
-          midtrans_order_id,
-          redirect_url,
-          payment_type,
-          transaction_status,
-          expires_at,
-          paid_at,
-          settled_at,
-          created_at,
-          updated_at
+        returning id, plan, billing_cycle, amount, currency_code, midtrans_order_id, redirect_url,
+          payment_type, transaction_status, expires_at, paid_at, settled_at, created_at, updated_at,
+          provider, provider_reference, merchant_order_id, payment_url, va_number, qr_string,
+          payment_method, provider_status, internal_status
       `,
       [
-        sessionId,
-        req.authUser!.id,
-        store?.id ?? null,
-        payload.plan,
-        payload.billingCycle,
-        amount,
-        orderId,
-        paymentPayload.token,
-        redirectUrl,
-        JSON.stringify({
-          env: env.MIDTRANS_ENVIRONMENT,
-          paymentMode: paymentConfig.mode,
-          callbackUrls,
-          selectedPaymentMethod: payload.paymentMethod,
-          enabledPayments: quote.selectedPaymentMethod.midtransPayments,
-          voucherCode,
-          quote,
-          storeName: store?.store_name ?? null,
-        }),
+        sessionId, req.authUser!.id, store?.id ?? null, payload.plan, payload.billingCycle, amount,
+        orderId, payment.paymentUrl, env.DOKU_PAYMENT_DUE_MINUTES,
+        JSON.stringify({ env: env.DOKU_ENVIRONMENT, paymentMode: paymentConfig.mode, callbackUrl: env.DOKU_CALLBACK_URL, selectedPaymentMethod: payload.paymentMethod, voucherCode, quote, storeName: store?.store_name ?? null, providerRaw: payment.raw }),
+        payment.providerReference, payment.vaNumber, payment.qrString, payment.paymentMethod, payment.providerStatus, activeProvider,
       ],
     );
 
-    res.status(201).json({
-      reused: false,
-      payment: normalizeSubscriptionPaymentSession(inserted.rows[0]),
-      quote,
-    });
+    res.status(201).json({ reused: false, payment: normalizeSubscriptionPaymentSession(inserted.rows[0]), quote });
   } catch (error) {
     next(error);
   }

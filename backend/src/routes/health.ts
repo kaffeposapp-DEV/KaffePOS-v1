@@ -14,8 +14,7 @@ import {
 import { validateBackendDeploymentConfig } from '../lib/deploymentReadiness';
 import {
   isCommercialPaymentReady,
-  isDuitkuConfigured,
-  isMidtransConfigured,
+  isDokuConfigured,
   resolveSubscriptionPaymentConfig,
 } from '../core/billing';
 
@@ -23,14 +22,11 @@ const router = Router();
 
 function isPaymentConfigured() {
   const paymentConfig = resolveSubscriptionPaymentConfig();
-  if (paymentConfig.provider === 'duitku') return isDuitkuConfigured();
-  if (paymentConfig.provider === 'midtrans') return isMidtransConfigured();
-  return false;
+  return paymentConfig.provider === 'doku' ? isDokuConfigured() : false;
 }
 
 function getPaymentEnvironment() {
-  const paymentConfig = resolveSubscriptionPaymentConfig();
-  return paymentConfig.provider === 'duitku' ? paymentConfig.duitkuEnvironment : paymentConfig.midtransEnvironment;
+  return resolveSubscriptionPaymentConfig().dokuEnvironment;
 }
 
 function buildReadinessScore(params: {
@@ -62,11 +58,10 @@ function getOperationalWarnings() {
     webBaseUrl: env.WEB_BASE_URL,
     apiBaseUrl: env.API_BASE_URL,
     corsOrigin: env.CORS_ORIGIN,
-    midtransEnvironment: env.MIDTRANS_ENVIRONMENT,
+    dokuEnvironment: env.DOKU_ENVIRONMENT,
     subscriptionPaymentMode: env.SUBSCRIPTION_PAYMENT_MODE,
-    midtransSnapEnabled: env.MIDTRANS_SNAP_ENABLED === 'true',
-    midtransServerKey: env.MIDTRANS_SERVER_KEY,
-    midtransMerchantId: env.MIDTRANS_MERCHANT_ID,
+    paymentIntegrationEnabled: env.PAYMENT_INTEGRATION_ENABLED !== 'false',
+    dokuConfigured: isDokuConfigured(),
     resendApiKey: env.RESEND_API_KEY,
     resendFromEmail: env.RESEND_FROM_EMAIL,
     sentryDsn: env.SENTRY_DSN,
@@ -191,7 +186,7 @@ function buildSystemStatusPayload(params: {
         manualActivationAvailable: paymentConfig.manualActivationAvailable,
         provider: paymentConfig.provider,
         environment: getPaymentEnvironment(),
-        merchantId: env.PAYMENT_GATEWAY_PROVIDER === 'duitku' ? env.DUITKU_MERCHANT_CODE ?? null : env.MIDTRANS_MERCHANT_ID ?? null,
+        merchantId: env.DOKU_CLIENT_ID ?? null,
       },
       monitoring: {
         backendErrorTracking: Boolean(env.SENTRY_DSN),
@@ -344,6 +339,6 @@ router.get('/api/admin/system-status', authenticate, requireAdmin, async (_req, 
   res.status(result.statusCode).json(result.payload);
 });
 
-export { isMidtransConfigured, resolveSubscriptionPaymentConfig, isCommercialPaymentReady };
+export { isDokuConfigured, resolveSubscriptionPaymentConfig, isCommercialPaymentReady };
 
 export default router;

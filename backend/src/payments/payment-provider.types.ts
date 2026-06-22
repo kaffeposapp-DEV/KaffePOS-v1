@@ -1,4 +1,4 @@
-export type PaymentProviderName = 'duitku' | 'midtrans' | 'doku' | 'disabled';
+export type PaymentProviderName = 'doku' | 'disabled';
 export type InternalPaymentStatus = 'pending' | 'paid' | 'failed' | 'expired' | 'cancelled' | 'refunded' | 'unknown';
 
 export type CreatePaymentInput = {

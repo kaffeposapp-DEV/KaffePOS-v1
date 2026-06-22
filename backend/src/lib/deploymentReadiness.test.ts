@@ -2,39 +2,37 @@ import { describe, expect, it } from 'vitest';
 import { validateBackendDeploymentConfig } from './deploymentReadiness';
 
 describe('backend deployment readiness guardrails', () => {
-  it('flags production deployment that still uses Midtrans sandbox', () => {
+  it('flags production deployment that still uses DOKU sandbox', () => {
     const result = validateBackendDeploymentConfig({
       nodeEnv: 'production',
       webBaseUrl: 'https://kaffepos.my.id',
       apiBaseUrl: 'https://api.kaffepos.my.id',
       corsOrigin: 'https://kaffepos.my.id,capacitor://localhost',
-      midtransEnvironment: 'sandbox',
+      dokuEnvironment: 'sandbox',
       subscriptionPaymentMode: 'auto',
-      midtransSnapEnabled: true,
-      midtransServerKey: 'SB-Mid-server-xxx',
-      midtransMerchantId: 'G123',
+      paymentIntegrationEnabled: true,
+      dokuConfigured: true,
       resendApiKey: 're_xxx',
       resendFromEmail: 'KaffePOS <no-reply@kaffepos.my.id>',
-      sentryDsn: '',
+      sentryDsn: 'https://public@sentry.example/1',
     });
 
     expect(result.ok).toBe(false);
     expect(result.errors).toEqual(expect.arrayContaining([
-      expect.stringContaining('MIDTRANS_ENVIRONMENT'),
+      expect.stringContaining('DOKU_ENVIRONMENT'),
     ]));
   });
 
-  it('accepts production config when domain, CORS, email, and Midtrans are aligned', () => {
+  it('accepts production config when domain, CORS, email, and DOKU are aligned', () => {
     const result = validateBackendDeploymentConfig({
       nodeEnv: 'production',
       webBaseUrl: 'https://kaffepos.my.id',
       apiBaseUrl: 'https://api.kaffepos.my.id',
       corsOrigin: 'https://kaffepos.my.id,https://www.kaffepos.my.id,capacitor://localhost,https://localhost,http://localhost',
-      midtransEnvironment: 'production',
+      dokuEnvironment: 'production',
       subscriptionPaymentMode: 'auto',
-      midtransSnapEnabled: true,
-      midtransServerKey: 'Mid-server-xxx',
-      midtransMerchantId: 'G123',
+      paymentIntegrationEnabled: true,
+      dokuConfigured: true,
       resendApiKey: 're_xxx',
       resendFromEmail: 'KaffePOS <no-reply@kaffepos.my.id>',
       sentryDsn: 'https://public@sentry.example/1',
@@ -50,11 +48,10 @@ describe('backend deployment readiness guardrails', () => {
       webBaseUrl: 'https://kaffepos.my.id',
       apiBaseUrl: 'https://api.kaffepos.my.id',
       corsOrigin: ' HTTPS://KaffePOS.My.ID/ , HTTPS://WWW.KAFFEPOS.MY.ID/ , capacitor://LOCALHOST/ , HTTPS://LOCALHOST/ , HTTP://LOCALHOST/ ',
-      midtransEnvironment: 'production',
+      dokuEnvironment: 'production',
       subscriptionPaymentMode: 'auto',
-      midtransSnapEnabled: true,
-      midtransServerKey: 'Mid-server-xxx',
-      midtransMerchantId: 'G123',
+      paymentIntegrationEnabled: true,
+      dokuConfigured: true,
       resendApiKey: 're_xxx',
       resendFromEmail: 'KaffePOS <no-reply@kaffepos.my.id>',
       sentryDsn: 'https://public@sentry.example/1',
@@ -71,11 +68,10 @@ describe('backend deployment readiness guardrails', () => {
       webBaseUrl: 'https://kaffepos.my.id',
       apiBaseUrl: 'https://api.kaffepos.my.id',
       corsOrigin: 'https://kaffepos.my.id,https://www.kaffepos.my.id,capacitor://localhost,http://localhost',
-      midtransEnvironment: 'production',
+      dokuEnvironment: 'production',
       subscriptionPaymentMode: 'auto',
-      midtransSnapEnabled: true,
-      midtransServerKey: 'Mid-server-xxx',
-      midtransMerchantId: 'G123',
+      paymentIntegrationEnabled: true,
+      dokuConfigured: true,
       resendApiKey: 're_xxx',
       resendFromEmail: 'KaffePOS <no-reply@kaffepos.my.id>',
       sentryDsn: 'https://public@sentry.example/1',
@@ -92,11 +88,10 @@ describe('backend deployment readiness guardrails', () => {
       webBaseUrl: 'https://kaffepos.my.id',
       apiBaseUrl: 'https://api.kaffepos.my.id',
       corsOrigin: 'https://kaffepos.my.id,https://www.kaffepos.my.id,capacitor://localhost,https://localhost',
-      midtransEnvironment: 'production',
+      dokuEnvironment: 'production',
       subscriptionPaymentMode: 'auto',
-      midtransSnapEnabled: true,
-      midtransServerKey: 'Mid-server-xxx',
-      midtransMerchantId: 'G123',
+      paymentIntegrationEnabled: true,
+      dokuConfigured: true,
       resendApiKey: 're_xxx',
       resendFromEmail: 'KaffePOS <no-reply@kaffepos.my.id>',
       sentryDsn: 'https://public@sentry.example/1',

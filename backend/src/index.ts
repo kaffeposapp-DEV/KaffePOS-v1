@@ -35,6 +35,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { z } from 'zod';
 import { buildAllowedCorsOrigins, isOriginAllowed } from './lib/corsOrigins';
 import { env } from './core/env';
+import { resolveSubscriptionPaymentConfig, isDokuConfigured } from './core/billing';
 import { pool } from './core/db';
 import { ApiError, getSafeApiErrorMessage, log, serializeError } from './core/errors';
 import { captureBackendException, initBackendErrorTracking } from './core/errorTracking';
@@ -152,59 +153,6 @@ function getBearerToken(req: Request) {
 
 function hashToken(token: string) {
   return createHash('sha256').update(token).digest('hex');
-}
-
-function isMidtransConfigured() {
-  return Boolean(env.MIDTRANS_SERVER_KEY && env.MIDTRANS_SNAP_ENABLED === 'true');
-}
-
-type SubscriptionPaymentMode = 'manual' | 'disabled' | 'midtrans_sandbox' | 'midtrans_production' | 'duitku_sandbox' | 'duitku_production' | 'doku_sandbox' | 'doku_production';
-
-function resolveSubscriptionPaymentConfig() {
-  const midtransConfigured = isMidtransConfigured();
-  const requestedMode = env.SUBSCRIPTION_PAYMENT_MODE;
-  const productionMidtrans = env.MIDTRANS_ENVIRONMENT === 'production';
-  let mode: SubscriptionPaymentMode;
-
-  if (requestedMode === 'auto') {
-    if (!midtransConfigured) {
-      mode = 'manual';
-    } else if (env.NODE_ENV === 'production' && !productionMidtrans) {
-      mode = 'manual';
-    } else {
-      mode = productionMidtrans ? 'midtrans_production' : 'midtrans_sandbox';
-    }
-  } else if (requestedMode === 'midtrans_production' && !productionMidtrans) {
-    mode = 'manual';
-  } else if (requestedMode === 'midtrans_sandbox' && productionMidtrans) {
-    mode = 'manual';
-  } else {
-    mode = requestedMode;
-  }
-
-  const onlinePaymentAvailable =
-    midtransConfigured &&
-    ((mode === 'midtrans_production' && productionMidtrans) ||
-      (mode === 'midtrans_sandbox' && !productionMidtrans));
-  const commerciallyReady = onlinePaymentAvailable && mode === 'midtrans_production' && productionMidtrans;
-  const manualActivationAvailable = mode === 'manual' || !onlinePaymentAvailable;
-
-  return {
-    mode,
-    provider: 'midtrans',
-    midtransEnvironment: env.MIDTRANS_ENVIRONMENT,
-    onlinePaymentAvailable,
-    manualActivationAvailable,
-    commerciallyReady,
-    message: onlinePaymentAvailable
-      ? mode === 'midtrans_production'
-        ? 'Pembayaran online Midtrans production aktif.'
-        : 'Pembayaran online Midtrans sandbox aktif untuk QA internal.'
-      : 'Pembayaran online belum dibuka. Aktivasi langganan dilakukan manual oleh admin sampai Midtrans production aktif.',
-    recommendedAction: onlinePaymentAvailable
-      ? 'Selesaikan pembayaran via checkout online.'
-      : 'Hubungi admin untuk aktivasi manual setelah pembayaran transfer/QR manual.',
-  };
 }
 
 async function authenticate(req: Request, _res: Response, next: NextFunction) {
@@ -1111,9 +1059,9 @@ async function verifyDependenciesOnStartup() {
       provider: 'resend',
     },
     payment: {
-      ok: isMidtransConfigured(),
-      provider: 'midtrans',
-      environment: env.MIDTRANS_ENVIRONMENT,
+      ok: isDokuConfigured(),
+      provider: 'doku',
+      environment: env.DOKU_ENVIRONMENT,
       mode: resolveSubscriptionPaymentConfig().mode,
     },
   });
@@ -1192,8 +1140,8 @@ async function start() {
     webBaseUrl: env.WEB_BASE_URL,
     apiBaseUrl: env.API_BASE_URL,
     emailProvider: env.RESEND_API_KEY && env.RESEND_FROM_EMAIL ? 'resend' : 'disabled',
-    paymentProvider: isMidtransConfigured() ? 'midtrans' : 'disabled',
-    midtransEnvironment: env.MIDTRANS_ENVIRONMENT,
+    paymentProvider: isDokuConfigured() ? 'doku' : 'disabled',
+    dokuEnvironment: env.DOKU_ENVIRONMENT,
     subscriptionPaymentMode: resolveSubscriptionPaymentConfig().mode,
   });
 
