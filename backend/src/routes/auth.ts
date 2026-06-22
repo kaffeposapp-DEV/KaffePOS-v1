@@ -40,8 +40,7 @@ import {
   sendSignupOtpEmail,
   sendPasswordResetEmail,
   sendWelcomeEmail,
-  sendEmail,
-  buildEmailTemplate,
+  sendAccountLockoutEmail,
 } from '../core/email';
 import { handleReferralRegistration } from '../lib/affiliateWebhookHelper';
 import { writeAuditLog } from '../lib/auditLog';
@@ -145,16 +144,6 @@ async function ensureAccountLockoutTable(client = pool) {
       notified_at timestamptz
     )
   `);
-}
-
-async function sendAccountLockoutEmail(email: string, lockedUntil: Date) {
-  const subject = 'Akun KaffePOS terkunci sementara';
-  const text = `Akun kamu terkunci sampai ${lockedUntil.toISOString()} karena 5 percobaan login gagal.`;
-  const html = buildEmailTemplate(subject, 'Akun terkunci sementara.', `
-    <p style="margin:0 0 12px;color:#334155;">Akun kamu terkunci sementara karena 5 percobaan login gagal.</p>
-    <p style="margin:0;color:#334155;">Coba lagi setelah <strong>${lockedUntil.toISOString()}</strong>. Jika ini bukan kamu, segera ganti password.</p>
-  `);
-  await sendEmail({ to: email, subject, text, html });
 }
 
 async function assertLoginNotLocked(email: string) {

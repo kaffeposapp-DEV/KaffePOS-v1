@@ -179,6 +179,60 @@ class EmailServiceClass {
     });
   }
 
+  async sendSignupOtp(input: { to: string; code: string; storeName: string; ttlMinutes: number }) {
+    const subject = `Kode Verifikasi KaffePOS: ${escapeHtml(input.code)}`;
+    const storeName = escapeHtml(input.storeName);
+    const code = escapeHtml(input.code);
+    const html = this.template(subject, 'Gunakan kode ini untuk verifikasi akun KaffePOS Anda.', `
+      <p style="margin:0 0 18px;">Halo <strong>${storeName}</strong>, ini kunci masuk sementara Anda. Jangan bagikan kode ini kepada kasir Anda atau siapa pun.</p>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:24px;text-align:center;margin-bottom:24px;">
+        <p style="margin:0;font-size:34px;font-weight:900;letter-spacing:8px;color:#0f172a;">${code}</p>
+      </div>
+      <p style="margin:0;color:#64748b;font-size:13px;">Kode berlaku ${input.ttlMinutes} menit. Jika Anda tidak merasa mendaftar, abaikan email ini.</p>
+    `);
+    return this.send({
+      to: input.to,
+      subject: `🔑 ${subject}`,
+      text: `Kode verifikasi KaffePOS untuk ${input.storeName} adalah ${input.code}. Berlaku ${input.ttlMinutes} menit.`,
+      html,
+      tags: { category: 'signup_otp' },
+    });
+  }
+
+  async sendPasswordChanged(input: { to: string }) {
+    const subject = 'Password KaffePOS Berhasil Diperbarui';
+    const html = this.template(subject, 'Password akun KaffePOS Anda baru saja diganti.', `
+      <p style="margin:0 0 22px;">Password akun KaffePOS Anda baru saja berhasil diganti.</p>
+      <a href="${env.WEB_BASE_URL}" style="display:block;text-align:center;padding:15px 18px;background:#ff6b00;color:#ffffff;border-radius:14px;font-weight:900;text-decoration:none;">Buka KaffePOS</a>
+      <div style="margin:24px 0 0;padding:16px;background:#fff1f2;border-radius:12px;">
+        <p style="margin:0;color:#be123c;font-size:13px;"><strong>Penting:</strong> Jika ini bukan Anda, segera hubungi tim Support KaffePOS untuk mengamankan akun.</p>
+      </div>
+    `);
+    return this.send({
+      to: input.to,
+      subject: `✅ ${subject}`,
+      text: 'Password akun KaffePOS Anda sudah berhasil diperbarui. Jika ini bukan Anda, segera hubungi tim KaffePOS.',
+      html,
+      tags: { category: 'password_changed' },
+    });
+  }
+
+  async sendAccountLockout(input: { to: string; lockedUntil: Date }) {
+    const subject = 'Akun KaffePOS terkunci sementara';
+    const until = escapeHtml(input.lockedUntil.toISOString());
+    const html = this.template(subject, 'Akun terkunci sementara karena percobaan login gagal.', `
+      <p style="margin:0 0 12px;">Akun kamu terkunci sementara karena 5 percobaan login gagal.</p>
+      <p style="margin:0;">Coba lagi setelah <strong>${until}</strong>. Jika ini bukan kamu, segera ganti password.</p>
+    `);
+    return this.send({
+      to: input.to,
+      subject,
+      text: `Akun kamu terkunci sampai ${input.lockedUntil.toISOString()} karena 5 percobaan login gagal.`,
+      html,
+      tags: { category: 'account_lockout' },
+    });
+  }
+
   async sendFeedbackThankYou(input: { to: string; category: string; storeName?: string | null }) {
     const subject = 'Terima kasih atas feedback Closed Beta';
     const html = this.template(subject, 'Feedback Anda sudah diterima tim KaffePOS.', `
