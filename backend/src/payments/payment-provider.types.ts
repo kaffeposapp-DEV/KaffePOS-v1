@@ -1,4 +1,4 @@
-export type PaymentProviderName = 'duitku' | 'midtrans' | 'disabled';
+export type PaymentProviderName = 'duitku' | 'midtrans' | 'doku' | 'disabled';
 export type InternalPaymentStatus = 'pending' | 'paid' | 'failed' | 'expired' | 'cancelled' | 'refunded' | 'unknown';
 
 export type CreatePaymentInput = {
@@ -45,7 +45,10 @@ export type PaymentStatusResult = VerifiedPaymentCallback;
 export interface PaymentProvider {
   providerName: PaymentProviderName;
   createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult>;
-  verifyCallback(input: { body: Record<string, unknown> }): Promise<VerifiedPaymentCallback>;
+  // `headers` + `rawBody` are required by providers that sign the webhook in the
+  // HTTP header over the raw payload (e.g. DOKU). Body-signature providers
+  // (Duitku) ignore them.
+  verifyCallback(input: { body: Record<string, unknown>; headers?: Record<string, string | string[] | undefined>; rawBody?: string }): Promise<VerifiedPaymentCallback>;
   checkTransactionStatus(input: { merchantOrderId: string; amount?: number | null }): Promise<PaymentStatusResult>;
   mapProviderStatus(rawStatus: unknown): InternalPaymentStatus;
 }

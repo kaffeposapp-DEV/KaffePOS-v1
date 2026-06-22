@@ -45,7 +45,7 @@ export const envSchema = z.object({
   CLOUDFLARE_IMAGES_DELIVERY_URL: z.string().trim().url().optional(),
   RESEND_API_KEY: z.string().trim().optional(),
   RESEND_FROM_EMAIL: z.string().trim().optional(),
-  PAYMENT_GATEWAY_PROVIDER: z.enum(['duitku', 'midtrans', 'disabled']).default('midtrans'),
+  PAYMENT_GATEWAY_PROVIDER: z.enum(['duitku', 'midtrans', 'doku', 'disabled']).default('midtrans'),
   PAYMENT_INTEGRATION_ENABLED: z.union([z.literal('true'), z.literal('false')]).optional().default('true'),
   DUITKU_ENVIRONMENT: z.enum(['sandbox', 'production']).default('sandbox'),
   DUITKU_MERCHANT_CODE: z.string().trim().optional(),
@@ -59,6 +59,18 @@ export const envSchema = z.object({
   DUITKU_FAILED_URL: z.string().trim().url().optional(),
   DUITKU_EXPIRY_PERIOD_MINUTES: z.coerce.number().int().positive().default(60),
   DUITKU_DEFAULT_PAYMENT_METHOD: z.string().trim().default('VC'),
+  // DOKU Checkout (hosted payment page). Base URLs are configurable because DOKU
+  // exposes both api-sandbox.doku.com and legacy sandbox hosts per account.
+  DOKU_ENVIRONMENT: z.enum(['sandbox', 'production']).default('sandbox'),
+  DOKU_CLIENT_ID: z.string().trim().optional(),
+  DOKU_SECRET_KEY: z.string().trim().optional(),
+  DOKU_SANDBOX_BASE_URL: z.string().trim().url().default('https://api-sandbox.doku.com'),
+  DOKU_PRODUCTION_BASE_URL: z.string().trim().url().default('https://api.doku.com'),
+  DOKU_CHECKOUT_PATH: z.string().trim().default('/checkout/v1/payment'),
+  DOKU_STATUS_PATH_PREFIX: z.string().trim().default('/orders/v1/status'),
+  DOKU_NOTIFICATION_PATH: z.string().trim().default('/api/webhooks/doku'),
+  DOKU_CALLBACK_URL: z.string().trim().url().optional(),
+  DOKU_PAYMENT_DUE_MINUTES: z.coerce.number().int().positive().default(60),
   MIDTRANS_ENVIRONMENT: z.enum(['sandbox', 'production']).default('sandbox'),
   MIDTRANS_IS_PRODUCTION: z
     .union([z.literal('true'), z.literal('false')])
