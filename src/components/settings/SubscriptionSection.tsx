@@ -124,13 +124,13 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
     if (!billing) return;
 
     billingNoticeShown.current = true;
-    if (billing === 'success' || billing === 'duitku-return') {
+    if (billing === 'success' || billing === 'doku-return') {
       toast.showToast('Menunggu konfirmasi pembayaran. Lisensi aktif setelah callback terverifikasi.', 'info');
-      trackAnalyticsEvent('payment_returned', { source: 'subscription_return', payment_provider: params.get('provider') || 'duitku' });
+      trackAnalyticsEvent('payment_returned', { source: 'subscription_return', payment_provider: params.get('provider') || 'doku' });
       void trackOpsEvent({
         event_name: 'payment_started',
         status: 'success',
-        metadata: { source: 'subscription_return', paymentProvider: params.get('provider') || 'duitku' },
+        metadata: { source: 'subscription_return', paymentProvider: params.get('provider') || 'doku' },
       });
     }
     if (billing === 'pending') toast.showToast('Menunggu konfirmasi pembayaran.', 'info');
@@ -325,13 +325,13 @@ export default function SubscriptionSection({ isPro, profile, toast, onRefreshSt
                 <Clock3 size={20} className="animate-pulse" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-black text-amber-900">Transaksi Duitku Sedang Diverifikasi</p>
+                <p className="text-sm font-black text-amber-900">Transaksi DOKU Sedang Diverifikasi</p>
                 <p className="mt-1 break-words text-xs font-medium text-amber-700 leading-relaxed">
                   Kami sedang menunggu konfirmasi pembayaran untuk paket {getPlanDefinition(activePendingPayment.plan).name} ({BILLING_CYCLE_LABELS[(activePendingPayment.billing_cycle as BillingCycle) || 'monthly']}) sebesar {formatRupiah(activePendingPayment.amount)}.
                 </p>
                 <p className="mt-2 text-xs font-bold text-amber-800">
                   <span>Lisensi belum aktif sampai pembayaran sukses.</span>
-                  <span className="block mt-1">Status pembayaran sedang diverifikasi otomatis oleh callback aman Duitku. Anda dapat merefresh halaman jika pembayaran sudah diselesaikan.</span>
+                  <span className="block mt-1">Status pembayaran sedang diverifikasi otomatis oleh callback aman DOKU. Anda dapat merefresh halaman jika pembayaran sudah diselesaikan.</span>
                 </p>
                 {activePendingPayment.redirect_url && (
                   <div className="mt-4 flex flex-wrap gap-2">

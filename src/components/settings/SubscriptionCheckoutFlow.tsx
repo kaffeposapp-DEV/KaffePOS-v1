@@ -172,7 +172,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
         plan: selectedPlan,
         billing_cycle: selectedCycle,
         payment_method: selectedMethod,
-        payment_provider: import.meta.env.VITE_PAYMENT_GATEWAY_PROVIDER || 'midtrans',
+        payment_provider: import.meta.env.VITE_PAYMENT_GATEWAY_PROVIDER || 'doku',
       });
       void trackOpsEvent({
         event_name: 'payment_started',
@@ -431,7 +431,7 @@ export default function SubscriptionCheckoutFlow({ open, plan, billingCycle, onC
                   <div className="flex flex-col gap-2 rounded-2xl bg-slate-50 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
                     <span className="font-bold text-slate-500">Metode</span>
                     <span className="min-w-0 break-words font-black text-slate-800 sm:text-right">{quote.selectedPaymentMethod.label}</span>
-                    <span className="shrink-0 text-xs font-black uppercase text-slate-400">MIDTRANS</span>
+                    <span className="shrink-0 text-xs font-black uppercase text-slate-400">DOKU</span>
                   </div>
 
                   <div className="border-t border-slate-50 pt-4" />

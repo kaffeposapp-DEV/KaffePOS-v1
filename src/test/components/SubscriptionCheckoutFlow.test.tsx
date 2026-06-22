@@ -41,9 +41,9 @@ describe('SubscriptionCheckoutFlow interaction', () => {
       quote,
       paymentMethods: [],
       paymentConfig: {
-        mode: 'midtrans_sandbox',
-        provider: 'midtrans',
-        midtransEnvironment: 'sandbox',
+        mode: 'doku_sandbox',
+        provider: 'doku',
+        dokuEnvironment: 'sandbox',
         onlinePaymentAvailable: true,
         manualActivationAvailable: true,
         commerciallyReady: false,
@@ -180,8 +180,8 @@ describe('SubscriptionCheckoutFlow interaction', () => {
       paymentMethods: [],
       paymentConfig: {
         mode: 'disabled',
-        provider: 'midtrans',
-        midtransEnvironment: 'sandbox',
+        provider: 'doku',
+        dokuEnvironment: 'sandbox',
         onlinePaymentAvailable: false,
         manualActivationAvailable: true,
         commerciallyReady: false,
@@ -223,8 +223,8 @@ describe('SubscriptionCheckoutFlow interaction', () => {
       },
     };
     vi.mocked(getSubscriptionPaymentQuote)
-      .mockResolvedValueOnce({ quote, paymentMethods: [], paymentConfig: { mode: 'midtrans_sandbox', provider: 'midtrans', midtransEnvironment: 'sandbox', onlinePaymentAvailable: true, manualActivationAvailable: true, commerciallyReady: false, message: 'Sandbox siap.', recommendedAction: 'Test checkout.' } })
-      .mockResolvedValueOnce({ quote: discountedQuote, paymentMethods: [], paymentConfig: { mode: 'midtrans_sandbox', provider: 'midtrans', midtransEnvironment: 'sandbox', onlinePaymentAvailable: true, manualActivationAvailable: true, commerciallyReady: false, message: 'Sandbox siap.', recommendedAction: 'Test checkout.' } });
+      .mockResolvedValueOnce({ quote, paymentMethods: [], paymentConfig: { mode: 'doku_sandbox', provider: 'doku', dokuEnvironment: 'sandbox', onlinePaymentAvailable: true, manualActivationAvailable: true, commerciallyReady: false, message: 'Sandbox siap.', recommendedAction: 'Test checkout.' } })
+      .mockResolvedValueOnce({ quote: discountedQuote, paymentMethods: [], paymentConfig: { mode: 'doku_sandbox', provider: 'doku', dokuEnvironment: 'sandbox', onlinePaymentAvailable: true, manualActivationAvailable: true, commerciallyReady: false, message: 'Sandbox siap.', recommendedAction: 'Test checkout.' } });
 
     const assign = vi.fn();
     Object.defineProperty(window, 'location', {

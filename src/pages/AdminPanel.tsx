@@ -263,7 +263,7 @@ export default function AdminPanel() {
                 onClick={() => {
                   setFeedback({
                     type: 'success',
-                    message: 'Sandbox siap. Buka POS, buat order kecil, pilih QRIS, lalu selesaikan via Midtrans sandbox.',
+                    message: 'Sandbox siap. Buka POS, buat order kecil, pilih QRIS, lalu selesaikan via DOKU sandbox.',
                   });
                   window.open('/?tab=pos&paymentSandbox=1', '_blank', 'noopener,noreferrer');
                 }}

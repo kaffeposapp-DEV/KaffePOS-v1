@@ -351,8 +351,7 @@ export type SecurePaymentCreateResponse = {
   discount_amount: number;
   tax_amount: number;
   gross_amount: number;
-  snap_token: string | null;
-  snap_script_url?: string | null;
+  provider?: string | null;
   payment_url: string | null;
   expires_at: string;
 };
@@ -423,7 +422,7 @@ export type GenericPaymentStartResponse = {
   success: true;
   data: {
     paymentId: string;
-    provider: 'duitku' | 'midtrans' | 'disabled' | string;
+    provider: 'doku' | 'disabled' | string;
     merchantOrderId: string;
     paymentUrl: string | null;
     status: string;
@@ -608,9 +607,9 @@ export const updateCashRegisterEntry = (id: string, payload: Record<string, unkn
   apiFetch<CashRegister>(`/api/cash-register/${id}`, { method: 'PATCH', json: payload });
 
 export type SubscriptionPaymentConfig = {
-  mode: 'manual' | 'disabled' | 'midtrans_sandbox' | 'midtrans_production';
+  mode: 'manual' | 'disabled' | 'doku_sandbox' | 'doku_production';
   provider: string;
-  midtransEnvironment: 'sandbox' | 'production';
+  dokuEnvironment: 'sandbox' | 'production';
   onlinePaymentAvailable: boolean;
   manualActivationAvailable: boolean;
   commerciallyReady: boolean;

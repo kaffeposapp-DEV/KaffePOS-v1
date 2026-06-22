@@ -112,7 +112,7 @@ export default function PlanConfirmation() {
             </div>
 
             <p className="text-center text-xs text-slate-500">
-              Pembayaran online akan diproses otomatis setelah Midtrans production aktif. Selama masa verifikasi, admin tetap standby untuk aktivasi manual pukul 09.00-21.00 WIB.
+              Pembayaran online akan diproses otomatis setelah gateway pembayaran production aktif. Selama masa verifikasi, admin tetap standby untuk aktivasi manual pukul 09.00-21.00 WIB.
             </p>
           </div>
         </div>

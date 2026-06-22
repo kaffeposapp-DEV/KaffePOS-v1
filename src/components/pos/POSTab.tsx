@@ -30,7 +30,6 @@ import {
 } from '@/lib/backendApi';
 import { enqueueOfflineOperation } from '@/lib/offlineQueue';
 import { dispatchUpgradePrompt } from '@/lib/upgradePrompts';
-import { openMidtransSnap } from '@/lib/midtrans';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
   calculateLoyaltyRewardDiscount,
@@ -84,26 +83,10 @@ function makeIdempotencyKey(prefix: string) {
 
 type PaymentPhase = 'idle' | 'creating' | 'snap_open' | 'pending' | 'success' | 'failed' | 'cancelled' | 'expired' | 'denied';
 
-function getSnapTransactionStatus(result: unknown) {
-  if (!result || typeof result !== 'object') return null;
-  const value = (result as { transaction_status?: unknown; status_code?: unknown }).transaction_status;
-  return typeof value === 'string' ? value.toLowerCase() : null;
-}
-
-function getPaymentPhaseFromSnap(result: unknown, fallback: PaymentPhase): PaymentPhase {
-  const status = getSnapTransactionStatus(result);
-  if (status === 'settlement' || status === 'capture') return 'success';
-  if (status === 'pending') return 'pending';
-  if (status === 'cancel') return 'cancelled';
-  if (status === 'expire') return 'expired';
-  if (status === 'deny') return 'denied';
-  return fallback;
-}
-
 function getPaymentMessage(phase: PaymentPhase) {
   if (phase === 'creating') return 'Membuat pembayaran aman...';
-  if (phase === 'snap_open') return 'Snap Midtrans siap. Selesaikan pembayaran di popup.';
-  if (phase === 'pending') return 'Pembayaran sedang menunggu konfirmasi Midtrans.';
+  if (phase === 'snap_open') return 'Halaman pembayaran siap. Selesaikan pembayaran di tab baru.';
+  if (phase === 'pending') return 'Pembayaran sedang menunggu konfirmasi gateway.';
   if (phase === 'success') return 'Pembayaran berhasil. Struk digital siap.';
   if (phase === 'cancelled') return 'Pembayaran dibatalkan. Pesanan belum diproses.';
   if (phase === 'expired') return 'Waktu pembayaran habis. Silakan buat pembayaran baru.';
@@ -487,38 +470,13 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
         });
 
         setPaymentOrder(payment);
-        setPaymentPhase('snap_open');
-        toast.showToast('Pembayaran aman dibuat. Selesaikan lewat Snap.', 'info');
-        if (payment.snap_token) {
-          await openMidtransSnap({
-            snapToken: payment.snap_token,
-            snapScriptUrl: payment.snap_script_url ?? null,
-            paymentUrl: payment.payment_url,
-            callbacks: {
-              onSuccess: (result) => {
-                const phase = getPaymentPhaseFromSnap(result, 'success');
-                void pollPaymentOrder(payment.order_id, phase);
-              },
-              onPending: (result) => {
-                const phase = getPaymentPhaseFromSnap(result, 'pending');
-                setPaymentPhase(phase);
-                void pollPaymentOrder(payment.order_id, phase);
-              },
-              onError: (result) => {
-                const phase = getPaymentPhaseFromSnap(result, 'failed');
-                setPaymentPhase(phase);
-                void pollPaymentOrder(payment.order_id, phase);
-              },
-              onClose: () => {
-                setPaymentPhase('pending');
-                toast.showToast('Popup pembayaran ditutup. Pesanan belum ditandai lunas.', 'info');
-                void pollPaymentOrder(payment.order_id, 'pending');
-              },
-            },
-          });
-        } else if (payment.payment_url) {
-          setPaymentPhase('pending');
-          window.location.assign(payment.payment_url);
+        setPaymentPhase('pending');
+        if (payment.payment_url) {
+          toast.showToast('Membuka halaman pembayaran aman...', 'info');
+          window.open(payment.payment_url, '_blank', 'noopener,noreferrer');
+          void pollPaymentOrder(payment.order_id, 'pending');
+        } else {
+          toast.showToast('Link pembayaran tidak tersedia. Coba lagi.', 'error');
         }
         return;
       }
