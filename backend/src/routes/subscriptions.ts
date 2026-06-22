@@ -357,7 +357,7 @@ router.post('/api/subscriptions/payments/quote', requirePermission('can_manage_b
       ? baseQuote
       : {
           ...baseQuote,
-          trustLabel: 'Aktivasi manual diproses admin sampai Midtrans production aktif.',
+          trustLabel: 'Aktivasi manual diproses admin sampai gateway pembayaran production aktif.',
         };
 
     res.json({

@@ -22,10 +22,10 @@ import { createPaymentProvider, getActivePaymentProviderName } from '../payments
 
 const router = Router();
 
-let duitkuSchemaReady: Promise<void> | null = null;
+let subscriptionSchemaReady: Promise<void> | null = null;
 
-function ensureDuitkuSubscriptionPaymentSchema() {
-  duitkuSchemaReady ??= pool.query(`
+function ensureSubscriptionPaymentSchema() {
+  subscriptionSchemaReady ??= pool.query(`
     alter table public.subscription_payment_sessions
       add column if not exists provider text,
       add column if not exists provider_reference text,
@@ -53,7 +53,7 @@ function ensureDuitkuSubscriptionPaymentSchema() {
       created_at timestamptz not null default now()
     );
   `).then(() => undefined);
-  return duitkuSchemaReady;
+  return subscriptionSchemaReady;
 }
 
 function getRequestIp(req: Parameters<Parameters<typeof router.post>[1]>[0]) {
@@ -111,7 +111,7 @@ async function createGenericSubscriptionPayment(req: Parameters<Parameters<typeo
     const voucherCode = quote.voucher?.code ?? '';
     const activeProvider = getActivePaymentProviderName();
     if (activeProvider === 'disabled') throw new ApiError(503, 'PAYMENT_DISABLED');
-    await ensureDuitkuSubscriptionPaymentSchema();
+    await ensureSubscriptionPaymentSchema();
 
     const existingPending = await pool.query(
       `
@@ -224,7 +224,7 @@ router.get('/api/payments/:paymentId/status', requirePermission('can_manage_bill
     if (!row) throw new ApiError(404, 'Pembayaran tidak ditemukan.');
     res.json({
       paymentId: row.id,
-      provider: row.provider ?? 'midtrans',
+      provider: row.provider ?? 'doku',
       merchantOrderId: row.merchant_order_id ?? row.midtrans_order_id,
       providerReference: row.provider_reference ?? null,
       status: row.internal_status ?? row.transaction_status,
