@@ -473,7 +473,14 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
         setPaymentPhase('pending');
         if (payment.payment_url) {
           toast.showToast('Membuka halaman pembayaran aman...', 'info');
-          window.open(payment.payment_url, '_blank', 'noopener,noreferrer');
+          const paymentWindow = window.open(payment.payment_url, '_blank', 'noopener,noreferrer');
+          if (!paymentWindow) {
+            // The open() runs after an await, so it's outside the click gesture and
+            // the popup can be blocked — fall back to a full redirect so the
+            // customer still reaches the payment page.
+            window.location.assign(payment.payment_url);
+            return;
+          }
           void pollPaymentOrder(payment.order_id, 'pending');
         } else {
           toast.showToast('Link pembayaran tidak tersedia. Coba lagi.', 'error');
