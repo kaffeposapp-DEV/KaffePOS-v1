@@ -56,6 +56,30 @@ thing hiding gaps.
 
 ## 3. Watch bundle size
 
-`Dashboard` (~440 kB) and `pdf` (~442 kB) are the heaviest chunks. They are
-already lazy-loaded, but consider deferring `jspdf`/`html2canvas` behind the
-export action so they never load on first paint.
+`Dashboard` (~440 kB) and `pdf` (~442 kB) are the heaviest chunks.
+✅ Done: `pdf` + transitive `html2canvas` (~192 kB gzip) now load only on Export
+(was eager with the Report tab). Remaining: the eager `index.es` chunk
+(~50 kB gzip) is worth identifying; `Dashboard`/recharts could be split further.
+
+## 4. Frontend UI/UX & a11y audit (2026-06-22)
+
+Code-level scan findings — most are *not* safe blind mass-fixes:
+
+- **107 `<button>` without explicit `type=`.** Inside a `<form>` a typeless button
+  defaults to `submit`, which can cause accidental submits. Fix per-case (don't
+  blanket-add `type="button"` — some *should* submit). Consider enabling the
+  `react/button-has-type` ESLint rule and fixing the surfaced set.
+- **11 non-semantic clickables** — 10 are modal backdrops (intentional
+  click-to-dismiss; correct a11y is Escape + a visible close button, not a `role`
+  on the backdrop). ✅ The one real bug (clickable brand in `AppShell`) is now a
+  proper `<button>` with a focus-visible ring.
+- **~105 `any` + 42 `eslint-disable`** — type-safety debt; see item 2. Reduce as a
+  careful pass, not a sweep.
+- **~390 inline hex colors** in TSX vs the Tailwind token set — design-token drift.
+  Worth consolidating into `tailwind.config.js` tokens, but it's a large refactor.
+- **Large components:** `LandingPage` (1311), `POSTab` (1139), `ReportTab` (963),
+  `LoyaltyTab` (909), `AuthPage` (908). Split for maintainability.
+
+> Genuine *visual* UI/UX improvement needs the running app (the meaningful screens
+> require auth + backend data) or specific screens/pain points to target — it is
+> not something to infer from source alone.

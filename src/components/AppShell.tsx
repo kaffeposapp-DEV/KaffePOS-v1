@@ -629,12 +629,17 @@ export default function AppShell() {
       <aside className="kaffe-sidebar hidden lg:flex flex-col w-[232px] backdrop-blur-xl border-r z-50">
         <div className="px-6 py-6">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3 group cursor-pointer" onClick={() => changeTab('dashboard')}>
+            <button
+              type="button"
+              onClick={() => changeTab('dashboard')}
+              aria-label="Buka Dashboard"
+              className="flex min-w-0 items-center gap-3 group cursor-pointer rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6A00]"
+            >
               <img src={LOGO_ICON} alt="" className="h-9 w-9 object-contain" />
               <span className="text-[18px] font-extrabold tracking-tight text-slate-900">
                 Kaffe<span className="text-[#FF6A00]">POS</span>
               </span>
-            </div>
+            </button>
             <NotificationBell onOpen={() => setNotificationsOpen(true)} className="h-10 w-10 rounded-xl" />
           </div>
         </div>
