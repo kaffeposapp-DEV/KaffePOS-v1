@@ -39,7 +39,8 @@
     "staging:repair-smoke-data": "node scripts/repair-staging-smoke-data.mjs",
     "staging:final": "node scripts/staging-final-runner.mjs",
     "coolify:staging:deploy": "node scripts/coolify-staging-deploy.mjs",
-    "verify:payment-staging": "node scripts/verify-staging-env.mjs --profile=payment"
+    "verify:payment-staging": "node scripts/verify-staging-env.mjs --profile=payment",
+    "smoke:staging:doku": "node scripts/smoke-doku-staging.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.1",
