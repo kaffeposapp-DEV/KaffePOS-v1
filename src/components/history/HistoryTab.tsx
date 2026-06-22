@@ -5,7 +5,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/history/HistoryTab.tsx — KaffePOS v4 — PrintActionSheet
-import { memo, useState, useMemo, useCallback } from 'react';
+import { memo, useState, useMemo, useCallback, useRef } from 'react';
 import { X, Ban, Search, Printer, ChevronDown } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import PrintActionSheet from '@/components/pos/PrintActionSheet';
@@ -47,6 +47,7 @@ export default function HistoryTab({
   const [voidR,    setVoidR]    = useState('');
   const [showVoid, setShowVoid] = useState<any>(null);
   const [voiding,  setVoiding]  = useState(false);
+  const voidInFlight = useRef(false);
   const [period,   setPeriod]   = useState<Period>('all');
   const [showPrintSheet, setShowPrintSheet] = useState(false);
   const [printTx, setPrintTx] = useState<any>(null);
@@ -86,7 +87,9 @@ export default function HistoryTab({
   const totalCount = useMemo(() => filtered.filter(t => !t.is_void).length, [filtered]);
 
   const handleVoid = useCallback(async () => {
+    if (voidInFlight.current) return;
     if (!voidR.trim()) { toast.showToast('Masukkan alasan void','warning'); return; }
+    voidInFlight.current = true;
     setVoiding(true);
     try {
       await voidTransaction(showVoid.id, voidR, 'owner');
@@ -95,7 +98,7 @@ export default function HistoryTab({
       if (detail?.id === showVoid.id) setDetail(null);
     } catch(e:any) {
       toast.showToast(normalizeUserFacingError(e, 'Transaksi belum bisa di-void. Coba lagi.'),'error');
-    } finally { setVoiding(false); }
+    } finally { setVoiding(false); voidInFlight.current = false; }
   }, [voidR, showVoid, detail, voidTransaction, toast]);
 
   // Buka PrintActionSheet
