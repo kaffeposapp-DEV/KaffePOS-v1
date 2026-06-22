@@ -116,11 +116,14 @@ export default function DailyOpeningModal({ cashierName, toast, onDone }: Props)
   const [amount, setAmount] = useState('');
   const [note,   setNote]   = useState('');
   const [saving, setSaving] = useState(false);
+  const saveInFlight = useRef(false);
 
   const numVal = parseInt(amount.replace(/\D/g, '')) || 0;
 
   const handleSave = async () => {
+    if (saveInFlight.current) return;
     if (numVal <= 0) { toast.showToast('Masukkan jumlah saldo awal', 'warning'); return; }
+    saveInFlight.current = true;
     setSaving(true);
 
     if (!isOnline) {
@@ -138,6 +141,7 @@ export default function DailyOpeningModal({ cashierName, toast, onDone }: Props)
       setLastOpeningDate();
       toast.showToast(`💾 Saldo ${fRp(numVal)} disimpan (offline, sync otomatis)`, 'success');
       setSaving(false);
+      saveInFlight.current = false;
       onDone();
       return;
     }
@@ -157,6 +161,7 @@ export default function DailyOpeningModal({ cashierName, toast, onDone }: Props)
       toast.showToast('⚠ Gagal simpan: ' + (e?.message || ''), 'warning');
     }
     setSaving(false);
+    saveInFlight.current = false;
   };
 
   const handleSkip = () => {

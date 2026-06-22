@@ -6,7 +6,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/pos/ExpenseModal.tsx
 // Catat pengeluaran operasional mendadak — sumber: saldo kasir awal hari ini
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { X, Receipt, Wallet, AlertCircle } from 'lucide-react';
 import { useStore } from '@/hooks/useStore';
 import { useModalBehavior } from '@/hooks/useModalBehavior';
@@ -34,6 +34,7 @@ export default function ExpenseModal({ onClose, cashierName, toast }: Props) {
   const [description, setDescription] = useState('');
   const [category, setCategory]   = useState('Operasional');
   const [saving, setSaving]       = useState(false);
+  const saveInFlight = useRef(false);
 
   const numVal = parseInt(amount.replace(/\D/g, '')) || 0;
 
@@ -65,9 +66,11 @@ export default function ExpenseModal({ onClose, cashierName, toast }: Props) {
   });
 
   const handleSave = () => {
+    if (saveInFlight.current) return;
     if (numVal <= 0) { toast.showToast('Masukkan jumlah pengeluaran', 'warning'); return; }
     if (!description.trim()) { toast.showToast('Masukkan keterangan pengeluaran', 'warning'); return; }
 
+    saveInFlight.current = true;
     setSaving(true);
     saveExpense({ amount: numVal, description: description.trim(), category, cashier: cashierName })
       .then(() => {
@@ -75,7 +78,7 @@ export default function ExpenseModal({ onClose, cashierName, toast }: Props) {
         onClose();
       })
       .catch((e:any) => toast.showToast('⚠ Gagal simpan: ' + (e?.message || ''), 'warning'))
-      .finally(() => setSaving(false));
+      .finally(() => { setSaving(false); saveInFlight.current = false; });
   };
 
   return (
