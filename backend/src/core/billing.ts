@@ -8,7 +8,7 @@ import { createMidtransWebhookSignature } from '../lib/midtrans';
 import type { PoolClient } from './db';
 import { syncProfileSubscriptionState, insertNotification } from './helpers';
 
-export type SubscriptionPaymentMode = 'manual' | 'disabled' | 'midtrans_sandbox' | 'midtrans_production' | 'duitku_sandbox' | 'duitku_production';
+export type SubscriptionPaymentMode = 'manual' | 'disabled' | 'midtrans_sandbox' | 'midtrans_production' | 'duitku_sandbox' | 'duitku_production' | 'doku_sandbox' | 'doku_production';
 
 export function getMidtransBaseUrl() {
   return env.MIDTRANS_ENVIRONMENT === 'production'
@@ -24,13 +24,19 @@ export function isDuitkuConfigured() {
   return Boolean(env.DUITKU_MERCHANT_CODE && env.DUITKU_MERCHANT_KEY && env.DUITKU_CALLBACK_URL && env.DUITKU_RETURN_URL);
 }
 
+export function isDokuConfigured() {
+  return Boolean(env.DOKU_CLIENT_ID && env.DOKU_SECRET_KEY && env.DOKU_CALLBACK_URL);
+}
+
 export function resolveSubscriptionPaymentConfig() {
   const provider = env.PAYMENT_INTEGRATION_ENABLED === 'false' ? 'disabled' : env.PAYMENT_GATEWAY_PROVIDER;
   const midtransConfigured = provider === 'midtrans' && isMidtransConfigured();
   const duitkuConfigured = provider === 'duitku' && isDuitkuConfigured();
+  const dokuConfigured = provider === 'doku' && isDokuConfigured();
   const requestedMode = env.SUBSCRIPTION_PAYMENT_MODE;
   const productionMidtrans = env.MIDTRANS_ENVIRONMENT === 'production';
   const productionDuitku = env.DUITKU_ENVIRONMENT === 'production';
+  const productionDoku = env.DOKU_ENVIRONMENT === 'production';
   let mode: SubscriptionPaymentMode;
 
   if (provider === 'disabled' || requestedMode === 'disabled') {
@@ -38,6 +44,8 @@ export function resolveSubscriptionPaymentConfig() {
   } else if (requestedMode === 'auto') {
     if (provider === 'duitku' && duitkuConfigured) {
       mode = productionDuitku ? 'duitku_production' : 'duitku_sandbox';
+    } else if (provider === 'doku' && dokuConfigured) {
+      mode = productionDoku ? 'doku_production' : 'doku_sandbox';
     } else if (!midtransConfigured) {
       mode = 'manual';
     } else if (env.NODE_ENV === 'production' && !productionMidtrans) {
@@ -49,6 +57,10 @@ export function resolveSubscriptionPaymentConfig() {
     mode = 'manual';
   } else if (requestedMode === 'duitku_sandbox' && productionDuitku) {
     mode = 'manual';
+  } else if (requestedMode === 'doku_production' && !productionDoku) {
+    mode = 'manual';
+  } else if (requestedMode === 'doku_sandbox' && productionDoku) {
+    mode = 'manual';
   } else if (requestedMode === 'midtrans_production' && !productionMidtrans) {
     mode = 'manual';
   } else if (requestedMode === 'midtrans_sandbox' && productionMidtrans) {
@@ -59,8 +71,9 @@ export function resolveSubscriptionPaymentConfig() {
 
   const onlinePaymentAvailable =
     (midtransConfigured && ((mode === 'midtrans_production' && productionMidtrans) || (mode === 'midtrans_sandbox' && !productionMidtrans))) ||
-    (duitkuConfigured && ((mode === 'duitku_production' && productionDuitku) || (mode === 'duitku_sandbox' && !productionDuitku)));
-  const commerciallyReady = onlinePaymentAvailable && ((mode === 'midtrans_production' && productionMidtrans) || (mode === 'duitku_production' && productionDuitku));
+    (duitkuConfigured && ((mode === 'duitku_production' && productionDuitku) || (mode === 'duitku_sandbox' && !productionDuitku))) ||
+    (dokuConfigured && ((mode === 'doku_production' && productionDoku) || (mode === 'doku_sandbox' && !productionDoku)));
+  const commerciallyReady = onlinePaymentAvailable && ((mode === 'midtrans_production' && productionMidtrans) || (mode === 'duitku_production' && productionDuitku) || (mode === 'doku_production' && productionDoku));
   const manualActivationAvailable = mode === 'manual' || !onlinePaymentAvailable;
 
   return {
@@ -68,13 +81,16 @@ export function resolveSubscriptionPaymentConfig() {
     provider,
     midtransEnvironment: env.MIDTRANS_ENVIRONMENT,
     duitkuEnvironment: env.DUITKU_ENVIRONMENT,
+    dokuEnvironment: env.DOKU_ENVIRONMENT,
     onlinePaymentAvailable,
     manualActivationAvailable,
     commerciallyReady,
     message: onlinePaymentAvailable
       ? provider === 'duitku'
         ? mode === 'duitku_production' ? 'Pembayaran online Duitku production aktif.' : 'Pembayaran online Duitku sandbox aktif untuk QA internal.'
-        : mode === 'midtrans_production' ? 'Pembayaran online Midtrans production aktif.' : 'Pembayaran online Midtrans sandbox aktif untuk QA internal.'
+        : provider === 'doku'
+          ? mode === 'doku_production' ? 'Pembayaran online DOKU production aktif.' : 'Pembayaran online DOKU sandbox aktif untuk QA internal.'
+          : mode === 'midtrans_production' ? 'Pembayaran online Midtrans production aktif.' : 'Pembayaran online Midtrans sandbox aktif untuk QA internal.'
       : 'Pembayaran online belum dibuka. Aktivasi langganan dilakukan manual oleh admin sampai payment gateway aktif.',
     recommendedAction: onlinePaymentAvailable
       ? 'Selesaikan pembayaran via checkout online.'

@@ -82,6 +82,7 @@ declare global {
       authUser?: AuthenticatedUser;
       authSession?: AuthenticatedSession;
       requestId?: string;
+      rawBody?: string;
     }
   }
 }
@@ -100,7 +101,14 @@ installDatabaseApm(pool);
 startApmMonitoring();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({
+  limit: '1mb',
+  // Preserve the raw payload so header-signature webhooks (DOKU) can verify the
+  // exact bytes the provider hashed into its Digest.
+  verify: (req, _res, buf) => {
+    (req as Request & { rawBody?: string }).rawBody = buf.toString('utf8');
+  },
+}));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.use(compression);
 app.use(requestContextMiddleware());
@@ -150,7 +158,7 @@ function isMidtransConfigured() {
   return Boolean(env.MIDTRANS_SERVER_KEY && env.MIDTRANS_SNAP_ENABLED === 'true');
 }
 
-type SubscriptionPaymentMode = 'manual' | 'disabled' | 'midtrans_sandbox' | 'midtrans_production' | 'duitku_sandbox' | 'duitku_production';
+type SubscriptionPaymentMode = 'manual' | 'disabled' | 'midtrans_sandbox' | 'midtrans_production' | 'duitku_sandbox' | 'duitku_production' | 'doku_sandbox' | 'doku_production';
 
 function resolveSubscriptionPaymentConfig() {
   const midtransConfigured = isMidtransConfigured();

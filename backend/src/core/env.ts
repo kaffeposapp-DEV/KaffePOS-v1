@@ -87,7 +87,7 @@ export const envSchema = z.object({
   MIDTRANS_UNFINISH_URL: z.string().trim().url().optional(),
   MIDTRANS_ERROR_URL: z.string().trim().url().optional(),
   SUBSCRIPTION_PAYMENT_MODE: z
-    .enum(['auto', 'manual', 'disabled', 'midtrans_sandbox', 'midtrans_production', 'duitku_sandbox', 'duitku_production'])
+    .enum(['auto', 'manual', 'disabled', 'midtrans_sandbox', 'midtrans_production', 'duitku_sandbox', 'duitku_production', 'doku_sandbox', 'doku_production'])
     .default('auto'),
   AUTH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
   AUTH_LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),

@@ -72,6 +72,12 @@ function createDuitkuOrderId(userId: string, plan: string, billingCycle: string)
   return `DKT-${planCode}${cycleCode}-${userId.slice(0, 8)}-${Date.now().toString(36)}`;
 }
 
+function createDokuOrderId(userId: string, plan: string, billingCycle: string) {
+  const planCode = plan.replace(/[^a-z0-9]/gi, '').slice(0, 3).toUpperCase() || 'SUB';
+  const cycleCode = billingCycle.replace(/[^a-z0-9]/gi, '').slice(0, 1).toUpperCase() || 'M';
+  return `DOKU-${planCode}${cycleCode}-${userId.slice(0, 8)}-${Date.now().toString(36)}`;
+}
+
 async function createTransaction(req: Parameters<Parameters<typeof router.post>[1]>[0], res: Parameters<Parameters<typeof router.post>[1]>[1], next: Parameters<Parameters<typeof router.post>[1]>[2]) {
   const ip = getRequestIp(req);
   const userAgent = req.headers['user-agent'] ?? null;
@@ -159,12 +165,16 @@ async function createGenericSubscriptionPayment(req: Parameters<Parameters<typeo
       [req.authUser!.id],
     );
     const store = storeResult.rows[0];
+    const isRedirectProvider = activeProvider === 'duitku' || activeProvider === 'doku';
     const orderId = activeProvider === 'duitku'
       ? createDuitkuOrderId(req.authUser!.id, payload.plan, payload.billingCycle)
-      : createMidtransOrderId(req.authUser!.id, payload.plan, payload.billingCycle).replace('SUB-', `${activeProvider.toUpperCase()}-SUB-`);
+      : activeProvider === 'doku'
+        ? createDokuOrderId(req.authUser!.id, payload.plan, payload.billingCycle)
+        : createMidtransOrderId(req.authUser!.id, payload.plan, payload.billingCycle).replace('SUB-', `${activeProvider.toUpperCase()}-SUB-`);
 
-    if (activeProvider === 'duitku') {
-      const provider = createPaymentProvider('duitku');
+    if (isRedirectProvider) {
+      const isDoku = activeProvider === 'doku';
+      const provider = createPaymentProvider(activeProvider);
       const payment = await provider.createPayment({
         merchantOrderId: orderId,
         amount,
@@ -174,6 +184,10 @@ async function createGenericSubscriptionPayment(req: Parameters<Parameters<typeo
         paymentMethod: payload.paymentMethod,
         itemDetails: [{ name: `Langganan ${quote.planName}`, price: amount, quantity: 1 }],
       });
+      const expiryMinutes = isDoku ? env.DOKU_PAYMENT_DUE_MINUTES : env.DUITKU_EXPIRY_PERIOD_MINUTES;
+      const providerEnv = isDoku ? env.DOKU_ENVIRONMENT : env.DUITKU_ENVIRONMENT;
+      const callbackUrl = isDoku ? env.DOKU_CALLBACK_URL : env.DUITKU_CALLBACK_URL;
+      const returnUrl = isDoku ? env.DOKU_CALLBACK_URL : env.DUITKU_RETURN_URL;
       const sessionId = randomUUID();
       const inserted = await pool.query(
         `
@@ -184,11 +198,11 @@ async function createGenericSubscriptionPayment(req: Parameters<Parameters<typeo
             payment_method, provider_status, internal_status
           ) values (
             $1, $2, $3, $4, $5, $6, 'IDR', $7, $8, 'pending', now() + ($9::int || ' minutes')::interval, $10::jsonb, now(),
-            'duitku', $11, $7, $8, $12, $13, $14, $15, 'pending'
+            $16, $11, $7, $8, $12, $13, $14, $15, 'pending'
           )
           returning id, provider, merchant_order_id, midtrans_order_id, payment_url, redirect_url, internal_status, transaction_status
         `,
-        [sessionId, req.authUser!.id, store?.id ?? null, payload.plan, payload.billingCycle, amount, orderId, payment.paymentUrl, env.DUITKU_EXPIRY_PERIOD_MINUTES, JSON.stringify({ env: env.DUITKU_ENVIRONMENT, paymentMode: paymentConfig.mode, callbackUrl: env.DUITKU_CALLBACK_URL, returnUrl: env.DUITKU_RETURN_URL, selectedPaymentMethod: payload.paymentMethod, voucherCode, quote, storeName: store?.store_name ?? null, providerRaw: payment.raw }), payment.providerReference, payment.vaNumber, payment.qrString, payment.paymentMethod, payment.providerStatus],
+        [sessionId, req.authUser!.id, store?.id ?? null, payload.plan, payload.billingCycle, amount, orderId, payment.paymentUrl, expiryMinutes, JSON.stringify({ env: providerEnv, paymentMode: paymentConfig.mode, callbackUrl, returnUrl, selectedPaymentMethod: payload.paymentMethod, voucherCode, quote, storeName: store?.store_name ?? null, providerRaw: payment.raw }), payment.providerReference, payment.vaNumber, payment.qrString, payment.paymentMethod, payment.providerStatus, activeProvider],
       );
       const row = inserted.rows[0];
       res.status(201).json({ success: true, data: { paymentId: row.id, provider: row.provider, merchantOrderId: row.merchant_order_id, paymentUrl: row.payment_url ?? row.redirect_url ?? null, status: row.internal_status ?? 'pending' } });
@@ -233,8 +247,8 @@ async function createGenericSubscriptionPayment(req: Parameters<Parameters<typeo
     const row = inserted.rows[0];
     res.status(201).json({ success: true, data: { paymentId: row.id, provider: row.provider, merchantOrderId: row.merchant_order_id ?? row.midtrans_order_id, paymentUrl: row.payment_url ?? row.redirect_url, status: row.internal_status ?? row.transaction_status } });
   } catch (error) {
-    if (error instanceof ApiError && error.status === 502 && error.message.startsWith('Duitku ')) {
-      log('warn', 'subscription_payment.duitku_failed', { error: serializeError(error) });
+    if (error instanceof ApiError && error.status === 502 && (error.message.startsWith('Duitku ') || error.message.startsWith('DOKU '))) {
+      log('warn', 'subscription_payment.provider_failed', { error: serializeError(error) });
       res.status(502).json({ success: false, message: error.message });
       return;
     }
@@ -287,7 +301,8 @@ router.get('/api/payments/:paymentId/status', requirePermission('can_manage_bill
 
 router.post('/api/payments/:paymentId/check', requirePermission('can_manage_billing'), async (req, res, next) => {
   try {
-    if (getActivePaymentProviderName() !== 'duitku') throw new ApiError(409, 'Status check Duitku hanya aktif saat provider Duitku.');
+    const checkProvider = getActivePaymentProviderName();
+    if (checkProvider !== 'duitku' && checkProvider !== 'doku') throw new ApiError(409, 'Status check manual hanya aktif untuk DOKU/Duitku.');
     const paymentId = z.string().uuid().parse(req.params.paymentId);
     const sessionResult = await pool.query(
       `select * from public.subscription_payment_sessions where id = $1 and user_id = $2 limit 1`,
@@ -295,19 +310,19 @@ router.post('/api/payments/:paymentId/check', requirePermission('can_manage_bill
     );
     const session = sessionResult.rows[0];
     if (!session) throw new ApiError(404, 'Pembayaran tidak ditemukan.');
-    const provider = createPaymentProvider('duitku');
+    const provider = createPaymentProvider(checkProvider);
     const checked = await provider.checkTransactionStatus({ merchantOrderId: String(session.merchant_order_id ?? session.midtrans_order_id) });
     if (checked.amount != null && Math.round(Number(session.amount ?? 0)) !== Math.round(checked.amount)) {
-      throw new ApiError(400, 'Amount Duitku tidak sesuai.');
+      throw new ApiError(400, 'Jumlah pembayaran tidak sesuai.');
     }
     const paidAt = checked.paidAt ?? new Date().toISOString();
     await withTransaction(async (client) => {
       await client.query(
         `
           insert into public.payment_events (payment_id, provider, event_type, provider_reference, merchant_order_id, raw_status, internal_status, payload, signature_valid, processed_at)
-          values ($1, 'duitku', 'manual_check', $2, $3, $4, $5, $6::jsonb, true, now())
+          values ($1, $7, 'manual_check', $2, $3, $4, $5, $6::jsonb, true, now())
         `,
-        [session.id, checked.providerReference, checked.merchantOrderId, checked.rawStatus, checked.internalStatus, JSON.stringify(checked.raw)],
+        [session.id, checked.providerReference, checked.merchantOrderId, checked.rawStatus, checked.internalStatus, JSON.stringify(checked.raw), checkProvider],
       ).catch(() => undefined);
       await client.query(
         `
@@ -327,15 +342,15 @@ router.post('/api/payments/:paymentId/check', requirePermission('can_manage_bill
           plan: session.plan,
           billingCycle: session.billing_cycle,
           paymentAmount: Number(session.amount ?? 0),
-          paymentMethod: checked.paymentMethod ?? 'duitku',
+          paymentMethod: checked.paymentMethod ?? checkProvider,
           paymentRef: checked.merchantOrderId ?? String(session.merchant_order_id ?? session.midtrans_order_id),
-          paymentNote: `Duitku ${checked.paymentMethod ?? 'payment'} (${env.DUITKU_ENVIRONMENT})`,
+          paymentNote: `${checkProvider} ${checked.paymentMethod ?? 'payment'}`,
           paidAt,
           sessionId: session.id,
         });
       }
     });
-    res.json({ paymentId: session.id, provider: 'duitku', status: checked.internalStatus, merchantOrderId: checked.merchantOrderId });
+    res.json({ paymentId: session.id, provider: checkProvider, status: checked.internalStatus, merchantOrderId: checked.merchantOrderId });
   } catch (error) {
     next(error);
   }

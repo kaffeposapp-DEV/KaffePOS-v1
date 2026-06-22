@@ -30,7 +30,7 @@ import type { PaymentStatusResult } from '../payments/payment-provider.types';
 const router = Router();
 
 async function applySubscriptionPaymentResult(result: PaymentStatusResult, eventType: string) {
-  if (!result.signatureValid || !result.merchantOrderId) throw new ApiError(401, 'Signature Duitku tidak valid.');
+  if (!result.signatureValid || !result.merchantOrderId) throw new ApiError(401, 'Signature pembayaran tidak valid.');
   const paidEmail = await withTransaction(async (client) => {
     const sessionResult = await client.query(
       `
@@ -45,7 +45,7 @@ async function applySubscriptionPaymentResult(result: PaymentStatusResult, event
     const session = sessionResult.rows[0];
     if (!session) throw new ApiError(404, 'Sesi pembayaran tidak ditemukan.');
     if (result.amount != null && Math.round(Number(session.amount ?? 0)) !== Math.round(result.amount)) {
-      throw new ApiError(400, 'Amount Duitku tidak sesuai.');
+      throw new ApiError(400, 'Jumlah pembayaran tidak sesuai.');
     }
 
     await client.query(
@@ -53,16 +53,16 @@ async function applySubscriptionPaymentResult(result: PaymentStatusResult, event
         insert into public.payment_events (
           payment_id, provider, event_type, provider_reference, merchant_order_id, raw_status,
           internal_status, payload, signature_valid, processed_at
-        ) values ($1, 'duitku', $2, $3, $4, $5, $6, $7::jsonb, true, now())
+        ) values ($1, $8, $2, $3, $4, $5, $6, $7::jsonb, true, now())
       `,
-      [session.id, eventType, result.providerReference, result.merchantOrderId, result.rawStatus, result.internalStatus, JSON.stringify(result.raw)],
+      [session.id, eventType, result.providerReference, result.merchantOrderId, result.rawStatus, result.internalStatus, JSON.stringify(result.raw), result.provider],
     ).catch(() => undefined);
 
     const paidAt = result.paidAt ?? new Date().toISOString();
     await client.query(
       `
         update public.subscription_payment_sessions
-        set provider = 'duitku',
+        set provider = $8,
             provider_reference = coalesce($2, provider_reference),
             payment_method = coalesce($3, payment_method),
             provider_status = $4,
@@ -75,7 +75,7 @@ async function applySubscriptionPaymentResult(result: PaymentStatusResult, event
             updated_at = now()
         where id = $1
       `,
-      [session.id, result.providerReference, result.paymentMethod, result.rawStatus, result.internalStatus, eventType === 'callback', paidAt],
+      [session.id, result.providerReference, result.paymentMethod, result.rawStatus, result.internalStatus, eventType === 'callback', paidAt, result.provider],
     );
 
     if (result.internalStatus !== 'paid' || session.subscription_id) return null;
@@ -84,9 +84,9 @@ async function applySubscriptionPaymentResult(result: PaymentStatusResult, event
       plan: session.plan as 'secangkir' | 'kopi_susu' | 'signature' | 'founder',
       billingCycle: session.billing_cycle as 'free' | 'monthly' | 'quarterly' | 'semiannual' | 'yearly',
       paymentAmount: Number(session.amount ?? 0),
-      paymentMethod: result.paymentMethod ?? 'duitku',
+      paymentMethod: result.paymentMethod ?? result.provider,
       paymentRef: result.merchantOrderId!,
-      paymentNote: `Duitku ${result.paymentMethod ?? 'payment'} (${env.DUITKU_ENVIRONMENT})`,
+      paymentNote: `${result.provider} ${result.paymentMethod ?? 'payment'}`,
       paidAt,
       sessionId: session.id as string,
     });
@@ -115,6 +115,26 @@ async function handleDuitkuWebhook(req: Parameters<Parameters<typeof router.post
     res.status(200).json({ received: true, provider: 'duitku', status: result.internalStatus });
   } catch (error) {
     alertOnPaymentWebhookFailure('Duitku webhook processing failed', { error: String(error) });
+    next(error);
+  }
+}
+
+async function handleDokuWebhook(req: Parameters<Parameters<typeof router.post>[1]>[0], res: Parameters<Parameters<typeof router.post>[1]>[1], next: Parameters<Parameters<typeof router.post>[1]>[2]) {
+  try {
+    const provider = createPaymentProvider('doku');
+    const result = await provider.verifyCallback({
+      body: req.body as Record<string, unknown>,
+      headers: req.headers,
+      rawBody: req.rawBody,
+    });
+    if (!result.signatureValid) {
+      log('warn', 'doku_webhook_signature_failed', { merchantOrderId: result.merchantOrderId, rawStatus: result.rawStatus });
+      throw new ApiError(401, 'Signature DOKU tidak valid.');
+    }
+    await applySubscriptionPaymentResult(result, 'callback');
+    res.status(200).json({ received: true, provider: 'doku', status: result.internalStatus });
+  } catch (error) {
+    alertOnPaymentWebhookFailure('DOKU webhook processing failed', { error: String(error) });
     next(error);
   }
 }
@@ -515,6 +535,7 @@ async function handleMidtransWebhook(req: Parameters<Parameters<typeof router.po
 
 router.post('/api/webhooks/midtrans', handleMidtransWebhook);
 router.post('/api/webhooks/duitku', handleDuitkuWebhook);
+router.post('/api/webhooks/doku', handleDokuWebhook);
 router.post('/api/payments/midtrans/webhook', handleMidtransWebhook);
 router.post('/api/payment/webhook', handleMidtransWebhook);
 router.post('/api/payment/midtrans-webhook', handleMidtransWebhook);
