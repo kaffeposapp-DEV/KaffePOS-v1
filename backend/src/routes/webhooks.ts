@@ -71,28 +71,51 @@ async function applySubscriptionPaymentResult(result: PaymentStatusResult, event
       [session.id, result.providerReference, result.paymentMethod, result.rawStatus, result.internalStatus, eventType === 'callback', paidAt, result.provider],
     );
 
-    if (result.internalStatus !== 'paid' || session.subscription_id) return null;
-    const activation = await activatePaidSubscription(client, {
-      userId: session.user_id as string,
-      plan: session.plan as 'secangkir' | 'kopi_susu' | 'signature' | 'founder',
-      billingCycle: session.billing_cycle as 'free' | 'monthly' | 'quarterly' | 'semiannual' | 'yearly',
-      paymentAmount: Number(session.amount ?? 0),
-      paymentMethod: result.paymentMethod ?? result.provider,
-      paymentRef: result.merchantOrderId!,
-      paymentNote: `${result.provider} ${result.paymentMethod ?? 'payment'}`,
-      paidAt,
-      sessionId: session.id as string,
-    });
-    if (isReferralCommissionCreationEnabled()) {
-      await new CommissionService(client).createFromPayment({
+    if (result.internalStatus === 'paid' && !session.subscription_id) {
+      const activation = await activatePaidSubscription(client, {
         userId: session.user_id as string,
-        paymentId: session.id as string,
-        grossAmount: Number(session.amount ?? 0),
+        plan: session.plan as 'secangkir' | 'kopi_susu' | 'signature' | 'founder',
+        billingCycle: session.billing_cycle as 'free' | 'monthly' | 'quarterly' | 'semiannual' | 'yearly',
+        paymentAmount: Number(session.amount ?? 0),
+        paymentMethod: result.paymentMethod ?? result.provider,
+        paymentRef: result.merchantOrderId!,
+        paymentNote: `${result.provider} ${result.paymentMethod ?? 'payment'}`,
         paidAt,
-        orderId: result.merchantOrderId!,
-      }).catch((error) => log('warn', 'affiliate.commission_sync_failed', { error: serializeError(error), orderId: result.merchantOrderId }));
+        sessionId: session.id as string,
+      });
+      if (isReferralCommissionCreationEnabled()) {
+        await new CommissionService(client).createFromPayment({
+          userId: session.user_id as string,
+          paymentId: session.id as string,
+          grossAmount: Number(session.amount ?? 0),
+          paidAt,
+          orderId: result.merchantOrderId!,
+        }).catch((error) => log('warn', 'affiliate.commission_sync_failed', { error: serializeError(error), orderId: result.merchantOrderId }));
+      }
+      return activation;
     }
-    return activation;
+
+    // Non-paid terminal status: reverse any pending affiliate commission and tell
+    // the user so they can retry (parity with the removed Midtrans failure branch).
+    if (result.internalStatus === 'failed' || result.internalStatus === 'cancelled' || result.internalStatus === 'expired') {
+      if (isReferralCommissionCreationEnabled()) {
+        await new CommissionService(client).cancelForPayment({
+          userId: session.user_id as string,
+          paymentId: session.id as string,
+          status: result.rawStatus ?? result.internalStatus,
+          orderId: result.merchantOrderId!,
+        }).catch((error) => log('warn', 'affiliate.commission_cancel_failed', { error: serializeError(error), orderId: result.merchantOrderId }));
+      }
+      await insertNotification(
+        client,
+        session.user_id as string,
+        'Pembayaran subscription gagal',
+        'Pembayaran belum berhasil. Kamu bisa coba lagi kapan saja.',
+        'warning',
+        { paymentRef: result.merchantOrderId, status: result.rawStatus },
+      );
+    }
+    return null;
   });
 
   if (paidEmail?.email) {
@@ -124,6 +147,12 @@ async function applyPosPaymentResult(result: PaymentStatusResult, eventType: str
     );
     const paymentOrder = orderResult.rows[0];
     if (!paymentOrder) return null;
+
+    // A paid/completed order is terminal: ignore a late non-success notification
+    // (out-of-order or duplicate webhook) so a settled sale is never voided/reversed.
+    if ((paymentOrder.status === 'paid' || paymentOrder.status === 'completed') && result.internalStatus !== 'paid') {
+      return { storeId: paymentOrder.store_id as string, transactionId: paymentOrder.transaction_id ?? null, kitchenOrder: null };
+    }
 
     if (result.amount != null && Math.round(Number(paymentOrder.gross_amount ?? 0)) !== Math.round(result.amount)) {
       throw new ApiError(400, 'Jumlah pembayaran tidak sesuai.');

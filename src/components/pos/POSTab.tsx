@@ -1022,7 +1022,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
               </div>
             )}
 
-            <button type="button" onClick={handleCheckout} disabled={checkingOut || !cart.length || (method === 'Tunai' && paid < total)}
+            <button type="button" onClick={handleCheckout} disabled={checkingOut || !cart.length || (method === 'Tunai' && paid < total) || paymentPhase === 'creating' || paymentPhase === 'pending'}
               className="kaffe-gradient-button w-full py-5 text-white font-black text-base rounded-2xl active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 transition-all hover:shadow-xl hover:scale-[1.01] uppercase tracking-wider">
               {checkingOut ? <><RefreshCw size={24} className="animate-spin" /> MEMPROSES...</> : <>KONFIRMASI BAYAR <CheckCircle2 size={24}/></>}
             </button>

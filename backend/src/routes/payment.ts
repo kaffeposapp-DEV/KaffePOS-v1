@@ -255,6 +255,13 @@ router.post('/api/payments/:paymentId/check', requirePermission('can_manage_bill
     }
     const paidAt = checked.paidAt ?? new Date().toISOString();
     await withTransaction(async (client) => {
+      // Lock the session row so this manual check can't race the webhook path into
+      // a double activation; re-read subscription_id under the lock.
+      const lockedResult = await client.query(
+        `select subscription_id from public.subscription_payment_sessions where id = $1 for update`,
+        [session.id],
+      );
+      const alreadyActivated = Boolean(lockedResult.rows[0]?.subscription_id);
       await client.query(
         `
           insert into public.payment_events (payment_id, provider, event_type, provider_reference, merchant_order_id, raw_status, internal_status, payload, signature_valid, processed_at)
@@ -274,7 +281,7 @@ router.post('/api/payments/:paymentId/check', requirePermission('can_manage_bill
         `,
         [session.id, checked.providerReference, checked.paymentMethod, checked.rawStatus, checked.internalStatus, paidAt],
       );
-      if (checked.internalStatus === 'paid' && !session.subscription_id) {
+      if (checked.internalStatus === 'paid' && !alreadyActivated) {
         await activatePaidSubscription(client, {
           userId: session.user_id as string,
           plan: session.plan,
