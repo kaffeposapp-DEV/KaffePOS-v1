@@ -355,7 +355,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
       await new Promise((resolve) => setTimeout(resolve, attempt < 3 ? 1200 : 2500));
     }
     setPaymentPhase('pending');
-    toast.showToast('Pembayaran masih diproses. Status akan diperbarui otomatis dari Midtrans.', 'info');
+    toast.showToast('Pembayaran masih diproses. Status akan diperbarui otomatis dari gateway pembayaran.', 'info');
     return latest;
   }, [finishPaidPayment, toast]);
 
@@ -928,7 +928,7 @@ export default function POSTab({ toast, profile, subscriptionAccess }: Props) {
                   <div>
                     <p>{paymentMessage}</p>
                     {paymentOrder && <p className="mt-1 text-[11px] font-black uppercase tracking-wider opacity-70">{paymentOrder.order_id}</p>}
-                    {paymentStatus?.transaction_status && <p className="mt-1 text-[11px] font-black uppercase tracking-wider opacity-70">Midtrans: {paymentStatus.transaction_status}</p>}
+                    {paymentStatus?.transaction_status && <p className="mt-1 text-[11px] font-black uppercase tracking-wider opacity-70">Status: {paymentStatus.transaction_status}</p>}
                   </div>
                 </div>
               </div>
