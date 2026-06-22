@@ -7,7 +7,7 @@ const AUTH_TAG_LENGTH = 16;
 const SALT = 'kaffepos-pii-encryption-v1';
 
 function getEncryptionKey(): Buffer {
-  const secret = process.env.PII_ENCRYPTION_KEY || env.DATABASE_URL || 'development-only-key';
+  const secret = env.PII_ENCRYPTION_KEY || env.DATABASE_URL || 'development-only-key';
   return scryptSync(secret, SALT, 32);
 }
 

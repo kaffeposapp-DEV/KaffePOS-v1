@@ -11,6 +11,7 @@ export const envSchema = z.object({
   MIN_SUPPORTED_APK_VERSION: z.string().trim().default('0.0.0'),
   APP_RELEASE_CHANNEL: z.enum(['development', 'beta', 'stable']).default('beta'),
   NODE_ENV: z.enum(['development', 'test', 'staging', 'production']).default('development'),
+  STAGING_PROFILE: z.string().trim().optional(),
   PORT: z.coerce.number().int().positive().default(8787),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   DATABASE_URL: z.string().trim().optional(),
@@ -28,6 +29,10 @@ export const envSchema = z.object({
     .optional()
     .default('true'),
   DB_SSL_CA: z.string().optional(),
+  // PII (affiliate payout/bank) encryption key. If unset, the key derives from
+  // DATABASE_URL — so changing the DB password rotates the PII key too. Pin this
+  // to a stable value before rotating DB creds to keep existing data decryptable.
+  PII_ENCRYPTION_KEY: z.string().trim().optional(),
   SESSION_TTL_DAYS: z.coerce.number().int().positive().default(30),
   EMAIL_CODE_TTL_MINUTES: z.coerce.number().int().positive().default(10),
   PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().positive().default(60),
@@ -85,6 +90,7 @@ export const envSchema = z.object({
   GEMINI_API_KEY: z.string().trim().optional(),
   CORS_ORIGIN: z.string().trim().optional(),
   ADMIN_EMAILS: z.string().trim().optional(),
+  STAGING_REPAIR_TOKEN: z.string().trim().optional(),
   SENTRY_DSN: z.string().trim().optional(),
   SENTRY_ENVIRONMENT: z.string().trim().optional(),
   SENTRY_TRACES_SAMPLE_RATE: z.string().trim().optional(),

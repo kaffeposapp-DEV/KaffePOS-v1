@@ -6,17 +6,25 @@ The file `coolify.backend.minimal.env` was committed to git with **real secret
 values**. It has now been removed from tracking and added to `.gitignore`, but
 **the values still exist in git history and must be treated as compromised.**
 
-Rotate every secret below, then redeploy. Removing the file does *not* undo the
-exposure.
+Rotate the **live** secrets below, then redeploy. Removing the file does *not*
+undo the exposure.
 
-| Secret | Action |
-| --- | --- |
-| `DB_PASSWORD` | Change the Postgres role password; update `DATABASE_URL`. |
-| `JWT_SECRET` | Regenerate (`openssl rand -base64 48`). Invalidates existing JWTs (users re-login). |
-| `SESSION_SECRET` | Regenerate (`openssl rand -base64 48`). Invalidates existing sessions. |
-| `ENCRYPTION_KEY` | Regenerate (`openssl rand -hex 32`). ⚠️ Re-encrypt or migrate any data encrypted with the old key first. |
-| `STAGING_REPAIR_TOKEN` | Regenerate (`openssl rand -hex 32`). |
-| `DUITKU_MERCHANT_KEY` | The committed value was a placeholder — confirm no real key was ever committed. |
+| Leaked value | Used by code? | Action |
+| --- | --- | --- |
+| `DB_PASSWORD` | ✅ yes | Change the Postgres role password; update `DATABASE_URL`. **See the ⚠️ note below first.** |
+| `STAGING_REPAIR_TOKEN` | ✅ yes (`routes/staging.ts`) | Regenerate: `openssl rand -hex 32`. |
+| `JWT_SECRET` | ❌ no refs | Dead config — auth uses opaque DB sessions, not JWT. No rotation needed; just stop setting it. |
+| `SESSION_SECRET` | ❌ no refs | Dead config. No rotation needed. |
+| `ENCRYPTION_KEY` | ❌ no refs | Dead — the code reads `PII_ENCRYPTION_KEY`, not `ENCRYPTION_KEY`. No rotation needed. |
+| `DUITKU_MERCHANT_KEY` | n/a | The committed value was a placeholder — confirm no real key was ever committed. |
+
+> ⚠️ **DB password ↔ PII key coupling.** `lib/encryption.ts` derives the
+> affiliate payout/bank-account (PII) encryption key from `PII_ENCRYPTION_KEY`,
+> falling back to `DATABASE_URL` when unset. In the current config `PII_ENCRYPTION_KEY`
+> is unset, so **rotating `DB_PASSWORD` changes the PII key and makes existing
+> encrypted PII undecryptable.** Before rotating DB creds: set
+> `PII_ENCRYPTION_KEY` to the *current* `DATABASE_URL` value (pinning the key),
+> deploy, then rotate the DB password.
 
 ### Optional: purge from history
 

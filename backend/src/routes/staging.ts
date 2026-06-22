@@ -2,7 +2,7 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { type NextFunction, type Request, type Response, Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { pool, withTransaction, ApiError, normalizeEmail, resolveUniqueUsername } from '../core';
+import { pool, withTransaction, ApiError, normalizeEmail, resolveUniqueUsername, env } from '../core';
 
 const router = Router();
 
@@ -14,11 +14,11 @@ const stagingSmokeRepairSchema = z.object({
 });
 
 function isStagingRepairEnabled() {
-  return process.env.NODE_ENV === 'staging' && ['minimal', 'payment'].includes(process.env.STAGING_PROFILE || '');
+  return env.NODE_ENV === 'staging' && ['minimal', 'payment'].includes(env.STAGING_PROFILE || '');
 }
 
 function getRepairToken() {
-  return process.env.STAGING_REPAIR_TOKEN || '';
+  return env.STAGING_REPAIR_TOKEN || '';
 }
 
 function safeTokenEquals(received: string, expected: string) {
