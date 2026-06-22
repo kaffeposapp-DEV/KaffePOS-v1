@@ -201,7 +201,7 @@ The repair command reads ignored local staging env files, requires `STAGING_PROF
 - **CDN:** Cloudflare (static assets)
 - **Images:** Cloudflare Images
 - **Email:** Resend
-- **Payment:** Midtrans
+- **Payment:** DOKU Checkout
 - **Analytics:** Google Analytics 4, Microsoft Clarity
 - **Error Tracking:** Sentry
 - **AI:** Gemini (backend proxy)
@@ -478,14 +478,15 @@ KaffePOS uses PostgreSQL with a custom migration system.
 **Database Documentation:** [`docs/architecture/DATABASE.md`](docs/architecture/DATABASE.md)
 **QA Checklist:** [`docs/engineering/DATABASE_QA_CHECKLIST.md`](docs/engineering/DATABASE_QA_CHECKLIST.md)
 
-## Duitku Payment Migration
+## DOKU Payment Gateway
 
-- Payment gateway can run as `duitku`, `midtrans`, or `disabled` via `PAYMENT_GATEWAY_PROVIDER`.
-- Duitku callback URL: `https://api.kaffepos.my.id/api/webhooks/duitku`.
-- Duitku return URL: `https://kaffepos.my.id/settings?billing=duitku-return`.
-- Frontend return URL never marks payment paid; payment success requires verified server callback or verified status check.
-- Duitku merchant key stays backend-only and must not be added to `VITE_*` env.
+- Payment gateway runs as `doku` or `disabled` via `PAYMENT_GATEWAY_PROVIDER` (DOKU Checkout, hosted page). Both POS checkout and subscription billing go through it.
+- Register the DOKU notification (webhook) URL `https://api.kaffepos.my.id/api/webhooks/doku` in the DOKU Back Office — it must equal `DOKU_NOTIFICATION_PATH` (it is part of the verified signature).
+- Customer return URL: `https://kaffepos.my.id/settings?billing=doku-return`.
+- Frontend return URL never marks payment paid; success requires a verified server webhook or status check.
+- `DOKU_CLIENT_ID` / `DOKU_SECRET_KEY` stay backend-only and must not be added to `VITE_*` env.
+- Setup details: [`docs/engineering/DEPLOY_COOLIFY.md`](docs/engineering/DEPLOY_COOLIFY.md). Provider code: `backend/src/payments/providers/doku.provider.ts`.
 
-## Duitku Payment Start
+## DOKU Payment Start
 
-Frontend subscription checkout calls `POST /api/payments/start`. Backend selects `duitku`, `midtrans`, or `disabled` through `PAYMENT_GATEWAY_PROVIDER`. Run database migrations with `npm --prefix backend run migrate` before staging Duitku.
+Frontend subscription checkout calls `POST /api/payments/start`; POS calls `POST /api/payment/create`. Run database migrations with `npm --prefix backend run migrate` before going live.

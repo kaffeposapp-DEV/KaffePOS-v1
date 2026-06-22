@@ -46,8 +46,8 @@ export interface PaymentProvider {
   providerName: PaymentProviderName;
   createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult>;
   // `headers` + `rawBody` are required by providers that sign the webhook in the
-  // HTTP header over the raw payload (e.g. DOKU). Body-signature providers
-  // (Duitku) ignore them.
+  // HTTP header over the raw payload (e.g. DOKU). Body-signature providers may
+  // ignore them.
   verifyCallback(input: { body: Record<string, unknown>; headers?: Record<string, string | string[] | undefined>; rawBody?: string }): Promise<VerifiedPaymentCallback>;
   checkTransactionStatus(input: { merchantOrderId: string; amount?: number | null }): Promise<PaymentStatusResult>;
   mapProviderStatus(rawStatus: unknown): InternalPaymentStatus;

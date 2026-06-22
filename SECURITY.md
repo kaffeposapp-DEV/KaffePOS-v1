@@ -16,7 +16,8 @@ undo the exposure.
 | `JWT_SECRET` | ❌ no refs | Dead config — auth uses opaque DB sessions, not JWT. No rotation needed; just stop setting it. |
 | `SESSION_SECRET` | ❌ no refs | Dead config. No rotation needed. |
 | `ENCRYPTION_KEY` | ❌ no refs | Dead — the code reads `PII_ENCRYPTION_KEY`, not `ENCRYPTION_KEY`. No rotation needed. |
-| `DUITKU_MERCHANT_KEY` | n/a | The committed value was a placeholder — confirm no real key was ever committed. |
+
+(Duitku/Midtrans have since been removed; the gateway is DOKU. Treat any committed `DOKU_SECRET_KEY` as compromised and rotate it in the DOKU Back Office.)
 
 > ⚠️ **DB password ↔ PII key coupling.** `lib/encryption.ts` derives the
 > affiliate payout/bank-account (PII) encryption key from `PII_ENCRYPTION_KEY`,
