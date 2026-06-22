@@ -3,28 +3,41 @@
 Prioritized backlog of known debt. Each item is scoped so it can be done as an
 isolated, test-backed PR.
 
-## 1. Split the `backend/src/index.ts` god module (~2,950 lines)
+## 1. De-duplicate the `backend/src/index.ts` god module (~2,680 lines)
 
-The Express route modules are already extracted and mounted, but `index.ts`
-still holds a large in-file library of shared code. Extract in this order
-(lowest-risk first), running `npm run check` after each step:
+`index.ts` is the live entry point (`node dist/index.js`, `app.listen`), but it
+is **almost entirely a duplicate** of canonical modules that a prior, unfinished
+refactor already created:
 
-1. **Pure utilities** → `lib/util.ts`: `toNumber`, `addMinutes`, `addDays`,
-   `normalizeEmail`, `hashToken`, `createOpaqueToken`, `generateOtpCode`,
-   `pickDefined`, `buildUpdateClause`. No closure deps — safest first move.
-2. **DB row normalizers** → `lib/serializers.ts`: `normalizeStore`,
-   `serializeCashier`, `normalizeInventory`, `normalizeTransaction`,
-   `normalizeSubscription`, `serializeProfile`, …
-3. **Email service** → `services/EmailService.ts`: `sendEmail`,
-   `buildEmailTemplate`, and all `send*Email` helpers.
-4. **Midtrans helpers** → `payments/midtrans.ts`: `getMidtransBaseUrl`,
-   `isMidtransConfigured`, `createMidtransSignature`, `createMidtransOrderId`.
-5. **Auth middleware** → `middleware/auth.ts`: `authenticate`, `requireAdmin`,
-   `requirePermission`. Do this LAST and with the auth/contract tests watching —
-   it touches every protected route.
+- `core/helpers.ts` — `toNumber`, row normalizers, `pickDefined`,
+  `buildUpdateClause`, `serializeProfile`, `ensureProfile`, SQL column constants…
+- `core/middleware.ts` — `getBearerToken`, `hashToken`, `createOpaqueToken`,
+  `isAdminUser`, `authenticate`, `requireAdmin`, `requirePermission`, rate limiters.
+- `core/email.ts` — `sendEmail`, templates, all `send*Email` senders.
 
-Target: `index.ts` becomes bootstrap + middleware wiring + route mounting only
-(< ~300 lines).
+`routes/*` already import from `core/*`; only `index.ts` still carries its own
+inline copies. The task is to make `index.ts` import from `core/*` and delete the
+inline duplicates, leaving just bootstrap + middleware wiring + route mounting
+(target < ~300 lines).
+
+**Two hazards — this is why it must be done carefully, not in one big-bang:**
+
+1. **Drift.** The inline copies are NOT guaranteed identical to `core/*`. Confirmed
+   example: `index.ts`'s `insertNotification` is 6-arg (default `type='info'`)
+   while `core/helpers.ts`'s is 7-arg (default `type='system'`, extra `storeId`).
+   Diff every function before swapping; don't assume "exact same logic".
+2. **Coverage.** `index.ts`'s `authenticate` / RBAC / rate-limit middleware gate
+   `/api` in production but are thin in unit tests. Verify each swap with
+   `npm run check` **and** the staging smoke scripts (`smoke:staging:*`), ideally
+   against a running server, before merging.
+
+Done so far: removed the dead email block and pointed the pure utils/serializers
+at `core/helpers.ts`. Remaining: middleware, profile/subscription helpers, column
+constants, Midtrans/subscription config.
+
+Once the duplication is gone, enable `noUnusedLocals`/`noUnusedParameters` in
+`backend/tsconfig.json` (currently off — which is how this dead code accumulated
+unnoticed) to prevent regressions.
 
 ## 2. Remove `any` escape hatches (~59 occurrences)
 
