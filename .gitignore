@@ -7,6 +7,15 @@ dist/
 !.env.coolify.example
 !backend/.env.example
 !backend/.env.staging.example
+
+# Deploy env files (Coolify/etc.) — only *.example templates are tracked
+*.minimal.env
+!*.minimal.env.example
+
+# Stray editor/AI backup & patch artifacts must never be committed
+*.bak
+*.patch.ts
+*.orig
 .agent/
 android/
 !android/
@@ -30,6 +39,7 @@ android/keystore.properties
 google-services.json
 android/app/google-services.json
 .DS_Store
+.metadata_never_index
 coverage/
 backups/*.sql
 backend/backups/
