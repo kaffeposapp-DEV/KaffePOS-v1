@@ -100,14 +100,14 @@ async function checkCommercialStatus() {
 
   if (
     payment?.environment === 'production' &&
-    payment?.mode === 'midtrans_production' &&
+    payment?.mode === 'doku_production' &&
     payment?.onlinePaymentAvailable === true &&
     payment?.commerciallyReady === true
   ) {
-    pass('Midtrans production billing is commercially ready');
+    pass('DOKU production billing is commercially ready');
   } else {
     fail(
-      `Midtrans billing is not production-ready (environment=${payment?.environment ?? 'unknown'}, mode=${
+      `DOKU billing is not production-ready (environment=${payment?.environment ?? 'unknown'}, mode=${
         payment?.mode ?? 'unknown'
       }, online=${String(payment?.onlinePaymentAvailable)}, commerciallyReady=${String(payment?.commerciallyReady)})`,
     );

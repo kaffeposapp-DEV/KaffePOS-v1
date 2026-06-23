@@ -39,7 +39,7 @@ describe('release config script guardrails', () => {
     expect(packageJson).toContain('"smoke:production:billing"');
     expect(script).toContain("KAFFEPOS_BILLING_API_BASE_URL || process.env.API_BASE_URL || 'https://api.kaffepos.my.id'");
     expect(script).toContain('/system-status');
-    expect(script).toContain("payment?.mode === 'midtrans_production'");
+    expect(script).toContain("payment?.mode === 'doku_production'");
     expect(script).toContain("payment?.commerciallyReady === true");
     expect(script).toContain('subscription_payments');
     expect(script).toContain('KAFFEPOS_BILLING_EMAIL');
